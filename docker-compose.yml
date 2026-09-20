@@ -9,21 +9,22 @@ services:
   # ========================
   # PostgreSQL + pgvector1
   # ========================
-  # db:
-  #   image: pgvector/pgvector:pg18
-  #   restart: unless-stopped
-  # 
-  #   ports:
-  #     - "5432:5432"
-  # 
-  #   volumes:
-  #     # PostgreSQL 18에서는 상위 디렉터리를 마운트
-  #     - postgres_data:/var/lib/postgresql
-  # 
-  #   environment:
-  #     POSTGRES_DB: ${DB_NAME}
-  #     POSTGRES_USER: ${DB_USER}
-  #     POSTGRES_PASSWORD: ${DB_PASSWORD}
+  db:
+    image: pgvector/pgvector:pg18
+    profiles: ["local"]
+    restart: unless-stopped
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      # PostgreSQL 18에서는 상위 디렉터리를 마운트
+      - postgres_data:/var/lib/postgresql
+
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
 
 
   # ========================
@@ -56,8 +57,8 @@ services:
       DEMO_USERS_ENABLED: ${DEMO_USERS_ENABLED:-false}
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,[::1]}
 
-      # RDS 호스트를 .env 파일에서 읽어오도록 설정
-      DB_HOST: ${DB_HOST}
+      # 로컬에서는 db 컨테이너, 서버에서는 RDS (.env의 DB_HOST) 사용
+      DB_HOST: ${DB_HOST:-db}
       DB_PORT: ${DB_PORT}
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
@@ -92,8 +93,9 @@ services:
       - "8000:8000"
 
     depends_on:
-      # db:
-      #   condition: service_started
+      db:
+        condition: service_started
+        required: false
       minio:
         condition: service_healthy
 
@@ -198,5 +200,5 @@ services:
 # Named Volumes
 # ========================
 volumes:
-  # postgres_data:
+  postgres_data:
   minio_data:
