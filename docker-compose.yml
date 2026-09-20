@@ -7,7 +7,7 @@ x-logging: &default-logging
 services:
 
   # ========================
-  # PostgreSQL + pgvector
+  # PostgreSQL + pgvector1
   # ========================
   db:
     image: pgvector/pgvector:pg18
