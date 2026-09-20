@@ -52,8 +52,7 @@ class Command(BaseCommand):
                         )
                     )
         except DatabaseError:
-            raise
-            # raise CommandError("조회 역할 설정에 실패해 모든 변경을 롤백했습니다.") from None
+            raise CommandError("조회 역할 설정에 실패해 모든 변경을 롤백했습니다.") from None
         self.stdout.write(self.style.SUCCESS(f"{role}: 야구 읽기 전용 권한 설정 완료"))
 
     @staticmethod
