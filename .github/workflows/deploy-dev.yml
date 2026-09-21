@@ -59,7 +59,7 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             set -eu
-            cd ~/SKN34-3rd-5Team
+            cd ~/dev
             git pull --ff-only origin develop
             docker compose up -d --build backend frontend
             docker compose up -d --no-deps --force-recreate nginx
