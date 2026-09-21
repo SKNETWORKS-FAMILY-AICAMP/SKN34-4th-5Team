@@ -234,3 +234,6 @@ frontend/.member-preview/
 .hermes/*
 .vscode/*
 .claude/*
+
+# nginx
+nginx/ssl/
