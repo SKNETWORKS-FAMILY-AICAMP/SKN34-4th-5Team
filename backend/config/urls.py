@@ -15,6 +15,7 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
+from django.http import JsonResponse
 from django.urls import path, include
 from drf_spectacular.views import SpectacularAPIView
 from llm.views import (
@@ -25,7 +26,14 @@ from llm.views import (
     ChatTurnListView,
     GuestChatView,
 )
+
+
+def health_check(request):
+    return JsonResponse({"status": "ok"})
+
+
 urlpatterns = [
+    path("healthz/", health_check, name="health-check"),
     path("schema/", SpectacularAPIView.as_view(), name="api-schema"),
     path("admin/", admin.site.urls),
     path("", include("travel.urls")),

@@ -28,10 +28,13 @@ load_dotenv(BASE_DIR.parent / ".env", override=False)
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-xg6ypt+%hw2k@xak+x#7bqqpn(-^vu73^9qh3xnh*=^$pn6jg*'
+SECRET_KEY = os.getenv(
+    "SECRET_KEY",
+    'django-insecure-xg6ypt+%hw2k@xak+x#7bqqpn(-^vu73^9qh3xnh*=^$pn6jg*',
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv("DEBUG", "true").strip().lower() == "true"
 DEMO_USERS_ENABLED = os.getenv("DEMO_USERS_ENABLED", "false").strip().lower() == "true"
 CHAT_CHECKPOINT_SIGNING_KEY = os.getenv("CHAT_CHECKPOINT_SIGNING_KEY", "")
 CHAT_TRUST_PROXY_HEADERS = os.getenv("CHAT_TRUST_PROXY_HEADERS", "false").strip().lower() == "true"
