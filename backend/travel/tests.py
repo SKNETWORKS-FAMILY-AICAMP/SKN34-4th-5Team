@@ -330,7 +330,7 @@ class CourseApiTests(TestCase):
         self.assertEqual(resolve("/api/v1/courses/").url_name, "course-list")
         self.assertEqual(resolve(f"/api/v1/courses/{created.data['id']}/").url_name, "course-detail")
         with self.assertRaises(Resolver404):
-            resolve("/api/v1/courses/")
+            resolve("/courses/")
 
 
 class CourseSampleTests(TestCase):

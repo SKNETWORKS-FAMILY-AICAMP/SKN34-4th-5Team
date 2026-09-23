@@ -165,7 +165,7 @@ def set_password(request):
 def get_user(request):
     """
         로그인한 사용자 정보를 조회합니다.
-        Url: GET /v1/auth/user (Nginx 경유: /api/v1/auth/user)
+        Url: GET /api/v1/auth/user
         Headers: Authorization: Bearer <access_token>
         Return:
             - HTTP_200_OK

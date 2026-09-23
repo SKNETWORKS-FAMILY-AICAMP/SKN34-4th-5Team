@@ -7,7 +7,7 @@ class AuthSchemaTests(SimpleTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.schema = SchemaGenerator(patterns=[path("auth/", include("accounts.urls"))]).get_schema(request=None, public=True)
+        cls.schema = SchemaGenerator(patterns=[path("api/v1/auth/", include("accounts.urls"))]).get_schema(request=None, public=True)
 
     def test_auth_schema_matches_wire_contract(self):
         paths = self.schema["paths"]
