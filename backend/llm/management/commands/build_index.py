@@ -308,6 +308,18 @@ class Command(BaseCommand):
                 add("기초규칙_요약본.md", "RULE", None, None, f"PART{i}", "[야구 기초 규칙] " + part,
                     {"part": i, "status": "CONFIRMED", "evidence_type": "OFFICIAL"})
 
+        # 1-5. 규정집 전체 (4차 #14, 2026-09-23): 공식야구규칙 + KBO 리그규정을 조·항 단위로 청킹한 CSV.
+        #      청킹은 preprocessing/chunk_rulebooks.py 가 하고, 여기서는 content·doc_id를 그대로 싣는다.
+        #      기초규칙_요약본(입문용 요약 11청크)은 그대로 두고 병행 — doc_id 접두어가 달라 충돌 없음.
+        rule_csv = DATA_DIR / "kbo_rulebook_chunks.csv"
+        if rule_csv.exists():
+            df = read_csv("kbo_rulebook_chunks.csv")
+            for r in df.to_dict("records"):
+                natural = str(r["doc_id"]).removeprefix("RULE_COMMON_")   # add()가 RULE_COMMON_ 을 다시 붙임
+                add("kbo_rulebook_chunks.csv", "RULE", None, None, natural, str(r["content"]).strip(), r)
+        else:
+            self.stderr.write("kbo_rulebook_chunks.csv 없음 — preprocessing/chunk_rulebooks.py 먼저 실행 (규정집 청크 생략)")
+
         return chunks
 
     # ── 2. 임베딩 ────────────────────────────────────────────────────────────
@@ -365,7 +377,7 @@ class Command(BaseCommand):
         by_cat = Counter(c["category"] for c in chunks)
         dup = n - len({c["doc_id"] for c in chunks})
         self.stdout.write(f"\n총 청크: {n}  (기대 3,839 ± 200, 2026-09-13 청킹 조정 기준)")
-        self.stdout.write(f"stadium_code 없음: {no_stadium}  (정상 12 = 반입 공통 1 + 기초규칙 11)")
+        self.stdout.write(f"stadium_code 없음: {no_stadium}  (정상 = 반입 공통 1 + 기초규칙 11 + 규정집 청크 {sum(1 for c in chunks if c['source'] == 'kbo_rulebook_chunks.csv')})")
         self.stdout.write(f"50자 미만: {short}")
         self.stdout.write(f"doc_id 중복: {dup}  (0 이어야 함)")
         for cat, cnt in sorted(by_cat.items(), key=lambda x: -x[1]):
