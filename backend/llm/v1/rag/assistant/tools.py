@@ -53,6 +53,8 @@ def new_state(hint_stadium=None, question="", history=None) -> dict:
     """테스트/직접 도구 호출용 상태를 만든다. 답변 진입점은 request_state를 쓴다."""
     st = _new_state(hint_stadium, question, history)
     _STATE.set(st)
+    from ....tools.knowledge import assistant_context
+    assistant_context.set(st)
     return st
 
 
@@ -61,9 +63,12 @@ def request_state(hint_stadium=None, question="", history=None):
     """한 답변 요청 동안만 assistant 도구 상태를 공유하고 부모 상태를 복원한다."""
     st = _new_state(hint_stadium, question, history)
     token = _STATE.set(st)
+    from ....tools.knowledge import assistant_context
+    knowledge_token = assistant_context.set(st)
     try:
         yield st
     finally:
+        assistant_context.reset(knowledge_token)
         _STATE.reset(token)
 
 
@@ -71,6 +76,11 @@ def state() -> dict:
     try:
         return _STATE.get()
     except LookupError:
+        from ....tools.knowledge import assistant_context
+        current = assistant_context.get(None)
+        if current is not None:
+            _STATE.set(current)
+            return current
         return new_state()
 
 
@@ -302,25 +312,12 @@ def execute_baseball_select(sql, params=None, max_rows=20, _service_obj=None) ->
 
 
 # ── RAG 추가 검색 ─────────────────────────────────────────────────────────────
-class SearchInput(BaseModel):
-    query: str = Field(description="검색할 내용 (예: '고척 주차 요금', '보조배터리 반입')")
-    stadium_code: str | None = Field(default=None, description="구장 코드나 이름. 모르면 비운다")
-    categories: list[str] | None = Field(default=None, description="TRANSPORT, FOOD_IN, FOOD_OUT, CAFE, SPOT, FACILITY, "
-                                                                  "SEAT, CARRY_IN, REENTRY, RULE 중에서. 모르면 비운다")
+from ....tools.knowledge import SearchInput
 
 
 def search_documents(query, stadium=None, categories=None, k=DOC_K, _search=None, _embed=None) -> list[dict]:
-    """pgvector 검색 + 키워드 재정렬. 카테고리로 0건이면 카테고리를 풀고 한 번 더."""
-    cats = [c.upper() for c in (categories or []) if c and c.upper() in CATEGORIES] or None
-    if _search is None:
-        from ..club.retrieval import embed, keyword_rerank, search
-        _embed = embed
-        _search = lambda v, kk, st, ct: keyword_rerank(query, search(v, k=kk, stadium=st, categories=ct)[0], k=k)  # noqa: E731
-    vec = _embed(query)
-    rows = _search(vec, k * 3, stadium, cats)
-    if not rows and cats:
-        rows = _search(vec, k * 3, stadium, None)
-    return list(rows)[:k]
+    from ....tools.knowledge import search_kbo_rows
+    return search_kbo_rows(query, stadium, categories, k, _search, _embed)
 
 
 def format_documents(rows) -> str:
@@ -337,13 +334,9 @@ def add_sources(rows):
 
 
 def search_kbo_documents(query, stadium_code=None, categories=None, _search=None, _embed=None) -> str:
-    """구장 안내 문서를 더 찾는다 (이미 받은 참고 문서에 없을 때만)."""
-    s = state()
-    s["tools"].append("rag")
-    code = to_stadium_code(stadium_code) if stadium_code else s.get("hint")
-    rows = search_documents(query, code, categories, _search=_search, _embed=_embed)
-    add_sources(rows)
-    return format_documents(rows)
+    """기존 직접 호출 계약을 유지하는 문서 검색 어댑터."""
+    from ....tools.knowledge import search_kbo_documents as search
+    return search(query, stadium_code, categories, _search, _embed)
 
 
 # ── 카카오 주변 장소 · 코스 짜기 ───────────────────────────────────────────────
@@ -393,6 +386,8 @@ def plan_course(request, _course=None) -> str:
 
 
 def build_specialized_tools():
+    from ....tools.knowledge import search_kbo_documents as knowledge_search_kbo_documents
+
     def tool(fn, schema):
         return StructuredTool.from_function(fn, name=fn.__name__, args_schema=schema, description=fn.__doc__,
                                             handle_validation_error="도구 인자 형식이 올바르지 않습니다. 설명을 보고 다시 부르세요.")
@@ -403,7 +398,7 @@ def build_specialized_tools():
         tool(get_ticket_policy, PolicyInput),
         tool(get_baseball_schema, NoInput),
         tool(execute_baseball_select, SelectInput),
-        tool(search_kbo_documents, SearchInput),
+        tool(knowledge_search_kbo_documents, SearchInput),
         tool(search_nearby_places, NearbyInput),
         tool(plan_course, CourseInput),
     )

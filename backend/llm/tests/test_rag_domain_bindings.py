@@ -2,19 +2,18 @@ import json
 from unittest.mock import Mock, patch
 
 from django.test import SimpleTestCase
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
-from langchain_core.runnables import RunnableLambda
+from langchain_core.messages import AIMessage, ToolMessage
 
-from ..service.chat_service import ChatService
 from ..v1.rag import dispatcher
 from ..v1.rag import domain_tools
 from ..v1.rag.assistant import pipeline as assistant_pipeline
 from ..v1.rag.club import agent as club
+from ..v1.rag.club import retrieval
 from ..v1.rag.course import agent as course
 from ..v1.rag.nearby import agent as nearby
 from ..v1.rag.assistant import tools as assistant_tools
 from ..v1.rag.venue import agent as venue
-from ..v1.tools import DOMAIN_TOOL_NAMES
+from ..tools import DOMAIN_TOOL_NAMES
 
 
 EXPECTED = set(DOMAIN_TOOL_NAMES) | {
@@ -57,9 +56,7 @@ class DomainAllowlistTest(SimpleTestCase):
             domain: tuple(tool.name for tool in domain_tools.tools_for(domain))
             for domain in ("assistant", "club", "course", "venue", "nearby")
         }
-        model = RunnableLambda(lambda _: AIMessage(content="ok"))
-        model.bind_tools = Mock(return_value=model)
-        inventories["chat"] = tuple(tool.name for tool in ChatService(llm=model).tools)
+        inventories["chat"] = tuple(tool.name for tool in domain_tools.tools_for("chat"))
         self.assertEqual(set(inventories.values()), {inventories["assistant"]})
         self.assertEqual(set(inventories["assistant"]), EXPECTED)
         self.assertEqual(len(inventories["assistant"]), len(EXPECTED))
@@ -85,17 +82,6 @@ class DomainAllowlistTest(SimpleTestCase):
             with self.subTest(module=module.__name__), patch.object(module, "_answer", side_effect=inspect):
                 self.assertEqual(module.answer("fresh", expected_history, "JAMSIL")["answer"], "ok")
 
-        def inspect_chat():
-            current = assistant_tools.state()
-            self.assertEqual((current["hint"], current["question"], current["history"]),
-                             (None, "fresh", expected_history))
-            self.assertFalse(current["schema_seen"])
-            return {"answer": "ok"}
-
-        service = ChatService.__new__(ChatService)
-        with patch.object(service, "_run_scoped", side_effect=lambda _values: inspect_chat()):
-            self.assertEqual(service._run({"question": "fresh", "chat_history": [HumanMessage(content="fresh history")]}),
-                             {"answer": "ok"})
         self.assertIs(assistant_tools.state(), parent)
 
     def test_streaming_uses_full_inventory_visible_text_and_restores_state(self):
@@ -251,7 +237,18 @@ class DomainAllowlistTest(SimpleTestCase):
             {"place_key": "STADIUM", "phase": "GAME", "reason": "관람"},
         ]}, ensure_ascii=False)
         select = Mock(return_value=(selection, 1.0))
+        # 에이전트 파이프라인(#30)을 실패시켜 이 테스트가 검증하려는 course 폴백 경로로 보낸다.
+        # 실패시키지 않으면 assistant.answer 가 real OpenAI LLM/embedding 으로 먼저 나간다.
+        # side_effect 로만 막으면 dispatcher._call 이 예외를 삼켜 위반을 가려버릴 수 있으므로,
+        # 호출 여부 자체를 assert_not_called() 로 증명한다 (실패해도 예외가 삼켜지지 않는 방식).
+        provider_llm_guard = Mock(side_effect=AssertionError("real provider call attempted"))
+        embed_guard = Mock(side_effect=AssertionError("real embedding call attempted"))
+        embed_many_guard = Mock(side_effect=AssertionError("real embedding call attempted"))
         with (
+            patch.object(dispatcher.assistant, "answer", side_effect=RuntimeError("agent down")),
+            patch.object(assistant_pipeline, "llm", provider_llm_guard),
+            patch.object(retrieval, "embed", embed_guard),
+            patch.object(retrieval, "embed_many", embed_many_guard),
             patch.object(course, "invoke_domain_tool", side_effect=invoke),
             patch.object(course, "stadium_anchor", return_value=anchor),
             patch.object(course, "embed_many", return_value=([0.0], [0.0])),
@@ -260,6 +257,9 @@ class DomainAllowlistTest(SimpleTestCase):
             patch.object(course, "call_llm", select),
         ):
             result = dispatcher.answer("9월 20일 잠실 코스 짜줘", intent="route")
+        provider_llm_guard.assert_not_called()
+        embed_guard.assert_not_called()
+        embed_many_guard.assert_not_called()
         self.assertIn("LG 트윈스 홈 vs 두산 베어스 원정", select.call_args.args[1])
         self.assertEqual(result["places"][0]["name"], "최신 맛집")
         self.assertIsNotNone(result["coursePayload"])
@@ -319,17 +319,17 @@ class DomainAllowlistTest(SimpleTestCase):
                 return values["query"]
 
         transformer = Transformer()
-        previous = venue._transformer
-        venue._transformer = transformer
+        previous = venue.knowledge._transformer
+        venue.knowledge._transformer = transformer
         try:
             model = ToolCallingModel("search_documents_tool", {"query": "잠실 포토존"})
             with (
-                patch.object(venue, "vector_search", return_value=[]),
-                patch.object(venue, "keyword_fallback_search", return_value=[]),
+                patch.object(venue.knowledge, "vector_search", return_value=[]),
+                patch.object(venue.knowledge, "keyword_fallback_search", return_value=[]),
             ):
                 response = domain_tools.run_model(model, [], "club", max_tool_rounds=1)
         finally:
-            venue._transformer = previous
+            venue.knowledge._transformer = previous
         self.assertEqual(transformer.calls, 1)
         self.assertIn("관련 문서를 찾을 수 없습니다", response.content)
         self.assertIsNone(domain_tools.active_domain())

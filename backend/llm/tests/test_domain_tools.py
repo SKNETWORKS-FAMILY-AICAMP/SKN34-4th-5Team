@@ -3,23 +3,20 @@ import json
 import sys
 from datetime import date, time
 from types import ModuleType
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 from uuid import uuid4
 
 from django.db import DatabaseError
 from django.contrib.auth import get_user_model
 from django.test import SimpleTestCase, TestCase
 from django.utils import timezone
-from langchain_core.messages import AIMessage, ToolMessage
-from langchain_core.runnables import RunnableLambda
 
 from baseball import models as baseball
 from community.models import CommunityDraft, CommunityPost, GamePrediction, PredictionGame
 from travel.models import Course, CourseStop
 
-from ..service.chat_service import ChatService
 from ..v1.rag import domain_tools
-from ..v1.tools import DOMAIN_TOOL_NAMES, create_default_tools, create_domain_tools
+from ..tools import DOMAIN_TOOL_NAMES, create_default_tools, create_domain_tools
 
 
 EXPECTED_NAMES = (
@@ -29,6 +26,13 @@ EXPECTED_NAMES = (
     "search_courses", "get_course", "search_community_posts", "get_prediction_games",
     "search_players", "get_directions", "search_tourism", "get_weather",
 )
+
+# domain_tools.tools_for() 가 도메인 도구에 더해 노출하는 assistant 전용·SQL·knowledge 도구.
+# test_rag_domain_bindings.EXPECTED / test_assistant 와 같은 집합이다.
+REGISTRY_EXTRA_NAMES = {
+    "get_baseball_schema", "execute_baseball_select", "get_ticket_policy",
+    "search_kbo_documents", "search_nearby_places", "plan_course", "search_documents_tool",
+}
 
 
 class DomainToolsTest(TestCase):
@@ -86,16 +90,21 @@ class DomainToolsTest(TestCase):
         default_names = tuple(tool.name for tool in create_default_tools())
         self.assertEqual(default_names[:len(EXPECTED_NAMES)], EXPECTED_NAMES)
         self.assertEqual(default_names[-2:], ("get_baseball_schema", "execute_baseball_select"))
-        model = RunnableLambda(lambda _: AIMessage(content="테스트"))
-        self.assertEqual(tuple(tool.name for tool in ChatService(llm=model).tools),
-                         tuple(tool.name for tool in domain_tools.tools_for("chat")))
-        self.assertEqual(ChatService(llm=model, tools=()).tools, ())
+        # tools_for() 는 도메인 도구에 assistant 전용·SQL·knowledge 도구까지 합친 공유
+        # 레지스트리라 EXPECTED_NAMES 보다 넓다 (REGISTRY_EXTRA_NAMES 만큼).
+        chat_names = tuple(tool.name for tool in domain_tools.tools_for("chat"))
+        self.assertEqual(len(chat_names), len(set(chat_names)))
+        self.assertEqual(set(chat_names), set(EXPECTED_NAMES) | REGISTRY_EXTRA_NAMES)
+        # 모든 지원 도메인이 같은 공유 레지스트리를 받는다 (도메인별 allowlist 아님).
+        for domain in sorted(domain_tools.SUPPORTED_DOMAINS):
+            with self.subTest(domain=domain):
+                self.assertEqual(tuple(tool.name for tool in domain_tools.tools_for(domain)), chat_names)
 
     def test_deterministic_invoke_keeps_canonical_schemas_and_dict_results(self):
         fresh = {"stale": False, "warning": None}
         with (
-            patch("llm.v1.tools.domain.tving_service.ensure_game_range_fresh", return_value=fresh),
-            patch("llm.v1.tools.domain.tving_service.ensure_standings_fresh", return_value=fresh),
+            patch("tving.service.ensure_game_range_fresh", return_value=fresh),
+            patch("tving.service.ensure_standings_fresh", return_value=fresh),
         ):
             games = domain_tools.invoke("course", "get_games", {
                 "start_date": "2099-09-15", "end_date": "2099-09-15", "team_code": "LG",
@@ -181,7 +190,7 @@ class DomainToolsTest(TestCase):
                 self.assertEqual(self.tools[name].invoke(args), "도구 입력 형식이 올바르지 않습니다. 인자 설명을 확인하세요.")
 
     def test_database_errors_are_sanitized(self):
-        with patch("llm.v1.tools.domain.Stadium.objects.filter", side_effect=DatabaseError("password=private")):
+        with patch("llm.tools.stadium.Stadium.objects.filter", side_effect=DatabaseError("password=private")):
             result = self.tools["get_stadium"].invoke({"stadium_id": 1})
         self.assertEqual(result, "저장된 정보를 조회하지 못했습니다. 잠시 후 다시 시도해 주세요.")
         self.assertNotIn("private", result)
@@ -205,7 +214,7 @@ class DomainToolsTest(TestCase):
             )
             return {"stale": False, "warning": None}
 
-        with patch("llm.v1.tools.domain.tving_service.ensure_game_range_fresh", side_effect=sync_games) as games_sync, patch("llm.v1.tools.domain.tving_service.ensure_standings_fresh", side_effect=sync_standings) as standings_sync:
+        with patch("tving.service.ensure_game_range_fresh", side_effect=sync_games) as games_sync, patch("tving.service.ensure_standings_fresh", side_effect=sync_standings) as standings_sync:
             games = self.tools["get_games"].invoke({"start_date": game_day.isoformat(), "end_date": game_day.isoformat(), "team_code": "LG"})
             standings = self.tools["get_standings"].invoke({"snapshot_date": game_day.isoformat()})
         games_sync.assert_called_once_with(game_day, game_day)
@@ -263,8 +272,8 @@ class ExternalDomainToolAdapterTest(SimpleTestCase):
         refreshed = {"stale": False, "warning": None}
         rows = [{"externalCode": "p1", "teamCode": "LG", "name": "홍길동"}]
         with (
-            patch("llm.v1.tools.domain.tving_service.refresh_team", return_value=refreshed) as refresh,
-            patch("llm.v1.tools.domain.tving_service.search_entities", return_value=(rows, 1)) as search,
+            patch("tving.service.refresh_team", return_value=refreshed) as refresh,
+            patch("tving.service.search_entities", return_value=(rows, 1)) as search,
         ):
             result = self.tools["search_players"].invoke({"team_code": "LG", "name": "홍길동"})
         refresh.assert_called_once_with("LG")
@@ -290,31 +299,3 @@ class ExternalDomainToolAdapterTest(SimpleTestCase):
                 "stadium_code": "JAMSIL", "game_date": "2026-09-16", "game_time": "18:30",
             }), weather)
         get_weather.assert_called_once_with("JAMSIL", "2026-09-16", "18:30")
-
-
-class ChatDomainRoutingTest(TestCase):
-    @staticmethod
-    def service(stream=False):
-        seen = []
-
-        def respond(prompt):
-            messages = prompt.to_messages()
-            seen.append(messages)
-            if not any(isinstance(message, ToolMessage) for message in messages):
-                return AIMessage(content="", tool_calls=[{"name": "get_stadium", "args": {"stadium_id": 999}, "id": "stadium-1"}])
-            return AIMessage(content="조회 결과가 없습니다.")
-
-        model = RunnableLambda(respond)
-        model.bind_tools = Mock(return_value=model)
-        if stream:
-            model.stream = lambda prompt: iter((AIMessage(content="조회 "), AIMessage(content="결과가 없습니다.")))
-        return ChatService(llm=model, tools=(create_domain_tools()[2],)), seen
-
-    def test_invoke_and_stream_route_through_typed_tool_with_fake_llm(self):
-        invoke_service, invoke_seen = self.service()
-        self.assertEqual(invoke_service._run({"question": "구장", "chat_history": []}), "조회 결과가 없습니다.")
-        self.assertTrue(any(isinstance(message, ToolMessage) and message.name == "get_stadium" for message in invoke_seen[-1]))
-
-        stream_service, stream_seen = self.service(stream=True)
-        self.assertEqual("".join(stream_service.stream_with_history([], "구장")), "조회 결과가 없습니다.")
-        self.assertTrue(any(isinstance(message, ToolMessage) and message.name == "get_stadium" for message in stream_seen[-1]))

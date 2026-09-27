@@ -12,10 +12,20 @@ DOMAIN_TOOL_NAMES = (
 )
 
 
-def create_domain_tools(*args, **kwargs):
-    # baseball-only 테스트 설정에서도 기존 SQL 도구 import가 가능하도록 지연 import한다.
-    from .domain import create_domain_tools as factory
-    return factory(*args, **kwargs)
+def create_domain_tools():
+    # SQL-only imports must not load domain models until this factory is called.
+    from .baseball import create_baseball_domain_tools
+    from .stadium import create_stadium_tools
+    from .travel import create_travel_tools
+    from .community import create_community_tools
+    from .weather import create_weather_tools
+
+    tools = (
+        *create_baseball_domain_tools(), *create_stadium_tools(),
+        *create_travel_tools(), *create_community_tools(), *create_weather_tools(),
+    )
+    by_name = {tool.name: tool for tool in tools}
+    return tuple(by_name[name] for name in DOMAIN_TOOL_NAMES)
 
 
 def create_default_tools():

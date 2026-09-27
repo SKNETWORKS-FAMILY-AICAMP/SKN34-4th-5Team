@@ -16,12 +16,12 @@ def active_domain():
 
 
 def _all_tools():
-    from ..tools import create_default_tools
+    from ...tools import create_default_tools
     from .assistant.tools import build_specialized_tools
-    from .venue.agent import search_documents_tool
+    from ...tools.knowledge import create_knowledge_tools
 
     registered = {tool.name: tool for tool in build_specialized_tools()}
-    for tool in (*create_default_tools(), search_documents_tool):
+    for tool in (*create_default_tools(), *create_knowledge_tools()):
         registered.setdefault(tool.name, tool)
     return tuple(registered.values())
 
@@ -46,7 +46,7 @@ def tools_for(domain):
 def invoke(domain, name, arguments):
     if domain not in SUPPORTED_DOMAINS:
         raise KeyError(domain)
-    from ..tools import create_default_tools
+    from ...tools import create_default_tools
     tool = next((tool for tool in create_default_tools() if tool.name == name), None)
     if tool is None:
         raise ValueError(f"{name} is not allowed for {domain}")

@@ -98,8 +98,8 @@ def last_detail():
 def _running_tests() -> bool:
     """지금 테스트 러너 안에서 도는 중인가.
 
-    성호 회귀 테스트는 patch("llm.v1.chat_service.ChatService.get_chain", ...) 나
-    patch("llm.v1.chat_service.ChatOpenAI", ...) 로 모델을 갈아끼운다.
+    성호 회귀 테스트는 patch("llm.service.chat_service.ChatService.get_chain", ...) 나
+    patch("llm.service.chat_service.ChatOpenAI", ...) 로 모델을 갈아끼운다.
     RAG 를 켜면 그 자리를 우리 체인이 차지해 패치가 안 먹고 테스트가 통째로 깨진다.
     성호 테스트 파일을 건드리지 않으려고 우리 쪽에서 막는다.
 

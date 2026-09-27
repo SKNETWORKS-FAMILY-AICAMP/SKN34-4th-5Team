@@ -13,7 +13,7 @@ from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, SystemMessage
 
 from . import pipeline, tools
-from ...tools import DOMAIN_TOOL_NAMES
+from ....tools import DOMAIN_TOOL_NAMES
 
 ALL_TABLES = ["TEAM", "STADIUM", "HOME_CONTEXT", "POSTSEASON_STAGE", "GAME", "STANDING_HISTORY", "SEAT_ZONE",
               "TICKET_PRICE", "TICKET_POLICY"]
@@ -394,6 +394,8 @@ class DispatcherTest(unittest.TestCase):
             ],
             "stadium_name": "잠실야구장",
             "intent": "stadium",
+            # 출발지 접두어가 없으면 origin 은 None 으로 채워진다 (answer() 의 origin 인자 기본값)
+            "origin": None,
         })
 
 
