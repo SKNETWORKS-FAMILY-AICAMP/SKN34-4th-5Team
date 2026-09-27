@@ -17,6 +17,10 @@ python -m unittest discover -s backend/crawling -p 'test_stadium*.py'
 키는 로그·결과 파일에 기록하지 않습니다. Google 키는 서버에서만 사용합니다.
 결과는 Git에서 이미 제외된 `backend/artifacts/stadium_collection/<UTC>/`에 생성합니다.
 
+2026-09-27 수집본은 검증 후 `data/staging/stadium_places/20260927T092810Z/`에
+중복 없는 복원용 JSONL로 따로 보관합니다. **공공장소 실제 기록과 Google Place ID도 Git에 포함**합니다.
+검증·PostgreSQL 별도 스키마 적재 방법은 [적재본 안내](../../data/staging/stadium_places/README.md)를 참고하세요.
+
 ## 출처와 분류
 
 | 대상 | 출처 | 처리 |
