@@ -228,7 +228,7 @@ frontend/.member-preview/
 
 # Mailpit runtime data
 /data/mailpit/
-/graphify-out/*
+**/graphify-out/**
 /data/mailpit/*
 .gstack/*
 .hermes/*
@@ -237,3 +237,8 @@ frontend/.member-preview/
 
 # nginx
 nginx/ssl/
+
+.vscode/**
+
+.agents/*
+.gemini/*
