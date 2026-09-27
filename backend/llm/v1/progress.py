@@ -14,8 +14,6 @@ from contextlib import contextmanager, nullcontext
 from django.utils import timezone
 from langchain_core.callbacks import BaseCallbackHandler
 
-from ..models import ChatProgressEvent
-
 
 MAX_EVENTS = 128
 MAX_ARGUMENT_BYTES = 4096
@@ -213,12 +211,11 @@ class ProgressCollector:
 
     @staticmethod
     def save(row):
+        # ponytail: v1 chat API layer (ChatProgressEvent/ChatTurn) is removed;
+        # persistent=True has no remaining caller, so this is now a no-op stub.
+        # Add real persistence back only if a persistent progress consumer returns.
         if row is None:
             return
-        try:
-            ChatProgressEvent.objects.create(**row)
-        except Exception as exc:
-            raise ProgressStorageError("chat progress storage failed") from exc
 
     # ── 수집 ────────────────────────────────────────────────────────────
     def emit(self, *, kind, status, label, operation_id=None, parent_operation_id=None,

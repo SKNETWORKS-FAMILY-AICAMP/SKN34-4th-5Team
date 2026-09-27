@@ -89,10 +89,6 @@ class ChatMessage(models.Model):
         choices=MessageStatus.choices,
         default=MessageStatus.COMPLETED,
     )
-    is_active = models.BooleanField(
-        default=True,
-        db_index=True,
-    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -100,14 +96,7 @@ class ChatMessage(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=["session", "sequence_no"],
-                condition=Q(is_active=True),
                 name="unique_active_message_sequence",
-            )
-        ]
-
-        indexes = [
-            models.Index(
-                fields=["session", "is_active", "sequence_no"],
             )
         ]
 
