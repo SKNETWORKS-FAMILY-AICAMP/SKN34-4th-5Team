@@ -33,6 +33,9 @@ services:
   backend:
     build: ./backend
     restart: unless-stopped
+    # Share the root env with backend services and staging-data imports.
+    env_file:
+      - ./.env
 
     environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
