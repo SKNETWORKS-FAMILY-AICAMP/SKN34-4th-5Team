@@ -216,6 +216,8 @@ next-env.d.ts
 
 # RAG 인덱싱 산출물 (벡터는 git 에 안 올림 — HuggingFace/DB 로 공유)
 backend/artifacts/
+# Local collection snapshots and provider comparison data
+/data/preprocessed/stadium_pilot/
 backend/env
 frontend/.env.local
 
