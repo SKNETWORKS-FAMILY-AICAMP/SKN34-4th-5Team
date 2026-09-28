@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { safeMemberReturnPath } from "@/lib/member-return-path";
+import { MemberAuthSwitchLink } from "@/components/member-auth-switch-link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { AuthDialog } from "@/components/auth-dialog";
@@ -86,7 +88,12 @@ export default function SignupPage() {
     setBusy(true); setMessage("");
     try {
       await signUp({ username: values.username, password: values.password, re_password: values.passwordConfirm, first_name: values.name.trim(), birth_date: values.birthDate, gender: values.gender as "M" | "F", email: values.email.trim() }, AbortSignal.timeout(40000));
-      router.push("/login?registered=1");
+      const search = new URLSearchParams(window.location.search);
+      const next = safeMemberReturnPath(search.get("next"));
+      const query = new URLSearchParams({ registered: "1" });
+      if (next) query.set("next", next);
+      else if (search.get("next") === "admin") query.set("next", "admin");
+      router.push(`/login?${query}`);
       return;
     } catch (error) {
       const mapping: Record<string, FieldName> = { username: "username", password: "password", re_password: "passwordConfirm", first_name: "name", birth_date: "birthDate", gender: "gender", email: "email" };
@@ -153,7 +160,7 @@ export default function SignupPage() {
           <button className="button button-primary auth-submit" type="submit" disabled={!hydrated || !requiredAgreed || busy} aria-describedby="signup-submit-hint">{busy ? "가입 요청 중…" : "회원가입"}</button>
           <p id="signup-submit-hint" className="auth-submit-hint">{requiredAgreed ? "선택 항목에 동의하지 않아도 가입할 수 있어요." : "필수 약관 두 가지에 동의하면 가입 버튼이 활성화돼요."}</p>
         </form>
-        <p className="auth-switch">이미 계정이 있으신가요? <Link href="/login">로그인</Link></p>
+        <p className="auth-switch">이미 계정이 있으신가요? <MemberAuthSwitchLink to="/login" label="로그인" /></p>
       </section>
       <AuthDialog open={policy !== null} title={policy ? policyContent[policy].title : "정책 안내"} onClose={() => setPolicy(null)}>
         <span className="auth-draft-label">화면 확인용 초안</span>

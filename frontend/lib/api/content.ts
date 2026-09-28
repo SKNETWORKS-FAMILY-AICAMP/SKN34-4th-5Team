@@ -23,3 +23,28 @@ export type PredictionChoiceWriteDto = Schemas["PredictionChoiceWrite"];
 export type PredictionTeamDto = Schemas["PredictionTeam"];
 export type PredictionVotesDto = Schemas["PredictionVotes"];
 export type PredictionGameDto = Schemas["PredictionGame"];
+
+// Proposed v2 member activity contract; replace with generated aliases when available.
+export type CommunityMemberSummaryDto = { id: number; nickname: string };
+export type CommunityMemberPostDto = {
+  id: string;
+  title: string;
+  board: "free" | "teams";
+  teamCode: string;
+  createdAt: string;
+};
+export type CommunityMemberCommentDto = {
+  id: number;
+  content: string;
+  createdAt: string;
+  postId: string;
+  postTitle: string;
+  board: "free" | "teams";
+  teamCode: string;
+};
+export type CommunityMemberPageDto<T> = {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: T[];
+};
