@@ -18,6 +18,7 @@ import unittest
 from unittest.mock import patch
 
 from django.conf import settings
+from django.test import TestCase as DjangoTestCase
 
 if not settings.configured:
     settings.configure(USE_TZ=True)
@@ -75,22 +76,16 @@ class FakeChatModel:
 
 
 def _fake_agent(final_text):
-    """agent.with_config(...).invoke(...) 가 tool-call 메시지 뒤에 최종 답을 내도록 흉내."""
+    """agent.stream(...) 가 토큰 청크 없이 최종 상태만 내는 provider 를 흉내 (parse_output 폴백 경로)."""
     class _Agent:
-        def with_config(self, **_kw):
-            return self
-
-        def invoke(self, _messages, **_kw):
-            return {"messages": [
+        def stream(self, _input, _config=None, **_kw):
+            yield "values", {"messages": [
                 HumanMessage(content="question"),
                 AIMessage(content="", tool_calls=[
                     {"name": "get_games", "args": {}, "id": "call_1"},
                 ]),
                 AIMessage(content=final_text),
             ]}
-
-        def __call__(self, messages, **kw):
-            return self.invoke(messages, **kw)
     return _Agent()
 
 
@@ -182,17 +177,10 @@ class DomainChainEndToEndTest(unittest.TestCase):
         captured = {}
 
         class _SpyAgent:
-            """with_config(...).invoke(...) 를 흉내내면서 실제로 받은 system 메시지를 기록한다.
-            __call__ 을 정의해야 langchain 의 coerce_to_runnable 이 callable 로 받아준다."""
-            def with_config(self, **_kw):
-                return self
-
-            def invoke(self, messages, **_kw):
+            """agent.stream(...) 을 흉내내면서 실제로 받은 system 메시지를 기록한다."""
+            def stream(self, messages, _config=None, **_kw):
                 captured["system"] = messages["messages"][0].content
-                return {"messages": [AIMessage(content="커뮤니티 답변입니다")]}
-
-            def __call__(self, messages, **kw):
-                return self.invoke(messages, **kw)
+                yield "values", {"messages": [AIMessage(content="커뮤니티 답변입니다")]}
 
         fake_tools = {name: FakeTool(name) for name in community_chain.TOOLS}
         context = {"stadium": "잠실야구장", "intent": "route", "origin": {"lat": 37.51, "lng": 127.07}}
@@ -209,6 +197,137 @@ class DomainChainEndToEndTest(unittest.TestCase):
         self.assertIn("37.51", captured["system"])
         self.assertIn("127.07", captured["system"])
         self.assertIn("잠실야구장", captured["system"])
+
+
+SECRET_ARGS = "TOOL_ARGS_SECRET"
+SECRET_RESULT = "TOOL_RESULT_SECRET"
+SECRET_REASONING = "REASONING_SECRET"
+
+
+def gated_stream_model(gate, events):
+    """실제 create_agent 에 꽂는 스트리밍 가짜 provider.
+
+    1턴: reasoning 블록 + 도구 호출 청크(인자에 SECRET_ARGS). 2턴: reasoning 블록, "첫 답변" 을
+    흘린 뒤 gate 가 열릴 때까지(= 소비자가 첫 텍스트를 받을 때까지) 멈췄다가 나머지를 흘리고
+    끝낸다. 소비자가 5초 안에 첫 텍스트를 못 받으면(= 버퍼링 구현) provider 가 실패한다."""
+    from langchain_core.language_models import BaseChatModel
+    from langchain_core.language_models.chat_models import generate_from_stream
+    from langchain_core.messages import AIMessageChunk, ToolMessage
+    from langchain_core.outputs import ChatGenerationChunk
+
+    reasoning = {"type": "reasoning", "summary": [{"type": "summary_text", "text": SECRET_REASONING}]}
+
+    class _Model(BaseChatModel):
+        @property
+        def _llm_type(self):
+            return "gated-fake"
+
+        def bind_tools(self, tools, **_kw):
+            return self
+
+        def _generate(self, messages, stop=None, run_manager=None, **kw):
+            # 버퍼링(invoke) 경로: 스트림을 끝까지 모아야 하므로 gate 를 영영 못 열고 타임아웃한다
+            return generate_from_stream(self._stream(messages, stop, run_manager, **kw))
+
+        def _stream(self, messages, stop=None, run_manager=None, **_kw):
+            def chunk(**kw):
+                return ChatGenerationChunk(message=AIMessageChunk(**kw))
+            if not any(isinstance(m, ToolMessage) for m in messages):
+                yield chunk(content=[reasoning])
+                yield chunk(content="", tool_call_chunks=[{
+                    "name": "lookup", "args": f'{{"q": "{SECRET_ARGS}"}}', "id": "call_1", "index": 0,
+                }])
+                return
+            yield chunk(content=[reasoning])
+            yield chunk(content=[{"type": "text", "text": "첫 답변"}])
+            if not gate.wait(5):
+                raise TimeoutError("consumer never received first text before producer finished")
+            yield chunk(content="은 이어서")
+            yield chunk(content=" 끝")
+            events.append("producer_done")
+
+    return _Model()
+
+
+def gated_domain_chain(gate, events):
+    """실제 build_domain_chain + create_agent + @tool 로 조립한 체인을 돌려준다 (패치 컨텍스트 포함)."""
+    from contextlib import ExitStack
+    from langchain_core.tools import tool
+
+    @tool
+    def lookup(q: str) -> str:
+        """테스트용 조회 도구."""
+        return f"{SECRET_RESULT}:{q}"
+
+    stack = ExitStack()
+    stack.enter_context(patch.object(common, "_tools_by_name", lambda: {"lookup": lookup}))
+    stack.enter_context(patch.object(common, "llm", lambda: gated_stream_model(gate, events)))
+    return common.build_domain_chain("테스트 규칙", None, ("lookup",)), stack
+
+
+class DomainChainStreamingTest(unittest.TestCase):
+    """provider 토큰이 생성 완료 전에 소비자에게 도착하고, 보이는 답변 텍스트만 새는지."""
+
+    def test_first_text_arrives_before_producer_completes_and_only_answer_text_leaks(self):
+        import threading
+        gate, events = threading.Event(), []
+        chain, stack = gated_domain_chain(gate, events)
+        chunks = []
+        with stack:
+            for piece in chain.stream({"question": "질문"}):
+                if not chunks:
+                    events.append(("first_text", list(events)))
+                    gate.set()
+                chunks.append(piece)
+        self.assertEqual(events[0], ("first_text", []))  # 첫 텍스트 수신 시점엔 producer 미완료
+        self.assertEqual(events[-1], "producer_done")
+        self.assertEqual(chunks, ["첫 답변", "은 이어서", " 끝"])
+        joined = "".join(chunks)
+        for secret in (SECRET_ARGS, SECRET_RESULT, SECRET_REASONING, "lookup", "call_1"):
+            self.assertNotIn(secret, joined)
+
+    def test_invoke_returns_full_aggregated_answer(self):
+        import threading
+        gate = threading.Event()
+        gate.set()
+        chain, stack = gated_domain_chain(gate, [])
+        with stack:
+            self.assertEqual(chain.invoke({"question": "질문"}), "첫 답변은 이어서 끝")
+
+
+class MainChainServiceStreamingTest(DjangoTestCase):
+    """가드 → 라우팅 → 실제 도메인 에이전트 → send_message: 첫 delta 가 생성 완료 전에 나오고,
+    done/DB 저장 답변은 delta 를 이어붙인 전체 답과 같다."""
+
+    def test_send_message_delta_before_producer_done_then_full_persistence(self):
+        import threading
+        from llm.enum import ChatRole, MessageStatus
+        from llm.models import ChatMessage, ChatSession
+        from llm.service import chat as chat_service
+
+        gate, events = threading.Event(), []
+        domain, stack = gated_domain_chain(gate, events)
+        session = ChatSession.objects.create(guest="abababab-abab-abab-abab-abababababab")
+        route = lambda q, *_a: {"question": q, "route": AgentType.STADIUM.value}  # noqa: E731
+        frames = []
+        with stack, \
+                patch.object(agent_chain_module, "guard_question", return_value=True), \
+                patch.object(agent_chain_module, "route_agent", side_effect=route), \
+                patch.object(agent_chain_module.agent_branch, "branches",
+                             [(agent_chain_module.agent_branch.branches[1][0], domain)]), \
+                patch.object(chat_service, "get_chain", return_value=agent_chain_module.chain):
+            for frame in chat_service.send_message(session, "질문"):
+                if not frames:
+                    events.append(("first_delta", list(events)))
+                    gate.set()
+                frames.append(frame)
+
+        self.assertEqual(frames[0], ("delta", {"text": "첫 답변"}))
+        self.assertEqual(events[0], ("first_delta", []))
+        self.assertEqual([e for e, _ in frames], ["delta", "delta", "delta", "done"])
+        self.assertEqual(frames[-1][1]["assistant_message"], "첫 답변은 이어서 끝")
+        saved = ChatMessage.objects.get(session=session, role=ChatRole.ASSISTANT)
+        self.assertEqual((saved.status, saved.message), (MessageStatus.COMPLETED, "첫 답변은 이어서 끝"))
 
 
 class AgentTypeAndBranchRoutingTest(unittest.TestCase):

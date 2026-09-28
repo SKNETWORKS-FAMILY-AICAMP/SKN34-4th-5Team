@@ -103,12 +103,51 @@ def parse_output(result):
     return ""
 
 
+def stream_agent_text(agent, prompt_value, config):
+    """에이전트를 네이티브 스트림으로 돌려 model 노드의 보이는 답변 텍스트 delta 만 흘린다.
+
+    도구 호출 청크·도구 결과(ToolMessage)·reasoning 블록·완성된 전체 메시지(AIMessage)는
+    내보내지 않는다. provider 가 토큰 스트림을 안 주면(청크가 하나도 없으면) 최종 상태에서
+    parse_output 으로 꺼낸 답을 한 번에 내보내 기존 invoke 결과와 같게 맞춘다."""
+    from langchain_core.messages import AIMessageChunk
+    from llm.v1.rag.domain_tools import visible_text
+    final, streamed, last_step = None, False, None
+    for mode, data in agent.stream(
+        {"messages": prompt_value.to_messages()},
+        {**config, "recursion_limit": RECURSION_LIMIT},
+        stream_mode=["messages", "values"],
+    ):
+        if mode == "values":
+            final = data
+            continue
+        chunk, meta = data
+        if (meta.get("langgraph_node") != "model" or not isinstance(chunk, AIMessageChunk)
+                or chunk.tool_call_chunks):
+            continue
+        text = visible_text(chunk.content)
+        if not text:
+            continue
+        step = meta.get("langgraph_step")
+        if streamed and step != last_step:
+            yield "\n\n"  # 도구 호출 전 안내 문장과 최종 답이 붙어 보이지 않게 모델 턴 사이를 띄운다
+        streamed, last_step = True, step
+        yield text
+    if not streamed:
+        yield parse_output(final or {})
+
+
 def build_domain_chain(rules, categories, tool_names):
-    """최초 호출 때 조립하는 도메인 체인. 입력은 {"question", "chat_history"?, "context"?}."""
+    """최초 호출 때 조립하는 도메인 체인. 입력은 {"question", "chat_history"?, "context"?}.
+
+    .stream() 은 provider 토큰을 받는 즉시 흘리고, .invoke() 는 같은 스트림을 이어붙인 문자열을 돌려준다."""
     @cache
     def build():
         from langchain.agents import create_agent
         agent = create_agent(model=llm(), tools=pick_tools(tool_names))
+
+        def answer(value, config):  # 제너레이터 함수여야 RunnableLambda 가 스트리밍으로 취급한다
+            yield from stream_agent_text(agent, value, config)
+
         return (
             RunnablePassthrough.assign(
                 context=retriever(categories),
@@ -117,12 +156,13 @@ def build_domain_chain(rules, categories, tool_names):
                 selected_context=lambda x: _selected_context_text(x.get("context")),
             )
             | prompt(rules)
-            | RunnableLambda(lambda value: {"messages": value.to_messages()})
-            | agent.with_config(recursion_limit=RECURSION_LIMIT)
-            | RunnableLambda(parse_output)
+            | RunnableLambda(answer)
         )
 
-    return RunnableLambda(lambda inputs: build().invoke(inputs))
+    def run(inputs, config):
+        yield from build().stream(inputs, config)
+
+    return RunnableLambda(run)
 
 
 def _selected_context_text(context) -> str:
