@@ -228,7 +228,7 @@ frontend/.member-preview/
 
 # Mailpit runtime data
 /data/mailpit/
-/graphify-out/*
+**/graphify-out/**
 /data/mailpit/*
 .gstack/*
 .hermes/*
@@ -237,6 +237,11 @@ frontend/.member-preview/
 
 # nginx
 nginx/ssl/
+
+.vscode/**
+
+.agents/*
+.gemini/*
 
 # 규정집 PDF 원본 (31MB) — 청크 CSV는 커밋, 원본은 data/raw/README.md 안내대로 직접 다운로드.
 # 4차 후반 DVC 도입 시 dvc add 대상으로 전환 예정

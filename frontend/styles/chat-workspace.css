@@ -172,3 +172,9 @@
 }
 @media (max-width: 767px) and (max-height: 670px) { .workspace-welcome-mark, .workspace-welcome-eyebrow { display: none; } .workspace-welcome { padding-block: 5px; } .workspace-welcome h2 { max-width: 280px; font-size: 24px; } .workspace-welcome-description { margin-top: 10px; } .workspace-suggestions { margin-top: 18px; } }
 @media (prefers-reduced-motion: reduce) { .workspace-thinking i { animation: none; opacity: .7; } }
+.workspace-message-user { flex-wrap: wrap; }
+.workspace-message-note, .workspace-message-actions { flex-basis: 100%; margin-top: 4px; color: #94a1b4; font-size: 11px; text-align: right; }
+.workspace-message-assistant .workspace-message-note { text-align: left; }
+.workspace-message-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.workspace-message-actions button, .workspace-edit-banner button { padding: 2px 0; border: 0; background: transparent; color: #3974c9; text-decoration: underline; text-underline-offset: 3px; font-size: 11px; }
+.workspace-edit-banner { margin-bottom: 8px; color: #7186a1; font-size: 11px; text-align: center; }

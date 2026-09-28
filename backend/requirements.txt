@@ -19,5 +19,6 @@ langchain
 langchain-core
 langchain-openai
 langchain-community
+langchain-typesafe==0.0.1a3
 pandas
 numpy
