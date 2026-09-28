@@ -1,34 +1,28 @@
-import type { components } from "../api/schema";
+// Hand-typed wire DTOs for /api/v2/chat/ (backend/llm/serializer, views/sse.py).
+// contracts/openapi.yaml and lib/api/schema.d.ts still describe the retired turns/finalize API.
+import type { ChatContext } from "./types";
 
-type Schemas = components["schemas"];
+export type ChatMessageStatus = "pending" | "completed" | "failed" | "stopped";
 
-export type ChatSessionDto = Schemas["ChatSession"];
-export type ChatMessageDto = Schemas["ChatMessage"];
-export type ChatFinalizeRequestDto = Schemas["ChatFinalize"];
-export type ChatFinalizeResponseDto = Schemas["ChatFinalizeResponse"];
-export type ChatNonStreamResponseDto = Schemas["ChatNonStreamResponse"];
-export type GuestChatRequestDto = Schemas["GuestChat"];
-export type ChatCheckpointEventDto = Schemas["ChatCheckpointEvent"];
-export type ChatDeltaEventDto = Schemas["ChatDeltaEvent"];
-export type ChatDoneEventDto = Schemas["ChatDoneEvent"];
-export type GuestChatDeltaEventDto = Schemas["GuestChatDeltaEvent"];
-export type GuestChatDoneEventDto = Schemas["GuestChatDoneEvent"];
-export type ChatErrorEventDto = Schemas["ChatErrorEvent"];
-export type ChatProgressEventDto = Schemas["ChatProgressEvent"];
-export type ChatTurnHistoryDto = Schemas["ChatTurn"];
-export type ChatTurnPageDto = Schemas["PaginatedChatTurnList"];
+export type ChatSessionDto = { id: string; title: string; created_at: string; updated_at: string };
+export type ChatToolCallDto = { id: number; tool_name: string; status: string; created_at: string };
+export type ChatMessageDto = {
+  id: number;
+  sequence_no: number;
+  role: "user" | "assistant";
+  content: string;
+  status: ChatMessageStatus;
+  tools: ChatToolCallDto[];
+  created_at: string;
+  updated_at: string;
+};
 
-export type MemberChatSseEvent =
-  | { event: "checkpoint"; data: ChatCheckpointEventDto }
-  | { event: "delta"; data: ChatDeltaEventDto }
-  | { event: "progress"; data: ChatProgressEventDto }
-  | { event: "done"; data: ChatDoneEventDto }
-  | { event: "error"; data: ChatErrorEventDto };
+export type ChatMessageRequestDto = { content: string; context?: ChatContext };
+export type ChatMessageUpdateRequestDto = ChatMessageRequestDto & { message_id: number };
+export type ChatMessageDeleteRequestDto = { message_id: number };
 
-export type GuestChatSseEvent =
-  | { event: "delta"; data: GuestChatDeltaEventDto }
-  | { event: "progress"; data: ChatProgressEventDto }
-  | { event: "done"; data: GuestChatDoneEventDto }
-  | { event: "error"; data: ChatErrorEventDto };
-
-export type ChatCourseMetadataDto = Pick<ChatDoneEventDto, "places" | "coursePayload" | "route">;
+// done.message_id is the saved assistant message id, serialized as a string of digits.
+export type ChatSseEvent =
+  | { event: "delta"; data: { text: string } }
+  | { event: "done"; data: { message_id: string; assistant_message: string } }
+  | { event: "error"; data: { detail: string } };

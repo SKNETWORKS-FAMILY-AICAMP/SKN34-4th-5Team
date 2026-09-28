@@ -38,33 +38,28 @@ export type ChatProgressOperation = Omit<ChatProgressEvent, "sequenceNo"> & {
   startSequenceNo?: number;
   sequenceNo: number;
 };
-export type ChatTurnStatus = "pending" | "completed" | "stopped" | "failed";
-// course·progress 는 화면 표시용이다. parseChatRequest 가 서버로 보낼 때 role·content 만 남긴다.
+export type ChatMessageStatus = "pending" | "completed" | "stopped" | "failed";
+// id·status 는 서버에 저장된 메시지에만 있다. course·progress 는 화면 표시용이다.
 export type ChatMessage = {
   role: "user" | "assistant";
   content: string;
   id?: number;
+  status?: ChatMessageStatus;
   course?: ChatCourse;
   progress?: ChatProgressOperation[];
-  turnStatus?: ChatTurnStatus;
 };
 export type ChatOrigin = { lat: number; lng: number };
 // origin: 코스 작성 화면에서 지도에 찍은 출발지. 백엔드 코스 챗봇이 이 지점부터 이어서 코스를 짠다.
 export type ChatContext = { stadium?: string; intent?: "route" | "baseball" | "stadium"; origin?: ChatOrigin };
-export type ChatRequest = { messages: ChatMessage[]; sessionId?: number; context?: ChatContext };
+export type ChatRequest = { messages: ChatMessage[]; sessionId?: string; context?: ChatContext };
 export type ChatStatus = { provider: "demo" | "openai" | "backend" | "guest"; model: string; ready: boolean };
-export type ChatReply = ChatStatus & ChatCourseMetadataDto & {
+export type ChatReply = ChatStatus & {
   reply: string;
-  sessionId?: number;
-  completionStatus?: "completed" | "stopped";
-  turnId?: string;
-  userMessageId?: number;
-  assistantMessageId?: number | null;
-  course?: ChatCourse;
+  sessionId?: string;
+  assistantMessageId?: number;
 };
 
 export const MAX_MESSAGE_LENGTH = 2000;
 export const MAX_HISTORY_MESSAGES = 12;
 export const MAX_REPLY_LENGTH = 8000;
 export const MAX_REQUEST_BYTES = 64000;
-import type { ChatCourseMetadataDto } from "./wire";

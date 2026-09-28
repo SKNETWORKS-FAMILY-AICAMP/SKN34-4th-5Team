@@ -49,12 +49,12 @@ const { clearMemberTokens, saveMemberTokens } = require("./lib/member-auth-reque
 const { parseChatRequest } = require("./lib/chat/validation.js");
 const { MAX_PROGRESS_EVENT_BYTES, parseProgressEvent, reduceProgress, settleProgress } = require("./lib/chat/progress.js");
 const { commitChatLoad, restoreChatMessages } = require("./lib/chat/history.js");
-const { ChatClientError, fetchChatTurns, sendChatMessage, sendGuestChatMessage } = require("./lib/chat/client.js");
+const { ChatClientError, fetchChatHistory, sendChatMessage } = require("./lib/chat/client.js");
 const { ChatPending } = require("./components/chat-pending.js");
 const { ChatProgress } = require("./components/chat-progress.js");
 
 const TURN = "11111111-1111-4111-8111-111111111111";
-const OTHER_TURN = "22222222-2222-4222-8222-222222222222";
+const SESSION = "22222222-2222-4222-8222-222222222222";
 const PARENT = "33333333-3333-4333-8333-333333333333";
 const CHILD = "44444444-4444-4444-8444-444444444444";
 const event = (overrides = {}) => ({
@@ -131,29 +131,19 @@ test("display progress never enters the model message payload", () => {
   assert.deepEqual(parsed.messages, [{ role: "assistant", content: "이전 답변" }, { role: "user", content: "후속 질문" }]);
 });
 
-test("display-only empty assistant placeholders do not block a follow-up", async () => {
-  const restored = restoreChatMessages([], [{ id: TURN, question: "멈춘 질문", status: "stopped", base_sequence: 0, human_message_id: null, assistant_message_id: null, progress: [event()] }]);
-  assert.deepEqual(restored.map(message => [message.role, message.content]), [["user", "멈춘 질문"], ["assistant", ""]]);
-  assert.throws(() => parseChatRequest({ messages: [...restored, { role: "user", content: "후속 질문" }] }), /비어 있거나/);
+const row = (id, sequence_no, role, content, status = "completed") => ({ id, sequence_no, role, content, status, tools: [], created_at: "2026-09-28T00:00:00Z", updated_at: "2026-09-28T00:00:00Z" });
+
+test("an interrupted question restores without a placeholder and a follow-up sends only the new question", async () => {
+  // Stop leaves the user row pending with no assistant row; history is server-built from completed rows.
+  const restored = restoreChatMessages([row(1, 1, "user", "멈춘 질문", "pending")]);
+  assert.deepEqual(restored, [{ id: 1, role: "user", content: "멈춘 질문", status: "pending" }]);
   let posted;
   global.fetch = async (_url, init) => {
     posted = JSON.parse(init.body);
-    return stream(frame("delta", { text: "후속 답변" }) + frame("done", { assistant_message: "후속 답변" }));
+    return stream(frame("delta", { text: "후속 답변" }) + frame("done", { message_id: "3", assistant_message: "후속 답변" }));
   };
-  await sendGuestChatMessage({ messages: [...restored, { role: "user", content: "후속 질문" }] });
-  assert.deepEqual(posted.messages, [
-    { role: "user", content: "멈춘 질문" },
-    { role: "user", content: "후속 질문" },
-  ]);
-  await sendGuestChatMessage({ messages: [
-    { role: "user", content: "첫 토큰 전에 멈춘 질문" },
-    { role: "assistant", content: "", turnStatus: "stopped" },
-    { role: "user", content: "다시 질문" },
-  ] });
-  assert.deepEqual(posted.messages, [
-    { role: "user", content: "첫 토큰 전에 멈춘 질문" },
-    { role: "user", content: "다시 질문" },
-  ]);
+  await sendChatMessage("guest", { sessionId: SESSION, content: "후속 질문" });
+  assert.deepEqual(posted, { content: "후속 질문" });
   assert.throws(() => parseChatRequest({ messages: [{ role: "assistant", content: "" }, { role: "user", content: "질문" }] }), /비어 있거나/);
   assert.throws(() => parseChatRequest({ messages: [{ role: "user", content: "" }] }), /비어 있거나/);
 });
@@ -211,67 +201,41 @@ test("admin tool details are validated and merged without changing the ordinary 
   assert.deepEqual(operations[0].result, { count: 1 });
 });
 
-test("member SSE handles split frames, UTF-8 boundaries and identical duplicates", async () => {
+test("v2 SSE handles CRLF frames split across UTF-8 boundaries", async () => {
   saveMemberTokens("access-token", "refresh-token");
-  const progress = event(), seen = [];
-  global.fetch = async (url, init = {}) => {
-    if (String(url).includes("/finalize/")) return json({ turn_id: TURN, session_id: 7, status: "completed", user_message_id: 1, assistant_message_id: 2, assistant_message: JSON.parse(init.body).prefix });
-    return stream(frame("checkpoint", { turn_id: TURN, receipt: "empty" }) + frame("progress", progress) + frame("progress", progress) + frame("delta", { turn_id: TURN, receipt: "part", text: "완료" }) + frame("done", { turn_id: TURN, receipt: "done" }), true);
-  };
-  const reply = await sendChatMessage({ sessionId: 7, messages: [{ role: "user", content: "질문" }] }, undefined, { onProgress: value => seen.push(value), onDelta: (answer, checkpoint) => assert.equal(checkpoint.prefix, answer) });
-  assert.equal(reply.reply, "완료");
-  assert.equal(seen.length, 1);
-  assert.equal(seen[0].turnId, TURN);
-});
-
-test("guest SSE emits progress without adding it to the answer", async () => {
   const seen = [];
-  global.fetch = async () => stream(frame("progress", event()) + frame("delta", { text: "답변" }) + frame("done", { assistant_message: "답변" }), true);
-  const reply = await sendGuestChatMessage({ messages: [{ role: "user", content: "질문" }] }, undefined, { onProgress: value => seen.push(value) });
-  assert.equal(reply.reply, "답변");
-  assert.equal(seen.length, 1);
+  global.fetch = async () => stream(frame("delta", { text: "완" }) + frame("delta", { text: "료" }) + frame("done", { message_id: "2", assistant_message: "완료" }), true);
+  const reply = await sendChatMessage("member", { sessionId: SESSION, content: "질문" }, undefined, { onDelta: value => seen.push(value) });
+  assert.deepEqual([reply.reply, reply.assistantMessageId, seen], ["완료", 2, ["완", "완료"]]);
 });
 
 for (const [name, frames] of [
-  ["mismatched turn ids", frame("checkpoint", { turn_id: TURN, receipt: "empty" }) + frame("progress", event({ turn_id: OTHER_TURN }))],
-  ["conflicting duplicate sequences", frame("checkpoint", { turn_id: TURN, receipt: "empty" }) + frame("progress", event()) + frame("progress", event({ label: "다른 상태" }))],
-  ["oversize payloads", frame("checkpoint", { turn_id: TURN, receipt: "empty" }) + frame("progress", event({ summary: { value: "x".repeat(MAX_PROGRESS_EVENT_BYTES) } }))],
-  ["unknown event types", frame("checkpoint", { turn_id: TURN, receipt: "empty" }) + frame("mystery", {})],
+  ["retired progress frames", frame("progress", event())],
+  ["retired checkpoint frames", frame("checkpoint", { turn_id: TURN, receipt: "empty" })],
+  ["oversize deltas", frame("delta", { text: "x".repeat(8001) })],
+  ["frames after done", frame("done", { message_id: "2", assistant_message: "답" }) + frame("delta", { text: "더" })],
+  ["non-JSON data", "event: delta\r\ndata: {text\r\n\r\n"],
 ]) {
-  test(`member SSE rejects ${name}`, async () => {
-    saveMemberTokens("access-token", "refresh-token");
+  test(`v2 SSE rejects ${name}`, async () => {
     global.fetch = async () => stream(frames);
-    await assert.rejects(sendChatMessage({ sessionId: 7, messages: [{ role: "user", content: "질문" }] }), error => error instanceof ChatClientError && error.status === 502);
+    await assert.rejects(sendChatMessage("guest", { sessionId: SESSION, content: "질문" }), error => error instanceof ChatClientError && error.status === 502 && error.uncertain);
   });
 }
 
-test("turn history follows only same-origin pages on the same session endpoint", async () => {
-  saveMemberTokens("access-token", "refresh-token");
+test("history is one plain array from the session messages endpoint", async () => {
   const calls = [];
-  global.fetch = async url => {
-    calls.push(String(url));
-    const second = String(url).endsWith("?page=2");
-    const indexes = second ? [20] : Array.from({ length: 20 }, (_, index) => index);
-    return json({ count: 21, next: second ? null : "/api/v1/chat/sessions/7/turns/?page=2", previous: second ? "/api/v1/chat/sessions/7/turns/?page=1" : null, results: indexes.map(index => ({ id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`, question: `질문 ${index + 1}`, status: "completed", base_sequence: index * 2, human_message_id: null, assistant_message_id: null, progress: [] })) });
-  };
-  const turns = await fetchChatTurns(7);
-  assert.equal(turns.length, 21);
-  assert.equal(restoreChatMessages([], turns).at(-1).content, "질문 21");
-  assert.deepEqual(calls, ["/api/v1/chat/sessions/7/turns/?page=1", "/api/v1/chat/sessions/7/turns/?page=2"]);
-
-  global.fetch = async () => json({ count: 1, next: "https://evil.example/api/v1/chat/sessions/7/turns/?page=2", previous: null, results: [{ id: TURN, question: "질문", status: "failed", base_sequence: 0, human_message_id: null, assistant_message_id: null, progress: [] }] });
-  await assert.rejects(fetchChatTurns(7), error => error instanceof ChatClientError && /다음 페이지/.test(error.message));
+  global.fetch = async url => { calls.push(String(url)); return json([row(2, 2, "assistant", "답"), row(1, 1, "user", "질문")]); };
+  const history = await fetchChatHistory("guest", SESSION);
+  assert.deepEqual(calls, [`/api/v2/chat/sessions/${SESSION}/messages/`]);
+  assert.deepEqual(restoreChatMessages(history).map(message => message.content), ["질문", "답"]);
+  global.fetch = async () => json({ count: 1, next: null, results: [] });
+  await assert.rejects(fetchChatHistory("guest", SESSION), error => error instanceof ChatClientError && error.status === 502);
 });
 
-test("history restores unfinished questions with progress and leaves old turns unchanged", () => {
-  const progress = [event(), event({ sequence_no: 2, status: "failed", label: "조회하지 못했어요" })];
-  const restored = restoreChatMessages([], [{ id: TURN, question: "진행 중 질문", status: "failed", base_sequence: 0, human_message_id: null, assistant_message_id: null, progress }]);
-  assert.deepEqual(restored.map(message => [message.role, message.content]), [["user", "진행 중 질문"], ["assistant", ""]]);
-  assert.equal(restored[1].progress[0].status, "failed");
-
-  const legacy = restoreChatMessages([{ id: 10, sequence_no: 1, role: "human", content: "옛 질문", status: "completed" }, { id: 11, sequence_no: 2, role: "ai", content: "옛 답변", status: "completed" }], [{ id: OTHER_TURN, question: "옛 질문", status: "completed", base_sequence: 0, human_message_id: 10, assistant_message_id: 11, progress: [] }]);
-  assert.deepEqual(legacy.map(({ role, content }) => ({ role, content })), [{ role: "user", content: "옛 질문" }, { role: "assistant", content: "옛 답변" }]);
-  assert.equal("progress" in legacy[1], false);
+test("history keeps failed turns visible with their status and no fabricated progress", () => {
+  const restored = restoreChatMessages([row(1, 1, "user", "실패한 질문", "failed"), row(2, 2, "assistant", "부분 답", "failed")]);
+  assert.deepEqual(restored.map(message => [message.role, message.content, message.status]), [["user", "실패한 질문", "failed"], ["assistant", "부분 답", "failed"]]);
+  assert.ok(restored.every(message => !("progress" in message)));
 });
 
 test("both chat surfaces share a tool-only call log without debug details", () => {
