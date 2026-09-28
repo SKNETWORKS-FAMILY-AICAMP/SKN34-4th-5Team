@@ -46,7 +46,10 @@ class ChatMessageView(
     GenericAPIView
 ):
     """채팅을 비회원 / 회원 둘다 동시에 할수있도록 처리한다.
-    URL: /api/v1/chat/sessions/<session_id>/messages/, /api/v2/chat/sessions/<session_id>/messages/
+    URL:
+        - /api/v1/chat/sessions/<session_id>/messages/
+        - /api/v2/chat/sessions/<session_id>/messages/
+
     (config/urls.py 는 plain path("api/", include("llm.urls")) 로 llm/urls.py 를 include 하고,
     그 안의 re_path(r"^(?P<version>v1|v2)/chat/", ...) 가 URL 을 kwargs["version"] 으로 넘긴다.
     정규식이 이미 v1/v2 만 허용하므로 여기서는 그 값을 그대로 service 에 전달한다 -- 중복 검증 없음.)
