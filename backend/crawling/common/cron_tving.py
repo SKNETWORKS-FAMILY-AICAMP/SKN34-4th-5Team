@@ -8,7 +8,6 @@ from zoneinfo import ZoneInfo
 from django.test import override_settings
 
 KST = ZoneInfo("Asia/Seoul")
-TEAM_MAP = {"SS": "SAMSUNG", "KT": "KT", "LG": "LG", "HT": "KIA", "OB": "DOOSAN", "NC": "NC", "HH": "HANWHA", "LT": "LOTTE", "SK": "SSG", "WO": "KIWOOM"}
 
 def _setup():
     project_root = Path(__file__).resolve().parents[2]
@@ -26,20 +25,6 @@ def _vector_upsert(items):
     for item in items:
         digest = hashlib.sha256(item["content"].encode()).hexdigest()
         old = DocumentChunk.objects.filter(metadata__doc_id=item["doc_id"]).first()
-        if old is None and item.get("metadata", {}).get("category") == "SCHEDULE":
-            meta = item["metadata"]
-            old = DocumentChunk.objects.filter(
-                metadata__source_file="kbo_schedule_full.csv",
-                metadata__game_date=meta.get("game_date"),
-                metadata__game_time=meta.get("game_time"),
-                metadata__away_team_code=meta.get("away_team_code"),
-                metadata__home_team_code=meta.get("home_team_code"),
-            ).first()
-        if old is None and item.get("metadata", {}).get("category") == "STANDING":
-            old = DocumentChunk.objects.filter(
-                metadata__source_file="kbo_standing.csv",
-                metadata__team_code=item["metadata"].get("team_code"),
-            ).first()
         if old is None and item.get("metadata", {}).get("category") == "TICKET_POLICY":
             old = DocumentChunk.objects.filter(content=item["content"]).first()
         if old and old.metadata.get("content_hash") == digest:
@@ -80,8 +65,7 @@ def collect_schedule(month=None):
         games.extend(parsed); days.append({"date": date, "status": "ready" if parsed else "empty", "gameCount": len(parsed)})
     data = {"year": int(month[:4]), "month": month, "today": datetime.now(KST).date().isoformat(), "games": games, "days": days, "loading": False}
     with override_settings(EXTERNAL_DATA_SYNC_INTERVAL_SECONDS=0): persist_month(data, timezone.now())
-    docs = [{"doc_id": f"SCHEDULE_{g['id']}", "content": f"{g['date']} {g['time']} {g['away']['name']} 대 {g['home']['name']} 경기 상태 {g['status']} 구장 {g['stadium']}", "metadata": {"category": "SCHEDULE", "game_code": g["id"], "game_date": g["date"], "game_time": g["time"], "away_team_code": TEAM_MAP.get(g["away"]["code"], g["away"]["code"]), "home_team_code": TEAM_MAP.get(g["home"]["code"], g["home"]["code"])}} for g in games]
-    return len(games), _vector_upsert(docs)
+    return len(games)
 
 def collect_standing():
     _setup()
@@ -98,7 +82,4 @@ def collect_standing():
     }
     games = parse_schedule(_provider_json("/kbo/schedule", {"date": day.replace("-", "")}), day)
     persist_daily({"date": day, "games": games, "standings": rows, "individualRankings": rankings}, now)
-    docs = []
-    for row in rows:
-        docs.append({"doc_id": f"STANDING_{row['teamCode']}_{day}", "content": f"{year} KBO 순위 {row['team']} {row['rank']}위 승 {row['wins']} 패 {row['losses']} 무 {row['draws']}", "metadata": {"category": "STANDING", "team_code": TEAM_MAP.get(row["teamCode"], row["teamCode"]), "snapshot_date": day}})
-    return len(rows), _vector_upsert(docs)
+    return len(rows)
