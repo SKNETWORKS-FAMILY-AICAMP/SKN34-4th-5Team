@@ -104,6 +104,7 @@ services:
     # python manage.py provision_baseball_reader --prepare-db-permissions &&
     command: >
       sh -c "python manage.py migrate &&
+             python manage.py setup_chat_checkpoints &&
              python manage.py runserver 0.0.0.0:8000"
 
     logging: *default-logging

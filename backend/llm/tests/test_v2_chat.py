@@ -1,28 +1,32 @@
-"""backend/llm/service/chat.py + views(sesstion/message) v2 채팅 스트리밍 테스트.
+"""backend/llm/service/chat.py + views(sesstion/message) 채팅 스트리밍 테스트.
 
-체인은 전부 가짜(FakeChain)로 바꿔서 실제 LLM/OpenAI 호출 없이 돈다. DB는 이 테스트가
-쓰는 test DB 하나뿐이라 makemigrations 로 만든 0006(uuid pk)까지 전부 적용돼 있어야
-한다 (docker 컨테이너 안에서 python manage.py test 로 실행).
+체인은 전부 가짜(FakeChain)로 바꿔서 실제 LLM/OpenAI 호출 없이 돈다. 대화 원본은
+LangGraph checkpoint(PostgresSaver) 테이블에 별도 연결로 커밋되므로 docker 컨테이너 안의 PostgreSQL 에서
+python manage.py test 로 실행한다. thread_id 는 매번 새 세션 uuid 라 테스트끼리 섞이지 않고,
+남은 행은 테스트 DB 와 함께 사라진다.
 """
 import json
 import os
 import sys
 import types
+import uuid
 from unittest.mock import patch as mock_patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
+from langchain_core.messages import AIMessage, HumanMessage
 from rest_framework.test import APIClient
 
-from llm.enum import ChatRole, MessageStatus
-from llm.models import ChatMessage, ChatSession
+from llm.models import ChatSession
+from llm.serializer.message import ANSWER_TEXT_EVENT, GENERIC_ERROR_MESSAGE
 from llm.service import chat as chat_service
+from llm.service.chat import ChatThread
 
 User = get_user_model()
 
 
 class FakeChain:
-    """chain.stream(inputs) -> Iterator[str] 만 흉내내는 가짜 체인."""
+    """v2 chain.stream(inputs) -> Iterator[str] / v1 chain.astream_events(inputs) 를 흉내내는 가짜 체인."""
 
     def __init__(self, chunks=("안녕", "하세요")):
         self.chunks = chunks
@@ -32,6 +36,13 @@ class FakeChain:
         self.received_inputs = inputs
         for chunk in self.chunks:
             yield chunk
+
+    async def astream_events(self, inputs, version):
+        # v1 경로: 모델 없는 답과 같은 공개 답변 이벤트로 흘리고 run["answer"] 에 전문을 남긴다.
+        self.received_inputs = inputs
+        for chunk in self.chunks:
+            yield {"event": "on_custom_event", "name": ANSWER_TEXT_EVENT, "data": chunk, "run_id": "fake"}
+        inputs["run"]["answer"] = "".join(self.chunks)
 
 
 class FailingChain:
@@ -53,6 +64,42 @@ def _read_sse_body(body):
         data = json.loads(data_line.removeprefix("data: "))
         frames.append((event, data))
     return frames
+
+
+class CheckpointTestCase(TestCase):
+    """checkpoint 테이블은 migrate 가 아니라 setup_chat_checkpoints 로 만든다 -- 테스트 DB 에도 한 번."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        ChatThread.setup()
+
+
+def seed(session, *pairs):
+    """(질문, 답변) 완료 턴들을 최신 스냅샷으로 저장하고 [Human, AI, Human, AI, ...] 를 돌려준다."""
+    messages, turns = [], {}
+    for question, answer in pairs:
+        human, ai = HumanMessage(question, id=str(uuid.uuid4())), AIMessage(answer, id=str(uuid.uuid4()))
+        messages += [human, ai]
+        turns[human.id] = {"status": "completed", "answer_id": ai.id}
+    ChatThread(session.id).update(messages, turns)
+    return messages
+
+
+def snapshot(session):
+    """(messages, turns) -- 저장된 적 없으면 ([], {})."""
+    return ChatThread(session.id).state()
+
+
+def history(session):
+    return chat_service.project_history(*snapshot(session))
+
+
+def guest_request(session):
+    return types.SimpleNamespace(
+        user=types.SimpleNamespace(is_authenticated=False),
+        COOKIES={"guest_id": str(session.guest)},
+    )
 
 
 class GetChainVersionTest(TestCase):
@@ -110,7 +157,7 @@ class ResolveVersionTest(TestCase):
                 chat_service.resolve_version("v3")
 
 
-class SendMessageTest(TestCase):
+class SendMessageTest(CheckpointTestCase):
     def setUp(self):
         self.session = ChatSession.objects.create(guest="11111111-1111-1111-1111-111111111111")
 
@@ -126,78 +173,70 @@ class SendMessageTest(TestCase):
         self.assertEqual(events, ["delta", "delta", "done"])
         self.assertEqual(frames[0][1], {"text": "안"})
         self.assertEqual(frames[1][1], {"text": "녕"})
-        self.assertEqual(frames[2][0], "done")
         self.assertEqual(frames[2][1]["assistant_message"], "안녕")
+        self.assertEqual(frames[2][1]["tools"], [])
 
-        user_msg = ChatMessage.objects.get(session=self.session, role=ChatRole.USER)
-        assistant_msg = ChatMessage.objects.get(session=self.session, role=ChatRole.ASSISTANT)
-        self.assertEqual(user_msg.status, MessageStatus.COMPLETED)
-        self.assertEqual(assistant_msg.status, MessageStatus.COMPLETED)
-        self.assertEqual(assistant_msg.message, "안녕")
-        self.assertEqual(str(assistant_msg.id), frames[2][1]["message_id"])
-        self.assertLess(user_msg.sequence_no, assistant_msg.sequence_no)
+        messages, turns = snapshot(self.session)
+        human, answer = messages
+        self.assertIsInstance(human, HumanMessage)
+        self.assertIsInstance(answer, AIMessage)
+        self.assertEqual((human.content, answer.content), ("안녕?", "안녕"))
+        self.assertEqual(turns, {human.id: {"status": "completed", "answer_id": answer.id}})
+        self.assertEqual(frames[2][1]["message_id"], "2")  # 공개 wire: 옛 정수 id 의 숫자 문자열 (thread 안 2번째 메시지)
 
     def test_history_passed_to_chain_excludes_current_question(self):
-        ChatMessage.objects.create(
-            session=self.session, sequence_no=1, role=ChatRole.USER,
-            status=MessageStatus.COMPLETED, message="이전 질문",
-        )
-        ChatMessage.objects.create(
-            session=self.session, sequence_no=2, role=ChatRole.ASSISTANT,
-            status=MessageStatus.COMPLETED, message="이전 답변",
-        )
+        seed(self.session, ("이전 질문", "이전 답변"))
         fake = FakeChain()
         with self._patched_chain(fake):
             list(chat_service.send_message(self.session, "새 질문"))  # 제너레이터는 실제로 순회해야 chain.stream() 이 돈다
 
-        history = fake.received_inputs["chat_history"]
-        self.assertEqual(len(history), 2)
-        self.assertEqual(history[0].content, "이전 질문")
-        self.assertEqual(history[1].content, "이전 답변")
+        history_in = fake.received_inputs["chat_history"]
+        self.assertEqual([type(m) for m in history_in], [HumanMessage, AIMessage])
+        self.assertEqual([m.content for m in history_in], ["이전 질문", "이전 답변"])
         self.assertEqual(fake.received_inputs["question"], "새 질문")
 
+    def test_history_passed_to_chain_skips_unfinished_turns(self):
+        """실패/취소 턴의 질문은 모델 입력에 다시 넣지 않는다 (완료된 질문/답변만)."""
+        with self._patched_chain(FailingChain()):
+            list(chat_service.send_message(self.session, "실패한 질문"))
+        fake = FakeChain()
+        with self._patched_chain(fake):
+            list(chat_service.send_message(self.session, "새 질문"))
+        self.assertEqual(fake.received_inputs["chat_history"], [])
+
     def test_send_message_rejects_unsupported_version_before_insert(self):
-        """send_message(version="v3") 는 chain 호출/메시지 생성 전에 막힌다 (조용한 v2 폴백 없음)."""
+        """send_message(version="v3") 는 chain 호출/메시지 저장 전에 막힌다 (조용한 v2 폴백 없음)."""
         fake = FakeChain(chunks=("안",))
         with self._patched_chain(fake):
             with self.assertRaises(ValueError):
                 chat_service.send_message(self.session, "질문", version="v3")
-        self.assertEqual(ChatMessage.objects.filter(session=self.session).count(), 0)
+        self.assertEqual(snapshot(self.session), ([], {}))
 
-    def test_message_update_rejects_unsupported_version_before_delete(self):
-        """message_update(version="v3") 는 message_delete 호출 전에 막혀서 대상 메시지가
-        그대로 남아있어야 한다 (검증이 삭제보다 먼저 실행됨)."""
-        target = ChatMessage.objects.create(
-            session=self.session, sequence_no=1, role=ChatRole.USER,
-            status=MessageStatus.COMPLETED, message="수정 대상",
-        )
-        fake_request = types.SimpleNamespace(
-            user=types.SimpleNamespace(is_authenticated=False),
-            COOKIES={"guest_id": self.session.guest},
-        )
+    def test_message_update_rejects_unsupported_version_before_truncate(self):
+        """message_update(version="v3") 는 절단 전에 막혀서 대상 메시지가 그대로 남아야 한다."""
+        target = seed(self.session, ("수정 대상", "답변"))[0]
+        before = snapshot(self.session)
         fake = FakeChain(chunks=("안",))
         with self._patched_chain(fake):
             with self.assertRaises(ValueError):
-                chat_service.message_update(fake_request, self.session.id, target.id, "수정된 질문", version="v3")
-        self.assertTrue(ChatMessage.objects.filter(id=target.id).exists())
+                chat_service.message_update(guest_request(self.session), self.session.id, target.id, "수정된 질문", version="v3")
+        self.assertEqual(snapshot(self.session), before)
+        self.assertIsNone(fake.received_inputs)
 
     def test_failure_path_emits_error_frame_and_marks_failed(self):
         failing = FailingChain()
         with self._patched_chain(failing):
             frames = list(chat_service.send_message(self.session, "터질 질문"))
 
-        self.assertEqual(len(frames), 1)
-        self.assertEqual(frames[0][0], "error")
+        self.assertEqual(frames, [("error", {"detail": GENERIC_ERROR_MESSAGE})])
         self.assertNotIn("provider exploded", frames[0][1]["detail"])
-        self.assertEqual(frames[0][1]["detail"], chat_service.GENERIC_ERROR_MESSAGE)
 
-        user_msg = ChatMessage.objects.get(session=self.session, role=ChatRole.USER)
-        assistant_msg = ChatMessage.objects.get(session=self.session, role=ChatRole.ASSISTANT)
-        self.assertEqual(user_msg.status, MessageStatus.FAILED)
-        self.assertEqual(assistant_msg.status, MessageStatus.FAILED)
+        messages, turns = snapshot(self.session)
+        self.assertEqual([m.content for m in messages], ["터질 질문"])  # 가짜 AI 답변을 만들지 않는다
+        self.assertEqual(turns[messages[0].id], {"status": "failed", "answer_id": None})
 
 
-class ChatMessageViewSSEWireFormatTest(TestCase):
+class ChatMessageViewSSEWireFormatTest(CheckpointTestCase):
     """POST /messages/ 가 실제로 text/event-stream 바이트를 그대로 내보내는지 HTTP 경로로 확인."""
 
     def setUp(self):
@@ -228,7 +267,7 @@ class ChatMessageViewSSEWireFormatTest(TestCase):
         self.assertEqual(frames[2][1]["assistant_message"], "안녕")
 
 
-class SessionOwnershipViewTest(TestCase):
+class SessionOwnershipViewTest(CheckpointTestCase):
     def setUp(self):
         self.client_a = APIClient()
         self.client_a.cookies["guest_id"] = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
@@ -285,7 +324,7 @@ class SessionOwnershipViewTest(TestCase):
         self.assertIn("guest_id", response.cookies)
 
 
-class MessageContextValidationTest(TestCase):
+class MessageContextValidationTest(CheckpointTestCase):
     """POST /messages/ 의 선택 사항 context (stadium/intent/origin) HTTP 계층 검증.
 
     실제 모델 호출 없이 FakeChain 이 받은 inputs["context"] 로 서비스까지 전달됐는지 확인한다.
@@ -408,31 +447,21 @@ class MessageContextValidationTest(TestCase):
         self.assertEqual(response.status_code, 400)
 
     def test_output_message_has_no_context_field(self):
-        """ChatMessageSerializer 로 내려가는 응답(GET 목록)에는 죽은 context 필드가 없어야 한다."""
-        ChatMessage.objects.create(
-            session=self.session, sequence_no=1, role=ChatRole.USER,
-            status=MessageStatus.COMPLETED, message="안녕",
-        )
+        """GET 목록 항목은 공개 필드 {id, role, content, status, tools} 뿐이다 (context 없음).
+        (옛 wire 호환 필드 sequence_no/created_at/updated_at 도 유지한다 -- 명시적 버전 없이 필드를 빼지 않는다.)"""
+        seed(self.session, ("안녕", "반가워요"))
         response = self.client_a.get(f"/api/v2/chat/sessions/{self.session.id}/messages/")
         self.assertEqual(response.status_code, 200)
         body = response.json()
-        self.assertEqual(len(body), 1)
-        self.assertNotIn("context", body[0])
+        self.assertEqual(len(body), 2)
+        for item in body:
+            self.assertEqual(set(item), {"id", "sequence_no", "role", "content", "status", "tools", "created_at", "updated_at"})
 
-    def test_put_updates_message_and_forwards_context_after_deleting_later_turns(self):
-        """PUT 은 target 메시지부터 이후를 삭제하고 새 질문으로 다시 답한다. 그 이전 메시지는
-        보존되고, 새 context 는 그대로 체인 입력까지 전달돼야 한다."""
-        earlier = ChatMessage.objects.create(
-            session=self.session, sequence_no=1, role=ChatRole.USER,
-            status=MessageStatus.COMPLETED, message="이전 질문",
-        )
-        target = ChatMessage.objects.create(
-            session=self.session, sequence_no=2, role=ChatRole.USER,
-            status=MessageStatus.COMPLETED, message="수정 대상 질문",
-        )
-        stale_answer = ChatMessage.objects.create(
-            session=self.session, sequence_no=3, role=ChatRole.ASSISTANT,
-            status=MessageStatus.COMPLETED, message="수정 전 답변",
+    def test_put_updates_message_and_forwards_context_after_truncating_later_turns(self):
+        """PUT 은 target 뒤를 RemoveMessage 로 지우고 target 을 같은 ID 의 새 질문으로 바꿔 다시 답한다.
+        그 이전 턴은 보존되고, 새 context 는 그대로 체인 입력까지 전달돼야 한다."""
+        earlier_q, earlier_a, target, stale_answer = seed(
+            self.session, ("이전 질문", "이전 답변"), ("수정 대상 질문", "수정 전 답변"),
         )
 
         fake = FakeChain(chunks=("안",))
@@ -444,30 +473,24 @@ class MessageContextValidationTest(TestCase):
                 format="json", HTTP_ACCEPT="text/event-stream",
             )
             self.assertEqual(response.status_code, 200)
-            b"".join(response.streaming_content)
+            frames = _read_sse_body(b"".join(response.streaming_content).decode("utf-8"))
 
-        self.assertTrue(ChatMessage.objects.filter(id=earlier.id).exists())  # 이전 메시지는 보존
-        self.assertFalse(ChatMessage.objects.filter(id=target.id).exists())  # 수정 대상은 삭제됨
-        self.assertFalse(ChatMessage.objects.filter(id=stale_answer.id).exists())  # 이후 답변도 삭제됨
-        self.assertTrue(ChatMessage.objects.filter(session=self.session, message="수정된 질문").exists())
+        self.assertEqual([e for e, _ in frames], ["delta", "done"])
+        items = history(self.session)
+        self.assertEqual([i["content"] for i in items], ["이전 질문", "이전 답변", "수정된 질문", "안"])
+        self.assertEqual([i["id"] for i in items[:2]], [earlier_q.id, earlier_a.id])  # 이전 턴 보존
+        self.assertEqual(items[2]["id"], target.id)  # 수정 대상은 ID 를 유지한 채 내용만 바뀐다
+        self.assertNotIn(stale_answer.id, {i["id"] for i in items})  # 이후 답변은 지워짐
+        self.assertEqual([m.content for m in fake.received_inputs["chat_history"]], ["이전 질문", "이전 답변"])
         self.assertEqual(fake.received_inputs["context"]["stadium"], "잠실야구장")
+        # 과거 checkpoint 는 thread 삭제 전까지 남는다 (seed 1 + 수정 pending 1 + completed 1)
+        self.assertEqual(len(ChatThread(self.session.id).history()), 3)
 
-    def test_put_invalid_context_rejected_without_deleting_messages(self):
+    def test_put_invalid_context_rejected_without_truncating(self):
         """PUT context 검증은 view 에서 message_update() 호출 전에 일어나야 한다.
-        검증 실패(400) 시 target 이전/이후 메시지가 전혀 삭제되지 않아야 한다
-        (검증이 삭제보다 먼저 실행됨을 실제로 증명하는 회귀 테스트)."""
-        earlier = ChatMessage.objects.create(
-            session=self.session, sequence_no=1, role=ChatRole.USER,
-            status=MessageStatus.COMPLETED, message="이전 질문",
-        )
-        target = ChatMessage.objects.create(
-            session=self.session, sequence_no=2, role=ChatRole.USER,
-            status=MessageStatus.COMPLETED, message="수정 대상 질문",
-        )
-        stale_answer = ChatMessage.objects.create(
-            session=self.session, sequence_no=3, role=ChatRole.ASSISTANT,
-            status=MessageStatus.COMPLETED, message="수정 전 답변",
-        )
+        검증 실패(400) 시 스냅샷이 전혀 바뀌지 않아야 한다 (검증이 절단보다 먼저)."""
+        target = seed(self.session, ("이전 질문", "이전 답변"), ("수정 대상 질문", "수정 전 답변"))[2]
+        before = snapshot(self.session)
 
         fake = FakeChain(chunks=("안",))
         with mock_patch("llm.service.chat.get_chain", return_value=fake):
@@ -480,22 +503,22 @@ class MessageContextValidationTest(TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIsNone(fake.received_inputs)  # 체인까지 안 갔다
-        self.assertTrue(ChatMessage.objects.filter(id=earlier.id).exists())
-        self.assertTrue(ChatMessage.objects.filter(id=target.id).exists())  # 삭제 안 됨
-        self.assertTrue(ChatMessage.objects.filter(id=stale_answer.id).exists())  # 삭제 안 됨
+        self.assertEqual(snapshot(self.session), before)
+        self.assertEqual(len(ChatThread(self.session.id).history()), 1)
 
 
-class MessageIdValidationTest(TestCase):
+class MessageIdValidationTest(CheckpointTestCase):
     """PUT/DELETE 의 message_id 가 malformed/missing/타입이 안 맞으면 서비스 호출(수정/삭제) 전에 400."""
 
     def setUp(self):
         self.client_a = APIClient()
         self.client_a.cookies["guest_id"] = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"
         self.session = ChatSession.objects.create(guest="eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee")
-        self.target = ChatMessage.objects.create(
-            session=self.session, sequence_no=1, role=ChatRole.USER,
-            status=MessageStatus.COMPLETED, message="수정 대상",
-        )
+        self.target = seed(self.session, ("수정 대상", "답변"))[0]
+        self.before = snapshot(self.session)
+
+    def assertUntouched(self):
+        self.assertEqual(snapshot(self.session), self.before)
 
     def test_put_missing_message_id_rejected_without_deleting(self):
         fake = FakeChain(chunks=("답",))
@@ -507,7 +530,7 @@ class MessageIdValidationTest(TestCase):
             )
         self.assertEqual(response.status_code, 400)
         self.assertIsNone(fake.received_inputs)
-        self.assertTrue(ChatMessage.objects.filter(id=self.target.id).exists())
+        self.assertUntouched()
 
     def test_put_malformed_message_id_rejected_without_deleting(self):
         fake = FakeChain(chunks=("답",))
@@ -519,7 +542,7 @@ class MessageIdValidationTest(TestCase):
             )
         self.assertEqual(response.status_code, 400)
         self.assertIsNone(fake.received_inputs)
-        self.assertTrue(ChatMessage.objects.filter(id=self.target.id).exists())
+        self.assertUntouched()
 
     def test_delete_missing_message_id_rejected_without_deleting(self):
         response = self.client_a.delete(
@@ -527,7 +550,7 @@ class MessageIdValidationTest(TestCase):
             {}, format="json",
         )
         self.assertEqual(response.status_code, 400)
-        self.assertTrue(ChatMessage.objects.filter(id=self.target.id).exists())
+        self.assertUntouched()
 
     def test_delete_malformed_message_id_rejected_without_deleting(self):
         response = self.client_a.delete(
@@ -535,7 +558,7 @@ class MessageIdValidationTest(TestCase):
             {"message_id": "not-a-valid-id"}, format="json",
         )
         self.assertEqual(response.status_code, 400)
-        self.assertTrue(ChatMessage.objects.filter(id=self.target.id).exists())
+        self.assertUntouched()
 
     def test_delete_valid_message_id_deletes(self):
         response = self.client_a.delete(
@@ -543,10 +566,11 @@ class MessageIdValidationTest(TestCase):
             {"message_id": self.target.id}, format="json",
         )
         self.assertEqual(response.status_code, 204)
-        self.assertFalse(ChatMessage.objects.filter(id=self.target.id).exists())
+        self.assertEqual(snapshot(self.session), ([], {}))
+        self.assertEqual(len(ChatThread(self.session.id).history()), 2)  # RemoveMessage 로 지웠고 thread 는 남는다
 
 
-class UrlVersionForwardingTest(TestCase):
+class UrlVersionForwardingTest(CheckpointTestCase):
     """api/v1/chat/, api/v2/chat/ 가 URL 의 version 을 그대로 서비스까지 넘기는지 HTTP 경로로 확인.
     llm/urls.py 안의 re_path(r"^(?P<version>v1|v2)/chat/", ...) 하나가 v1/v2 공통 회귀 테스트
     대상이다 (config/urls.py 는 plain path("api/", include("llm.urls")) 만 한다)."""
@@ -598,7 +622,7 @@ class UrlVersionForwardingTest(TestCase):
 
         with self.assertRaises(Resolver404):
             resolve(f"/api/v3/chat/sessions/{self.session.id}/messages/")
-        self.assertEqual(ChatMessage.objects.filter(session=self.session).count(), 0)
+        self.assertEqual(snapshot(self.session), ([], {}))
 
     def test_direct_caller_unsupported_version_rejected_without_silent_fallback(self):
         """URL 정규식 밖에서 호출되는 경로(관리 커맨드 등)를 위한 방어: get_chain()/resolve_version()
@@ -609,12 +633,8 @@ class UrlVersionForwardingTest(TestCase):
             chat_service.get_chain("v3")
 
     def test_put_propagates_version_and_invalid_version_makes_no_destructive_changes(self):
-        """PUT 도 URL version 을 체인 선택까지 전달한다. 그리고 버전 검증 자체가 target 메시지
-        삭제(message_delete)보다 먼저 실행되어, 잘못된 버전이면 아무것도 지워지지 않는다."""
-        target = ChatMessage.objects.create(
-            session=self.session, sequence_no=1, role="user",
-            status="completed", message="수정 대상",
-        )
+        """PUT 도 URL version 을 체인 선택까지 전달한다. 잘못된 버전 URL 은 라우팅조차 안 된다."""
+        target = seed(self.session, ("수정 대상", "답변"))[0]
         fake = FakeChain(chunks=("안",))
         with mock_patch("llm.service.chat.get_chain", return_value=fake) as get_chain_mock:
             response = self.client_a.put(
@@ -625,29 +645,20 @@ class UrlVersionForwardingTest(TestCase):
             self.assertEqual(response.status_code, 200)
             b"".join(response.streaming_content)
         get_chain_mock.assert_called_once_with("v1")
-        self.assertFalse(ChatMessage.objects.filter(id=target.id).exists())
+        self.assertEqual([i["content"] for i in history(self.session)], ["수정된 질문", "안"])
 
         # api/v3/chat/... 같은 잘못된 버전 PUT 은 URLconf 단계에서 이미 막힌다 (Resolver404).
-        # 별도 세션에 있는 메시지가 그 요청으로 지워지지 않는다는 걸 같이 확인한다.
         from django.urls import Resolver404, resolve
 
         other_session = ChatSession.objects.create(guest="ffffffff-ffff-ffff-ffff-fffffffffffe")
-        other_target = ChatMessage.objects.create(
-            session=other_session, sequence_no=1, role="user",
-            status="completed", message="지워지면 안 되는 메시지",
-        )
+        seed(other_session, ("지워지면 안 되는 메시지", "답변"))
         with self.assertRaises(Resolver404):
             resolve(f"/api/v3/chat/sessions/{other_session.id}/messages/")
-        self.assertTrue(ChatMessage.objects.filter(id=other_target.id).exists())
+        self.assertEqual(len(history(other_session)), 2)
 
 
 class PausingChain:
-    """delta 한 개를 낸 뒤 멈춰서, 그 사이 동시 delete/update 를 흉내낼 수 있게 하는 가짜 체인.
-
-    실제 generator 를 수동으로 한 스텝씩 next() 해서, "스트리밍 도중"과 "완료 저장 직전"
-    사이의 race window 를 테스트에서 직접 만든다 (진짜 스레드/DB 커넥션을 새로 만들지 않고
-    같은 트랜잭션 안에서 순서를 강제한다).
-    """
+    """delta 한 개를 낸 뒤 멈춰서, 그 사이 동시 요청을 흉내낼 수 있게 하는 가짜 체인."""
 
     def __init__(self, chunks=("안", "녕")):
         self.chunks = chunks
@@ -658,92 +669,42 @@ class PausingChain:
         yield from self.chunks
 
 
-class StreamDeleteRaceTest(TestCase):
-    """defect #1 회귀: 스트리밍 완료 저장과 message_delete/message_update 의 삭제가 같은
-    user_message 를 동시에 다루는 race. 오래된 스트림이 이미 지워진 turn 을 되살리면 안 된다.
-    """
+class StreamConcurrencyTest(CheckpointTestCase):
+    """같은 대화 동시 요청은 직렬화하지 않는다(ChatThread 의 ponytail). 스트림 종료/실패/취소 경로만 확인한다."""
 
     def setUp(self):
+        self.client_a = APIClient()
+        self.client_a.cookies["guest_id"] = "99999999-9999-9999-9999-999999999999"
         self.session = ChatSession.objects.create(guest="99999999-9999-9999-9999-999999999999")
+        self.url = f"/api/v2/chat/sessions/{self.session.id}/messages/"
 
-    def test_concurrent_delete_during_streaming_suppresses_stale_completion(self):
-        """delta 하나 소비 -> (동시) message_delete 로 그 user_message 삭제 -> 스트림 마무리.
-        오래된 스트림은 done 을 내지 않고, assistant 응답도 저장되지 않아야 한다 (orphan 없음)."""
-        fake = PausingChain(chunks=("안", "녕"))
-        with mock_patch("llm.service.chat.get_chain", return_value=fake):
+    def test_other_session_is_not_blocked(self):
+        other = ChatSession.objects.create(guest="99999999-9999-9999-9999-999999999999")
+        with mock_patch("llm.service.chat.get_chain", return_value=PausingChain()):
             events = chat_service.send_message(self.session, "질문")
-            first_event, first_data = next(events)  # 첫 delta 까지만 소비 (스트리밍 진행 중 상태)
-            self.assertEqual(first_event, "delta")
+            next(events)
+            frames = list(chat_service.send_message(other, "다른 방 질문"))
+            list(events)
+        self.assertEqual(frames[-1][0], "done")
 
-            user_message = ChatMessage.objects.get(session=self.session, role=ChatRole.USER)
-            self.assertEqual(user_message.status, MessageStatus.PENDING)
-
-            # 이 시점에 사용자가 같은 메시지를 삭제(또는 PUT으로 수정하며 삭제)했다고 가정.
-            fake_request = types.SimpleNamespace(
-                user=types.SimpleNamespace(is_authenticated=False),
-                COOKIES={"guest_id": self.session.guest},
-            )
-            deleted_count = chat_service.message_delete(fake_request, self.session.id, user_message.id)
-            self.assertEqual(deleted_count, 1)
-            self.assertFalse(ChatMessage.objects.filter(id=user_message.id).exists())
-
-            # 오래된 스트림이 나머지 delta 와 완료 저장을 계속 진행한다.
-            remaining = list(events)
-
-        # done 이 없어야 한다 (완료 저장이 억제됨) -- delta 만 남고 done/error 는 없다.
-        self.assertNotIn("done", [event for event, _ in remaining])
-        self.assertNotIn("error", [event for event, _ in remaining])
-
-        # 삭제된 user_message 가 되살아나지 않고, 대응하는 assistant 응답도 새로 생기지 않는다.
-        self.assertFalse(ChatMessage.objects.filter(id=user_message.id).exists())
-        self.assertEqual(
-            ChatMessage.objects.filter(session=self.session, role=ChatRole.ASSISTANT).count(), 0,
-        )
-
-    def test_concurrent_delete_during_failure_path_does_not_resurrect_turn(self):
-        """실패 처리(except) 경로도 같은 락을 거쳐야 한다: 스트리밍 도중 실패하면서 동시에
-        그 user_message 가 지워졌으면 FAILED 로 되살리지 않는다."""
-
+    def test_failure_mid_stream_marks_failed(self):
         class PausingFailingChain:
             def stream(self, inputs):
                 yield "안"
                 raise RuntimeError("provider exploded mid-stream")
 
         with mock_patch("llm.service.chat.get_chain", return_value=PausingFailingChain()):
-            events = chat_service.send_message(self.session, "질문")
-            next(events)  # 첫 delta
-
-            user_message = ChatMessage.objects.get(session=self.session, role=ChatRole.USER)
-            fake_request = types.SimpleNamespace(
-                user=types.SimpleNamespace(is_authenticated=False),
-                COOKIES={"guest_id": self.session.guest},
-            )
-            chat_service.message_delete(fake_request, self.session.id, user_message.id)
-
-            remaining = list(events)  # 스트림이 실패로 끝난다
-
-        self.assertNotIn("error", [event for event, _ in remaining])
-        self.assertFalse(ChatMessage.objects.filter(id=user_message.id).exists())
-        self.assertEqual(ChatMessage.objects.filter(session=self.session).count(), 0)
-
-    def test_uninterrupted_stream_still_persists_normally(self):
-        """race 가드가 정상 경로(동시 삭제 없음)에는 영향을 주지 않는다는 대조군."""
-        fake = FakeChain(chunks=("안", "녕"))
-        with mock_patch("llm.service.chat.get_chain", return_value=fake):
             frames = list(chat_service.send_message(self.session, "질문"))
-
-        events = [event for event, _ in frames]
-        self.assertEqual(events, ["delta", "delta", "done"])
-        self.assertEqual(
-            ChatMessage.objects.get(session=self.session, role=ChatRole.ASSISTANT).status,
-            MessageStatus.COMPLETED,
-        )
+        self.assertEqual([e for e, _ in frames], ["delta", "error"])
+        self.assertNotIn("provider exploded", json.dumps(frames, ensure_ascii=False))
+        messages, turns = snapshot(self.session)
+        self.assertEqual([m.content for m in messages], ["질문"])  # 부분 답변 저장 안 함
+        self.assertEqual(turns[messages[0].id]["status"], "failed")
 
 
-class ChainInitFailureTest(TestCase):
-    """defect #3 회귀: get_chain() 초기화 실패가 try 밖에서 일어나 그대로 튀어오르면
-    user_message 가 PENDING 에 갇히고 SSE 응답이 500 traceback 으로 끝난다. try 안으로
-    옮긴 뒤에는 다른 provider 실패와 동일하게 FAILED + error 이벤트로 처리돼야 한다."""
+class ChainInitFailureTest(CheckpointTestCase):
+    """defect #3 회귀: get_chain() 초기화 실패가 try 밖에서 튀어오르면 질문 턴이 pending 에 갇히고
+    SSE 응답이 500 traceback 으로 끝난다. 다른 provider 실패와 똑같이 failed + error 여야 한다."""
 
     def setUp(self):
         self.session = ChatSession.objects.create(guest="88888888-8888-8888-8888-888888888888")
@@ -752,15 +713,10 @@ class ChainInitFailureTest(TestCase):
         with mock_patch("llm.service.chat.get_chain", side_effect=RuntimeError("chain import 실패")):
             frames = list(chat_service.send_message(self.session, "질문"))
 
-        self.assertEqual(len(frames), 1)
-        self.assertEqual(frames[0][0], "error")
-        self.assertEqual(frames[0][1]["detail"], chat_service.GENERIC_ERROR_MESSAGE)
-        self.assertNotIn("chain import 실패", frames[0][1]["detail"])
-
-        user_msg = ChatMessage.objects.get(session=self.session, role=ChatRole.USER)
-        self.assertEqual(user_msg.status, MessageStatus.FAILED)
-        assistant_msg = ChatMessage.objects.get(session=self.session, role=ChatRole.ASSISTANT)
-        self.assertEqual(assistant_msg.status, MessageStatus.FAILED)
+        self.assertEqual(frames, [("error", {"detail": GENERIC_ERROR_MESSAGE})])
+        messages, turns = snapshot(self.session)
+        self.assertEqual(turns[messages[0].id], {"status": "failed", "answer_id": None})
+        self.assertEqual([i["status"] for i in history(self.session)], ["failed"])
 
     def test_chain_initialization_error_over_http_returns_valid_sse_not_500(self):
         """HTTP 경로: Accept: text/event-stream 요청이 초기화 실패에도 500 traceback 이
@@ -780,59 +736,46 @@ class ChainInitFailureTest(TestCase):
 
         frames = _read_sse_body(body)
         self.assertEqual([event for event, _ in frames], ["error"])
-        self.assertEqual(frames[0][1], {"detail": chat_service.GENERIC_ERROR_MESSAGE})
+        self.assertEqual(frames[0][1], {"detail": GENERIC_ERROR_MESSAGE})
 
 
-class MessageDeleteNotFoundTest(TestCase):
-    """defect #4 회귀: 존재하지 않는/다른 세션의/user 가 아닌 message_id 는 404 여야 한다
-    (기존에는 ChatMessage.DoesNotExist 가 그대로 올라가 500 이 됐다)."""
+class MessageDeleteNotFoundTest(CheckpointTestCase):
+    """존재하지 않는/다른 세션의/user 가 아닌 message_id 는 404 여야 한다 (500 아님)."""
 
     def setUp(self):
         self.client_a = APIClient()
         self.client_a.cookies["guest_id"] = "66666666-6666-6666-6666-666666666666"
         self.session = ChatSession.objects.create(guest="66666666-6666-6666-6666-666666666666")
+        self.url = f"/api/v2/chat/sessions/{self.session.id}/messages/"
 
     def test_delete_nonexistent_message_id_returns_404_not_500(self):
-        response = self.client_a.delete(
-            f"/api/v2/chat/sessions/{self.session.id}/messages/",
-            {"message_id": 999999}, format="json",
-        )
+        response = self.client_a.delete(self.url, {"message_id": str(uuid.uuid4())}, format="json")
         self.assertEqual(response.status_code, 404)
 
     def test_put_nonexistent_message_id_returns_404_not_500(self):
+        seed(self.session, ("질문", "답변"))
+        before = snapshot(self.session)
         fake = FakeChain(chunks=("안",))
         with mock_patch("llm.service.chat.get_chain", return_value=fake):
             response = self.client_a.put(
-                f"/api/v2/chat/sessions/{self.session.id}/messages/",
-                {"content": "질문", "message_id": 999999},
+                self.url, {"content": "질문", "message_id": str(uuid.uuid4())},
                 format="json", HTTP_ACCEPT="text/event-stream",
             )
         self.assertEqual(response.status_code, 404)
+        self.assertIsNone(fake.received_inputs)
+        self.assertEqual(snapshot(self.session), before)
 
     def test_delete_foreign_session_message_id_returns_404_not_500(self):
         """message_id 가 실존하지만 다른 세션 소유이면 404 (본인 세션 것처럼 지울 수 없다)."""
         other_session = ChatSession.objects.create(guest="55555555-5555-5555-5555-555555555555")
-        foreign_message = ChatMessage.objects.create(
-            session=other_session, sequence_no=1, role=ChatRole.USER,
-            status=MessageStatus.COMPLETED, message="다른 세션 메시지",
-        )
-        response = self.client_a.delete(
-            f"/api/v2/chat/sessions/{self.session.id}/messages/",
-            {"message_id": foreign_message.id}, format="json",
-        )
+        foreign = seed(other_session, ("다른 세션 메시지", "답변"))[0]
+        response = self.client_a.delete(self.url, {"message_id": foreign.id}, format="json")
         self.assertEqual(response.status_code, 404)
-        self.assertTrue(ChatMessage.objects.filter(id=foreign_message.id).exists())
+        self.assertEqual(len(history(other_session)), 2)
 
     def test_delete_assistant_role_message_id_returns_404_not_500(self):
-        """message_id 가 실존해도 role 이 assistant 면(사용자 메시지가 아니면) 404."""
-        assistant_message = ChatMessage.objects.create(
-            session=self.session, sequence_no=1, role=ChatRole.ASSISTANT,
-            status=MessageStatus.COMPLETED, message="AI 답변",
-        )
-        response = self.client_a.delete(
-            f"/api/v2/chat/sessions/{self.session.id}/messages/",
-            {"message_id": assistant_message.id}, format="json",
-        )
+        """message_id 가 실존해도 assistant 답변이면(사용자 메시지가 아니면) 404."""
+        answer = seed(self.session, ("질문", "AI 답변"))[1]
+        response = self.client_a.delete(self.url, {"message_id": answer.id}, format="json")
         self.assertEqual(response.status_code, 404)
-        self.assertTrue(ChatMessage.objects.filter(id=assistant_message.id).exists())
-
+        self.assertEqual(len(history(self.session)), 2)
