@@ -87,8 +87,10 @@ def _vector_upsert(items):
     from llm.models import Document, DocumentChunk
     pending, skipped = [], 0
     for item in items:
+        # 내용이 같으면 기존 임베딩을 재사용할 수 있도록 해시를 먼저 계산한다.
         digest = hashlib.sha256(item["content"].encode()).hexdigest()
         meta = item.get("metadata", {})
+        # stable doc_id를 우선 사용하고, 구형 문서는 원본 자연키로 보정한다.
         old = DocumentChunk.objects.filter(metadata__doc_id=item["doc_id"]).first()
         if old is None and item.get("metadata", {}).get("category") == "SCHEDULE":
             meta = item["metadata"]
@@ -107,6 +109,7 @@ def _vector_upsert(items):
         if old is None and item.get("metadata", {}).get("category") == "TICKET_POLICY":
             old = DocumentChunk.objects.filter(content=item["content"]).first()
         if old and old.metadata.get("content_hash") == digest:
+            # 동일 content는 임베딩을 호출하지 않고 metadata만 병합한다.
             metadata = {**old.metadata, **item.get("metadata", {}), "doc_id": item["doc_id"], "content_hash": digest}
             if old.metadata != metadata:
                 old.metadata = metadata
@@ -120,6 +123,7 @@ def _vector_upsert(items):
     with transaction.atomic():
         new = updated = 0
         for (item, digest, old), vector in zip(pending, vectors):
+            # 신규 metadata가 우선하지만 기존 문서의 추적 필드는 보존한다.
             metadata = {**old.metadata, **item.get("metadata", {}), "doc_id": item["doc_id"], "content_hash": digest} if old else {**item.get("metadata", {}), "doc_id": item["doc_id"], "content_hash": digest}
             source = metadata.get("source_file", "tving-crawler")
             document, _ = Document.objects.get_or_create(source=source, defaults={"title": source})
@@ -198,6 +202,7 @@ def collect_schedule(month=None):
             score_text = f" 최종 스코어는 {g['away']['name']} {g['away']['score']} - {g['home']['name']} {g['home']['score']}로 {result_text}."
         cancel_text = " 경기 취소 정보가 있습니다." if g["status"] == "cancelled" else ""
         season_val = g["date"][:4]
+        # 원본 일정 크롤러와 같은 stable natural key를 사용한다.
         identity = "|".join([season_val, g["date"].replace("-", "") + g["time"].replace(":", ""), g["away"]["name"], g["home"]["name"], g["stadium"]])
         natural = f"schedule_{hashlib.sha256(identity.encode('utf-8')).hexdigest()[:16]}"
         content = (
@@ -305,6 +310,7 @@ def collect_standing():
             f"게임차는 {row['gamesBehind']}입니다."
         )
         identity = f"{year}_{row['team']}"
+        # 원본 순위 크롤러와 같은 stable natural key를 사용한다.
         natural = f"standing_{hashlib.sha256(identity.encode('utf-8')).hexdigest()[:16]}"
         metadata = {
             "id": natural,

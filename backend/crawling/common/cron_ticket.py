@@ -295,6 +295,7 @@ def collect_tickets():
         # 팀 코드로 홈구장 코드 결정
         stadium = TEAM_STADIUMS.get(row["team_code"], "UNKNOWN")
         parsed = row["parsed"]
+        # build_index 호환용 source_file과 API 원본 metadata를 함께 보존한다.
         source = "https://yagu.today/calendar"
         metadata = {
             "id": row["id"], "source": source, "team": row["team_code"],
@@ -306,6 +307,7 @@ def collect_tickets():
         text_fields = [(key, value) for key, value in metadata.items()
                        if key not in {"id", "source", "team", "category", "updated_at", "content", "status", "evidence_type", "source_file", "stadium_code"}
                        and value not in (None, "")]
+        # CSV row_text와 같은 방식으로 원본 구조화 필드를 content에 포함한다.
         content = f"[{STADIUM_NAMES.get(stadium, stadium)} · {TEAM_NAMES.get(row['team_code'], row['team_code'])}] " + " / ".join(f"{key}: {value}" for key, value in text_fields)
         metadata["content"] = content
         docs.append({
