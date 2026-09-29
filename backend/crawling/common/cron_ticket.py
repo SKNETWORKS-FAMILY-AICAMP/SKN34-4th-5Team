@@ -17,6 +17,8 @@ TEAM_CODES = {"LG": "LG", "한화": "HH", "SSG": "SK", "삼성": "SS", "NC": "NC
 
 # 팀 코드 → 홈구장 코드 매핑
 TEAM_STADIUMS = {"LG": "JAMSIL", "DOOSAN": "JAMSIL", "HH": "DAEJEON", "SSG": "MUNHAK", "SS": "DAEGU", "NC": "CHANGWON", "KT": "SUWON", "LT": "SAJIK", "HT": "GWANGJU", "WO": "GOCHEOK"}
+TEAM_NAMES = {"LG": "LG 트윈스", "DOOSAN": "두산 베어스", "HH": "한화 이글스", "SSG": "SSG 랜더스", "SS": "삼성 라이온즈", "NC": "NC 다이노스", "KT": "KT 위즈", "LT": "롯데 자이언츠", "HT": "KIA 타이거즈", "WO": "키움 히어로즈"}
+STADIUM_NAMES = {"JAMSIL": "잠실야구장", "GOCHEOK": "고척스카이돔", "MUNHAK": "인천 SSG 랜더스필드", "SUWON": "수원 KT 위즈 파크", "DAEJEON": "대전 한화생명 볼파크", "DAEGU": "대구 삼성 라이온즈 파크", "GWANGJU": "광주-KIA 챔피언스 필드", "SAJIK": "사직야구장", "CHANGWON": "창원 NC 파크"}
 
 
 def _setup():
@@ -292,14 +294,24 @@ def collect_tickets():
     for row in policies:
         # 팀 코드로 홈구장 코드 결정
         stadium = TEAM_STADIUMS.get(row["team_code"], "UNKNOWN")
+        parsed = row["parsed"]
+        source = "https://yagu.today/calendar"
+        metadata = {
+            "id": row["id"], "source": source, "team": row["team_code"],
+            "category": "TICKET_POLICY", "updated_at": datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S"),
+            "source_file": "kbo_ticket_policy_structured.csv", "team_code": row["team_code"],
+            "stadium_code": stadium, "status": "CONFIRMED" if parsed.get("parse_status") == "OK" else "RECHECK",
+            "evidence_type": "THIRD_PARTY_API", "content": row["content"], **parsed,
+        }
+        text_fields = [(key, value) for key, value in metadata.items()
+                       if key not in {"id", "source", "team", "category", "updated_at", "content", "status", "evidence_type", "source_file", "stadium_code"}
+                       and value not in (None, "")]
+        content = f"[{STADIUM_NAMES.get(stadium, stadium)} · {TEAM_NAMES.get(row['team_code'], row['team_code'])}] " + " / ".join(f"{key}: {value}" for key, value in text_fields)
+        metadata["content"] = content
         docs.append({
             "doc_id": f"TICKET_POLICY_{stadium}_{row['id']}",
-            "content": row["content"],
-            "metadata": {
-                "id": row["id"], "source": "https://yagu.today/calendar", "team": row["team_code"],
-                "category": "TICKET_POLICY", "source_file": "kbo_ticket_policy_structured.csv",
-                "team_code": row["team_code"], "stadium_code": stadium, "content": row["content"],
-            },
+            "content": content,
+            "metadata": metadata,
         })
     # 예매 정책을 임베딩하여 pgvector에 저장/갱신
     vector_result = _vector_upsert(docs)
