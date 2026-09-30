@@ -129,6 +129,9 @@ DATABASES = {
 
 DATABASE_ROUTERS = ["baseball.db_router.BaseballDatabaseRouter"]
 
+# 공개 SSE 이벤트 사이 최대 대기(초). 넘으면 error 하나로 끝낸다. 이벤트마다 다시 잰다.
+CHAT_STREAM_IDLE_TIMEOUT_SECONDS = positive_int_env("CHAT_STREAM_IDLE_TIMEOUT_SECONDS", 90)
+
 BASEBALL_QUERY_MAX_ROWS = positive_int_env("BASEBALL_QUERY_MAX_ROWS", 200)
 BASEBALL_QUERY_TIMEOUT_MS = positive_int_env("BASEBALL_QUERY_TIMEOUT_MS", 3000)
 BASEBALL_QUERY_LOCK_TIMEOUT_MS = positive_int_env("BASEBALL_QUERY_LOCK_TIMEOUT_MS", 1000)

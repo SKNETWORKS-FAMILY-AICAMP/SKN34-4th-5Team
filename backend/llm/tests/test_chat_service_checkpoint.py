@@ -23,7 +23,7 @@ from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.core.signals import request_finished
 from django.db import close_old_connections, connection, transaction
-from django.test import TransactionTestCase
+from django.test import SimpleTestCase, TransactionTestCase
 from langchain_core.language_models import BaseChatModel
 from langchain_core.language_models.chat_models import generate_from_stream
 from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, ToolMessage
@@ -34,9 +34,10 @@ from rest_framework.test import APIClient
 from llm.models import ChatSession, ChatThreadDeletion
 from llm.service import chat as chat_service
 from llm.service.chat import ChatThread
+from llm.service import chat_runs
 from llm.service.chat_thread import purge_deleted_threads, reserve_thread_deletion
 from llm.tests.test_v2_chat import (
-    CheckpointTestCase, PausingChain, _read_sse_body, guest_request, history, patch_chain, seed, snapshot,
+    CheckpointTestCase, FakeChain, PausingChain, _read_sse_body, guest_request, history, patch_chain, seed, snapshot,
 )
 from llm.v1.rag import dispatcher, persona
 from llm.v1.rag.assistant import pipeline as assistant
@@ -266,7 +267,7 @@ class CancelAndDeleteTest(CheckpointTestCase):
                 ChatSession.objects.filter(id=self.session.id).delete()
             self.assertEqual(self.thread.history(), [])
             remaining = list(events)
-        self.assertEqual([e for e, _ in remaining], ["delta", "error"])  # 남은 청크 뒤 done 없음
+        self.assertEqual(remaining, [("stopped", {})])  # commit 뒤 취소: 남은 청크·done 없이 stopped 하나
         self.assertEqual(self.thread.history(), [])
 
     def test_delete_during_stream_is_not_revived_by_stale_completion(self):
@@ -276,7 +277,7 @@ class CancelAndDeleteTest(CheckpointTestCase):
             human = snapshot(self.session)[0][0]
             self.assertEqual(chat_service.message_delete(guest_request(self.session), self.session.id, human.id), 1)
             remaining = list(events)
-        self.assertEqual([e for e, _ in remaining], ["delta", "error"])  # 남은 청크 뒤 done 없음  # done 없음
+        self.assertEqual(remaining, [("stopped", {})])  # 편집으로 대체된 스트림은 stopped 하나
         self.assertEqual(snapshot(self.session), ([], {}))
         self.assertEqual(self.thread.history()[0].values["revision"], 1)  # 최신은 편집 branch
 
@@ -286,7 +287,7 @@ class CancelAndDeleteTest(CheckpointTestCase):
             next(old)
             human = snapshot(self.session)[0][0]
             new = chat_service.message_update(guest_request(self.session), self.session.id, human.id, "새 질문")
-            self.assertEqual([e for e, _ in old], ["delta", "error"])  # 편집 전 스트림은 stale
+            self.assertEqual(list(old), [("stopped", {})])  # 편집 전 스트림은 stopped
             self.assertEqual([(i["content"], i["status"]) for i in history(self.session)], [("새 질문", "pending")])
             frames = list(new)
         self.assertEqual([e for e, _ in frames], ["delta", "delta", "done"])
@@ -481,3 +482,223 @@ class WriteFenceTest(TransactionTestCase):
         self.assertEqual(output, "result False\n")  # saver.put 을 부르지 않았다
         self._assert_gone()
         self.assertTrue(waited)
+
+
+class RunCancellationTest(CheckpointTestCase):
+    """프로세스 로컬 run 취소(chat_runs): ABA·범위·종료 이벤트·idle timeout·정리."""
+
+    def setUp(self):
+        self.session = ChatSession.objects.create(guest=GUEST)
+
+    def _gated(self, gate, before=("먼저",), idle=0):
+        class Gated(FakeChain):
+            def stream(self, *a, **kw):
+                for text in before:
+                    yield ("simple_agent:1",), "messages", (AIMessageChunk(text), {"langgraph_node": "model"})
+                    time.sleep(idle)
+                gate.wait(5)
+                yield (), "updates", {"simple_agent": {"messages": [AIMessage("".join(before) or "답")]}}
+        return Gated()
+
+    def test_edit_cancels_old_run_but_not_new_one_aba(self):
+        gate = threading.Event()
+        with patch_chain(return_value=self._gated(gate)):
+            old = chat_service.send_message(self.session, "q")
+            next(old)
+            human = snapshot(self.session)[0][0]
+            new = chat_service.message_update(guest_request(self.session), self.session.id, human.id, "q2")
+            next(new)
+            stale = chat_runs.Run(self.session.id)  # 같은 세션의 옛 run 객체를 늦게 취소해도(ABA)
+            stale.cancel()
+            chat_runs.unregister(stale)  # 등록 안 된 객체 정리는 새 run 을 빼지 않는다
+            self.assertEqual(sorted(r.cancelled for r in chat_runs.snapshot(self.session.id)), [False, True])
+            gate.set()
+            self.assertEqual(list(old), [("stopped", {})])
+            frames = list(new)
+        self.assertEqual([e for e, _ in frames], ["done"])
+        self.assertEqual(chat_runs.snapshot(self.session.id), [])  # 정리
+
+    def test_cancel_is_scoped_to_session(self):
+        other = ChatSession.objects.create(guest=GUEST)
+        gate = threading.Event()
+        with patch_chain(return_value=self._gated(gate)):
+            mine = chat_service.send_message(self.session, "q")
+            theirs = chat_service.send_message(other, "q")
+            next(mine), next(theirs)
+            chat_service.message_delete(guest_request(self.session), self.session.id, snapshot(self.session)[0][0].id)
+            gate.set()
+            self.assertEqual(list(mine), [("stopped", {})])
+            self.assertEqual([e for e, _ in theirs][-1], "done")
+
+    def test_rolled_back_session_delete_does_not_cancel(self):
+        gate = threading.Event()
+        with patch_chain(return_value=self._gated(gate)):
+            events = chat_service.send_message(self.session, "q")
+            next(events)
+            with self.captureOnCommitCallbacks(execute=True):
+                try:
+                    with transaction.atomic():
+                        ChatSession.objects.filter(id=self.session.id).delete()
+                        raise RuntimeError("rollback")
+                except RuntimeError:
+                    pass
+            gate.set()
+            self.assertEqual([e for e, _ in events][-1], "done")
+
+    def test_disconnect_emits_nothing_and_unregisters(self):
+        gate = threading.Event()
+        with patch_chain(return_value=self._gated(gate)):
+            events = chat_service.send_message(self.session, "q")
+            next(events)
+            self.assertEqual(len(chat_runs.snapshot(self.session.id)), 1)
+            events.close()
+            gate.set()
+        self.assertEqual(chat_runs.snapshot(self.session.id), [])
+        self.assertEqual(history(self.session)[0]["status"], "cancelled")
+
+    def test_idle_before_first_event_emits_one_error(self):
+        gate = threading.Event()
+        with self.settings(CHAT_STREAM_IDLE_TIMEOUT_SECONDS=0.2), patch_chain(return_value=self._gated(gate, before=())):
+            frames = list(chat_service.send_message(self.session, "q"))
+        gate.set()
+        self.assertEqual(frames, [("error", {"detail": "답변 생성에 실패했습니다. 다시 시도해 주세요."})])
+        self.assertEqual(history(self.session)[0]["status"], "failed")
+        self.assertEqual(chat_runs.snapshot(self.session.id), [])
+
+    def test_idle_after_event_emits_one_error(self):
+        gate = threading.Event()
+        with self.settings(CHAT_STREAM_IDLE_TIMEOUT_SECONDS=0.2), patch_chain(return_value=self._gated(gate)):
+            frames = list(chat_service.send_message(self.session, "q"))
+        gate.set()
+        self.assertEqual([e for e, _ in frames], ["delta", "error"])
+
+    def test_long_active_stream_resets_idle_timeout(self):
+        gate = threading.Event()
+        gate.set()
+        chunks = tuple("가나다라마바")  # 0.1s 간격 × 6 = 0.6s > timeout 0.3s, 간격은 항상 < timeout
+        with self.settings(CHAT_STREAM_IDLE_TIMEOUT_SECONDS=0.3), \
+                patch_chain(return_value=self._gated(gate, before=chunks, idle=0.1)):
+            frames = list(chat_service.send_message(self.session, "q"))
+        self.assertEqual([e for e, _ in frames], ["delta"] * 6 + ["done"])
+
+    def test_v1_stopped_matrix(self):
+        with patch_chain(return_value=PausingChain(chunks=("안", "녕"))):
+            events = chat_service.send_message(self.session, "q", version="v1")
+            next(events)
+            chat_service.message_delete(guest_request(self.session), self.session.id, snapshot(self.session)[0][0].id)
+            self.assertEqual(list(events), [("stopped", {})])
+
+
+class RunPumpLifecycleTest(SimpleTestCase):
+    """pump 은 bounded 백프레셔 + 협조적 중단. 동기 next() 에 영원히 막힌 원본은 강제 종료 못 한다(provider timeout 몫)."""
+
+    def test_cancel_unblocks_producer_and_bounds_queue(self):
+        run = chat_runs.Run("s")
+        produced, closed = [], threading.Event()
+
+        def frames():
+            try:
+                for i in range(10_000):
+                    produced.append(i)
+                    yield i
+            finally:
+                closed.set()
+
+        events = run.pump(frames())
+        self.assertEqual(next(events), 0)
+        time.sleep(0.2)  # 소비자가 멈춘 동안 producer 는 한도에서 막힌다
+        self.assertLessEqual(len(produced), chat_runs.MAX_PENDING + 2)
+        run.cancel()
+        self.assertTrue(closed.wait(2))  # 취소가 막힌 put 을 풀고 원본을 닫는다
+        with self.assertRaises(chat_runs.Stopped):
+            next(events)
+        self.assertLessEqual(len(produced), chat_runs.MAX_PENDING + 2)
+
+    def test_consumer_close_unblocks_producer(self):
+        run, closed = chat_runs.Run("s"), threading.Event()
+
+        def frames():
+            try:
+                while True:
+                    yield 1
+            finally:
+                closed.set()
+
+        events = run.pump(frames())
+        next(events)
+        events.close()
+        self.assertTrue(closed.wait(2))
+
+    def test_cancel_before_final_commit_emits_stopped(self):
+        class Thread:
+            thread_id = "cancel-before-commit"
+            updates = []
+            wire = None
+
+            def update(self, added, turns):
+                self.updates.append(turns)
+                return True
+
+        box = {"answer": "답", "messages": []}
+        holder = {}
+        human = HumanMessage("q", id="h1")
+        events = chat_runs.stream_turn(Thread(), [], {}, human, lambda: (x for x in ()), box,
+                                       on_stop=lambda: holder["run"].cancel())
+        next(events)
+        holder["run"] = chat_runs.snapshot(Thread.thread_id)[0]
+        self.assertEqual(list(events), [("stopped", {})])
+        self.assertEqual([t["h1"]["status"] for t in Thread.updates], ["cancelled"])
+
+    def test_edit_cancels_only_runs_present_before_commit(self):
+        thread = ChatThread("identity-safe-edit")
+        old = chat_runs.register(thread.thread_id)
+        created = []
+
+        def update(*args, **kwargs):
+            created.append(chat_runs.register(thread.thread_id))
+            return True
+
+        thread.update = update
+        try:
+            thread._write([], {}, revision=1)
+            self.assertTrue(old.cancelled)
+            self.assertFalse(created[0].cancelled)
+        finally:
+            chat_runs.unregister(old)
+            for run in created:
+                chat_runs.unregister(run)
+
+    def test_cancel_after_dequeue_wins_over_producer_error(self):
+        run = chat_runs.Run("dequeue-race")
+
+        class Inbox:
+            def put(self, *args, **kwargs):
+                return None
+
+            def put_nowait(self, *args, **kwargs):
+                return None
+
+            def get(inner, *args, **kwargs):
+                run.cancelled = True
+                return "error", RuntimeError("producer failed")
+
+        with patch.object(run, "_inbox", Inbox()), self.assertRaises(chat_runs.Stopped):
+            next(run.pump((item for item in ())))
+
+    def test_cancel_during_fenced_finish_emits_stopped(self):
+        holder = {}
+
+        class Thread:
+            thread_id = "finish-race"
+            wire = {}
+
+            def update(self, *args, **kwargs):
+                holder["run"].cancel()
+                return False
+
+        box = {"answer": "답", "messages": []}
+        events = chat_runs.stream_turn(Thread(), [], {}, HumanMessage("q", id="h1"),
+                                       lambda: (item for item in ()), box)
+        next(events)
+        holder["run"] = chat_runs.snapshot(Thread.thread_id)[0]
+        self.assertEqual(list(events), [("stopped", {})])
