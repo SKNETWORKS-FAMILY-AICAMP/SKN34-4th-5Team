@@ -335,6 +335,42 @@ paths:
               schema:
                 $ref: '#/components/schemas/MemberUser'
           description: ''
+  /api/v1/auth/users/{member_id}/public/:
+    get:
+      operationId: auth_users_public_retrieve
+      description: 로그인한 사용자가 회원 활동 페이지를 열 때 필요한 최소 공개 정보를 조회합니다. 개인정보와 전체 visibility 설정은 반환하지 않습니다.
+      parameters:
+      - in: path
+        name: member_id
+        schema:
+          type: integer
+          minimum: 1
+        required: true
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicMember'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
   /api/v1/auth/username/request:
     post:
       operationId: auth_username_request_create
@@ -4867,6 +4903,71 @@ paths:
               schema:
                 $ref: '#/components/schemas/AdminReportActionResult'
           description: ''
+  /api/v1/community/comments/:
+    get:
+      operationId: community_member_comments_list
+      description: |-
+        특정 회원이 작성한 댓글을 조회합니다. 본인은 공개 여부와 관계없이 조회할 수 있으며, 다른 회원의 활동은 visibility.posts가 true인 경우에만 조회할 수 있습니다.
+        page 또는 page_size를 지정하면 페이지네이션 응답을 반환합니다.
+      parameters:
+      - in: query
+        name: author_id
+        description: 댓글 작성자 회원 ID (양의 정수)
+        schema:
+          type: integer
+          minimum: 1
+        required: true
+      - in: query
+        name: page
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+      tags:
+      - community
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommunityMemberCommentListResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
   /api/v1/community/comments/{comment_id}/:
     patch:
       operationId: community_comments_partial_update
@@ -5367,6 +5468,12 @@ paths:
       operationId: community_posts_list
       parameters:
       - in: query
+        name: author_id
+        description: 작성자 회원 ID (양의 정수). 지정 시 JWT 인증이 필요하며, 본인 또는 visibility.posts가 true인 회원의 게시글만 조회할 수 있습니다.
+        schema:
+          type: integer
+          minimum: 1
+      - in: query
         name: board
         schema:
           type: string
@@ -5428,6 +5535,13 @@ paths:
                 additionalProperties: {}
           description: ''
         '401':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '403':
           content:
             application/json:
               schema:
@@ -8480,6 +8594,67 @@ components:
       - next
       - previous
       - results
+    CommunityMemberComment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        content:
+          type: string
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        postId:
+          type: string
+          readOnly: true
+        postTitle:
+          type: string
+          readOnly: true
+        board:
+          type: string
+          readOnly: true
+        teamCode:
+          type: string
+          readOnly: true
+          description: 자유게시판 댓글은 빈 문자열입니다.
+      required:
+      - id
+      - content
+      - createdAt
+      - postId
+      - postTitle
+      - board
+      - teamCode
+    CommunityMemberCommentListResponse:
+      oneOf:
+      - type: array
+        items:
+          $ref: '#/components/schemas/CommunityMemberComment'
+      - $ref: '#/components/schemas/CommunityMemberCommentPage'
+    CommunityMemberCommentPage:
+      type: object
+      properties:
+        count:
+          type: integer
+          minimum: 0
+        next:
+          type: string
+          nullable: true
+        previous:
+          type: string
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/CommunityMemberComment'
+      required:
+      - count
+      - next
+      - previous
+      - results
     CommunityPostWrite:
       type: object
       properties:
@@ -10023,6 +10198,25 @@ components:
       - team_code
       - username
       - visibility
+    PublicMember:
+      type: object
+      description: 다른 회원의 활동 페이지에 필요한 최소 공개 회원 정보입니다.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        nickname:
+          type: string
+          readOnly: true
+          description: nickname이 비어 있으면 username을 반환합니다.
+        activityVisible:
+          type: boolean
+          readOnly: true
+          description: visibility.posts 값이며 설정이 없으면 false입니다.
+      required:
+      - id
+      - nickname
+      - activityVisible
     MonthData:
       type: object
       properties:
