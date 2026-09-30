@@ -7,10 +7,10 @@ import { ApiError } from "@/lib/api/client";
 import type { CommunityMemberSummaryDto, CommunityMemberPostDto, CommunityMemberCommentDto, CommunityMemberPageDto } from "@/lib/api/content";
 import { fetchCommunityMember, fetchCommunityMemberPosts, fetchCommunityMemberComments } from "@/lib/community-member-api";
 import { useMemberAuth } from "@/lib/member-auth";
+import { activityHref, memberActivityLoginHref, type ActivityTab } from "@/lib/member-return-path";
 import { getCommunityPostHref, getTeamBoard } from "@/lib/team-community";
 import styles from "./community-member-page.module.css";
 
-type ActivityTab = "posts" | "comments";
 type Props = { memberId: number; tab: ActivityTab; page: number };
 type ActivityData =
   | { kind: "posts"; member: CommunityMemberSummaryDto; list: CommunityMemberPageDto<CommunityMemberPostDto> }
@@ -19,14 +19,12 @@ type LoadState =
   | { kind: "loading" }
   | { kind: "ready"; data: ActivityData }
   | { kind: "unauthorized" }
+  | { kind: "private" }
   | { kind: "error"; message: string; status: number | null };
 
 const dateFormatter = new Intl.DateTimeFormat("ko-KR", {
   timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false,
 });
-function activityHref(memberId: number, tab: ActivityTab, page = 1) {
-  return `/community/members/${memberId}?${new URLSearchParams({ tab, page: String(page) })}`;
-}
 function boardLabel(board: "free" | "teams", teamCode: string) {
   return board === "free" ? "자유게시판" : `${getTeamBoard(teamCode)?.shortName ?? "팀"} 게시판`;
 }
@@ -43,32 +41,37 @@ function failureMessage(error: unknown) {
 export function CommunityMemberPage(props: Props) {
   const { status, user, reload } = useMemberAuth();
   const router = useRouter();
-  const signupHref = `/signup?${new URLSearchParams({ next: activityHref(props.memberId, props.tab, props.page) })}`;
+  const loginHref = memberActivityLoginHref(props.memberId, props.tab, props.page);
   useEffect(() => {
-    if (status === "anonymous") router.replace(signupHref);
-  }, [status, router, signupHref]);
+    if (status === "anonymous") router.replace(loginHref);
+  }, [status, router, loginHref]);
   if (status === "loading") return <main className={`container ${styles.page}`}><p role="status">로그인 상태를 확인하고 있습니다.</p></main>;
   if (status === "unavailable") return <main className={`container ${styles.page}`}><h1>멤버 활동</h1><p role="alert">로그인 상태를 확인하지 못했습니다.</p><button type="button" className={styles.actionButton} onClick={() => void reload()}>다시 확인</button></main>;
-  if (status !== "authenticated" || !user) return <main className={`container ${styles.page}`}><p role="status">회원가입 화면으로 이동하고 있습니다.</p><Link href={signupHref}>회원가입 또는 로그인하기</Link></main>;
-  return <ActivityContent key={`${user.id}:${props.memberId}:${props.tab}:${props.page}`} {...props} />;
+  if (status !== "authenticated" || !user) return <main className={`container ${styles.page}`}><p role="status">로그인 화면으로 이동하고 있습니다.</p><Link href={loginHref}>로그인하기</Link></main>;
+  return <ActivityContent key={`${user.id}:${props.memberId}:${props.tab}:${props.page}`} {...props} viewerId={user.id} />;
 }
 
-function ActivityContent({ memberId, tab, page }: Props) {
+function ActivityContent({ memberId, tab, page, viewerId }: Props & { viewerId: number }) {
   const router = useRouter();
   const [retry, setRetry] = useState(0);
   const [state, setState] = useState<LoadState>({ kind: "loading" });
-  const signupHref = `/signup?${new URLSearchParams({ next: activityHref(memberId, tab, page) })}`;
+  const loginHref = memberActivityLoginHref(memberId, tab, page);
 
   useEffect(() => {
     const controller = new AbortController();
     async function load() {
       try {
+        const member = await fetchCommunityMember(memberId, controller.signal);
+        if (!member.activityVisible && viewerId !== member.id) {
+          if (!controller.signal.aborted) setState({ kind: "private" });
+          return;
+        }
         let data: ActivityData;
         if (tab === "posts") {
-          const [member, list] = await Promise.all([fetchCommunityMember(memberId, controller.signal), fetchCommunityMemberPosts(memberId, page, controller.signal)]);
+          const list = await fetchCommunityMemberPosts(memberId, page, controller.signal);
           data = { kind: "posts", member, list };
         } else {
-          const [member, list] = await Promise.all([fetchCommunityMember(memberId, controller.signal), fetchCommunityMemberComments(memberId, page, controller.signal)]);
+          const list = await fetchCommunityMemberComments(memberId, page, controller.signal);
           data = { kind: "comments", member, list };
         }
         if (!controller.signal.aborted) setState({ kind: "ready", data });
@@ -76,7 +79,11 @@ function ActivityContent({ memberId, tab, page }: Props) {
         if (controller.signal.aborted) return;
         if (error instanceof ApiError && error.status === 401) {
           setState({ kind: "unauthorized" });
-          router.replace(signupHref);
+          router.replace(loginHref);
+          return;
+        }
+        if (error instanceof ApiError && error.status === 403) {
+          setState({ kind: "private" });
           return;
         }
         setState({ kind: "error", message: failureMessage(error), status: error instanceof ApiError ? error.status : null });
@@ -84,7 +91,7 @@ function ActivityContent({ memberId, tab, page }: Props) {
     }
     void load();
     return () => controller.abort();
-  }, [memberId, tab, page, retry, router, signupHref]);
+  }, [memberId, tab, page, viewerId, retry, router, loginHref]);
 
   return <main className={`container ${styles.page}`}>
     <p className={styles.eyebrow}>COMMUNITY MEMBER</p>
@@ -98,7 +105,8 @@ function ActivityContent({ memberId, tab, page }: Props) {
     </nav>
     <section aria-label={tab === "posts" ? "작성한 글" : "작성한 댓글"}>
       {state.kind === "loading" && <p className={styles.notice} role="status">{tab === "posts" ? "게시글" : "댓글"}을 불러오고 있습니다.</p>}
-      {state.kind === "unauthorized" && <p className={styles.notice} role="status">인증이 만료되었습니다. <Link href={signupHref}>회원가입 또는 로그인하기</Link></p>}
+      {state.kind === "unauthorized" && <p className={styles.notice} role="status">인증이 만료되었습니다. <Link href={loginHref}>로그인하기</Link></p>}
+      {state.kind === "private" && <p className={styles.notice} role="status">이 회원의 글·댓글 활동 목록은 비공개입니다.</p>}
       {state.kind === "error" && <div className={styles.notice}>
         <p role="alert">{state.message}</p>
         {state.status !== 403 && state.status !== 404 && <button type="button" className={styles.actionButton} onClick={() => { setState({ kind: "loading" }); setRetry(value => value + 1); }}>다시 시도</button>}
@@ -111,7 +119,7 @@ function ActivityContent({ memberId, tab, page }: Props) {
             <Link className={styles.item} href={getCommunityPostHref(post)}>
               <span className={styles.board}>{boardLabel(post.board, post.teamCode)}</span>
               <span className={styles.title}>{post.title}</span>
-              <time dateTime={post.createdAt}>{dateFormatter.format(new Date(post.createdAt))}</time>
+              {post.createdAt ? <time dateTime={post.createdAt}>{dateFormatter.format(new Date(post.createdAt))}</time> : <span>작성일 없음</span>}
             </Link>
           </li>)}</ul> : <ul className={styles.list}>{state.data.list.results.map(comment => <li key={comment.id}>
             <Link className={`${styles.item} ${styles.commentItem}`} href={getCommunityPostHref({ id: comment.postId, board: comment.board, teamCode: comment.teamCode })}>

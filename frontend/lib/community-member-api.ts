@@ -3,7 +3,6 @@ import type { CommunityMemberSummaryDto, CommunityMemberPostDto, CommunityMember
 import { memberFetch } from "./member-auth-request";
 import { getTeamBoard } from "./team-community";
 
-const BASE_PATH = "/api/v2/community/members";
 type Validator<T> = (value: unknown) => value is T;
 const record = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const positive = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v) && v > 0;
@@ -11,8 +10,8 @@ const text = (v: unknown): v is string => typeof v === "string" && v.trim().leng
 const date = (v: unknown): v is string => typeof v === "string" && Number.isFinite(Date.parse(v));
 const nullableText = (v: unknown) => v === null || typeof v === "string";
 const board = (v: Record<string, unknown>) => v.board === "free" ? v.teamCode === "" : v.board === "teams" && typeof v.teamCode === "string" && Boolean(getTeamBoard(v.teamCode));
-const isMember: Validator<CommunityMemberSummaryDto> = (v): v is CommunityMemberSummaryDto => record(v) && positive(v.id) && text(v.nickname);
-const isPost: Validator<CommunityMemberPostDto> = (v): v is CommunityMemberPostDto => record(v) && text(v.id) && text(v.title) && board(v) && date(v.createdAt);
+const isMember: Validator<CommunityMemberSummaryDto> = (v): v is CommunityMemberSummaryDto => record(v) && positive(v.id) && text(v.nickname) && typeof v.activityVisible === "boolean";
+const isPost: Validator<CommunityMemberPostDto> = (v): v is CommunityMemberPostDto => record(v) && text(v.id) && text(v.title) && board(v) && (v.createdAt === null || date(v.createdAt));
 const isComment: Validator<CommunityMemberCommentDto> = (v): v is CommunityMemberCommentDto => record(v) && positive(v.id) && typeof v.content === "string" && date(v.createdAt) && text(v.postId) && text(v.postTitle) && board(v);
 
 function paginated<T>(validate: Validator<T>): Validator<CommunityMemberPageDto<T>> {
@@ -37,17 +36,17 @@ async function request<T>(path: string, validate: Validator<T>, signal?: AbortSi
 
 export async function fetchCommunityMember(memberId: number, signal?: AbortSignal) {
   validateIds(memberId);
-  const member = await request(`${BASE_PATH}/${memberId}/`, isMember, signal);
+  const member = await request(`/api/v1/auth/users/${memberId}/public/`, isMember, signal);
   if (member.id !== memberId) throw new ApiError("조회한 회원 정보가 일치하지 않습니다.", 502);
   return member;
 }
 
 export function fetchCommunityMemberPosts(memberId: number, page = 1, signal?: AbortSignal) {
   validateIds(memberId, page);
-  return request(`${BASE_PATH}/${memberId}/posts/?${new URLSearchParams({ page: String(page), page_size: "20" })}`, paginated(isPost), signal);
+  return request(`/api/v1/community/posts/?${new URLSearchParams({ author_id: String(memberId), page: String(page), page_size: "20" })}`, paginated(isPost), signal);
 }
 
 export function fetchCommunityMemberComments(memberId: number, page = 1, signal?: AbortSignal) {
   validateIds(memberId, page);
-  return request(`${BASE_PATH}/${memberId}/comments/?${new URLSearchParams({ page: String(page), page_size: "20" })}`, paginated(isComment), signal);
+  return request(`/api/v1/community/comments/?${new URLSearchParams({ author_id: String(memberId), page: String(page), page_size: "20" })}`, paginated(isComment), signal);
 }

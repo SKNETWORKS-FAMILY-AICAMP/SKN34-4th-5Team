@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { deleteCommunityPost, getCommunityPost, retryCommunityPosts, useCommunityPosts } from "@/lib/community-api";
 import { useMemberAuth } from "@/lib/member-auth";
-import { getCommunityWriteHref, getTeamBoard, getTeamBoardHref, teamBoards, type TeamCommunityPost } from "@/lib/team-community";
+import { getCommunityPostHref, getCommunityWriteHref, getTeamBoard, getTeamBoardHref, teamBoards, type TeamCommunityPost } from "@/lib/team-community";
 import { CommunityNavigation } from "./community-navigation";
 import { CommunityPostBottom } from "./community-post-bottom";
 import { CommunityPostContent } from "./community-post-content";
@@ -72,7 +72,7 @@ export function CommunityBoard({ section, teamCode = "", postId = "" }: { sectio
   const pageStart = Math.floor((page - 1) / 5) * 5 + 1;
   const pages = Array.from({ length: Math.min(5, pageCount - pageStart + 1) }, (_, index) => pageStart + index);
   const selectedPost = postId && detail.key === detailKey ? detail.post : null;
-  const postHref = (code: string, id: string) => section === "free" ? `/community?post=${encodeURIComponent(id)}` : getTeamBoardHref(code, id);
+  const postHref = (code: string, id: string) => getCommunityPostHref({ id, board: section, teamCode: code });
   const listHref = section === "free" ? "/community" : getTeamBoardHref(team?.code);
   const writeHref = getCommunityWriteHref(section, team?.code);
   const owned = Boolean(selectedPost && user && authorId(selectedPost) === user.id);

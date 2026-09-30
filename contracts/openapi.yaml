@@ -288,7 +288,7 @@ paths:
       operationId: auth_user_retrieve
       description: |-
         로그인한 사용자 정보를 조회합니다.
-        Url: GET /v1/auth/user (Nginx 경유: /api/v1/auth/user)
+        Url: GET /api/v1/auth/user
         Headers: Authorization: Bearer <access_token>
         Return:
             - HTTP_200_OK
@@ -308,7 +308,7 @@ paths:
       operationId: auth_user_partial_update
       description: |-
         로그인한 사용자 정보를 조회합니다.
-        Url: GET /v1/auth/user (Nginx 경유: /api/v1/auth/user)
+        Url: GET /api/v1/auth/user
         Headers: Authorization: Bearer <access_token>
         Return:
             - HTTP_200_OK
@@ -358,6 +358,40 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UsernameRequestResponse'
+          description: ''
+  /api/v1/auth/users/{member_id}/public/:
+    get:
+      operationId: auth_users_public_retrieve
+      parameters:
+      - in: path
+        name: member_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicMember'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
           description: ''
   /api/v1/baseball/games/:
     get:
@@ -4867,6 +4901,67 @@ paths:
               schema:
                 $ref: '#/components/schemas/AdminReportActionResult'
           description: ''
+  /api/v1/community/comments/:
+    get:
+      operationId: community_comments_list
+      parameters:
+      - in: query
+        name: author_id
+        schema:
+          type: integer
+          minimum: 1
+        required: true
+      - in: query
+        name: page
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+      tags:
+      - community
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedCommunityMemberCommentList'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
   /api/v1/community/comments/{comment_id}/:
     patch:
       operationId: community_comments_partial_update
@@ -5367,6 +5462,12 @@ paths:
       operationId: community_posts_list
       parameters:
       - in: query
+        name: author_id
+        schema:
+          type: integer
+          minimum: 1
+        description: 작성자 활동 목록. JWT 인증 필요, 본인 또는 공개 설정된 회원만 조회 가능.
+      - in: query
         name: board
         schema:
           type: string
@@ -5428,6 +5529,13 @@ paths:
                 additionalProperties: {}
           description: ''
         '401':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '403':
           content:
             application/json:
               schema:
@@ -8377,6 +8485,40 @@ components:
       - id
       - size
       - width
+    CommunityMemberComment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        content:
+          type: string
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        postId:
+          type: string
+          readOnly: true
+        postTitle:
+          type: string
+          readOnly: true
+        board:
+          allOf:
+          - $ref: '#/components/schemas/BoardEnum'
+          readOnly: true
+        teamCode:
+          type: string
+          readOnly: true
+      required:
+      - board
+      - content
+      - createdAt
+      - id
+      - postId
+      - postTitle
+      - teamCode
     CommunityPost:
       type: object
       properties:
@@ -10206,6 +10348,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ChatTurn'
+    PaginatedCommunityMemberCommentList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/CommunityMemberComment'
     PaginatedFacilityList:
       type: object
       required:
@@ -12147,6 +12312,22 @@ components:
       - name
       - season
       - team_id
+    PublicMember:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        nickname:
+          type: string
+          readOnly: true
+        activityVisible:
+          type: boolean
+          readOnly: true
+      required:
+      - activityVisible
+      - id
+      - nickname
     PublicSeatMap:
       type: object
       properties:
