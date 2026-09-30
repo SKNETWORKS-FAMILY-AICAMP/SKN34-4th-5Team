@@ -3,9 +3,8 @@ from datetime import date
 from pydantic import Field, StrictInt, model_validator
 from django.db.models import Q
 from baseball.models import Facility, FoodStore, HomeContext, SeatMap, SeatScope, SeatZone, Stadium, StadiumContent, TicketPolicy, TicketPrice, Transport
-from community.models import TEAM_CODES
 
-from .common import LimitInput, ToolInput, _json, _result, _rows, _tool
+from .common import LimitInput, ToolInput, _json, _result, _rows, _tool, db_team_code, is_team_code
 
 class StadiumInput(ToolInput):
     stadium_id: StrictInt | None = Field(default=None, ge=1)
@@ -19,12 +18,12 @@ class StadiumInput(ToolInput):
 
 class ContextInput(LimitInput):
     season: StrictInt = Field(ge=1982, le=2100)
-    team_code: str = Field(pattern="^[A-Z]{2}$")
+    team_code: str = Field(pattern="^[A-Z]{2,7}$")
     stadium_id: StrictInt | None = Field(default=None, ge=1)
 
     @model_validator(mode="after")
     def validate_team(self):
-        if self.team_code not in TEAM_CODES:
+        if not is_team_code(self.team_code):
             raise ValueError("올바른 팀 코드가 아닙니다.")
         return self
 
@@ -33,12 +32,12 @@ class TicketPricesInput(ContextInput):
     zone_code: str | None = Field(default=None, min_length=1, max_length=80)
 
 class TicketPoliciesInput(LimitInput):
-    team_code: str = Field(pattern="^[A-Z]{2}$")
+    team_code: str = Field(pattern="^[A-Z]{2,7}$")
     game_id: StrictInt | None = Field(default=None, ge=1)
 
     @model_validator(mode="after")
     def validate_team(self):
-        if self.team_code not in TEAM_CODES:
+        if not is_team_code(self.team_code):
             raise ValueError("올바른 팀 코드가 아닙니다.")
         return self
 
@@ -52,7 +51,7 @@ class ContentInput(StadiumListInput):
     content_type: str | None = Field(default=None, min_length=1, max_length=80)
 
 def _context(season, team_code, stadium_id=None):
-    query = HomeContext.objects.filter(season=season, team__team_code=team_code)
+    query = HomeContext.objects.filter(season=season, team__team_code=db_team_code(team_code))
     return query.filter(stadium_id=stadium_id) if stadium_id is not None else query
 
 def create_stadium_tools():
@@ -89,7 +88,7 @@ def create_stadium_tools():
 
     def get_ticket_policies(team_code, game_id=None, limit=20):
         """팀과 선택한 경기의 공개 예매 정책을 조회한다."""
-        query = TicketPolicy.objects.filter(team__team_code=team_code)
+        query = TicketPolicy.objects.filter(team__team_code=db_team_code(team_code))
         if game_id is not None:
             query = query.filter(Q(game_id=game_id) | Q(game_id__isnull=True))
         return _result(_rows(query.order_by("policy_code", "channel_no", "id"), ("policy_code", "team__team_code", "game_id", "policy_type", "subtype", "open_at", "max_tickets", "channel_no", "booking_channel", "channel_condition"), limit))

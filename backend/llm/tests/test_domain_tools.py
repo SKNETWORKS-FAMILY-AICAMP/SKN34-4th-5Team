@@ -42,7 +42,7 @@ class DomainToolsTest(TestCase):
     def setUpTestData(cls):
         now = timezone.now()
         cls.lg, _ = baseball.Team.objects.get_or_create(team_code="LG", defaults={"id": 990001, "team_name_ko": "LG 트윈스"})
-        cls.ob, _ = baseball.Team.objects.get_or_create(team_code="OB", defaults={"id": 990002, "team_name_ko": "두산 베어스"})
+        cls.ob, _ = baseball.Team.objects.get_or_create(team_code="DOOSAN", defaults={"id": 990002, "team_name_ko": "두산 베어스"})
         cls.stadium = baseball.Stadium.objects.create(
             id=990001, stadium_code="TEST-JAMSIL", stadium_name_ko="테스트 잠실", address="서울",
             longitude="127.071", latitude="37.512", geocode_source="official", collected_at=now,
@@ -103,8 +103,8 @@ class DomainToolsTest(TestCase):
     def test_deterministic_invoke_keeps_canonical_schemas_and_dict_results(self):
         fresh = {"stale": False, "warning": None}
         with (
-            patch("tving.service.ensure_game_range_fresh", return_value=fresh),
-            patch("tving.service.ensure_standings_fresh", return_value=fresh),
+            patch("tving.service.get_game_range_freshness", return_value=fresh),
+            patch("tving.service.get_standings_freshness", return_value=fresh),
         ):
             games = domain_tools.invoke("course", "get_games", {
                 "start_date": "2099-09-15", "end_date": "2099-09-15", "team_code": "LG",
@@ -181,6 +181,16 @@ class DomainToolsTest(TestCase):
         self.assertEqual(self.tools["get_standings"].invoke({})["actual_date"], "2099-09-15")
         ob = self.tools["get_seat_zones"].invoke({"season": 2099, "team_code": "OB", "stadium_id": 990001})
         self.assertEqual([item["zone_code"] for item in ob["items"]], ["OB-Z"])
+        # 도구는 TVING 약어(OB)를 받고 DB Team 은 표준 코드(DOOSAN)라서, 조회 직전에 변환돼야 한다.
+        baseball.TicketPolicy.objects.create(id=990002, policy_code="TEST-OB-GENERAL", team=self.ob, policy_type="sale", subtype="general", channel_no=1, booking_channel="official", channel_condition="", collected_at=timezone.now())
+        policies = self.tools["get_ticket_policies"].invoke({"team_code": "OB"})
+        self.assertIn("TEST-OB-GENERAL", [item["policy_code"] for item in policies["items"]])
+        self.assertEqual({item["team__team_code"] for item in policies["items"]}, {"DOOSAN"})
+        # get_games 결과의 표준 코드(DOOSAN)를 LLM이 그대로 넘겨도 같은 결과여야 한다.
+        standard = self.tools["get_ticket_policies"].invoke({"team_code": "DOOSAN"})
+        self.assertEqual([item["policy_code"] for item in standard["items"]], [item["policy_code"] for item in policies["items"]])
+        games = self.tools["get_games"].invoke({"start_date": "2099-09-15", "end_date": "2099-09-15", "team_code": "OB"})
+        self.assertIn("TEST-G1", [item["game_code"] for item in games["items"]])
         for name, args in (
             ("get_games", {"start_date": "2026-09-16", "end_date": "2026-09-15"}),
             ("get_stadium", {"stadium_id": 1, "stadium_code": "JAMSIL"}),
@@ -215,14 +225,14 @@ class DomainToolsTest(TestCase):
             )
             return {"stale": False, "warning": None}
 
-        with patch("tving.service.ensure_game_range_fresh", side_effect=sync_games) as games_sync, patch("tving.service.ensure_standings_fresh", side_effect=sync_standings) as standings_sync:
+        with patch("tving.service.get_game_range_freshness", side_effect=sync_games) as games_sync, patch("tving.service.get_standings_freshness", side_effect=sync_standings) as standings_sync:
             games = self.tools["get_games"].invoke({"start_date": game_day.isoformat(), "end_date": game_day.isoformat(), "team_code": "LG"})
             standings = self.tools["get_standings"].invoke({"snapshot_date": game_day.isoformat()})
         games_sync.assert_called_once_with(game_day, game_day)
         standings_sync.assert_called_once_with(game_day)
         self.assertIn("SYNCED-G1", [item["game_code"] for item in games["items"]])
         self.assertTrue(all(item["game_date"] == game_day.isoformat() for item in games["items"]))
-        self.assertEqual(standings["items"][0]["team__team_code"], "OB")
+        self.assertEqual(standings["items"][0]["team__team_code"], "DOOSAN")
 
 
 class PlaceAdapterTest(TestCase):

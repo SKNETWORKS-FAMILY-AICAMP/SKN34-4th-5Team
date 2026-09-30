@@ -28,7 +28,8 @@ def _vector_upsert(items):
         if old is None and item.get("metadata", {}).get("category") == "TICKET_POLICY":
             old = DocumentChunk.objects.filter(content=item["content"]).first()
         if old and old.metadata.get("content_hash") == digest:
-            metadata = {**item.get("metadata", {}), "doc_id": item["doc_id"], "content_hash": digest}
+            # 기존 청크의 추적 필드(source_file 등)는 보존하고 크롤러 값만 덮어쓴다.
+            metadata = {**old.metadata, **item.get("metadata", {}), "doc_id": item["doc_id"], "content_hash": digest}
             if old.metadata != metadata:
                 old.metadata = metadata
                 old.save(update_fields=("metadata",))
@@ -42,7 +43,7 @@ def _vector_upsert(items):
         document, _ = Document.objects.get_or_create(source="tving-crawler", defaults={"title": "TVING 크롤러"})
         new = updated = 0
         for (item, digest, old), vector in zip(pending, vectors):
-            metadata = {**item.get("metadata", {}), "doc_id": item["doc_id"], "content_hash": digest}
+            metadata = {**(old.metadata if old else {}), **item.get("metadata", {}), "doc_id": item["doc_id"], "content_hash": digest}
             if old:
                 old.content, old.metadata, old.embedding = item["content"], metadata, vector
                 old.save(update_fields=("content", "metadata", "embedding")); updated += 1

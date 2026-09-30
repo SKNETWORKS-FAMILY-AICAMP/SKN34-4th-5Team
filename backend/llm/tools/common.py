@@ -16,6 +16,31 @@ INVALID_INPUT = "도구 입력 형식이 올바르지 않습니다. 인자 설�
 DB_ERROR = "저장된 정보를 조회하지 못했습니다. 잠시 후 다시 시도해 주세요."
 
 
+def db_team_code(code):
+    """도구 입력의 TVING 약어(OB·SK·HH…)를 DB Team.team_code 표준 코드(DOOSAN·SSG·HANWHA…)로 바꾼다.
+
+    도구 스키마는 커뮤니티와 같은 약어를 받지만 baseball.Team 은 표준 코드로 적재돼 있다
+    (data/raw/team_stadium_code_map.csv). 표준 코드가 들어오면 그대로 둔다.
+    """
+    from tving.relational import TEAM_MAP
+    return TEAM_MAP.get(code, code)
+
+
+def tving_team_code(code):
+    """표준 코드(DOOSAN…)를 TVING 약어(OB…)로 바꾼다. 약어가 들어오면 그대로 둔다."""
+    from tving.relational import TEAM_MAP
+    return {standard: short for short, standard in TEAM_MAP.items()}.get(code, code)
+
+
+def is_team_code(code):
+    """약어(OB)와 표준 코드(DOOSAN) 둘 다 허용한다.
+
+    get_games·get_standings 결과에는 표준 코드가 나와서 LLM이 그 값을 다음 도구에 그대로 넘긴다.
+    """
+    from tving.relational import TEAM_MAP
+    return code in TEAM_MAP or code in TEAM_MAP.values()
+
+
 def _json(value):
     if isinstance(value, (UUID, Decimal)):
         return str(value)

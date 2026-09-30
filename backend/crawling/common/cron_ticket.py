@@ -12,7 +12,6 @@ from django.db import transaction
 
 KST = ZoneInfo("Asia/Seoul")
 TEAM_CODES = {"LG": "LG", "한화": "HH", "SSG": "SK", "삼성": "SS", "NC": "NC", "KT": "KT", "롯데": "LT", "KIA": "HT", "두산": "OB", "키움": "WO"}
-TEAM_STADIUMS = {"LG": "JAMSIL", "DOOSAN": "JAMSIL", "HH": "DAEJEON", "SSG": "MUNHAK", "SS": "DAEGU", "NC": "CHANGWON", "KT": "SUWON", "LT": "SAJIK", "HT": "GWANGJU", "WO": "GOCHEOK"}
 
 
 def _setup():
@@ -86,7 +85,7 @@ def _parse_policy(content, team_code):
 
 def _collect_policies():
     import requests
-    from preprocessing.parse_ticket_policy import make_new_id, parse_row
+    from preprocessing.team_stadium_map import normalize_team
     now = datetime.now(KST)
     response = requests.get(f"https://yagu.today/calendar/{now.year}/{now.month}", headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
     response.raise_for_status()
@@ -94,8 +93,10 @@ def _collect_policies():
     for event in _events(response.text):
         if event.get("category") != "ticket":
             continue
-        code = TEAM_CODES.get(event.get("homeTeam")) or TEAM_CODES.get(event.get("awayTeam"))
-        if not code:
+        # TVING 약어(team_for용)와 내부 표준 코드(ID·벡터 metadata용)를 같은 팀 기준으로 함께 만든다.
+        name = event.get("homeTeam") if event.get("homeTeam") in TEAM_CODES else event.get("awayTeam")
+        tving_code, team_code = TEAM_CODES.get(name), normalize_team(name)
+        if not tving_code or not team_code:
             continue
         try:
             event_date = datetime.fromisoformat(event["date"].replace("Z", "+00:00")).astimezone(KST)
@@ -104,8 +105,8 @@ def _collect_policies():
         if event_date < now:
             continue
         content = _policy_content(event)
-        parsed, policy_id = _parse_policy(content, code)
-        rows.append({"id": policy_id, "team_code": code, "content": content, "parsed": parsed})
+        parsed, policy_id = _parse_policy(content, team_code)
+        rows.append({"id": policy_id, "team_code": team_code, "tving_code": tving_code, "content": content, "parsed": parsed})
     return rows
 
 
@@ -172,6 +173,7 @@ def _deduplicate_ticket_rows():
 def collect_tickets():
     _setup()
     from baseball.models import TicketPolicy
+    from preprocessing.team_stadium_map import stadium_code_of
     from tving.relational import team_for
     from .cron_tving import _vector_upsert
     now = datetime.now(KST)
@@ -188,7 +190,7 @@ def collect_tickets():
             item.booking_channel = parsed.get("booking_channel_and_condition", "")
             item.save(update_fields=("policy_type", "subtype", "max_tickets", "booking_channel"))
         for row in policies:
-            team = team_for(row["team_code"])
+            team = team_for(row["tving_code"])
             if not team:
                 continue
             parsed = row["parsed"]
@@ -205,7 +207,7 @@ def collect_tickets():
         prices = _load_prices(now)
     docs = []
     for row in policies:
-        stadium = TEAM_STADIUMS.get(row["team_code"], "UNKNOWN")
+        stadium = stadium_code_of(row["team_code"]) or "UNKNOWN"
         docs.append({
             "doc_id": f"TICKET_POLICY_{stadium}_{row['id']}",
             "content": row["content"],

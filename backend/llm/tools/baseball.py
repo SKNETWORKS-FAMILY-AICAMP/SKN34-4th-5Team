@@ -75,7 +75,7 @@ get_baseball_schema, execute_baseball_select = create_baseball_tools()
 from datetime import date
 from pydantic import Field, StrictInt, model_validator
 
-from .common import LimitInput, _json, _result, _rows, _tool
+from .common import LimitInput, _json, _result, _rows, _tool, db_team_code, is_team_code, tving_team_code
 
 class StandingsInput(LimitInput):
     snapshot_date: date | None = None
@@ -83,20 +83,19 @@ class StandingsInput(LimitInput):
 class GamesInput(LimitInput):
     start_date: date
     end_date: date
-    team_code: str | None = Field(default=None, pattern="^[A-Z]{2}$")
+    team_code: str | None = Field(default=None, pattern="^[A-Z]{2,7}$")
     stadium_id: StrictInt | None = Field(default=None, ge=1)
 
     @model_validator(mode="after")
     def validate_range(self):
         if self.start_date > self.end_date or (self.end_date - self.start_date).days > 366:
             raise ValueError("날짜 범위는 순서대로 최대 366일이어야 합니다.")
-        from community.models import TEAM_CODES
-        if self.team_code and self.team_code not in TEAM_CODES:
+        if self.team_code and not is_team_code(self.team_code):
             raise ValueError("올바른 팀 코드가 아닙니다.")
         return self
 
 class PlayerInput(LimitInput):
-    team_code: str | None = Field(default=None, pattern="^(SS|KT|LG|HT|OB|NC|HH|LT|SK|WO)$")
+    team_code: str | None = Field(default=None, pattern="^(SS|KT|LG|HT|OB|NC|HH|LT|SK|WO|SAMSUNG|KIA|DOOSAN|HANWHA|LOTTE|SSG|KIWOOM)$")
     player_code: str | None = Field(default=None, min_length=1, max_length=40)
     name: str | None = Field(default=None, min_length=1, max_length=80)
 
@@ -113,7 +112,7 @@ def create_baseball_domain_tools():
 
     def get_standings(snapshot_date=None, limit=20):
         """정확한 날짜 또는 저장된 최신 날짜의 KBO 순위를 조회한다."""
-        freshness = tving_service.ensure_standings_fresh(snapshot_date)
+        freshness = tving_service.get_standings_freshness(snapshot_date)
         actual = snapshot_date or StandingHistory.objects.order_by("-snapshot_date").values_list("snapshot_date", flat=True).first()
         rows = [] if actual is None else _rows(
             StandingHistory.objects.filter(snapshot_date=actual).order_by("rank", "team__team_code"),
@@ -123,10 +122,11 @@ def create_baseball_domain_tools():
 
     def get_games(start_date, end_date, team_code=None, stadium_id=None, limit=20):
         """날짜 범위의 일정과 결과를 팀/구장으로 필터링한다."""
-        freshness = tving_service.ensure_game_range_fresh(start_date, end_date)
+        freshness = tving_service.get_game_range_freshness(start_date, end_date)
         query = Game.objects.filter(game_date__range=(start_date, end_date))
         if team_code:
-            query = query.filter(Q(home_team__team_code=team_code) | Q(away_team__team_code=team_code))
+            code = db_team_code(team_code)
+            query = query.filter(Q(home_team__team_code=code) | Q(away_team__team_code=code))
         if stadium_id is not None:
             query = query.filter(stadium_id=stadium_id)
         return _result(_rows(query.order_by("game_date", "game_time", "game_code"), (
@@ -138,6 +138,7 @@ def create_baseball_domain_tools():
     def search_players(team_code=None, player_code=None, name=None, limit=20):
         """TVING 공통 DB-first 경로로 선수 명단/상세를 갱신한 뒤 공개 선수 정보를 찾는다."""
         stale, warning = False, None
+        team_code = tving_team_code(team_code) if team_code else None  # TVING 검색은 약어 기준
         try:
             teams = [team_code] if team_code else []
             if name and not teams:

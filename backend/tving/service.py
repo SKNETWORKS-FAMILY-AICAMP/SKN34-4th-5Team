@@ -387,8 +387,11 @@ def refresh_athlete(code, provider=None):
     return result
 
 
-def ensure_game_range_fresh(start_date, end_date, provider=None):
-    """Refresh each requested schedule month through the same DB-first path as HTTP."""
+def get_game_range_freshness(start_date, end_date, provider=None):
+    """요청 기간의 월별 일정이 DB에 있는지 확인해 stale/warning만 돌려준다.
+
+    TVING 호출·DB 저장은 하지 않는다(#29부터 갱신은 crawling/ 크롤러 담당).
+    """
     month = start_date.replace(day=1)
     end_month = end_date.replace(day=1)
     stale = False
@@ -411,8 +414,12 @@ def ensure_game_range_fresh(start_date, end_date, provider=None):
     return {"stale": stale, "warning": warnings[0] if warnings else None}
 
 
-def ensure_standings_fresh(snapshot_date=None, provider=None):
-    """Refresh current standings only; the provider has no historical standings endpoint."""
+def get_standings_freshness(snapshot_date=None, provider=None):
+    """오늘 순위가 DB에 있는지 확인해 stale/warning만 돌려준다.
+
+    TVING 호출·DB 저장은 하지 않는다(#29부터 갱신은 crawling/ 크롤러 담당).
+    과거·미래 날짜는 저장분만 조회한다는 경고를 준다.
+    """
     today = datetime.now(ZoneInfo("Asia/Seoul")).date()
     latest = StandingHistory.objects.order_by("-snapshot_date").values_list("snapshot_date", flat=True).first()
     if snapshot_date is not None and snapshot_date != today:
