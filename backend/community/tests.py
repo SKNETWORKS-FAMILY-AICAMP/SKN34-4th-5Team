@@ -155,7 +155,261 @@ class CommunityPostApiTests(APITestCase):
         self.assertEqual(self.client.get(legacy_url).status_code, 200)
         self.assertEqual(self.client.patch(legacy_url, {"title": "탈취"}, format="json").status_code, 403)
 
+class MemberActivityApiTests(APITestCase):
+    @classmethod
+    def setUpTestData(cls):
+        User = get_user_model()
 
+        cls.owner = User.objects.create_user(
+            username="owner",
+            nickname="작성자",
+            visibility={"posts": True},
+        )
+        cls.private_user = User.objects.create_user(
+            username="private",
+            nickname="비공개",
+            visibility={"posts": False},
+        )
+        cls.other = User.objects.create_user(
+            username="other",
+            nickname="다른 사용자",
+        )
+
+    def create_post(self, owner, *, is_hidden=False, title="게시글"):
+        return CommunityPost.objects.create(
+            board="free",
+            team_code="",
+            owner=owner,
+            author=owner.nickname or owner.username,
+            title=title,
+            content="본문",
+            category="잡담",
+            is_hidden=is_hidden,
+        )
+
+    def create_comment(self, post, author, content="댓글"):
+        from .models import CommunityComment
+
+        return CommunityComment.objects.create(
+            post=post,
+            author=author,
+            content=content,
+        )
+
+    def test_public_member_info(self):
+        self.client.force_authenticate(self.other)
+
+        response = self.client.get(
+            f"/api/v1/auth/users/{self.owner.id}/public/"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data,
+            {
+                "id": self.owner.id,
+                "nickname": "작성자",
+                "activityVisible": True,
+            },
+        )
+
+    def test_private_member_cannot_be_viewed_by_other_user(self):
+        self.client.force_authenticate(self.other)
+
+        response = self.client.get(
+            f"/api/v1/auth/users/{self.private_user.id}/public/"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data["activityVisible"])
+
+    def test_posts_self_can_view_private_activity(self):
+        post = self.create_post(self.private_user)
+
+        self.client.force_authenticate(self.private_user)
+
+        response = self.client.get(
+            f"/api/v1/community/posts/?author_id={self.private_user.id}"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data[0]["id"], post.source_id)
+
+    def test_posts_other_user_cannot_view_private_activity(self):
+        self.create_post(self.private_user)
+
+        self.client.force_authenticate(self.other)
+
+        response = self.client.get(
+            f"/api/v1/community/posts/?author_id={self.private_user.id}"
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_posts_public_activity_is_visible(self):
+        post = self.create_post(self.owner)
+
+        self.client.force_authenticate(self.other)
+
+        response = self.client.get(
+            f"/api/v1/community/posts/?author_id={self.owner.id}"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data[0]["id"], post.source_id)
+
+    def test_posts_unauthenticated_author_id_is_rejected(self):
+        response = self.client.get(
+            f"/api/v1/community/posts/?author_id={self.owner.id}"
+        )
+
+        self.assertEqual(response.status_code, 401)
+
+    def test_posts_nonexistent_member_returns_404(self):
+        self.client.force_authenticate(self.other)
+
+        response = self.client.get(
+            "/api/v1/community/posts/?author_id=999999"
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_posts_invalid_author_id_returns_400(self):
+        self.client.force_authenticate(self.other)
+
+        for author_id in ("0", "-1", "abc", "01"):
+            with self.subTest(author_id=author_id):
+                response = self.client.get(
+                    f"/api/v1/community/posts/?author_id={author_id}"
+                )
+                self.assertEqual(response.status_code, 400)
+
+    def test_hidden_posts_are_excluded(self):
+        visible = self.create_post(
+            self.owner,
+            title="공개 글",
+        )
+        self.create_post(
+            self.owner,
+            is_hidden=True,
+            title="숨김 글",
+        )
+
+        self.client.force_authenticate(self.other)
+
+        response = self.client.get(
+            f"/api/v1/community/posts/?author_id={self.owner.id}"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [post["id"] for post in response.data],
+            [visible.source_id],
+        )
+
+    def test_comments_public_activity_is_visible(self):
+        post = self.create_post(self.owner)
+        comment = self.create_comment(post, self.owner)
+
+        self.client.force_authenticate(self.other)
+
+        response = self.client.get(
+            f"/api/v1/community/comments/?author_id={self.owner.id}"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data[0]["id"], comment.id)
+        self.assertEqual(response.data[0]["postId"], post.source_id)
+
+    def test_comments_private_activity_returns_403(self):
+        post = self.create_post(self.private_user)
+        self.create_comment(post, self.private_user)
+
+        self.client.force_authenticate(self.other)
+
+        response = self.client.get(
+            f"/api/v1/community/comments/?author_id={self.private_user.id}"
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_comments_self_can_view_private_activity(self):
+        post = self.create_post(self.private_user)
+        comment = self.create_comment(post, self.private_user)
+
+        self.client.force_authenticate(self.private_user)
+
+        response = self.client.get(
+            f"/api/v1/community/comments/?author_id={self.private_user.id}"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data[0]["id"], comment.id)
+
+    def test_comments_on_hidden_posts_are_excluded(self):
+        visible_post = self.create_post(
+            self.owner,
+            title="공개 글",
+        )
+        hidden_post = self.create_post(
+            self.owner,
+            is_hidden=True,
+            title="숨김 글",
+        )
+
+        visible_comment = self.create_comment(
+            visible_post,
+            self.owner,
+            "공개 댓글",
+        )
+        self.create_comment(
+            hidden_post,
+            self.owner,
+            "숨김 글의 댓글",
+        )
+
+        self.client.force_authenticate(self.other)
+
+        response = self.client.get(
+            f"/api/v1/community/comments/?author_id={self.owner.id}"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [item["id"] for item in response.data],
+            [visible_comment.id],
+        )
+
+    def test_comments_invalid_author_id_returns_400(self):
+        self.client.force_authenticate(self.other)
+
+        for author_id in ("0", "-1", "abc", "01"):
+            with self.subTest(author_id=author_id):
+                response = self.client.get(
+                    f"/api/v1/community/comments/?author_id={author_id}"
+                )
+                self.assertEqual(response.status_code, 400)
+
+    def test_comments_pagination(self):
+        post = self.create_post(self.owner)
+
+        for index in range(25):
+            self.create_comment(
+                post,
+                self.owner,
+                f"댓글 {index}",
+            )
+
+        self.client.force_authenticate(self.other)
+
+        response = self.client.get(
+            f"/api/v1/community/comments/"
+            f"?author_id={self.owner.id}&page=1&page_size=20"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 25)
+        self.assertEqual(len(response.data["results"]), 20)
 class CommunityRichPostTests(APITestCase):
     def setUp(self):
         self.owner = get_user_model().objects.create_user(username="rich-owner")
