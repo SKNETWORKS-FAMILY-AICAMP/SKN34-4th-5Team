@@ -43,9 +43,9 @@ class FakeChain:
         self.inputs.append(graph_input)
         self.configs.append(config)
         self.received_stream_mode = stream_mode
-        for chunk in self.chunks:  # 답변 Agent 의 model 노드 토큰
-            yield ("simple_agent:1",), "messages", (AIMessageChunk(chunk), {"langgraph_node": "model"})
-        yield (), "updates", {"simple_agent": {"messages": [AIMessage("".join(self.chunks))]}}
+        for chunk in self.chunks:  # 메인 Agent 의 model 노드 토큰
+            yield (), "messages", (AIMessageChunk(chunk), {"langgraph_node": "model"})
+        yield (), "updates", {"model": {"messages": [AIMessage("".join(self.chunks))]}}
 
     async def astream_events(self, inputs, version):
         # v1 경로: 모델 없는 답과 같은 공개 답변 이벤트로 흘리고 run["answer"] 에 전문을 남긴다.
@@ -217,11 +217,11 @@ class SendMessageTest(CheckpointTestCase):
 
         class Gated(FakeChain):
             def stream(self, *a, **kw):
-                yield ("simple_agent:1",), "messages", (AIMessageChunk("먼저"), {"langgraph_node": "model"})
+                yield (), "messages", (AIMessageChunk("먼저"), {"langgraph_node": "model"})
                 gate.wait(5)
                 finished.append(True)
-                yield ("simple_agent:1",), "messages", (AIMessageChunk(" 나중"), {"langgraph_node": "model"})
-                yield (), "updates", {"simple_agent": {"messages": [AIMessage("먼저 나중")]}}
+                yield (), "messages", (AIMessageChunk(" 나중"), {"langgraph_node": "model"})
+                yield (), "updates", {"model": {"messages": [AIMessage("먼저 나중")]}}
 
         with self._patched_chain(Gated()):
             frames = chat_service.send_message(self.session, "q")
@@ -231,69 +231,107 @@ class SendMessageTest(CheckpointTestCase):
             rest = list(frames)
         self.assertEqual(rest[-1][1]["assistant_message"], "먼저 나중")
 
-    def test_only_answer_agent_tokens_and_tools_are_public(self):
-        """분류기·ask_* 안쪽 전문 Agent 토큰은 안 흘리고, 답변 Agent 의 도구는 tool 프레임 + 저장."""
+    def test_sub_agent_stream_has_parent_and_artifact_is_saved(self):
+        """메인 머리말 + 하위 Agent 텍스트(parent_id) + 도구 kind/parent/title. 인자·결과·하위 입력은 SSE/일반 GET 에 없다."""
         from langchain_core.messages import ToolMessage
-        call = {"name": "ask_baseball", "args": {"task": "SECRET_ARG"}, "id": "c1"}
+        call = {"name": "ask_baseball", "args": {"task": "SECRET_TASK 경기"}, "id": "c1"}
+        inner_call = {"name": "get_games", "args": {"q": "SECRET_ARG"}, "id": "i1"}
+        artifact = [HumanMessage("SECRET_TASK 경기"), AIMessage("하위 머리말", tool_calls=[inner_call]),
+                    ToolMessage("SECRET_RESULT", tool_call_id="i1", name="get_games"), AIMessage("SUB_ANSWER")]
+        sub = ("tools:abc",)
 
-        class Orchestrated(FakeChain):
+        class Delegated(FakeChain):
             def stream(self, *a, **kw):
-                yield ("jev_router:1",), "messages", (AIMessageChunk("CLASSIFIER"), {"langgraph_node": "model"})
-                yield ("orchestrator:1",), "messages", (AIMessageChunk("", tool_call_chunks=[{"name": "ask_baseball", "args": "", "id": "c1", "index": 0}]), {"langgraph_node": "model"})
-                yield ("orchestrator:1",), "updates", {"model": {"messages": [AIMessage("", tool_calls=[call])]}}
-                yield ("orchestrator:1", "tools:2"), "messages", (AIMessageChunk("SPECIALIST"), {"langgraph_node": "model"})
-                yield ("orchestrator:1",), "updates", {"tools": {"messages": [ToolMessage("SECRET_RESULT", tool_call_id="c1", name="ask_baseball")]}}
-                yield ("orchestrator:1",), "messages", (AIMessageChunk("최종"), {"langgraph_node": "model"})
-                yield (), "updates", {"orchestrator": {"messages": [AIMessage("최종")]}}
+                yield (), "messages", (AIMessageChunk("확인해 볼게요"), {"langgraph_node": "model"})
+                yield (), "updates", {"model": {"messages": [AIMessage("확인해 볼게요", tool_calls=[call])]}}
+                yield sub, "messages", (AIMessageChunk("하위 머리말"), {"langgraph_node": "model", "parent_id": "c1"})
+                yield sub, "updates", {"model": {"messages": [artifact[1]]}}
+                yield sub, "updates", {"tools": {"messages": [artifact[2]]}}
+                yield sub, "updates", {"model": {"messages": [artifact[3]]}}
+                yield (), "updates", {"tools": {"messages": [ToolMessage("SUB_ANSWER", artifact=artifact, tool_call_id="c1", name="ask_baseball")]}}
+                yield (), "messages", (AIMessageChunk("최종"), {"langgraph_node": "model"})
+                yield (), "updates", {"model": {"messages": [AIMessage("최종")]}}
 
-        with self._patched_chain(Orchestrated()):
+        with self._patched_chain(Delegated()):
             frames = list(chat_service.send_message(self.session, "q"))
-        body = json.dumps(frames, ensure_ascii=False)
-        for secret in ("CLASSIFIER", "SPECIALIST", "SECRET_ARG", "SECRET_RESULT"):
-            self.assertNotIn(secret, body)
-        self.assertEqual(frames[:3], [
-            ("tool", {"id": "c1", "tool_name": "ask_baseball", "status": "running"}),
-            ("tool", {"id": "c1", "tool_name": "ask_baseball", "status": "completed"}),
+        sub_tool = {"id": "c1", "tool_name": "ask_baseball", "kind": "sub_agent", "parent_id": None, "title": "SECRET_TASK 경기"}
+        inner = {"id": "i1", "tool_name": "get_games", "kind": "tool", "parent_id": "c1"}
+        self.assertEqual(frames[:-1], [
+            ("delta", {"text": "확인해 볼게요"}),
+            ("tool", {**sub_tool, "status": "running"}),
+            ("delta", {"text": "하위 머리말", "parent_id": "c1"}),
+            ("tool", {**inner, "status": "running"}),
+            ("tool", {**inner, "status": "completed"}),
+            ("tool", {**sub_tool, "status": "completed"}),
             ("delta", {"text": "최종"}),
         ])
-        self.assertEqual(frames[-1][1]["tools"], [{"id": "c1", "tool_name": "ask_baseball", "status": "completed"}])
-        self.assertEqual(history(self.session)[-1]["tools"], frames[-1][1]["tools"])
+        done = frames[-1][1]
+        self.assertEqual(done["assistant_message"], "최종")
+        self.assertEqual(done["tools"], [{**sub_tool, "status": "completed"}, {**inner, "status": "completed"}])
+        self.assertEqual(done["steps"], [
+            {"type": "text", "text": "확인해 볼게요", "parent_id": None}, {"type": "tool", "id": "c1"},
+            {"type": "text", "text": "하위 머리말", "parent_id": "c1"}, {"type": "tool", "id": "i1"},
+            {"type": "text", "text": "SUB_ANSWER", "parent_id": "c1"},
+        ])
+        # 하위 대화는 같은 thread 의 ask_* ToolMessage.artifact 로 저장된다
+        saved = next(m for m in snapshot(self.session)[0] if getattr(m, "tool_call_id", None) == "c1")
+        self.assertEqual([m["content"] for m in saved.artifact], [m.content for m in artifact])  # checkpoint 에서는 dict
+        body = json.dumps([frames, history(self.session)], ensure_ascii=False)
+        for secret in ("SECRET_ARG", "SECRET_RESULT", "detail"):
+            self.assertNotIn(secret, body)
+        # 다음 턴 모델 입력은 질문·최종 답만
+        fake = FakeChain()
+        with self._patched_chain(fake):
+            list(chat_service.send_message(self.session, "다음"))
+        self.assertEqual([m.content for m in fake.received_inputs["messages"]], ["q", "최종", "다음"])
+        # 수정하면 artifact 가 든 턴도 통째로 사라진다
+        with self._patched_chain(FakeChain()):
+            list(chat_service.message_update(guest_request(self.session), self.session.id, snapshot(self.session)[0][0].id, "q'"))
+        self.assertFalse(any(getattr(m, "artifact", None) for m in snapshot(self.session)[0]))
 
-    def _pre_tool_then_final(self, stream_final):
+    def test_concurrent_sub_agents_keep_their_own_parent(self):
+        from langchain_core.messages import ToolMessage
+        calls = [{"name": "ask_baseball", "args": {"task": "a"}, "id": "c1"},
+                 {"name": "ask_travel_research", "args": {"task": "b"}, "id": "c2"}]
+
+        class Parallel(FakeChain):
+            def stream(self, *a, **kw):
+                yield (), "updates", {"model": {"messages": [AIMessage("", tool_calls=calls)]}}
+                yield ("tools:1",), "messages", (AIMessageChunk("A1"), {"langgraph_node": "model", "parent_id": "c1"})
+                yield ("tools:2",), "messages", (AIMessageChunk("B1"), {"langgraph_node": "model", "parent_id": "c2"})
+                yield ("tools:1",), "messages", (AIMessageChunk("A2"), {"langgraph_node": "model", "parent_id": "c1"})
+                yield ("tools:2",), "messages", (AIMessageChunk("B2"), {"langgraph_node": "model", "parent_id": "c2"})
+                yield (), "updates", {"tools": {"messages": [ToolMessage("a", artifact=[], tool_call_id="c1", name="ask_baseball"),
+                                                             ToolMessage("b", artifact=[], tool_call_id="c2", name="ask_travel_research")]}}
+                yield (), "updates", {"model": {"messages": [AIMessage("끝")]}}
+
+        with self._patched_chain(Parallel()):
+            frames = list(chat_service.send_message(self.session, "q"))
+        deltas = [(d["text"], d.get("parent_id")) for e, d in frames if e == "delta"]
+        self.assertEqual(deltas, [("A1", "c1"), ("B1", "c2"), ("A2", "c1"), ("B2", "c2"), ("끝", None)])
+
+    def test_pre_tool_text_is_streamed_but_not_the_answer(self):
         from langchain_core.messages import ToolMessage
         call = {"name": "get_stadium", "args": {}, "id": "c1"}
-        node = ("simple_agent:1",)
 
         class PreTool(FakeChain):
             def stream(self, *a, **kw):
-                yield node, "messages", (AIMessageChunk("PRE-", id="m1"), {"langgraph_node": "model"})
-                yield node, "messages", (AIMessageChunk("", id="m1", tool_call_chunks=[{"name": "get_stadium", "args": "", "id": "c1", "index": 0}]), {"langgraph_node": "model"})
-                yield node, "messages", (AIMessageChunk("LATE", id="m1"), {"langgraph_node": "model"})
-                yield node, "updates", {"model": {"messages": [AIMessage("PRE-LATE", tool_calls=[call])]}}
-                yield node, "updates", {"tools": {"messages": [ToolMessage("ok", tool_call_id="c1", name="get_stadium")]}}
-                if stream_final:
-                    yield node, "messages", (AIMessageChunk("ANS", id="m2"), {"langgraph_node": "model"})
-                    yield node, "messages", (AIMessageChunk("WER", id="m2"), {"langgraph_node": "model"})
-                yield (), "updates", {"simple_agent": {"messages": [AIMessage("ANSWER")]}}
+                yield (), "messages", (AIMessageChunk("PRE-", id="m1"), {"langgraph_node": "model"})
+                yield (), "messages", (AIMessageChunk("", id="m1", tool_call_chunks=[{"name": "get_stadium", "args": "", "id": "c1", "index": 0}]), {"langgraph_node": "model"})
+                yield (), "updates", {"model": {"messages": [AIMessage("PRE-", tool_calls=[call])]}}
+                yield (), "updates", {"tools": {"messages": [ToolMessage("ok", tool_call_id="c1", name="get_stadium")]}}
+                yield (), "updates", {"model": {"messages": [AIMessage("ANSWER")]}}  # 비스트리밍 최종 답
 
         with self._patched_chain(PreTool()):
             frames = list(chat_service.send_message(self.session, "q"))
-        self.assertEqual(frames[-1][0], "done")
+        self.assertEqual([d["text"] for e, d in frames if e == "delta"], ["PRE-", "ANSWER"])
         self.assertEqual(frames[-1][1]["assistant_message"], "ANSWER")
         self.assertEqual(snapshot(self.session)[0][-1].content, "ANSWER")
-        self.assertNotIn("LATE", json.dumps(frames))  # tool_call 이 드러난 호출의 뒤 텍스트는 안 흘림
-        return [d["text"] for e, d in frames if e == "delta"]
-
-    def test_pre_tool_text_is_not_saved(self):
-        self.assertEqual(self._pre_tool_then_final(True), ["PRE-", "ANS", "WER"])
-
-    def test_non_streamed_final_after_pre_tool_text_is_not_lost(self):
-        self.assertEqual(self._pre_tool_then_final(False), ["PRE-", "ANSWER"])
 
     def test_scope_refusal_from_updates_is_a_delta(self):
         class Refused(FakeChain):
             def stream(self, *a, **kw):
-                yield (), "updates", {"jev_router": {"messages": [AIMessage("범위 밖")]}}
+                yield (), "updates", {"JevGuidelineMiddleware.before_agent": {"messages": [AIMessage("범위 밖")]}}
 
         with self._patched_chain(Refused()):
             frames = list(chat_service.send_message(self.session, "q"))
@@ -439,6 +477,99 @@ class SessionOwnershipViewTest(CheckpointTestCase):
         self.assertIn("guest_id", response.cookies)
 
 
+class SuperuserDetailViewTest(CheckpointTestCase):
+    """GET 목록의 detail 은 superuser 만. 일반 회원·게스트에게는 인자·결과·하위 입력이 없다."""
+
+    def _seed_tool_turn(self, session):
+        from langchain_core.messages import ToolMessage
+        call = {"name": "ask_baseball", "args": {"task": "SECRET_TASK"}, "id": "c1"}
+        inner = {"name": "get_games", "args": {"q": "SECRET_ARG"}, "id": "i1"}
+        artifact = [HumanMessage("SECRET_TASK"), AIMessage("", tool_calls=[inner]),
+                    ToolMessage("SECRET_RESULT", tool_call_id="i1", name="get_games"), AIMessage("SUB")]
+        human, answer = HumanMessage("q", id=str(uuid.uuid4())), AIMessage("답", id=str(uuid.uuid4()))
+        messages = [human, AIMessage("", id=str(uuid.uuid4()), tool_calls=[call]),
+                    ToolMessage("SUB", artifact=artifact, tool_call_id="c1", name="ask_baseball"), answer]
+        ChatThread(session.id).update(messages, {human.id: {"status": "completed", "answer_id": answer.id}})
+
+    def _get(self, user):
+        session = ChatSession.objects.create(user=user)
+        self._seed_tool_turn(session)
+        client = APIClient()
+        client.force_authenticate(user)
+        response = client.get(f"/api/v2/chat/sessions/{session.id}/messages/")
+        self.assertEqual(response.status_code, 200)
+        return response.json()
+
+    def test_member_history_has_no_detail(self):
+        body = json.dumps(self._get(User.objects.create_user(username="m", password="pw12345!")), ensure_ascii=False)
+        for secret in ("SECRET_ARG", "SECRET_RESULT", "\"detail\"", "\"args\""):
+            self.assertNotIn(secret, body)
+
+    def test_guest_history_has_no_detail(self):
+        session = ChatSession.objects.create(guest="dddddddd-dddd-dddd-dddd-dddddddddddd")
+        self._seed_tool_turn(session)
+        client = APIClient()
+        client.cookies["guest_id"] = "dddddddd-dddd-dddd-dddd-dddddddddddd"
+        body = client.get(f"/api/v2/chat/sessions/{session.id}/messages/").content.decode()
+        self.assertNotIn("SECRET_RESULT", body)
+        self.assertNotIn("detail", body)
+
+    def test_superuser_history_has_detail(self):
+        items = self._get(User.objects.create_superuser(username="admin", password="pw12345!"))
+        sub, inner = items[-1]["tools"]
+        self.assertEqual(sub["detail"]["args"], {"task": "SECRET_TASK"})
+        self.assertEqual(sub["detail"]["result"], "SUB")
+        self.assertEqual([m["role"] for m in sub["detail"]["messages"]], ["human", "ai", "tool", "ai"])
+        self.assertEqual(sub["detail"]["messages"][1]["tool_calls"], [{"id": "i1", "name": "get_games", "args": {"q": "SECRET_ARG"}}])
+        self.assertEqual(inner["detail"], {"args": {"q": "SECRET_ARG"}, "result": "SECRET_RESULT"})
+        self.assertEqual(inner["parent_id"], "c1")
+
+
+class RoleProjectionTest(SuperuserDetailViewTest):
+    """비관리자(게스트·회원·is_staff)는 GET·SSE·done 에서 하위 Agent task(title)·하위 텍스트를 받지 않는다. 메인 안내·최종 답은 보인다."""
+
+    def test_staff_and_member_history_hide_task_and_sub_text(self):
+        staff = User.objects.create_user(username="s", password="pw12345!", is_staff=True)
+        member = User.objects.create_user(username="m2", password="pw12345!")
+        for user in (staff, member):
+            items = self._get(user)
+            body = json.dumps(items, ensure_ascii=False)
+            for secret in ("SECRET_TASK", "SECRET_ARG", "SECRET_RESULT", "\"title\"", "\"detail\""):
+                self.assertNotIn(secret, body)
+            self.assertEqual(items[-1]["content"], "답")
+            self.assertFalse([s for s in items[-1]["steps"] if s["type"] == "text" and s.get("parent_id")])
+            self.assertEqual([t["tool_name"] for t in items[-1]["tools"]], ["ask_baseball", "get_games"])
+
+    def test_superuser_history_keeps_task_and_sub_text(self):
+        items = self._get(User.objects.create_superuser(username="admin2", password="pw12345!"))
+        self.assertEqual(items[-1]["tools"][0]["title"], "SECRET_TASK")
+        self.assertIn({"type": "text", "text": "SUB", "parent_id": "c1"}, items[-1]["steps"])
+
+    def _sse(self, user):
+        session = ChatSession.objects.create(user=user)
+        frames = [("delta", {"text": "안내"}),
+                  ("tool", {"id": "c1", "tool_name": "ask_baseball", "status": "running", "kind": "sub_agent", "parent_id": None, "title": "SECRET_TASK"}),
+                  ("delta", {"text": "SECRET_SUB", "parent_id": "c1"}),
+                  ("done", {"message_id": "1", "assistant_message": "최종", "steps": [{"type": "text", "text": "SECRET_SUB", "parent_id": "c1"}],
+                            "tools": [{"id": "c1", "tool_name": "ask_baseball", "status": "completed", "kind": "sub_agent", "parent_id": None, "title": "SECRET_TASK"}]})]
+        client = APIClient()
+        client.force_authenticate(user)
+        with mock_patch("llm.service.chat_v2.send_message", return_value=iter(frames)):
+            response = client.post(f"/api/v2/chat/sessions/{session.id}/messages/", {"content": "q"}, format="json", HTTP_ACCEPT="text/event-stream")
+            return b"".join(response.streaming_content).decode()
+
+    def test_sse_projection_by_role(self):
+        for user in (User.objects.create_user(username="s3", password="pw12345!", is_staff=True),
+                     User.objects.create_user(username="m3", password="pw12345!")):
+            body = self._sse(user)
+            self.assertNotIn("SECRET", body)
+            self.assertIn("안내", body)
+            self.assertIn("최종", body)
+        body = self._sse(User.objects.create_superuser(username="a3", password="pw12345!"))
+        self.assertIn("SECRET_TASK", body)
+        self.assertIn("SECRET_SUB", body)
+
+
 class MessageContextValidationTest(CheckpointTestCase):
     """POST /messages/ 의 선택 사항 context (stadium/intent/origin) HTTP 계층 검증.
 
@@ -570,7 +701,7 @@ class MessageContextValidationTest(CheckpointTestCase):
         body = response.json()
         self.assertEqual(len(body), 2)
         for item in body:
-            self.assertEqual(set(item), {"id", "sequence_no", "role", "content", "status", "tools", "created_at", "updated_at"})
+            self.assertEqual(set(item), {"id", "sequence_no", "role", "content", "status", "tools", "steps", "created_at", "updated_at"})
 
     def test_put_updates_message_and_forwards_context_after_truncating_later_turns(self):
         """PUT 은 target 뒤를 RemoveMessage 로 지우고 target 을 같은 ID 의 새 질문으로 바꿔 다시 답한다.
@@ -797,7 +928,7 @@ class StreamConcurrencyTest(CheckpointTestCase):
     def test_failure_mid_stream_marks_failed(self):
         class PausingFailingChain:
             def stream(self, inputs, config=None, stream_mode=None, subgraphs=False):
-                yield (), "updates", {"simple_agent": {"messages": []}}
+                yield (), "updates", {"model": {"messages": []}}
                 raise RuntimeError("provider exploded mid-stream")
 
         with patch_chain(return_value=PausingFailingChain()):

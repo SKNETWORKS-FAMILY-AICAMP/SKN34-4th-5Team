@@ -20,7 +20,7 @@ from ..tools import DOMAIN_TOOL_NAMES, create_default_tools, create_domain_tools
 
 
 EXPECTED_NAMES = (
-    "get_standings", "get_games", "get_stadium", "get_seat_zones", "get_seat_views",
+    "get_standings", "get_games", "get_stadiums", "get_stadium", "get_seat_zones", "get_seat_views",
     "get_ticket_prices", "get_ticket_policies", "get_transport", "get_food_stores",
     "get_facilities", "get_stadium_contents", "get_seat_maps", "search_places",
     "search_courses", "get_course", "search_community_posts", "get_prediction_games",
@@ -122,6 +122,7 @@ class DomainToolsTest(TestCase):
         calls = {
             "get_standings": {"snapshot_date": "2099-09-15"},
             "get_games": {"start_date": "2099-09-15", "end_date": "2099-09-15", "team_code": "LG", "stadium_id": 990001},
+            "get_stadiums": {"limit": 5},
             "get_stadium": {"stadium_code": "TEST-JAMSIL"},
             "get_seat_zones": {"season": 2099, "team_code": "LG", "stadium_id": 990001},
             "get_seat_views": {"season": 2099, "team_code": "LG", "stadium_id": 990001},
@@ -253,7 +254,7 @@ class PlaceAdapterTest(TestCase):
         expected = {"places": [{"id": "1", "place_name": "식당", "x": "127.1", "y": "37.5"}], "hasNextPage": False, "syncedAt": "2026-09-15T10:00:00+00:00"}
         module, _ = self.module(lambda query: seen.append(query) or expected)
         with patch.dict(sys.modules, {"travel.place_service": module}):
-            result = create_domain_tools()[12].invoke(self.args)
+            result = next(t for t in create_domain_tools() if t.name == "search_places").invoke(self.args)
         self.assertEqual(result, expected)
         self.assertEqual(seen, [{"method": "keyword", "keyword": "야구장 맛집", "category": "FD6", "lat": 37.5, "lng": 127.1, "page": 1, "size": 15, "sort": "distance", "radius": 1000}])
 
@@ -266,12 +267,12 @@ class PlaceAdapterTest(TestCase):
             return original_import(name, *args, **kwargs)
 
         with patch("builtins.__import__", side_effect=missing):
-            self.assertEqual(create_domain_tools()[12].invoke(self.args), "장소 검색 서비스 통합이 필요합니다.")
+            self.assertEqual(next(t for t in create_domain_tools() if t.name == "search_places").invoke(self.args), "장소 검색 서비스 통합이 필요합니다.")
 
         module, error = self.module(None)
         module.search_and_sync_places = lambda _: (_ for _ in ()).throw(error("private detail"))
         with patch.dict(sys.modules, {"travel.place_service": module}):
-            self.assertEqual(create_domain_tools()[12].invoke(self.args), "안전한 장소 오류")
+            self.assertEqual(next(t for t in create_domain_tools() if t.name == "search_places").invoke(self.args), "안전한 장소 오류")
 
 
 class ExternalDomainToolAdapterTest(SimpleTestCase):

@@ -44,6 +44,7 @@ class PublicChatEvent(models.TextChoices):
     TOOL = "tool", "도구"
     DONE = "done", "완료"
     ERROR = "error", "오류"
+    STOPPED = "stopped", "중단"  # 편집·삭제로 대체된 스트림의 종료 이벤트
 
 
 class ChainVersion(models.TextChoices):

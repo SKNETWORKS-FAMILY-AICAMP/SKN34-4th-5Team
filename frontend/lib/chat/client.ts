@@ -1,8 +1,9 @@
 import { memberError, memberFetch } from "../member-auth-request";
 import { isRecord, parseChatRequest } from "./validation";
 import type { ChatContext, ChatReply, ChatStatus } from "./types";
-import { MAX_REPLY_LENGTH } from "./types";
-import type { ChatMessageDto, ChatSessionDto, ChatToolCallDto } from "./wire";
+import { MAX_REPLY_LENGTH, buildTimeline } from "./types";
+import { fromToolDto } from "./history";
+import type { ChatMessageDto, ChatSessionDto, ChatStepDto, ChatToolCallDto } from "./wire";
 
 // Members and guests share one API. Members authenticate with Bearer (memberFetch); guests send no
 // Authorization header and are identified by the server-set HttpOnly guest_id cookie that same-origin
@@ -20,12 +21,16 @@ const STATUS: Record<ChatMode, ChatStatus> = {
 };
 export const GUEST_STATUS = STATUS.guest;
 
-export type ChatStreamCallbacks = { onDelta?: (answer: string) => void; onTool?: (tool: ChatToolCallDto) => void };
+export type ChatStreamCallbacks = { onDelta?: (piece: string, parentId: string | null) => void; onTool?: (tool: ChatToolCallDto) => void };
 export type ChatSendRequest = { sessionId?: string; content: string; context?: ChatContext };
 export type ChatEditRequest = { sessionId: string; messageId: number; content: string; context?: ChatContext };
 
 export class ChatClientError extends Error {
   constructor(message: string, public status: number, public uncertain = false, public sessionId?: string) { super(message); }
+}
+
+export class ChatStreamStoppedError extends ChatClientError {
+  constructor(sessionId: string) { super("다른 변경으로 답변 생성이 중단됐어요.", 409, false, sessionId); }
 }
 
 function fallback(status: number) {
@@ -75,6 +80,9 @@ async function request<T>(mode: ChatMode, path: string, init: RequestInit, signa
   }
 }
 
+// Total streamed delta text per reply (main + sub-agents): generous for multi-step replies, still stops runaway streams.
+export const MAX_STREAM_LENGTH = MAX_REPLY_LENGTH * 8;
+
 const json = (method: string, body: unknown): RequestInit => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 const sessionPath = (sessionId: string) => {
   if (!UUID.test(sessionId)) throw new ChatClientError("대화 번호를 확인해 주세요.", 400);
@@ -82,23 +90,31 @@ const sessionPath = (sessionId: string) => {
 };
 const isSession = (value: unknown): value is ChatSessionDto => isRecord(value) && typeof value.id === "string" && UUID.test(value.id) && typeof value.title === "string";
 const isTool = (value: unknown): value is ChatToolCallDto => isRecord(value) && typeof value.id === "string" && Boolean(value.id) &&
-  typeof value.tool_name === "string" && Boolean(value.tool_name) && ["running", "completed", "failed"].includes(String(value.status));
+  typeof value.tool_name === "string" && Boolean(value.tool_name) && ["running", "completed", "failed"].includes(String(value.status)) &&
+  (value.kind === undefined || value.kind === "tool" || value.kind === "sub_agent") && isParent(value.parent_id) &&
+  (value.title === undefined || typeof value.title === "string") && (value.summary === undefined || typeof value.summary === "string") && (value.detail === undefined || isDetail(value.detail));
+const isParent = (value: unknown) => value === undefined || value === null || (typeof value === "string" && Boolean(value));
+const isDetail = (value: unknown) => isRecord(value) && isRecord(value.args) && typeof value.result === "string" &&
+  (value.messages === undefined || (Array.isArray(value.messages) && value.messages.every(message => isRecord(message) && typeof message.role === "string" && typeof message.content === "string")));
+const isStep = (value: unknown): value is ChatStepDto => isRecord(value) &&
+  ((value.type === "text" && typeof value.text === "string" && isParent(value.parent_id)) || (value.type === "tool" && typeof value.id === "string" && Boolean(value.id)));
+const isSteps = (value: unknown) => value === undefined || (Array.isArray(value) && value.every(isStep));
 const isMessage = (value: unknown): value is ChatMessageDto => isRecord(value) && isMessageId(value.id) && isMessageId(value.sequence_no) &&
   (value.role === "user" || value.role === "assistant") && typeof value.content === "string" &&
   ["pending", "completed", "failed", "stopped"].includes(String(value.status)) &&
-  Array.isArray(value.tools) && value.tools.every(isTool) && typeof value.created_at === "string" && typeof value.updated_at === "string";
+  Array.isArray(value.tools) && value.tools.every(isTool) && isSteps(value.steps) && typeof value.created_at === "string" && typeof value.updated_at === "string";
 // DELETE answers 204 with no body.
 const readEmpty = async (response: Response) => { await response.text(); };
 
 // Frames are `event: <name>\ndata: <json>\n\n` (backend/llm/views/sse.py): delta{text}* / tool{id,
-// tool_name, status}* then done{message_id, assistant_message, tools} or error{detail}. A stream
-// that closes with neither means the turn was superseded or the connection dropped.
-async function readStream(response: Response, sessionId: string, callbacks: ChatStreamCallbacks): Promise<{ reply: string; assistantMessageId: number; tools: ChatToolCallDto[] }> {
+// tool_name, status}* then exactly one terminal event: done{message_id, assistant_message, tools},
+// error{detail}, or stopped{}. A stream that closes with none is a dropped connection.
+async function readStream(response: Response, sessionId: string, callbacks: ChatStreamCallbacks): Promise<{ reply: string; assistantMessageId: number; tools: ChatToolCallDto[]; steps: ChatStepDto[] }> {
   if (!response.body || !response.headers.get("Content-Type")?.toLowerCase().startsWith("text/event-stream")) {
     throw new ChatClientError("스트림 응답을 확인하지 못했어요.", 502, true, sessionId);
   }
   const reader = response.body.getReader(), decoder = new TextDecoder();
-  let buffer = "", answer = "", result: { reply: string; assistantMessageId: number; tools: ChatToolCallDto[] } | null = null;
+  let buffer = "", streamed = 0, result: { reply: string; assistantMessageId: number; tools: ChatToolCallDto[]; steps: ChatStepDto[] } | null = null;
   const consume = (frame: string) => {
     const [eventLine, ...lines] = frame.split(/\r?\n/);
     const event = eventLine?.startsWith("event:") ? eventLine.slice(6).trim() : "";
@@ -107,9 +123,10 @@ async function readStream(response: Response, sessionId: string, callbacks: Chat
     try { value = JSON.parse(raw); } catch { throw new ChatClientError("스트림 응답 형식이 올바르지 않아요.", 502, true, sessionId); }
     if (!isRecord(value) || result) throw new ChatClientError("스트림 응답 순서가 올바르지 않아요.", 502, true, sessionId);
     if (event === "delta") {
-      if (typeof value.text !== "string" || answer.length + value.text.length > MAX_REPLY_LENGTH) throw new ChatClientError("답변이 너무 길어요.", 502, true, sessionId);
-      answer += value.text;
-      callbacks.onDelta?.(answer);
+      // Deltas carry pre-tool and sub-agent text too, so they get the looser stream cap; done.assistant_message keeps MAX_REPLY_LENGTH.
+      if (typeof value.text !== "string" || !isParent(value.parent_id) || streamed + value.text.length > MAX_STREAM_LENGTH) throw new ChatClientError("답변이 너무 길어요.", 502, true, sessionId);
+      streamed += value.text.length;
+      callbacks.onDelta?.(value.text, typeof value.parent_id === "string" ? value.parent_id : null);
       return;
     }
     if (event === "tool") {
@@ -118,11 +135,11 @@ async function readStream(response: Response, sessionId: string, callbacks: Chat
       return;
     }
     if (event === "done") {
-      if (typeof value.message_id !== "string" || !MESSAGE_ID.test(value.message_id) || !isMessageId(Number(value.message_id)) || typeof value.assistant_message !== "string" ||
-        !Array.isArray(value.tools) || !value.tools.every(isTool)) {
+      if (typeof value.message_id !== "string" || !MESSAGE_ID.test(value.message_id) || !isMessageId(Number(value.message_id)) || typeof value.assistant_message !== "string" || value.assistant_message.length > MAX_REPLY_LENGTH ||
+        !Array.isArray(value.tools) || !value.tools.every(isTool) || !isSteps(value.steps)) {
         throw new ChatClientError("최종 답변을 확인하지 못했어요.", 502, true, sessionId);
       }
-      result = { reply: value.assistant_message, assistantMessageId: Number(value.message_id), tools: value.tools };
+      result = { reply: value.assistant_message, assistantMessageId: Number(value.message_id), tools: value.tools, steps: (value.steps as ChatStepDto[] | undefined) ?? [] };
       return;
     }
     if (event === "error") {
@@ -130,6 +147,7 @@ async function readStream(response: Response, sessionId: string, callbacks: Chat
       // committed, so the client can't assume persistence failed and must reconcile via history.
       throw new ChatClientError(typeof value.detail === "string" && value.detail && value.detail.length <= 200 ? value.detail : fallback(502), 502, true, sessionId);
     }
+    if (event === "stopped") throw new ChatStreamStoppedError(sessionId);
     throw new ChatClientError("알 수 없는 스트림 응답을 받았어요.", 502, true, sessionId);
   };
   try {
@@ -142,7 +160,7 @@ async function readStream(response: Response, sessionId: string, callbacks: Chat
         buffer = buffer.slice(boundary + separator);
         if (frame.trim()) consume(frame);
       }
-      if (buffer.length > MAX_REPLY_LENGTH * 4) throw new ChatClientError("스트림 응답이 너무 길어요.", 502, true, sessionId);
+      if (buffer.length > MAX_STREAM_LENGTH * 2) throw new ChatClientError("스트림 응답이 너무 길어요.", 502, true, sessionId);
       if (next.done) break;
     }
     if (!result || buffer.trim()) throw new ChatClientError("답변이 끝나기 전에 연결이 끊겼어요.", 502, true, sessionId);
@@ -201,7 +219,8 @@ async function streamReply(mode: ChatMode, method: "POST" | "PUT", sessionId: st
     const init = json(method, body);
     init.headers = { ...init.headers as Record<string, string>, Accept: "text/event-stream" };
     const result = await request(mode, `${sessionPath(sessionId)}messages/`, init, signal, response => readStream(response, sessionId, callbacks), null);
-    return { ...STATUS[mode], ...result, tools: result.tools.map(tool => ({ id: tool.id, toolName: tool.tool_name, status: tool.status })), sessionId };
+    const { steps, ...rest } = result, tools = result.tools.map(fromToolDto);
+    return { ...STATUS[mode], ...rest, tools, timeline: buildTimeline(steps, tools), sessionId };
   } catch (error) {
     if (error instanceof ChatClientError && error.sessionId === undefined) error.sessionId = sessionId;
     throw error;

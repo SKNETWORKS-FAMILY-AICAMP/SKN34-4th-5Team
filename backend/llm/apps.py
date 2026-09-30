@@ -12,8 +12,10 @@ def _enqueue_thread_deletion(sender, instance, **kwargs):
     """
     from django.db import transaction
 
+    from llm.service.chat_runs import cancel_after_commit
     from llm.service.chat_thread import erase_legacy_rows, purge_deleted_threads, reserve_thread_deletion
 
+    cancel_after_commit(instance.pk)  # 이 프로세스에서 돌던 스트림은 commit 뒤 stopped 로 끝낸다
     reserve_thread_deletion(instance.pk)
     erase_legacy_rows(instance.pk)
     thread_id = instance.pk

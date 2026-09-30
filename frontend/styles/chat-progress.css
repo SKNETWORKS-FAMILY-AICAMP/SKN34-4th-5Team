@@ -5,3 +5,18 @@
 .chat-workspace .chat-progress { margin-left: 34px; }
 @media (max-width: 767px) { .chat-workspace .chat-progress { margin-left: 0; } }
 @media (prefers-reduced-motion: reduce) { .chat-progress, .chat-progress * { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }
+.chat-progress li > ul.chat-progress-nested { grid-column: 2; display: grid; gap: 4px; margin: 2px 0 0; padding: 0 0 0 10px; border-left: 2px solid #e3ebf7; list-style: none; }
+.chat-progress li.chat-progress-text { color: #4d6380; }
+.chat-progress-detail summary { cursor: pointer; color: #5785c8; }
+.chat-progress-detail pre { margin: 4px 0 0; padding: 6px 8px; border-radius: 8px; background: #eef3fb; font-size: 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.chat-progress li > .chat-progress-detail { grid-column: 2; min-width: 0; }
+.chat-progress li > .chat-progress-disclosure { grid-column: 1 / -1; min-width: 0; }
+.chat-progress-disclosure > summary { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 6px; cursor: pointer; }
+.chat-progress-disclosure > summary > span:first-child { color: #5785c8; text-align: center; font-weight: 700; }
+.chat-progress-disclosure > .chat-progress-nested { display: grid; gap: 4px; margin: 2px 0 0 24px; padding: 0 0 0 10px; border-left: 2px solid #e3ebf7; list-style: none; }
+.chat-progress-disclosure > .chat-progress-title, .chat-progress-disclosure > .chat-progress-detail { margin: 2px 0 0 24px; }
+
+/* 입력창 바로 위 실행 중 서브에이전트 (workspace/popup 공용) */
+.chat-subagent-status { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 4px; font-size: 13px; color: var(--muted, #666); }
+.chat-subagent-status li { display: flex; gap: 6px; min-width: 0; }
+.chat-subagent-status li span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
