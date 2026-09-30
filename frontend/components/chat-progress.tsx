@@ -29,6 +29,9 @@ const TOOL_LABELS: Record<string, string> = {
   get_baseball_schema: "야구 데이터 스키마 조회",
   execute_baseball_select: "야구 기록 조회",
   search_documents_tool: "규칙·안내 문서 검색",
+  ask_baseball: "야구 정보 확인",
+  ask_travel_research: "여행 정보 조사",
+  ask_place_data: "장소 정보 확인",
 };
 
 export function ChatProgress({ tools }: { tools: ChatToolCall[] }) {

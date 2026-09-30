@@ -24,9 +24,10 @@ export type ChatMessageUpdateRequestDto = ChatMessageRequestDto & { message_id: 
 export type ChatMessageDeleteRequestDto = { message_id: number };
 
 // serializer/message.py project_event()/done_payload(): delta{text} / tool{id, tool_name, status} /
-// done{message_id, assistant_message, tools} / error{detail}.
+// done{message_id, assistant_message, tools} / error{detail} / stopped{}.
 export type ChatSseEvent =
   | { event: "delta"; data: { text: string } }
   | { event: "tool"; data: ChatToolCallDto }
   | { event: "done"; data: { message_id: string; assistant_message: string; tools: ChatToolCallDto[] } }
-  | { event: "error"; data: { detail: string } };
+  | { event: "error"; data: { detail: string } }
+  | { event: "stopped"; data: Record<string, never> };

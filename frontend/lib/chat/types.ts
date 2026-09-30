@@ -45,3 +45,18 @@ export const MAX_MESSAGE_LENGTH = 2000;
 export const MAX_HISTORY_MESSAGES = 12;
 export const MAX_REPLY_LENGTH = 8000;
 export const MAX_REQUEST_BYTES = 64000;
+
+// Live-only view of one streaming turn, in SSE arrival order. Never persisted: done.assistant_message replaces it.
+export type ChatTimelineItem = { kind: "text"; text: string } | { kind: "tools"; tools: ChatToolCall[] };
+/** Appends a raw delta or tool event: consecutive deltas/tools coalesce, a known tool id updates in place. */
+export function appendTimeline(items: ChatTimelineItem[], event: string | ChatToolCall): ChatTimelineItem[] {
+  const last = items.at(-1);
+  if (typeof event === "string") {
+    if (!event) return items;
+    return last?.kind === "text" ? [...items.slice(0, -1), { kind: "text", text: last.text + event }] : [...items, { kind: "text", text: event }];
+  }
+  if (items.some(item => item.kind === "tools" && item.tools.some(tool => tool.id === event.id))) {
+    return items.map(item => item.kind === "tools" ? { kind: "tools", tools: item.tools.map(tool => tool.id === event.id ? event : tool) } : item);
+  }
+  return last?.kind === "tools" ? [...items.slice(0, -1), { kind: "tools", tools: [...last.tools, event] }] : [...items, { kind: "tools", tools: [event] }];
+}

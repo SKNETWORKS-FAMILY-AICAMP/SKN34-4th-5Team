@@ -55,7 +55,9 @@ writeFileSync(join(scratch, "test-client-id.js"), `exports.createClientId = () =
 writeFileSync(join(scratch, "test-popup.js"), `exports.ChatPopup = () => null;`);
 writeFileSync(join(scratch, "test-chat-client.js"), `
 class ChatClientError extends Error {}
+class ChatStreamStoppedError extends ChatClientError {}
 exports.ChatClientError = ChatClientError;
+exports.ChatStreamStoppedError = ChatStreamStoppedError;
 exports.GUEST_STATUS = { provider: "guest", model: "guest", ready: true };
 for (const name of ["deleteChatMessages", "deleteChatSession", "editChatMessage", "fetchChatHistory", "getChatStatus", "listChatSessions", "sendChatMessage"])
   exports[name] = (...args) => global.__chatApi[name](...args);
@@ -228,17 +230,20 @@ test("history reload surfaces a stopped turn's status without dropping it", asyn
   assert.deepEqual(controls.messages.map(message => [message.id, message.status]), [[USER_MSG, "stopped"], [ASSISTANT_MSG, "stopped"]]);
 });
 
-test("live tool events accumulate into streamingTools by id and clear once the turn settles", async () => {
+test("live delta/tool events keep SSE order, update tools in place, and clear once the turn settles", async () => {
   global.__memberAuth = { status: "anonymous", user: null };
-  let onTool;
+  let onTool, onDelta, release;
   const persisted = [row(USER_MSG, "user", "잠실 맛집 알려 주세요"), row(ASSISTANT_MSG, "assistant", "답변", "completed", [{ id: "call-1", tool_name: "search_places", status: "completed" }])];
   global.__chatApi = {
     ...baseApi,
     listChatSessions: async () => [],
     fetchChatHistory: async () => persisted,
-    sendChatMessage: (mode, body, signal, callbacks) => { onTool = callbacks.onTool; return new Promise(resolve => {
+    sendChatMessage: (mode, body, signal, callbacks) => { ({ onTool, onDelta } = callbacks); return new Promise(resolve => {
+      onDelta("찾아"); onDelta("볼게요");
       onTool({ id: "call-1", tool_name: "search_places", status: "running" });
-      resolve({ reply: "답변", sessionId: FIRST, provider: "guest", model: "m", ready: true, assistantMessageId: ASSISTANT_MSG, tools: [{ id: "call-1", toolName: "search_places", status: "completed" }] });
+      onTool({ id: "call-1", tool_name: "search_places", status: "completed" });
+      onDelta(" 부분");
+      release = () => resolve({ reply: "답변", sessionId: FIRST, provider: "guest", model: "m", ready: true, assistantMessageId: ASSISTANT_MSG, tools: [{ id: "call-1", toolName: "search_places", status: "completed" }] });
     }); },
   };
   const runner = hookRunner();
@@ -251,7 +256,16 @@ test("live tool events accumulate into streamingTools by id and clear once the t
   controls.onSend();
   await tick();
   controls = runner.render();
-  assert.deepEqual(controls.streamingTools, []);
+  assert.deepEqual(controls.timeline, [
+    { kind: "text", text: "찾아볼게요" },
+    { kind: "tools", tools: [{ id: "call-1", toolName: "search_places", status: "completed" }] },
+    { kind: "text", text: " 부분" },
+  ]);
+  release();
+  await tick();
+  controls = runner.render();
+  assert.deepEqual(controls.timeline, []);
+  assert.equal(controls.messages.at(-1).content, "답변");
   await tick();
   controls = runner.render();
   assert.deepEqual(controls.messages.at(-1).tools, [{ id: "call-1", toolName: "search_places", status: "completed" }]);
@@ -311,7 +325,7 @@ for (const [path, exportName] of [["components/chat-workspace", "ChatWorkspace"]
     let cancelled = 0;
     global.__chat = new Proxy({
       messages: [], conversations: [{ id: "initial-chat", title: "새 대화" }], activeConversationId: "initial-chat",
-      draft: "잠실 맛집 알려 주세요", pending: "잠실 맛집 알려 주세요", streaming: "", failed: "", error: "", notice: "",
+      draft: "잠실 맛집 알려 주세요", pending: "잠실 맛집 알려 주세요", streaming: "", timeline: [], failed: "", error: "", notice: "",
       editingMessageId: null, status: { provider: "guest", model: "m", ready: true }, statusLoading: false, statusError: "",
       onCancel: () => { cancelled += 1; },
     }, { get: (target, key) => key in target ? target[key] : () => {} });
@@ -332,3 +346,35 @@ for (const [path, exportName] of [["components/chat-workspace", "ChatWorkspace"]
     global.__memberAuth = { status: "authenticated", user: { id: 7 } };
   });
 }
+
+test("uncertain failure whose turn history shows completed clears failure state and only the auto-restored draft", async () => {
+  global.__memberAuth = { status: "anonymous", user: null };
+  for (const newer of [null, "새 질문"]) {
+    const history = deferred();
+    global.__chatApi = {
+      ...baseApi,
+      listChatSessions: async () => [],
+      fetchChatHistory: () => history.promise,
+      sendChatMessage: async () => { const { ChatClientError } = createRequire(join(scratch, "entry.cjs"))("./test-chat-client.js"); const error = new ChatClientError("연결이 끊겼어요."); error.sessionId = FIRST; throw error; },
+    };
+    const runner = hookRunner();
+    let controls = runner.render();
+    runner.flushEffects();
+    await tick();
+    controls = runner.render();
+    controls.onDraftChange("잠실 맛집");
+    controls = runner.render();
+    controls.onSend();
+    await tick();
+    controls = runner.render();
+    assert.equal(controls.failed, "잠실 맛집");
+    assert.equal(controls.draft, "잠실 맛집");
+    if (newer) { controls.onDraftChange(newer); controls = runner.render(); }
+    history.resolve([row(USER_MSG, "user", "잠실 맛집"), row(ASSISTANT_MSG, "assistant", "답변")]);
+    await tick();
+    controls = runner.render();
+    assert.deepEqual([controls.failed, controls.error, controls.notice, controls.draft], ["", "", "", newer ?? ""]);
+    assert.equal(controls.messages.at(-1).content, "답변");
+  }
+  global.__memberAuth = { status: "authenticated", user: { id: 7 } };
+});

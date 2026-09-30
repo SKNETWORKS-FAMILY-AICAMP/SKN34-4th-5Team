@@ -20,12 +20,16 @@ const STATUS: Record<ChatMode, ChatStatus> = {
 };
 export const GUEST_STATUS = STATUS.guest;
 
-export type ChatStreamCallbacks = { onDelta?: (answer: string) => void; onTool?: (tool: ChatToolCallDto) => void };
+export type ChatStreamCallbacks = { onDelta?: (piece: string) => void; onTool?: (tool: ChatToolCallDto) => void };
 export type ChatSendRequest = { sessionId?: string; content: string; context?: ChatContext };
 export type ChatEditRequest = { sessionId: string; messageId: number; content: string; context?: ChatContext };
 
 export class ChatClientError extends Error {
   constructor(message: string, public status: number, public uncertain = false, public sessionId?: string) { super(message); }
+}
+
+export class ChatStreamStoppedError extends ChatClientError {
+  constructor(sessionId: string) { super("다른 변경으로 답변 생성이 중단됐어요.", 409, false, sessionId); }
 }
 
 function fallback(status: number) {
@@ -91,8 +95,8 @@ const isMessage = (value: unknown): value is ChatMessageDto => isRecord(value) &
 const readEmpty = async (response: Response) => { await response.text(); };
 
 // Frames are `event: <name>\ndata: <json>\n\n` (backend/llm/views/sse.py): delta{text}* / tool{id,
-// tool_name, status}* then done{message_id, assistant_message, tools} or error{detail}. A stream
-// that closes with neither means the turn was superseded or the connection dropped.
+// tool_name, status}* then exactly one terminal event: done{message_id, assistant_message, tools},
+// error{detail}, or stopped{}. A stream that closes with none is a dropped connection.
 async function readStream(response: Response, sessionId: string, callbacks: ChatStreamCallbacks): Promise<{ reply: string; assistantMessageId: number; tools: ChatToolCallDto[] }> {
   if (!response.body || !response.headers.get("Content-Type")?.toLowerCase().startsWith("text/event-stream")) {
     throw new ChatClientError("스트림 응답을 확인하지 못했어요.", 502, true, sessionId);
@@ -109,7 +113,7 @@ async function readStream(response: Response, sessionId: string, callbacks: Chat
     if (event === "delta") {
       if (typeof value.text !== "string" || answer.length + value.text.length > MAX_REPLY_LENGTH) throw new ChatClientError("답변이 너무 길어요.", 502, true, sessionId);
       answer += value.text;
-      callbacks.onDelta?.(answer);
+      callbacks.onDelta?.(value.text);
       return;
     }
     if (event === "tool") {
@@ -118,7 +122,7 @@ async function readStream(response: Response, sessionId: string, callbacks: Chat
       return;
     }
     if (event === "done") {
-      if (typeof value.message_id !== "string" || !MESSAGE_ID.test(value.message_id) || !isMessageId(Number(value.message_id)) || typeof value.assistant_message !== "string" ||
+      if (typeof value.message_id !== "string" || !MESSAGE_ID.test(value.message_id) || !isMessageId(Number(value.message_id)) || typeof value.assistant_message !== "string" || value.assistant_message.length > MAX_REPLY_LENGTH ||
         !Array.isArray(value.tools) || !value.tools.every(isTool)) {
         throw new ChatClientError("최종 답변을 확인하지 못했어요.", 502, true, sessionId);
       }
@@ -130,6 +134,7 @@ async function readStream(response: Response, sessionId: string, callbacks: Chat
       // committed, so the client can't assume persistence failed and must reconcile via history.
       throw new ChatClientError(typeof value.detail === "string" && value.detail && value.detail.length <= 200 ? value.detail : fallback(502), 502, true, sessionId);
     }
+    if (event === "stopped") throw new ChatStreamStoppedError(sessionId);
     throw new ChatClientError("알 수 없는 스트림 응답을 받았어요.", 502, true, sessionId);
   };
   try {

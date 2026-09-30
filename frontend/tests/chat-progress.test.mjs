@@ -98,6 +98,15 @@ test("tool log renders Korean labels for known and unknown tool names, no raw na
   assert.doesNotMatch(unknown, /brand_new_tool/);
 
   assert.equal(renderToStaticMarkup(React.createElement(ChatProgress, { tools: [] })), "");
+  const specialists = renderToStaticMarkup(React.createElement(ChatProgress, { tools: [
+    { id: "s1", toolName: "ask_baseball", status: "running" },
+    { id: "s2", toolName: "ask_travel_research", status: "completed" },
+    { id: "s3", toolName: "ask_place_data", status: "running" },
+  ] }));
+  assert.match(specialists, /야구 정보 확인 호출 중/);
+  assert.match(specialists, /여행 정보 조사 호출 완료/);
+  assert.match(specialists, /장소 정보 확인 호출 중/);
+  assert.doesNotMatch(specialists, /ask_|정보 조회/);
 });
 
 test("display progress never enters the model message payload", () => {
@@ -142,7 +151,7 @@ test("v2 SSE handles CRLF frames split across UTF-8 boundaries", async () => {
   const seen = [];
   global.fetch = async () => stream(frame("delta", { text: "완" }) + frame("delta", { text: "료" }) + frame("done", { message_id: String(ASSISTANT_MSG), assistant_message: "완료", tools: [] }), true);
   const reply = await sendChatMessage("member", { sessionId: SESSION, content: "질문" }, undefined, { onDelta: value => seen.push(value) });
-  assert.deepEqual([reply.reply, reply.assistantMessageId, seen], ["완료", ASSISTANT_MSG, ["완", "완료"]]);
+  assert.deepEqual([reply.reply, reply.assistantMessageId, seen], ["완료", ASSISTANT_MSG, ["완", "료"]]);
 });
 
 for (const [name, frames] of [
