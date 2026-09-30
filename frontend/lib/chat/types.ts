@@ -17,8 +17,11 @@ export type ChatCourse = {
   content?: string;
 };
 export type ChatToolStatus = "running" | "completed" | "failed";
-// serializer/message.py _public_tool(): {id, tool_name, status}. No arguments/results/metadata.
-export type ChatToolCall = { id: string; toolName: string; status: ChatToolStatus };
+// serializer/message.py _public_tool(). detail (args/result/sub-agent messages) only arrives for superusers.
+export type ChatToolCall = {
+  id: string; toolName: string; status: ChatToolStatus; kind: "tool" | "sub_agent"; parentId: string | null;
+  title?: string; summary?: string; detail?: { args: Record<string, unknown>; result: string; messages?: Record<string, unknown>[] };
+};
 export type ChatMessageStatus = "pending" | "completed" | "failed" | "stopped";
 // id·status·tools 는 서버에 저장된 메시지에만 있다 (id 는 서버가 만든 양의 정수). course 는 화면 표시용이다.
 export type ChatMessage = {
@@ -28,6 +31,7 @@ export type ChatMessage = {
   status?: ChatMessageStatus;
   course?: ChatCourse;
   tools?: ChatToolCall[];
+  timeline?: ChatTimelineItem[];
 };
 export type ChatOrigin = { lat: number; lng: number };
 // origin: 코스 작성 화면에서 지도에 찍은 출발지. 백엔드 코스 챗봇이 이 지점부터 이어서 코스를 짠다.
@@ -39,6 +43,7 @@ export type ChatReply = ChatStatus & {
   sessionId?: string;
   assistantMessageId?: number;
   tools?: ChatToolCall[];
+  timeline?: ChatTimelineItem[];
 };
 
 export const MAX_MESSAGE_LENGTH = 2000;
@@ -46,17 +51,32 @@ export const MAX_HISTORY_MESSAGES = 12;
 export const MAX_REPLY_LENGTH = 8000;
 export const MAX_REQUEST_BYTES = 64000;
 
-// Live-only view of one streaming turn, in SSE arrival order. Never persisted: done.assistant_message replaces it.
-export type ChatTimelineItem = { kind: "text"; text: string } | { kind: "tools"; tools: ChatToolCall[] };
-/** Appends a raw delta or tool event: consecutive deltas/tools coalesce, a known tool id updates in place. */
-export function appendTimeline(items: ChatTimelineItem[], event: string | ChatToolCall): ChatTimelineItem[] {
-  const last = items.at(-1);
-  if (typeof event === "string") {
-    if (!event) return items;
-    return last?.kind === "text" ? [...items.slice(0, -1), { kind: "text", text: last.text + event }] : [...items, { kind: "text", text: event }];
-  }
-  if (items.some(item => item.kind === "tools" && item.tools.some(tool => tool.id === event.id))) {
+// Process log of one turn in arrival order: live from SSE, or rebuilt from done/history `steps` + `tools`.
+// parentId groups a sub-agent's inner text/tools under that sub-agent's tool call; null = main agent.
+export type ChatTimelineItem = { kind: "text"; text: string; parentId: string | null } | { kind: "tools"; tools: ChatToolCall[] };
+const parentOf = (item: ChatTimelineItem) => item.kind === "text" ? item.parentId : item.tools[0].parentId ?? null;
+/** Appends a text piece or tool event: it coalesces with the latest item of the same parent and kind, a known tool id updates in place. */
+export function appendTimeline(items: ChatTimelineItem[], event: string | ChatToolCall, parentId: string | null = null): ChatTimelineItem[] {
+  if (typeof event !== "string" && items.some(item => item.kind === "tools" && item.tools.some(tool => tool.id === event.id))) {
     return items.map(item => item.kind === "tools" ? { kind: "tools", tools: item.tools.map(tool => tool.id === event.id ? event : tool) } : item);
   }
-  return last?.kind === "tools" ? [...items.slice(0, -1), { kind: "tools", tools: [...last.tools, event] }] : [...items, { kind: "tools", tools: [event] }];
+  if (event === "") return items;
+  const parent = typeof event === "string" ? parentId : event.parentId ?? null;
+  const index = items.findLastIndex(item => parentOf(item) === parent), last = items[index];
+  if (typeof event === "string") {
+    return last?.kind === "text" ? items.with(index, { ...last, text: last.text + event }) : [...items, { kind: "text", text: event, parentId: parent }];
+  }
+  return last?.kind === "tools" ? items.with(index, { kind: "tools", tools: [...last.tools, event] }) : [...items, { kind: "tools", tools: [event] }];
+}
+/** Rebuilds a stored turn's timeline; without steps (older server) it is the tools in order. */
+export function buildTimeline(steps: ({ type: "text"; text: string; parent_id?: string | null } | { type: "tool"; id: string })[], tools: ChatToolCall[]): ChatTimelineItem[] {
+  let items: ChatTimelineItem[] = [];
+  const used = new Set<string>();
+  for (const step of steps) {
+    const tool = step.type === "tool" ? tools.find(item => item.id === step.id) : undefined;
+    if (step.type === "text") items = appendTimeline(items, step.text, step.parent_id ?? null);
+    else if (tool) { used.add(tool.id); items = appendTimeline(items, tool); }
+  }
+  for (const tool of tools) if (!used.has(tool.id)) items = appendTimeline(items, tool);
+  return items;
 }

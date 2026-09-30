@@ -18,10 +18,11 @@ import os
 import subprocess
 import sys
 
-from llm.v2.agent import chain, classifier
-from llm.v2.agent import baseball_chain, place_chain, travel_chain
+from llm.v2.agent import chain
+from llm.v2.agent import baseball_sub_agent, place_sub_agent, travel_sub_agent
 from llm.v2.agent import common
-from llm.v2.agent.common import MODEL_CALL_BUDGET, ORCHESTRATOR_MODEL_CALL_BUDGET, final_text
+from llm.v2.agent.common import MODEL_CALL_BUDGET, MAIN_MODEL_CALL_BUDGET, final_text
+from llm.v2.middleware import jev_guidelines as classifier
 from llm.v2.middleware.dynamic_tools import CAPABILITY_TOOLS
 from llm.v2.middleware.jev_guidelines import SCOPE_MESSAGE
 
@@ -57,9 +58,9 @@ def call(name, args, id):
 
 
 ALL_NAMES = sorted({
-    *(n for names in CAPABILITY_TOOLS.values() for n in names), "get_directions",
+    *(n for names in CAPABILITY_TOOLS.values() for n in names if not n.startswith("ask_")), "get_directions",
     "get_standings", "search_players", "get_seat_zones", "get_seat_views", "get_seat_maps", "get_ticket_prices",
-    "get_ticket_policies", "get_food_stores", "get_facilities", "get_stadium_contents", "get_weather",
+    "get_ticket_policies", "get_ticket_policy", "search_nearby_places", "plan_course", "get_food_stores", "get_facilities", "get_stadium_contents", "get_weather",
     "search_community_posts", "get_prediction_games", "get_baseball_schema", "execute_baseball_select",
 })
 
@@ -74,8 +75,11 @@ def fake_tools(executed):
     return {n: make(n) for n in ALL_NAMES}
 
 
-def decision(allowed=True, complexity="SIMPLE", capabilities=()):
-    return {"allowed": allowed, "complexity": complexity, "capabilities": list(capabilities)}
+def decision(allowed=True, capabilities=()):
+    return {"allowed": allowed, "capabilities": list(capabilities)}
+
+
+PLAN = decision(capabilities=["day_plan"])
 
 
 class ChainTest(unittest.TestCase):
@@ -110,12 +114,30 @@ class ChainTest(unittest.TestCase):
         self.assertEqual(out["messages"][-1].content, "잠실 주차 안내예요.")
         self.assertEqual(self.executed, ["get_stadium", "get_transport"])  # get_games 는 실행 차단
         self.assertEqual(set(self.model_calls[0]["tools"]), {"get_stadium", "get_transport", "search_kbo_documents"})
-        self.assertFalse(any(t.startswith("ask_") for c in self.model_calls for t in c["tools"]))
-        # 상위 state 에는 입력 대화 + 최종 답변만 남는다 (내부 tool/AI 메시지 미복제)
-        self.assertEqual([m.type for m in out["messages"]], ["human", "ai", "human", "ai"])
+        self.assertFalse(any(t.startswith("ask_") for c in self.model_calls for t in c["tools"]))  # day_plan 없으면 ask_* 숨김
         # JEV 는 이번 질문과 이전 대화를 분리해 받는다
         q, hist, ctx = self.jev.call_args.args
         self.assertEqual((q, [m.content for m in hist], ctx), ("주차는?", ["잠실 가요", "네"], None))
+
+    def test_stadium_list_exposes_and_invokes_get_stadiums(self):
+        # fake 회귀: 실제 JEV·DB 아님 (JEV 결과는 patch, 도구는 fake)
+        script = [call("get_stadiums", {}, "1"), AIMessage("확인된 구장이 없어요.")]
+        out = self.run_graph(script, decision(capabilities=["stadium_info"]), [HumanMessage("KBO 구장 전체 목록 알려줘")])
+        self.assertIn("get_stadiums", self.model_calls[0]["tools"])
+        self.assertEqual(self.executed, ["get_stadiums"])
+        self.assertEqual(out["messages"][-1].content, "확인된 구장이 없어요.")
+
+    def test_restaurant_capability_uses_search_places_not_nearby(self):
+        self.run_graph([AIMessage("식당 안내")], decision(capabilities=["nearby_places"]), [HumanMessage("잠실 근처 식당")])
+        tools = set(self.model_calls[0]["tools"])
+        self.assertIn("search_places", tools)
+        self.assertNotIn("search_nearby_places", tools)
+
+    def test_compound_followup_unions_capabilities(self):
+        self.run_graph([AIMessage("ok")], decision(capabilities=["stadium_info", "nearby_places"]),
+                       [HumanMessage("잠실 가요"), AIMessage("네"), HumanMessage("티켓 가격이랑 근처 식당도")])
+        tools = set(self.model_calls[0]["tools"])
+        self.assertTrue({"get_ticket_prices", "search_places", "get_stadium"} <= tools)
 
     def test_greeting_gets_no_tools(self):
         self.run_graph([AIMessage("안녕하세요!")], decision(), [HumanMessage("안녕")])
@@ -123,7 +145,7 @@ class ChainTest(unittest.TestCase):
 
     def test_complex_delegates_to_real_specialists_and_redelegates(self):
         script = [
-            call("ask_baseball", {"task": "내일 잠실 경기 시각"}, "o1"),  # orchestrator
+            call("ask_baseball", {"task": "내일 잠실 경기 시각"}, "o1"),  # 메인 Agent
             call("get_games", {"query": "내일 잠실"}, "b1"),  # baseball agent
             AIMessage("내일 잠실 18:30 경기"),
             call("ask_travel_research", {"task": "잠실 근처 카페 후보"}, "o2"),
@@ -135,11 +157,11 @@ class ChainTest(unittest.TestCase):
             AIMessage("16:00 카페 A → 17:30 잠실 도착"),
         ]
         ctx = {"stadium": "잠실야구장", "intent": "route", "origin": {"lat": 37.5, "lng": 127.0}}
-        out = self.run_graph(script, decision(complexity="COMPLEX"), [HumanMessage("내일 코스 짜줘")], ctx)
+        out = self.run_graph(script, PLAN, [HumanMessage("내일 코스 짜줘")], ctx)
         self.assertEqual(out["messages"][-1].content, "16:00 카페 A → 17:30 잠실 도착")
         self.assertEqual(self.executed, ["get_games", "search_places", "get_directions"])
         self.assertEqual(set(self.model_calls[0]["tools"]),
-                         {"ask_baseball", "ask_travel_research", "ask_place_data", "get_directions"})
+                         {"ask_baseball", "ask_travel_research", "ask_place_data", "get_directions", "plan_course"})
         baseball_call = self.model_calls[1]
         self.assertIn("get_games", baseball_call["tools"])
         self.assertNotIn("ask_travel_research", baseball_call["tools"])  # 전문 Agent 간 직접 위임 없음
@@ -147,7 +169,11 @@ class ChainTest(unittest.TestCase):
         self.assertIn("잠실야구장", baseball_call["system"])  # 선택 context 전달
         tool_results = [m.content for m in self.model_calls[-1]["messages"] if m.type == "tool"]
         self.assertIn("내일 잠실 18:30 경기", tool_results)
-        self.assertEqual(len(out["messages"]), 2)
+        # ask_* 결과 artifact = 하위 Agent 대화 전체 (task Human + AI/Tool)
+        ask = next(m for m in out["messages"] if m.type == "tool" and m.tool_call_id == "o1")
+        self.assertEqual([m.type for m in ask.artifact], ["human", "ai", "tool", "ai"])
+        self.assertEqual(ask.artifact[0].content, "내일 잠실 경기 시각")
+        self.assertEqual(self.jev.call_count, 1)  # 하위 Agent 는 JEV 를 부르지 않는다
 
     def test_specialist_loop_ends_with_answer_within_its_own_budget(self):
         ids = count()
@@ -160,11 +186,11 @@ class ChainTest(unittest.TestCase):
             return AIMessage("경기 시각 미확인")
 
         script = [call("ask_baseball", {"task": "경기 시각"}, "o1"), baseball, AIMessage("경기 시각은 확인되지 않았어요.")]
-        self.run_graph(script, decision(complexity="COMPLEX"), [HumanMessage("코스 짜줘")])
+        self.run_graph(script, PLAN, [HumanMessage("코스 짜줘")])
         tool_results = [m.content for m in self.model_calls[-1]["messages"] if m.type == "tool"]
         self.assertEqual(tool_results, ["경기 시각 미확인"])
         self.assertEqual(self.executed.count("get_games"), MODEL_CALL_BUDGET - 1)
-        # 전문 Agent 예산은 Orchestrator 예산과 별개: orchestrator 2회 + specialist N회
+        # 하위 Agent 예산은 메인 예산과 별개: 메인 2회 + 하위 N회
         self.assertEqual(len(self.model_calls), 2 + MODEL_CALL_BUDGET)
 
     def run_budget(self, budget, script, messages):
@@ -173,7 +199,7 @@ class ChainTest(unittest.TestCase):
         self.model_calls = model.calls
         tools = fake_tools(self.executed)
         agent = common.build_agent(model, [tools["get_stadium"]], "", budget=budget)
-        return common.invoke_agent(agent, {"messages": messages, "decision": decision()})
+        return agent.invoke({"messages": messages, "decision": decision()})
 
     def test_budget_one_is_single_toolless_call(self):
         out = self.run_budget(1, [call("get_stadium", {}, "x")], [HumanMessage("q")])  # 고집 모델
@@ -205,7 +231,7 @@ class ChainTest(unittest.TestCase):
         env = {k: v for k, v in os.environ.items() if not k.endswith("_MODEL_CALL_BUDGET")}
         env.update(AGENT_RECURSION_LIMIT="12", ORCHESTRATOR_RECURSION_LIMIT="25")
         proc = subprocess.run([sys.executable, "-c", "from llm.v2.agent.common import MODEL_CALL_BUDGET as a, "
-                               "ORCHESTRATOR_MODEL_CALL_BUDGET as b; print(a, b)"],
+                               "MAIN_MODEL_CALL_BUDGET as b; print(a, b)"],
                               env=env, capture_output=True, text=True)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertEqual(proc.stdout.split(), ["4", "8"])
@@ -218,22 +244,22 @@ class ChainTest(unittest.TestCase):
         out = self.run_graph([loop_while_tools], decision(capabilities=["parking_transport"]), [HumanMessage("주차")])
         self.assertEqual(out["messages"][-1].content, "모은 결과로 답해요.")
         self.assertEqual(self.model_calls[-1]["tools"], ())
-        self.assertEqual(len(self.model_calls), MODEL_CALL_BUDGET)
+        self.assertEqual(len(self.model_calls), MAIN_MODEL_CALL_BUDGET)
 
-    def test_orchestrator_directions_capped_and_ends_with_answer(self):
+    def test_main_directions_capped_and_ends_with_answer(self):
         def directions_forever(messages):
             return call("get_directions", {}, f"d{len(messages)}") if self.model_calls[-1]["tools"] else AIMessage("이동 시간 미확인")
 
-        out = self.run_graph([directions_forever], decision(complexity="COMPLEX"), [HumanMessage("코스")])
+        out = self.run_graph([directions_forever], PLAN, [HumanMessage("코스")])
         self.assertEqual(out["messages"][-1].content, "이동 시간 미확인")
         self.assertEqual(self.executed.count("get_directions"), 2)  # ToolCallLimitMiddleware run_limit
-        self.assertEqual(len(self.model_calls), ORCHESTRATOR_MODEL_CALL_BUDGET)
+        self.assertEqual(len(self.model_calls), MAIN_MODEL_CALL_BUDGET)
 
-    def test_orchestrator_uses_larger_budget_than_specialists(self):
-        n = ORCHESTRATOR_MODEL_CALL_BUDGET - 1
+    def test_main_uses_larger_budget_than_sub_agents(self):
+        n = MAIN_MODEL_CALL_BUDGET - 1
         loop = [call("ask_place_data", {"task": "x"}, f"p{i}") for i in range(n)]
         loop = [m for c in loop for m in (c, AIMessage("장소 확인됨"))]  # 전문 Agent 한 번씩 답
-        out = self.run_graph([*loop, AIMessage("이동 시간은 미확인이에요.")], decision(complexity="COMPLEX"), [HumanMessage("코스")])
+        out = self.run_graph([*loop, AIMessage("이동 시간은 미확인이에요.")], PLAN, [HumanMessage("코스")])
         self.assertEqual(out["messages"][-1].content, "이동 시간은 미확인이에요.")
         self.assertEqual(sum(bool(c["tools"]) and "ask_place_data" in c["tools"] for c in self.model_calls), n)
 
@@ -265,16 +291,34 @@ class ChainTest(unittest.TestCase):
         self.assertEqual([c["tools"] for c in calls], [("get_standings",), ("get_games", "get_stadium", "get_weather")])
 
 
-    def test_graph_has_exactly_three_work_nodes_and_no_checkpointer(self):
+    def test_graph_is_main_agent_only_without_checkpointer(self):
         graph = chain.build_graph(ScriptedModel(script=[], calls=[]), fake_tools([]))
-        drawn = graph.get_graph()
-        self.assertEqual(set(drawn.nodes) - {"__start__", "__end__"}, {"jev_router", "simple_agent", "orchestrator"})
-        edges = {(e.source, e.target) for e in drawn.edges}
-        self.assertEqual(edges, {
-            ("__start__", "jev_router"), ("jev_router", "simple_agent"), ("jev_router", "orchestrator"),
-            ("jev_router", "__end__"), ("simple_agent", "__end__"), ("orchestrator", "__end__"),
-        })
+        nodes = set(graph.get_graph().nodes)
+        self.assertIn("model", nodes)
+        self.assertFalse({"jev_router", "simple_agent", "orchestrator"} & nodes)
         self.assertIsNone(graph.checkpointer)
+
+    def test_day_plan_exposes_only_sub_agents_and_directions(self):
+        self.run_graph([AIMessage("x")], PLAN, [HumanMessage("코스")])
+        self.assertEqual(set(self.model_calls[0]["tools"]), set(CAPABILITY_TOOLS["day_plan"]))
+
+    def test_hidden_sub_agent_call_is_blocked(self):
+        script = [call("ask_baseball", {"task": "몰래"}, "o1"), AIMessage("순위 안내")]
+        out = self.run_graph(script, decision(capabilities=["standings"]), [HumanMessage("순위")])
+        self.assertEqual(len(self.model_calls), 2)  # 하위 Agent model 은 불리지 않는다
+        blocked = next(m for m in out["messages"] if m.type == "tool")
+        self.assertEqual(blocked.status, "error")
+
+    def test_sub_agent_failure_main_still_answers(self):
+        def boom(messages):
+            if "야구 전문 에이전트" in messages[0].content:
+                raise RuntimeError("down")
+        script = [call("ask_baseball", {"task": "경기"}, "o1"), boom, AIMessage("경기 정보는 확인 못 했어요.")]
+        out = self.run_graph(script, PLAN, [HumanMessage("코스")])
+        self.assertEqual(out["messages"][-1].content, "경기 정보는 확인 못 했어요.")
+        failed = next(m for m in out["messages"] if m.type == "tool")
+        self.assertTrue(failed.content.startswith("[조회 실패] ask_baseball"))
+        self.assertEqual([m.type for m in failed.artifact], ["human"])
 
     def test_non_pass_appends_one_message_after_input(self):
         out = self.run_graph([], decision(allowed=False), [HumanMessage("a"), AIMessage("b"), HumanMessage("코인 추천")])
@@ -298,13 +342,30 @@ class ChainTest(unittest.TestCase):
             ]),
             by_role, by_role, AIMessage("최종 코스"),
         ]
-        # by_role 은 None 을 돌려줄 때만 pop 되므로 두 번 둔다: 전문 Agent 응답 뒤 orchestrator 턴에서 하나씩 소모
-        out = self.run_graph(script, decision(complexity="COMPLEX"), [HumanMessage("코스 짜줘")])
+        # by_role 은 None 을 돌려줄 때만 pop 되므로 두 번 둔다: 하위 Agent 응답 뒤 메인 턴에서 하나씩 소모
+        out = self.run_graph(script, PLAN, [HumanMessage("코스 짜줘")])
         self.assertEqual(out["messages"][-1].content, "최종 코스")
         self.assertEqual(self.jev.call_count, 1)
         results = sorted(m.content for m in self.model_calls[-1]["messages"] if m.type == "tool")
         self.assertEqual(results, ["야구 결과", "후보 결과"])
-        self.assertEqual([m.type for m in out["messages"]], ["human", "ai"])
+        self.assertEqual([m.type for m in out["messages"]], ["human", "ai", "tool", "tool", "ai"])
+
+    def test_real_stream_tags_concurrent_sub_agent_chunks_with_their_tool_call_id(self):
+        """chat_v2._frames 가 기대는 실제 langgraph 동작: ask_* 안쪽 청크는 ns=("tools:<task>",) + metadata parent_id."""
+        def by_role(messages):
+            system = messages[0].content
+            if "야구 전문" in system or "주변 후보" in system:
+                return AIMessage("A" if "야구 전문" in system else "B")
+        script = [AIMessage("먼저", tool_calls=[{"name": "ask_baseball", "args": {"task": "a"}, "id": "c1"},
+                                                {"name": "ask_travel_research", "args": {"task": "b"}, "id": "c2"}]),
+                  by_role, by_role, AIMessage("끝")]
+        graph = chain.build_graph(ScriptedModel(script=script, calls=[]), fake_tools([]))
+        seen = []
+        with patch.object(classifier, "classify", return_value=PLAN):
+            for ns, mode, data in graph.stream({"messages": [HumanMessage("q")]}, stream_mode=["messages", "updates"], subgraphs=True):
+                if mode == "messages" and data[1].get("langgraph_node") == "model" and data[0].text:
+                    seen.append((data[0].text, bool(ns) and ns[0].startswith("tools:"), data[1].get("parent_id")))
+        self.assertEqual(sorted(seen), [("A", True, "c1"), ("B", True, "c2"), ("끝", False, None), ("먼저", False, None)])
 
     def test_concurrent_requests_see_only_their_own_tools(self):
         calls = []
@@ -331,7 +392,7 @@ class ChainTest(unittest.TestCase):
         self.assertEqual(seen["주차"], {"get_stadium", "get_transport", "search_kbo_documents"})
 
     def test_classifier_malformed_decision_fails_closed(self):
-        out = self.run_graph([AIMessage("x")], {"allowed": "yes", "complexity": "SIMPLE", "capabilities": []},
+        out = self.run_graph([AIMessage("x")], {"allowed": "yes", "capabilities": []},
                              [HumanMessage("안녕")])
         self.assertEqual(out["messages"][-1].content, SCOPE_MESSAGE)
         self.assertEqual(self.model_calls, [])
@@ -343,9 +404,9 @@ class ChainTest(unittest.TestCase):
             AIMessage("확인된 코스 없음"),
             AIMessage("공개 코스는 확인되지 않았어요."),
         ]
-        self.run_graph(script, decision(complexity="COMPLEX"), [HumanMessage("코스 확인해줘")])
+        self.run_graph(script, PLAN, [HumanMessage("코스 확인해줘")])
         self.assertEqual(self.executed, [])
-        self.assertEqual(set(self.model_calls[1]["tools"]), set(place_chain.TOOLS))
+        self.assertEqual(set(self.model_calls[1]["tools"]), set(place_sub_agent.TOOLS))
         place_tool_msgs = [m for m in self.model_calls[2]["messages"] if m.type == "tool"]
         self.assertEqual(place_tool_msgs[0].status, "error")
 
@@ -366,8 +427,8 @@ class ClassifierTest(unittest.TestCase):
     def test_weather_and_stadium_info_include_prerequisites(self):
         self.assertEqual(CAPABILITY_TOOLS["weather"], ("get_games", "get_stadium", "get_weather"))
         self.assertEqual(CAPABILITY_TOOLS["stadium_info"], (
-            "get_stadium", "get_seat_zones", "get_seat_views", "get_seat_maps", "get_ticket_prices",
-            "get_ticket_policies", "get_food_stores", "get_facilities", "get_stadium_contents",
+            "get_stadiums", "get_stadium", "get_seat_zones", "get_seat_views", "get_seat_maps", "get_ticket_prices",
+            "get_ticket_policies", "get_ticket_policy", "get_food_stores", "get_facilities", "get_stadium_contents",
             "get_transport", "search_kbo_documents"))
 
     def test_final_text_flattens_responses_blocks(self):
@@ -377,7 +438,7 @@ class ClassifierTest(unittest.TestCase):
 
     def test_unexpected_label_raises(self):
         from types import SimpleNamespace as NS
-        response = NS(choices={"guard": NS(choice="MAYBE"), "complexity": NS(choice="SIMPLE")}, nouls={})
+        response = NS(choices={"guard": NS(choice="MAYBE")}, nouls={})
         with patch.object(classifier, "_client") as client:
             client.return_value.invoke.return_value = response
             with self.assertRaises(ValueError):
@@ -394,15 +455,15 @@ class CommonTest(unittest.TestCase):
 
 
 class SpecialistFoldingTest(unittest.TestCase):
-    """baseball_chain 이 구 stadium/community 도구를 흡수했는지, 분리된 전문 Agent 간 도구가 겹치지 않는지 확인."""
+    """baseball_sub_agent 가 구 stadium/community 도구를 흡수했는지, 분리된 전문 Agent 간 도구가 겹치지 않는지 확인."""
 
     def test_baseball_absorbs_stadium_and_community_tools(self):
         for name in ("get_stadium", "get_seat_zones", "get_ticket_prices", "get_transport",
                      "get_facilities", "search_community_posts", "get_prediction_games"):
-            self.assertIn(name, baseball_chain.TOOLS)
+            self.assertIn(name, baseball_sub_agent.TOOLS)
 
     def test_no_ask_prefixed_tools_leak_into_specialists(self):
-        for tools in (baseball_chain.TOOLS, travel_chain.TOOLS, place_chain.TOOLS):
+        for tools in (baseball_sub_agent.TOOLS, travel_sub_agent.TOOLS, place_sub_agent.TOOLS):
             self.assertFalse(any(t.startswith("ask_") for t in tools))
 
 

@@ -51,6 +51,7 @@
 
 ## 참고자료
 
+- [챗봇 기능 개선 목록 — Open WebUI 비교 및 LLMOps](references/CHATBOT_FEATURE_IMPROVEMENTS.md)
 - [코스 장소 선정 기준](references/코스장소_선정기준_핫플정의_20260916.md)
 - [먹거리·플레이스 반경 및 자동화 정책](references/먹거리_플레이스_반경및자동화_정책_20260908.md)
 - [재입장 규정 검증 메모](references/재입장규정_검증메모.md)

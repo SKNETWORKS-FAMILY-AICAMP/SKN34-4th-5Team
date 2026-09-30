@@ -14,7 +14,26 @@ from llm.service import chat as chat_service
 from llm.service import chat_v1, chat_v2
 from llm.service.chat import list_messages, message_delete
 from llm.service.ownership import get_owned_session
+from llm.serializer.message import public_frame
 from llm.views.sse import event_stream_response
+
+
+def _role_stream(request, events):
+    """SSE 역할 투영: 비관리자(게스트·is_staff 포함)는 하위 Agent task·텍스트를 받지 않는다. close() 는 원본으로 전달한다."""
+    privileged = getattr(request.user, "is_superuser", False) is True
+    if privileged:
+        return events
+
+    class _Projected:
+        def __iter__(self):
+            for frame in events:
+                if (projected := public_frame(*frame, False)) is not None:
+                    yield projected
+
+        def close(self):
+            if close := getattr(events, "close", None):
+                close()
+    return _Projected()
 
 
 def _dispatch(version):
@@ -58,7 +77,7 @@ class ChatMessageView(GenericAPIView):
     그 안의 re_path(r"^(?P<version>v1|v2)/chat/", ...) 가 URL 을 kwargs["version"] 으로 넘긴다.
     정규식이 이미 v1/v2 만 허용하므로 여기서는 그 값을 그대로 service 에 전달한다 -- 중복 검증 없음.)
 
-    GET: 해당 대화방의 저장된 메시지를 조회합니다 (공개 항목 {id, role, content, status, tools}).
+    GET: 해당 대화방의 저장된 메시지를 조회합니다 (공개 항목 {id, role, content, status, tools, steps}; superuser 는 tools[].detail 포함).
     POST: 사용자 메시지를 보내고 AI 답변을 생성합니다 (SSE 스트리밍).
     PUT: 메시지 하나를 수정하고 그 이후 대화를 다시 생성합니다.
     DELETE: 메시지 하나부터 이후 대화를 모두 삭제합니다.
@@ -80,7 +99,7 @@ class ChatMessageView(GenericAPIView):
         data = serializer.validated_data
         send, _update = _dispatch(kwargs.get("version"))
         events = send(session, data["content"], data.get("context"))
-        return event_stream_response(events)
+        return event_stream_response(_role_stream(request, events))
 
     def put(self, request, *args, **kwargs):
         """이후 채팅목록을 수정 + LLM 호출. version 으로 chat_v1/chat_v2 의 실제 구현을 직접 고른다."""
@@ -90,7 +109,7 @@ class ChatMessageView(GenericAPIView):
         _send, update = _dispatch(kwargs.get("version"))
         session = get_owned_session(request, kwargs["session_id"])
         events = update(session, data["message_id"], data["content"], data.get("context"))
-        return event_stream_response(events)
+        return event_stream_response(_role_stream(request, events))
 
     def delete(self, request, *args, **kwargs):
         """이후 채팅목록을 삭제한다."""

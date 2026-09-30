@@ -243,7 +243,7 @@ test("live delta/tool events keep SSE order, update tools in place, and clear on
       onTool({ id: "call-1", tool_name: "search_places", status: "running" });
       onTool({ id: "call-1", tool_name: "search_places", status: "completed" });
       onDelta(" 부분");
-      release = () => resolve({ reply: "답변", sessionId: FIRST, provider: "guest", model: "m", ready: true, assistantMessageId: ASSISTANT_MSG, tools: [{ id: "call-1", toolName: "search_places", status: "completed" }] });
+      release = () => resolve({ reply: "답변", sessionId: FIRST, provider: "guest", model: "m", ready: true, assistantMessageId: ASSISTANT_MSG, tools: [{ id: "call-1", toolName: "search_places", status: "completed", kind: "tool", parentId: null }] });
     }); },
   };
   const runner = hookRunner();
@@ -257,9 +257,9 @@ test("live delta/tool events keep SSE order, update tools in place, and clear on
   await tick();
   controls = runner.render();
   assert.deepEqual(controls.timeline, [
-    { kind: "text", text: "찾아볼게요" },
-    { kind: "tools", tools: [{ id: "call-1", toolName: "search_places", status: "completed" }] },
-    { kind: "text", text: " 부분" },
+    { kind: "text", text: "찾아볼게요", parentId: null },
+    { kind: "tools", tools: [{ id: "call-1", toolName: "search_places", status: "completed", kind: "tool", parentId: null }] },
+    { kind: "text", text: " 부분", parentId: null },
   ]);
   release();
   await tick();
@@ -268,7 +268,7 @@ test("live delta/tool events keep SSE order, update tools in place, and clear on
   assert.equal(controls.messages.at(-1).content, "답변");
   await tick();
   controls = runner.render();
-  assert.deepEqual(controls.messages.at(-1).tools, [{ id: "call-1", toolName: "search_places", status: "completed" }]);
+  assert.deepEqual(controls.messages.at(-1).tools, [{ id: "call-1", toolName: "search_places", status: "completed", kind: "tool", parentId: null }]);
   global.__memberAuth = { status: "authenticated", user: { id: 7 } };
 });
 

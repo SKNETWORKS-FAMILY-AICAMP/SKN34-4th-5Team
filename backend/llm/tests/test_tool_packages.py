@@ -17,7 +17,7 @@ class ToolPackagesTest(SimpleTestCase):
             weather.create_weather_tools,
         )
         partition = [tool for factory in factories for tool in factory()]
-        self.assertEqual(len(partition), 21)
+        self.assertEqual(len(partition), 22)
         self.assertEqual({tool.name for tool in partition}, set(DOMAIN_TOOL_NAMES))
         self.assertEqual(tuple(tool.name for tool in create_domain_tools()), DOMAIN_TOOL_NAMES)
         default = create_default_tools()
@@ -51,7 +51,7 @@ class ToolPackagesTest(SimpleTestCase):
         self.assertIn("search_documents_tool", names)
         self.assertIn("search_kbo_documents", names)
         registry = {tool.name: tool for tool in tools_for("venue")}
-        self.assertEqual(len(names), 28)
+        self.assertEqual(len(names), 29)
         self.assertFalse(any(name.startswith("legacy_") for name in names))
         self.assertIn("team", registry["get_games"].args_schema.model_fields)
         self.assertNotIn("start_date", registry["get_games"].args_schema.model_fields)

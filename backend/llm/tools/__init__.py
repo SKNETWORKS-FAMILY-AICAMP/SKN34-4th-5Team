@@ -4,7 +4,7 @@ from .baseball import (
     get_baseball_schema,
 )
 DOMAIN_TOOL_NAMES = (
-    "get_standings", "get_games", "get_stadium", "get_seat_zones", "get_seat_views",
+    "get_standings", "get_games", "get_stadiums", "get_stadium", "get_seat_zones", "get_seat_views",
     "get_ticket_prices", "get_ticket_policies", "get_transport", "get_food_stores",
     "get_facilities", "get_stadium_contents", "get_seat_maps", "search_places",
     "search_courses", "get_course", "search_community_posts", "get_prediction_games",

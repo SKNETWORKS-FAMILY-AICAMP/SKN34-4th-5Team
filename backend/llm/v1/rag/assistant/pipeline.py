@@ -26,7 +26,7 @@ from langchain_core.runnables import RunnableLambda
 
 from ...progress import ProgressCancelled, ProgressStorageError, config_kwargs, current, operation
 from ..domain_tools import visible_text
-from . import tools
+from ....tools import assistant as tools
 from .prompts import COURSE_HINT, HINT_LINE, NEARBY_HINT, SYSTEM
 
 log = logging.getLogger(__name__)

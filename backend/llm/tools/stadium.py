@@ -57,6 +57,10 @@ def _context(season, team_code, stadium_id=None):
 
 def create_stadium_tools():
 
+    def get_stadiums(limit=20):
+        """공개 구장 목록을 코드순으로 조회한다."""
+        return _result(_rows(Stadium.objects.order_by("stadium_code", "id"), ("id", "stadium_code", "stadium_name_ko", "address"), limit))
+
     def get_stadium(stadium_id=None, stadium_code=None):
         """ID 또는 코드로 공개 구장 정보를 조회한다."""
         query = Stadium.objects.filter(id=stadium_id) if stadium_id is not None else Stadium.objects.filter(stadium_code=stadium_code)
@@ -123,6 +127,7 @@ def create_stadium_tools():
         return _result(items)
 
     specs = (
+        (get_stadiums, 'get_stadiums', '공개 구장 목록(ID·코드·이름·주소)을 조회한다.', LimitInput),
         (get_stadium, 'get_stadium', '구장 ID 또는 코드로 공개 상세를 조회한다.', StadiumInput),
         (get_seat_zones, 'get_seat_zones', '팀·시즌·선택 구장의 좌석 구역을 조회한다.', ContextInput),
         (get_seat_views, 'get_seat_views', '팀·시즌·선택 구장의 좌석 시야를 조회한다.', ContextInput),

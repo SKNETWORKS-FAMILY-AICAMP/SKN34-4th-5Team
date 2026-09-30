@@ -156,7 +156,7 @@ test("session rename/delete/history use UUID paths, stopped status and tool call
   assert.equal((await renameChatSession("member", SESSION, "이름")).title, "이름");
   const history = await fetchChatHistory("member", SESSION);
   assert.deepEqual(restoreChatMessages(history).map(item => [item.id, item.role, item.status]), [[USER_MSG, "user", "stopped"], [ASSISTANT_MSG, "assistant", "completed"]]);
-  assert.deepEqual(restoreChatMessages(history)[1].tools, [{ id: "call-1", toolName: "search_places", status: "completed" }]);
+  assert.deepEqual(restoreChatMessages(history)[1].tools, [{ id: "call-1", toolName: "search_places", status: "completed", kind: "tool", parentId: null }]);
   assert.equal(await deleteChatSession("member", SESSION), undefined);
   assert.deepEqual(calls.map(call => [call.method, call.url]), [
     ["PATCH", `/api/v2/chat/sessions/${SESSION}/`], ["GET", `/api/v2/chat/sessions/${SESSION}/messages/`], ["DELETE", `/api/v2/chat/sessions/${SESSION}/`],
@@ -186,7 +186,7 @@ test("tool SSE events are accepted and reach onTool with id/tool_name/status; do
   ]);
   const reply = await sendChatMessage("guest", { sessionId: SESSION, content: "질문" }, undefined, { onTool: value => seenTools.push(value) });
   assert.deepEqual(seenTools, [tool("call-1", "search_places", "running"), tool("call-1", "search_places", "completed")]);
-  assert.deepEqual(reply.tools, [{ id: "call-1", toolName: "search_places", status: "completed" }]);
+  assert.deepEqual(reply.tools, [{ id: "call-1", toolName: "search_places", status: "completed", kind: "tool", parentId: null }]);
 });
 
 test("a done frame with a non-integer or empty message_id is rejected as uncertain", async () => {
@@ -337,9 +337,9 @@ test("appendTimeline coalesces deltas, keeps delta→tool→delta order, and upd
   let items = [];
   for (const event of ["가", "나", tool("running"), { id: "t2", toolName: "get_weather", status: "running" }, "", tool("completed"), "다"]) items = appendTimeline(items, event);
   assert.deepEqual(items, [
-    { kind: "text", text: "가나" },
+    { kind: "text", text: "가나", parentId: null },
     { kind: "tools", tools: [tool("completed"), { id: "t2", toolName: "get_weather", status: "running" }] },
-    { kind: "text", text: "다" },
+    { kind: "text", text: "다", parentId: null },
   ]);
 });
 

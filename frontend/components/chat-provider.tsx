@@ -16,7 +16,7 @@ import {
   sendChatMessage,
   type ChatMode,
 } from "@/lib/chat/client";
-import { commitChatLoad, restoreChatMessages } from "@/lib/chat/history";
+import { commitChatLoad, fromToolDto, restoreChatMessages } from "@/lib/chat/history";
 import type { ChatToolCallDto } from "@/lib/chat/wire";
 import { useMemberAuth } from "@/lib/member-auth";
 import { createClientId } from "@/lib/client-id";
@@ -518,15 +518,14 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     }
     let knownSession = sessionId;
     try {
-      const onDelta = (piece: string) => {
+      const onDelta = (piece: string, parentId: string | null) => {
         if (version !== requestVersion.current) return;
         setStreaming(current => current + piece);
-        setTimeline(current => appendTimeline(current, piece));
+        setTimeline(current => appendTimeline(current, piece, parentId));
       };
       const onTool = (tool: ChatToolCallDto) => {
         if (version !== requestVersion.current) return;
-        const next = { id: tool.id, toolName: tool.tool_name, status: tool.status };
-        setTimeline(current => appendTimeline(current, next));
+        setTimeline(current => appendTimeline(current, fromToolDto(tool)));
       };
       const reply = editId !== null && sessionId
         ? await editChatMessage(mode, { sessionId, messageId: editId, content, context: selectedContext }, controller.signal, { onDelta, onTool })
@@ -534,7 +533,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       if (version !== requestVersion.current) return;
       knownSession = reply.sessionId;
       if (reply.sessionId) backendSessions.current.set(conversationId, reply.sessionId);
-      const assistant: ChatMessage = { role: "assistant", content: reply.reply, status: "completed", ...(reply.assistantMessageId ? { id: reply.assistantMessageId } : {}), ...(reply.tools?.length ? { tools: reply.tools } : {}) };
+      const assistant: ChatMessage = { role: "assistant", content: reply.reply, status: "completed", ...(reply.assistantMessageId ? { id: reply.assistantMessageId } : {}), ...(reply.tools?.length ? { tools: reply.tools } : {}), ...(reply.timeline?.length ? { timeline: reply.timeline } : {}) };
       const next: ChatMessage[] = [...previous, { ...userMessage, status: "completed" }, assistant];
       historyRef.current = next;
       setMessages(next);

@@ -156,7 +156,7 @@ class V1CheckpointStreamingTest(CheckpointTestCase):
 
         self.assertEqual(events, [("first_delta", []), "producer_done"])  # 생성 완료 전에 받았다
         frames = _read_sse_body("".join(pieces))
-        tool = {"id": "call_1", "tool_name": "lookup"}
+        tool = {"id": "call_1", "tool_name": "lookup", "kind": "tool", "parent_id": None}
         self.assertEqual(frames[:2], [("tool", {**tool, "status": "running"}), ("tool", {**tool, "status": "completed"})])
         self.assertEqual([e for e, _ in frames[2:]], ["delta", "delta", "done"])
         self.assertEqual("".join(d["text"] for e, d in frames if e == "delta"), "첫 답변은 이어서")
@@ -191,13 +191,13 @@ class V1CheckpointStreamingTest(CheckpointTestCase):
             self.assertNotIn(secret, logged)
 
         expected = persona.finalize("폴백 답변입니다")
-        tool = {"id": "call_9", "tool_name": "broken"}
+        tool = {"id": "call_9", "tool_name": "broken", "kind": "tool", "parent_id": None}
         self.assertEqual(frames, [
             ("tool", {**tool, "status": "running"}),
             ("tool", {**tool, "status": "failed"}),
             ("delta", {"text": expected}),
             ("done", {"message_id": frames[-1][1]["message_id"], "assistant_message": expected,
-                      "tools": [{**tool, "status": "failed"}]}),
+                      "tools": [{**tool, "status": "failed"}], "steps": [{"type": "tool", "id": "call_9"}]}),
         ])
         messages, _ = snapshot(self.session)
         self.assertEqual([type(m) for m in messages], [HumanMessage, AIMessage, ToolMessage, AIMessage])
@@ -494,10 +494,10 @@ class RunCancellationTest(CheckpointTestCase):
         class Gated(FakeChain):
             def stream(self, *a, **kw):
                 for text in before:
-                    yield ("simple_agent:1",), "messages", (AIMessageChunk(text), {"langgraph_node": "model"})
+                    yield (), "messages", (AIMessageChunk(text), {"langgraph_node": "model"})
                     time.sleep(idle)
                 gate.wait(5)
-                yield (), "updates", {"simple_agent": {"messages": [AIMessage("".join(before) or "답")]}}
+                yield (), "updates", {"model": {"messages": [AIMessage("".join(before) or "답")]}}
         return Gated()
 
     def test_edit_cancels_old_run_but_not_new_one_aba(self):

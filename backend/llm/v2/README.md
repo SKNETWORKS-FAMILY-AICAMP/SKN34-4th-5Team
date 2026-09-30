@@ -1,11 +1,10 @@
 # llm/v2 체인
 
-LangGraph `StateGraph` 하나에 작업 노드 세 개를 둡니다.
+그래프는 메인 Agent(`create_agent`) 하나이고 checkpointer는 없습니다. 하위 Agent는 메인의 `ask_*` 도구로 호출됩니다.
 
 ```
-START → jev_router ─ NON_PASS → END (jev_router 가 범위 안내 AIMessage 를 붙임)
-                   ├ SIMPLE   → simple_agent → END
-                   └ COMPLEX  → orchestrator → END
+before_agent: JEV 판정(요청당 1회) ─ NON_PASS → 범위 안내 AIMessage 후 end (모델·도구 호출 없음)
+                                   └ PASS → model ⇄ tools (capability 로 노출된 도구 + ask_* 하위 Agent)
 ```
 
 ## 사용
@@ -21,34 +20,27 @@ result = get_graph().invoke({
 answer = result["messages"][-1].content
 ```
 
-마지막 메시지가 이번 질문입니다. 결과 `messages`는 입력 대화 뒤에 최종 답변 `AIMessage` 하나만 붙습니다. `context`는 신뢰하지 않는 참고 데이터로만 쓰입니다. `get_graph()`는 첫 호출 때 실제 모델(`LLM_MODEL`)과 `llm/tools` 레지스트리로 한 번 조립됩니다. 테스트나 다른 모델은 `build_graph(model, tools_by_name)`를 씁니다.
+마지막 HumanMessage가 이번 질문입니다. 결과 `messages`에는 메인의 도구 호출·ToolMessage와 최종 답변이 붙습니다. `context`는 신뢰하지 않는 참고 데이터로만 쓰입니다. `get_graph()`는 실제 모델(`LLM_MODEL`)과 `llm/tools` 레지스트리로 한 번 조립됩니다. 테스트에서는 `build_graph(model, tools_by_name)`를 씁니다.
 
 ## 구성
 
 | 파일 | 역할 |
 |---|---|
-| `agent/chain.py` | 그래프 조립, `jev_router` 진입 노드와 분기 |
-| `agent/common.py` | `ChainState`/`Decision`/create_agent state, 모델, `build_agent` |
-| `agent/classifier.py` | JEV 한 번 호출로 guard, complexity, capability(Noul) 판정. `jev_router`(chain.py)가 요청마다 한 번 부르고 입력 decision은 덮어씀 |
-| `agent/simple_chain.py` | 단일 목적 create_agent. capability에 매핑된 도구만 노출 |
-| `agent/orchestrator_chain.py` | `ask_baseball`, `ask_travel_research`, `ask_place_data` 도구로 전문 Agent를 실제 호출하고 `get_directions`로 일정 조율 |
-| `agent/baseball_chain.py` | 경기·순위·선수·규칙 + 구장 안 정보 + 야구 커뮤니티 (구 stadium/community 흡수) |
-| `agent/travel_chain.py` | 구장 주변 맛집·카페·관광 후보 조사 |
-| `agent/place_chain.py` | 공개 코스, 특정 장소 확인 |
-| `middleware/jev_guidelines.py` | 승인 확인 + 공통 페르소나·내용·근거·말투 규칙(v1에서 옮겨 v2가 소유) + 선택 context 시스템 프롬프트. 역할 규칙은 각 chain 파일에 있음 |
-| `middleware/dynamic_tools.py` | capability → 도구 매핑, 역할 도구와의 교집합만 노출, 실행 직전 allowlist 차단 |
+| `agent/chain.py` | 메인 Agent 조립(`MAIN_RULES`, 모든 capability 도구 + `ask_*`), `get_graph`/`build_graph` |
+| `agent/common.py` | `Decision`={allowed, capabilities}, state, 모델, 예산, `build_agent` |
+| `agent/sub_agents.py` | `SPECIALISTS`, `_delegate`: 하위 Agent를 `ask_baseball`/`ask_travel_research`/`ask_place_data` 도구로 감쌈 |
+| `agent/baseball_sub_agent.py` | 경기·순위·선수·규칙 + 구장 안 정보 + 야구 커뮤니티 |
+| `agent/travel_sub_agent.py` | 구장 주변 맛집·카페·관광 후보 조사 |
+| `agent/place_sub_agent.py` | 공개 코스, 특정 장소 확인 |
+| `middleware/jev_guidelines.py` | JEV 분류(guard + capability Noul). `run_jev=True`(메인만)면 `before_agent`에서 요청당 한 번 부르고 입력 decision을 덮어씀. 하위 Agent는 state의 decision을 물려받음. 공통 페르소나·내용·근거·말투 시스템 프롬프트도 여기 있음 |
+| `middleware/dynamic_tools.py` | capability → 도구 매핑과 노출. 노출되지 않은 도구 요청은 실행 직전 차단. `day_plan`(경기 전후 코스·하루 일정)만 `ask_*`와 `get_directions`를 노출함 |
 
-## 제한
+## 동작
 
-- 스트리밍, SSE, 채팅 저장, 세션, checkpointer/saver는 이 모듈에 없습니다. `compile()`만 합니다.
-- `llm/service/chat.py`는 `llm.v2.agent.chain.chain` (`.stream({"question","chat_history"}) -> Iterator[str]`)을
-  기대하지만 이 모듈은 그 이름을 내보내지 않습니다(`get_graph()`가 받는 입력도 `messages` 기반으로 다릅니다).
-  이 연동은 v2 범위 밖의 별도 통합 작업입니다.
-- 장소 URL 추출·저장 도구는 없어서 PlaceData Agent는 검색·공개 코스 확인만 합니다.
-- JEV 판정은 1차 필터이며 도구의 인증·권한 검사를 대신하지 않습니다. JEV 호출에는 `OPENROUTER_API_KEY`가 필요합니다(첫 판정 때 생성).
-- 호출(invoke) 당 model 호출 예산 N: 전문/Simple Agent 는 `AGENT_MODEL_CALL_BUDGET`(기본 4), Orchestrator 는 `ORCHESTRATOR_MODEL_CALL_BUDGET`(기본 8), 각자 독립입니다.
-  1..N-1 번째는 도구를 쓸 수 있고 N 번째는 도구 없이 답하며 N+1 번째 provider 호출은 없습니다. 이전 대화는 예산을 쓰지 않습니다.
-  1 이상 정수가 아니면 시작 시 실패합니다. `AGENT_RECURSION_LIMIT`/`ORCHESTRATOR_RECURSION_LIMIT`(step 수)는 V1 전용이라 V2 는 무시하며, 함께 설정돼도 됩니다. 전문 Agent 실패는 `[조회 실패] ...`로 Orchestrator에 돌아갑니다.
+- `ask_*`는 `response_format="content_and_artifact"`입니다. content는 하위 Agent의 최종 답(실패 시 `[조회 실패] ...`)이고, artifact는 하위 대화 전체(task HumanMessage + AI/Tool)입니다. 서비스(`llm/service/chat_v2.py`)는 이 ToolMessage를 턴과 함께 같은 checkpoint thread에 저장합니다. 그래서 수정·삭제 시 함께 사라집니다.
+- 스트리밍: 서비스가 `subgraphs=True`로 돌립니다. 하위 Agent 청크는 `_delegate`가 config metadata에 실은 `parent_id`(ask_* tool_call_id)로 구분합니다.
+- 예산(invocation 당 model 호출 수 N): 하위 Agent는 `AGENT_MODEL_CALL_BUDGET`(기본 4), 메인은 `ORCHESTRATOR_MODEL_CALL_BUDGET`(기본 8, env 이름 호환 유지)이고 각자 독립입니다. 1..N-1번째 호출은 도구를 쓸 수 있고, N번째는 도구 없이 답합니다. N+1번째 provider 호출은 없고, 잘못된 값이면 시작 시 실패합니다. `get_directions`는 요청당 2회까지입니다. `*_RECURSION_LIMIT`는 V1 전용입니다.
+- JEV는 1차 필터일 뿐이고 도구의 인증·권한 검사를 대신하지 않습니다. 분류기 예외는 그대로 올라갑니다(fail closed). JEV 호출에는 `OPENROUTER_API_KEY`가 필요합니다.
 
 ## 테스트
 
@@ -56,4 +48,4 @@ answer = result["messages"][-1].content
 cd backend && python -m unittest llm.v2.tests.test_chain -v
 ```
 
-fake model, fake tools, mocked JEV로 실제 StateGraph/create_agent 루프를 돌립니다. provider·DB·JEV 네트워크 호출은 없습니다.
+fake model, fake tools, mocked JEV로 실제 create_agent 루프를 돌립니다. provider·DB·JEV 네트워크 호출은 없습니다.

@@ -37,7 +37,7 @@ test("planner modes and tailored chat preserve server save and completion locks"
   assert.match(planner, /if \(courseCompleted\) return/);
   assert.match(planner, /StadiumParkingMapDialog/);
   assert.match(popup, /welcomeLink \? <Link/);
-  assert.match(popup, /chat\.timeline\.map\(\(item, index\) => item\.kind === "text" \? <ChatAnswer/);
+  assert.match(popup, /<ChatProgress items=\{chat\.timeline\} live \/>/);
   assert.match(popup, /onClick=\{chat\.onRetry\}/);
 });
 

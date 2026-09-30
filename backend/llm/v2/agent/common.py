@@ -4,8 +4,7 @@ from functools import cache
 from typing import NotRequired, TypedDict
 
 from langchain.agents.middleware import AgentMiddleware, AgentState, ModelCallLimitMiddleware, ToolCallLimitMiddleware
-from langchain_core.messages import AIMessage, HumanMessage
-from langgraph.graph import MessagesState
+from langchain_core.messages import AIMessage
 
 from ..middleware.dynamic_tools import DynamicToolMiddleware
 from ..middleware.jev_guidelines import JevGuidelineMiddleware
@@ -14,18 +13,12 @@ from ..middleware.jev_guidelines import JevGuidelineMiddleware
 # 상위 그래프와 create_agent 공용 state. 인증/세션/저장 필드는 두지 않는다.
 class Decision(TypedDict):
     allowed: bool  # JEV guard PASS 여부
-    complexity: str  # "SIMPLE" | "COMPLEX"
-    capabilities: list[str]  # Simple 도구 노출용 capability 이름
-
-
-class ChainState(MessagesState):
-    decision: NotRequired[Decision]
-    context: NotRequired[dict | None]  # 선택: {"stadium", "intent", "origin": {"lat", "lng"}}
+    capabilities: list[str]  # 도구 노출용 capability 이름
 
 
 class V2AgentState(AgentState):
     decision: NotRequired[Decision]
-    context: NotRequired[dict | None]
+    context: NotRequired[dict | None]  # 선택: {"stadium", "intent", "origin": {"lat", "lng"}}
 
 
 def _budget(name, default):
@@ -38,9 +31,9 @@ def _budget(name, default):
 
 # *_RECURSION_LIMIT 는 V1 의 LangGraph step 한도다. V2 는 읽지도 호출 수로 재해석하지도 않는다.
 
-# 기본값은 예전 step 한도(12/25)가 허용하던 호출 수와 같다. Orchestrator 는 전문 Agent 3개 + 이동 시간 조회로 더 넉넉하게.
+# 기본값은 예전 step 한도(12/25)가 허용하던 호출 수와 같다. 메인 Agent 는 하위 Agent 3개 + 이동 시간 조회로 더 넉넉하게.
 MODEL_CALL_BUDGET = _budget("AGENT_MODEL_CALL_BUDGET", 4)
-ORCHESTRATOR_MODEL_CALL_BUDGET = _budget("ORCHESTRATOR_MODEL_CALL_BUDGET", 8)
+MAIN_MODEL_CALL_BUDGET = _budget("ORCHESTRATOR_MODEL_CALL_BUDGET", 8)  # env 이름은 호환 유지
 
 
 @cache
@@ -70,18 +63,19 @@ class FinalAnswerMiddleware(AgentMiddleware):
         return response
 
 
-def build_agent(model, tools, rules, capability_tools=None, budget=MODEL_CALL_BUDGET):
+def build_agent(model, tools, rules, capability_tools=None, budget=MODEL_CALL_BUDGET, run_jev=False):
     """create_agent 를 JEV 가이드라인 + 동적 도구 노출 + 종료 보장 미들웨어와 함께 조립한다.
 
     capability_tools 가 None 이면 role_tools(주어진 tools) 그대로 노출한다(구성 시점에 고정된
-    전문 Agent). capability_tools 를 주면 decision.capabilities 와의 교집합만 노출한다(Simple).
+    하위 Agent). capability_tools 를 주면 decision.capabilities 와의 교집합만 노출한다(메인).
+    run_jev: 메인 Agent 만 True. invocation 시작에 JEV 를 한 번 부른다.
     budget: invocation 당 model 호출 수(포함). 1..N-1 은 도구 사용 가능, N 은 도구 없이 답, N+1 은 provider 호출 없이 오류.
     get_directions 는 요청당 2회까지만 실행하고(외부 429 반복 방지), 넘으면 오류 ToolMessage 로 모델이 다음으로 간다."""
     from langchain.agents import create_agent
     agent = create_agent(
         model=model, tools=tools, state_schema=V2AgentState,
         middleware=[
-            JevGuidelineMiddleware(rules),
+            JevGuidelineMiddleware(rules, run_jev),
             DynamicToolMiddleware([t.name for t in tools], capability_tools),
             ModelCallLimitMiddleware(run_limit=budget, exit_behavior="error"),
             FinalAnswerMiddleware(budget),
@@ -90,10 +84,6 @@ def build_agent(model, tools, rules, capability_tools=None, budget=MODEL_CALL_BU
     )
     # 비공개 백스톱: 호출당 step 은 10 미만이라 예산보다 먼저 걸리지 않는다. 공개 설정 아님.
     return agent.with_config(recursion_limit=10 * budget + 10)
-
-
-def invoke_agent(agent, state):
-    return agent.invoke(state)
 
 
 def final_text(result) -> str:

@@ -84,10 +84,11 @@ class FakeCompiledGraph:
         self.received_stream_mode = stream_mode
         self.received_subgraphs = subgraphs
         from langchain_core.messages import AIMessage, AIMessageChunk
-        yield ("jev_router:1",), "messages", (AIMessageChunk("INTERNAL_CLASSIFIER"), {"langgraph_node": "model"})
-        yield ("simple_agent:1", "tools:2"), "messages", (AIMessageChunk("INTERNAL_SPECIALIST"), {"langgraph_node": "model"})
-        yield ("simple_agent:1",), "messages", (AIMessageChunk(self.final_text), {"langgraph_node": "model"})
-        yield (), "updates", {"simple_agent": {"messages": [AIMessage(self.final_text)]}}
+        # 메인 Agent 출력은 ns=(). 출처(parent_id)를 모르는 하위 namespace 청크와 model 아닌 노드 청크는 공개하지 않는다.
+        yield ("tools:2",), "messages", (AIMessageChunk("INTERNAL_SPECIALIST"), {"langgraph_node": "model"})
+        yield (), "messages", (AIMessageChunk("INTERNAL_TOOL"), {"langgraph_node": "tools"})
+        yield (), "messages", (AIMessageChunk(self.final_text), {"langgraph_node": "model"})
+        yield (), "updates", {"model": {"messages": [AIMessage(self.final_text)]}}
 
 
 class V2RegressionTest(CheckpointTestCase):

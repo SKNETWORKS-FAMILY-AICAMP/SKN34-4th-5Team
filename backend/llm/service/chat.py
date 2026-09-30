@@ -11,7 +11,7 @@ import logging
 import os
 
 from llm.enum import ChainVersion
-from llm.serializer.message import wire_history
+from llm.serializer.message import hide_private_tools, wire_history
 from llm.service import chat_v1, chat_v2
 from llm.service.chat_thread import ChatThread
 from llm.service.ownership import get_owned_session
@@ -61,7 +61,10 @@ def list_messages(request, session_id):
     """소유한 세션의 최신 state → 공개 대화 항목 목록 (옛 wire 필드 포함)."""
     session = get_owned_session(request, session_id)
     thread = ChatThread(session.id)
-    return wire_history(*thread.state(), thread.wire)
+    # 관리자만 도구 인자·결과·하위 Agent 대화(detail)를 본다. 게스트/익명은 is_superuser 가 없거나 False.
+    privileged = getattr(request.user, "is_superuser", False) is True
+    items = wire_history(*thread.state(), thread.wire, detail=privileged)
+    return items if privileged else [hide_private_tools(item) for item in items]
 
 
 def message_update(request, session_id, message_id, content, context=None, version=None):
