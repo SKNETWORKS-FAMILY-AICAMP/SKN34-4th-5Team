@@ -332,7 +332,7 @@ def _answer(question, history=None, hint_stadium=None):
                     seen.add(r["doc_id"])
                     rows.append(r)
     else:
-        rows, retrieval_ms = search(qvec, k=30, stadium=stadium, categories=cats or None)
+        rows, retrieval_ms = search(qvec, k=50, stadium=stadium, categories=cats or None)
     for d in date_tokens(question):
         extra, ms = search(qvec, k=5, stadium=stadium, categories=cats or None, must_text=d)
         retrieval_ms += ms

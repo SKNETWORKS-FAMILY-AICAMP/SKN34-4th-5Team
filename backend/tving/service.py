@@ -299,28 +299,15 @@ def _envelope(data, fetched_at, last_synced_at, *, stale=False, warning=None, so
 
 
 def _fresh_or_fallback(fetcher, persister, reader, sync_time, *, daily=False, source_url=None):
+    # 화면 요청에서는 TVING API 호출과 DB 저장을 하지 않고 DB 값만 반환한다.
     previous = reader()
     last_synced_at = sync_time() if previous is not None else None
-    checked_at = timezone.now()
-    if previous is not None and last_synced_at is not None and checked_at - last_synced_at < timedelta(seconds=settings.EXTERNAL_DATA_SYNC_INTERVAL_SECONDS):
-        if daily:
-            previous["nextCheckAt"] = _iso(last_synced_at + timedelta(seconds=settings.EXTERNAL_DATA_SYNC_INTERVAL_SECONDS))
-        return _envelope(previous, last_synced_at, last_synced_at, source_url=source_url)
-    try:
-        payload = fetcher(previous)
-        fetched_at = timezone.now()
-        if daily:
-            payload["nextCheckAt"] = _iso(fetched_at + timedelta(seconds=settings.EXTERNAL_DATA_SYNC_INTERVAL_SECONDS))
-        last_synced_at = persister(payload, fetched_at)
-        return _envelope(payload, fetched_at, last_synced_at, source_url=source_url)
-    except (TvingError, TvingValidationError, RelationalDataError, TypeError, AttributeError, KeyError, ValueError) as error:
-        if previous is not None:
-            last_synced_at = sync_time()
-            return _envelope(previous, last_synced_at or timezone.now(), last_synced_at, stale=True, warning="최신 정보를 확인하지 못해 마지막으로 저장한 자료를 표시합니다.", source_url=source_url)
-        if isinstance(error, TvingError):
-            raise
-        raise TvingUpstreamError("TVING 응답 검증에 실패했습니다.") from None
-
+    # DB에 저장된 값이 없으면 크론 수집 후 다시 조회한다.
+    if previous is None:
+        raise TvingUpstreamError("데이터 호출 오류!")
+    if daily:
+        previous["nextCheckAt"] = _iso(last_synced_at + timedelta(seconds=settings.EXTERNAL_DATA_SYNC_INTERVAL_SECONDS))
+    return _envelope(previous, last_synced_at, last_synced_at, source_url=source_url)
 
 def refresh_daily(day, provider=None):
     provider = provider or _provider_json

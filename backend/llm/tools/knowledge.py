@@ -131,7 +131,7 @@ def format_documents(docs: list[dict]) -> str:
         for i, d in enumerate(docs, 1)
     )
 
-CATEGORIES = {'OPERATION', 'SCHEDULE', 'CAFE', 'FOOD_IN', 'FOOD_OUT', 'TRANSPORT', 'STADIUM', 'PRICE', 'SEAT', 'TICKET_POLICY', 'FACILITY', 'CONTENT', 'STANDING', 'CARRY_IN', 'REENTRY', 'RULE', 'SPOT'}
+CATEGORIES = {'OPERATION', 'CAFE', 'FOOD_IN', 'FOOD_OUT', 'TRANSPORT', 'STADIUM', 'PRICE', 'SEAT', 'TICKET_POLICY', 'FACILITY', 'CONTENT', 'CARRY_IN', 'REENTRY', 'RULE', 'SPOT'}
 DOC_K = 5
 
 def search_kbo_rows(query, stadium=None, categories=None, k=DOC_K, _search=None, _embed=None) -> list[dict]:
