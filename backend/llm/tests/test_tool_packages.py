@@ -108,3 +108,9 @@ class ToolPackagesTest(SimpleTestCase):
         self.assertEqual(rows, [{"content": "문서"}])
         self.assertEqual(search.call_count, 2)
         self.assertEqual(search.call_args.args[-1], None)
+
+    def test_kbo_retrieval_uses_v1_candidate_breadth(self):
+        search = Mock(side_effect=[[], [{"content": str(i)} for i in range(50)]])
+        rows = knowledge.search_kbo_rows("좌석", "JAMSIL", ["SEAT"], 5, search, lambda _: [0.1])
+        self.assertEqual([c.args[1] for c in search.call_args_list], [50, 50])
+        self.assertEqual(len(rows), 5)

@@ -142,9 +142,10 @@ def search_kbo_rows(query, stadium=None, categories=None, k=DOC_K, _search=None,
         _embed = embed
         _search = lambda v, kk, st, ct: keyword_rerank(query, search(v, k=kk, stadium=st, categories=ct)[0], k=k)  # noqa: E731
     vec = _embed(query)
-    rows = _search(vec, k * 3, stadium, cats)
+    candidate_k = max(50, k)  # V1과 같은 후보 폭, 최종 반환은 k
+    rows = _search(vec, candidate_k, stadium, cats)
     if not rows and cats:
-        rows = _search(vec, k * 3, stadium, None)
+        rows = _search(vec, candidate_k, stadium, None)
     return list(rows)[:k]
 
 TEAM_ALIASES: dict[str, tuple[str, str]] = {
