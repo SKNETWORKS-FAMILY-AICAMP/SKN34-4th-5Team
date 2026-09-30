@@ -1,6 +1,6 @@
 import math
 
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage, messages_from_dict
 from rest_framework import serializers
 
 from llm.enum import ChatRole, ContextIntent, MessageStatus, PublicChatEvent, PublicToolStatus, TurnStatus
@@ -115,7 +115,8 @@ class ChatMessageDeleteSerializer(serializers.Serializer):
 # ── LangChain 메시지·이벤트 → 공개 채팅 계약 (ORM 무관 순수 함수) ─────────────────────
 # 허용 필드만 새 dict 로 복사한다. prompt/RAG/추론 블록/도구 인자·결과/metadata/usage/
 # run·trace ID 는 나가지 않는다. SSE 는 sse.py 의 (event, data) 튜플 형식을 따른다.
-#   delta {text} / tool {id, tool_name, status} / done {message_id, assistant_message, tools}
+#   delta {text, parent_id?} / tool {id, tool_name, status, kind, parent_id, title?}
+#   / done {message_id, assistant_message, tools, steps}
 #   / error {detail}
 
 GENERIC_ERROR_MESSAGE = "답변 생성에 실패했습니다. 다시 시도해 주세요."
@@ -127,8 +128,34 @@ TURN_STATUSES = tuple(TurnStatus.values)  # ("pending", "completed", "failed", "
 _TOOL_RESULT_STATUS = {"success": PublicToolStatus.COMPLETED.value, "error": PublicToolStatus.FAILED.value}
 
 
-def _public_tool(tool_call_id, name, status):
-    return {"id": tool_call_id, "tool_name": name, "status": status}
+# 하위 Agent 도구 이름 (llm.v2.agent.sub_agents.SPECIALISTS 와 같다. 무거운 agent import 를 피하려고 여기 둔다).
+SUB_AGENT_TOOLS = ("ask_baseball", "ask_travel_research", "ask_place_data")
+TITLE_LIMIT = 80
+SUMMARY_LIMIT = 40
+
+
+def tool_title(name, args):
+    """하위 Agent 호출만: 메인 Agent 가 준 task 문자열 앞 80자. 그 외 None.
+    title 은 의도적으로 모든 사용자에게 공개한다(승인됨). 비공개인 "하위 Agent 입력"은 args·context·detail 을 말한다."""
+    task = (args or {}).get("task") if name in SUB_AGENT_TOOLS and isinstance(args, dict) else None
+    return task.strip()[:TITLE_LIMIT] if isinstance(task, str) else None
+
+
+def tool_summary(name, args):
+    """하위 Agent 호출만: 메인 Agent 가 따로 쓴 공개용 짧은 작업명. task 를 잘라 쓰지 않는다(legacy/형식 오류는 None)."""
+    summary = (args or {}).get("summary") if name in SUB_AGENT_TOOLS and isinstance(args, dict) else None
+    summary = " ".join(summary.split()) if isinstance(summary, str) else ""
+    return summary[:SUMMARY_LIMIT] or None
+
+
+def _public_tool(tool_call_id, name, status, parent_id=None, title=None, summary=None):
+    item = {"id": tool_call_id, "tool_name": name, "status": status,
+            "kind": "sub_agent" if name in SUB_AGENT_TOOLS else "tool", "parent_id": parent_id}
+    if item["kind"] == "sub_agent":
+        item["title"] = title or ""
+        if summary:
+            item["summary"] = summary
+    return item
 
 
 def _nonempty_str(value):
@@ -191,18 +218,20 @@ def project_event(event, *, answer_run_id=None, tool_call_ids=None):
     return (PublicChatEvent.TOOL.value, _public_tool(tool_call_id, name, status)) if _nonempty_str(tool_call_id) and status else None
 
 
-def project_history(messages, turns):
-    """저장된 LangChain 메시지 목록 → 공개 대화 항목 [{id, role, content, status, tools}].
+def project_history(messages, turns, detail=False):
+    """저장된 LangChain 메시지 목록 → 공개 대화 항목 [{id, role, content, status, tools, steps}].
 
     turns: 저장 계층이 준 {HumanMessage.id: {"status": TURN_STATUSES, "answer_id": AIMessage.id|None}}.
         최종 답변과 턴 상태는 여기서만 정한다(도구 호출 없는 AIMessage 라고 최종으로 보지 않음).
     - 턴 = Human 부터 다음 Human 전까지. 도구 결과는 같은 턴 안에서만 대응시킨다.
-    - answer_id 가 있으면 assistant 항목에 그 턴의 도구가 호출 순서대로 붙는다. 없으면(실패/진행
+    - answer_id 가 있으면 assistant 항목에 그 턴의 도구·steps 가 호출 순서대로 붙는다. 없으면(실패/진행
       중 턴) 저장된 유일한 기록인 user 항목에 붙는다. 가짜 AI 항목·ID 는 만들지 않는다.
+    - tools: 메인 호출 + 하위 Agent(ask_*) 결과 artifact 안의 호출을 평평하게. steps: 최종 답 외 AI 텍스트/도구 순서.
     - planner AIMessage, ToolMessage, SystemMessage 는 말풍선이 아니다.
     - 결과 ToolMessage 없는 호출은 완료되지 않은 턴(pending/failed/cancelled)에서 running(미해결)으로
-      둔다. 턴 상태는 그대로 두며 도구 취소·완료를 추정하지 않는다.
-    - 턴 정보 누락, 모르는 상태, 완료 턴의 answer 누락·미해결 도구, id 없는 메시지는 ValueError.
+      둔다. 턴 상태는 그대로 두며 도구 취소·완료를 추정하지 않는다. 하위 Agent 안쪽 미해결 호출도 running.
+    - detail=True(관리자 GET 만): 각 tool 에 detail {args, result, messages?} 를 허용 필드만 복사해 붙인다.
+    - 턴 정보 누락, 모르는 상태, 완료 턴의 answer 누락·미해결 메인 도구, id 없는 메시지는 ValueError.
     """
     items = []
     for human, turn_messages in _split_turns(messages):
@@ -214,32 +243,79 @@ def project_history(messages, turns):
         if status == TurnStatus.COMPLETED and not answer_id:
             raise ValueError("completed turn without answer")
 
-        results = {m.tool_call_id: m for m in turn_messages if isinstance(m, ToolMessage)}
-        tools, answer = [], None
-        for message in turn_messages:
-            if not isinstance(message, AIMessage):
-                continue
-            if answer_id and message.id == answer_id:
-                answer = message
-            for call in message.tool_calls:
-                result = results.get(call.get("id"))
-                if result:
-                    tool_status = _TOOL_RESULT_STATUS.get(result.status)
-                elif status != TurnStatus.COMPLETED:
-                    # 결과가 없다는 것은 취소의 증거가 아니다. 턴이 실패/취소돼도 도구는 미해결(running).
-                    tool_status = PublicToolStatus.RUNNING.value
-                else:
-                    tool_status = None
-                if not tool_status:
-                    raise ValueError("unresolved tool call")
-                tools.append(_public_tool(call["id"], call["name"], tool_status))
+        tools, steps = [], []
+        answer = _walk(turn_messages, None, status, answer_id, tools, steps, detail)
         if answer_id and answer is None:
             raise ValueError("answer message not found")
 
-        items.append(_history_item(human, ChatRole.USER.value, status, [] if answer else tools))
+        items.append(_history_item(human, ChatRole.USER.value, status, [] if answer else tools, [] if answer else steps))
         if answer:
-            items.append(_history_item(answer, ChatRole.ASSISTANT.value, status, tools))
+            items.append(_history_item(answer, ChatRole.ASSISTANT.value, status, tools, steps))
     return items
+
+
+def _walk(messages, parent_id, status, answer_id, tools, steps, detail):
+    """한 대화(메인 턴 또는 하위 Agent artifact)의 AI 텍스트·도구를 순서대로 tools/steps 에 쌓는다. 메인 최종 답을 돌려준다."""
+    results = {m.tool_call_id: m for m in messages if isinstance(m, ToolMessage)}
+    answer = None
+    for message in messages:
+        if not isinstance(message, AIMessage):
+            continue
+        if parent_id is None and answer_id and message.id == answer_id:
+            answer = message
+            continue
+        # 텍스트 step: 도구 호출과 함께 온 머리말 + 하위 Agent 의 모든 AI 텍스트(최종 답 포함, 라이브 스트림과 같다).
+        # 메인의 도구 없는 비최종 AI(V1 planner READY)는 과정이 아니다.
+        if (message.tool_calls or parent_id is not None) and (text := str(message.text)):
+            steps.append({"type": "text", "text": text, "parent_id": parent_id})
+        for call in message.tool_calls:
+            result = results.get(call.get("id"))
+            if result:
+                tool_status = _TOOL_RESULT_STATUS.get(result.status)
+            elif parent_id is not None or status != TurnStatus.COMPLETED:
+                # 결과가 없다는 것은 취소의 증거가 아니다. 턴이 실패/취소돼도 도구는 미해결(running).
+                tool_status = PublicToolStatus.RUNNING.value
+            else:
+                tool_status = None
+            if not tool_status:
+                raise ValueError("unresolved tool call")
+            item = _public_tool(call["id"], call["name"], tool_status, parent_id, tool_title(call["name"], call.get("args")),
+                                tool_summary(call["name"], call.get("args")))
+            inner = _artifact_messages(result.artifact) if result is not None and item["kind"] == "sub_agent" else []
+            if detail:
+                item["detail"] = _tool_detail(call, result, inner if item["kind"] == "sub_agent" else None)
+            tools.append(item)
+            steps.append({"type": "tool", "id": call["id"]})
+            if inner:
+                _walk(inner, call["id"], status, None, tools, steps, detail)
+    return answer
+
+
+def _artifact_messages(artifact):
+    """ask_* artifact → 메시지 목록. checkpoint 를 거치면 message dict({"type", ...})로 돌아오므로 되살린다.
+    """
+    if not isinstance(artifact, list):
+        return []
+    return [m if isinstance(m, BaseMessage) else messages_from_dict([{"type": m["type"], "data": m}])[0]
+            for m in artifact if isinstance(m, BaseMessage) or (isinstance(m, dict) and m.get("type") in ("human", "ai", "tool"))]
+
+
+def _tool_detail(call, result, inner):
+    """관리자 전용 상세: 인자·결과 문자열·(하위 Agent) 대화. 허용 필드만 새로 만든다."""
+    args = call.get("args")
+    detail = {"args": dict(args) if isinstance(args, dict) else {}, "result": str(result.text) if result is not None else ""}
+    if inner is not None:
+        detail["messages"] = [_detail_message(m) for m in inner if isinstance(m, (HumanMessage, AIMessage, ToolMessage))]
+    return detail
+
+
+def _detail_message(message):
+    item = {"role": message.type, "content": str(message.text)}
+    if isinstance(message, AIMessage) and message.tool_calls:
+        item["tool_calls"] = [{"id": c.get("id"), "name": c.get("name"), "args": dict(c.get("args") or {})} for c in message.tool_calls]
+    if isinstance(message, ToolMessage):
+        item["tool_call_id"] = message.tool_call_id
+    return item
 
 
 def _split_turns(messages):
@@ -252,20 +328,20 @@ def _split_turns(messages):
     return turns
 
 
-def _history_item(message, role, status, tools):
+def _history_item(message, role, status, tools, steps):
     if not _nonempty_str(message.id):
         raise ValueError("message without id")
-    return {"id": message.id, "role": role, "content": str(message.text), "status": status, "tools": tools}
+    return {"id": message.id, "role": role, "content": str(message.text), "status": status, "tools": tools, "steps": steps}
 
 
-def wire_history(messages, turns, wire):
+def wire_history(messages, turns, wire, detail=False):
     """HTTP 공개 목록(v1/v2 공통). 옛 ChatMessageSerializer 필드를 유지한다: 정수 id·sequence_no·created_at·updated_at,
     턴 취소는 옛 이름 stopped. 항목 순서·내용·tools 는 project_history 그대로다.
 
     wire: ChatThread.wire ({message.id: {"id", "created_at", "updated_at"}}). sequence_no 는 현재 대화 안의 위치(1부터)라
     동시 질문이 턴 안에 끼어들면 뒤 항목의 값이 밀릴 수 있다. 번호표 없는 메시지는 ValueError.
     """
-    return [_wire_item(item, wire, number) for number, item in enumerate(project_history(messages, turns), 1)]
+    return [_wire_item(item, wire, number) for number, item in enumerate(project_history(messages, turns, detail), 1)]
 
 
 def _wire_item(item, wire, sequence_no):
@@ -297,7 +373,26 @@ def done_payload(messages, turns):
     last = items[-1] if items else None
     if not last or last["role"] != ChatRole.ASSISTANT or last["status"] != TurnStatus.COMPLETED:
         raise ValueError("no completed assistant message")
-    return {"message_id": last["id"], "assistant_message": last["content"], "tools": last["tools"]}
+    return {"message_id": last["id"], "assistant_message": last["content"], "tools": last["tools"], "steps": last["steps"]}
+
+
+def hide_private_tools(item):
+    """비관리자 투영: 하위 Agent title(task)·하위 Agent 텍스트 step 을 뺀다. 저장본은 그대로 둔다."""
+    return {**item, "tools": [{k: v for k, v in t.items() if k not in ("title", "detail")} for t in item.get("tools") or []],
+            "steps": [s for s in item.get("steps") or [] if not (s.get("type") == "text" and s.get("parent_id"))]}
+
+
+def public_frame(event, data, privileged):
+    """SSE 프레임 역할 투영. 관리자는 그대로, 그 외는 하위 Agent 텍스트 delta 를 버리고 title 을 뺀다. 버리면 None."""
+    if privileged:
+        return event, data
+    if event == PublicChatEvent.DELTA.value and data.get("parent_id"):
+        return None
+    if event == PublicChatEvent.TOOL.value:
+        return event, {k: v for k, v in data.items() if k != "title"}
+    if event == PublicChatEvent.DONE.value:
+        return event, hide_private_tools(data)
+    return event, data
 
 
 def error_payload():

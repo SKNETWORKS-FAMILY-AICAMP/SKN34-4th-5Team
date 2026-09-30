@@ -11,7 +11,7 @@ from ..v1.rag.club import agent as club
 from ..v1.rag.club import retrieval
 from ..v1.rag.course import agent as course
 from ..v1.rag.nearby import agent as nearby
-from ..v1.rag.assistant import tools as assistant_tools
+from ..tools import assistant as assistant_tools
 from ..v1.rag.venue import agent as venue
 from ..tools import DOMAIN_TOOL_NAMES
 

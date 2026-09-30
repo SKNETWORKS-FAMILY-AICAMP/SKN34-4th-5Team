@@ -124,10 +124,10 @@ class PublicEventProjectionTest(SimpleTestCase):
         events = _collect(RunnableLambda(pipeline), "q", tool_call_ids=mapping)
 
         self.assertEqual(events, [
-            ("tool", {"id": "call_a", "tool_name": "search_places", "status": "running"}),
-            ("tool", {"id": "call_a", "tool_name": "search_places", "status": "completed"}),
-            ("tool", {"id": "call_b", "tool_name": "search_places", "status": "running"}),
-            ("tool", {"id": "call_b", "tool_name": "search_places", "status": "completed"}),
+            ("tool", {"id": "call_a", "tool_name": "search_places", "status": "running", "kind": "tool", "parent_id": None}),
+            ("tool", {"id": "call_a", "tool_name": "search_places", "status": "completed", "kind": "tool", "parent_id": None}),
+            ("tool", {"id": "call_b", "tool_name": "search_places", "status": "running", "kind": "tool", "parent_id": None}),
+            ("tool", {"id": "call_b", "tool_name": "search_places", "status": "completed", "kind": "tool", "parent_id": None}),
         ])
         _assert_no_leak(self, events)
 
@@ -139,7 +139,7 @@ class PublicEventProjectionTest(SimpleTestCase):
             return "ok"
 
         self.assertEqual(_collect(RunnableLambda(pipeline), "q"), [
-            ("tool", {"id": "call_a", "tool_name": "search_places", "status": "completed"}),
+            ("tool", {"id": "call_a", "tool_name": "search_places", "status": "completed", "kind": "tool", "parent_id": None}),
         ])
 
     def test_mapping_conflicting_with_tool_message_id_fails(self):
@@ -161,8 +161,8 @@ class PublicEventProjectionTest(SimpleTestCase):
         events = _collect(RunnableLambda(pipeline), "q", tool_call_ids={str(run_id): "call_x"})
 
         self.assertEqual(events, [
-            ("tool", {"id": "call_x", "tool_name": "broken_tool", "status": "running"}),
-            ("tool", {"id": "call_x", "tool_name": "broken_tool", "status": "failed"}),
+            ("tool", {"id": "call_x", "tool_name": "broken_tool", "status": "running", "kind": "tool", "parent_id": None}),
+            ("tool", {"id": "call_x", "tool_name": "broken_tool", "status": "failed", "kind": "tool", "parent_id": None}),
         ])
         _assert_no_leak(self, events)
 
@@ -170,7 +170,7 @@ class PublicEventProjectionTest(SimpleTestCase):
         output = ToolMessage("TOOL_SENTINEL", tool_call_id="call_e", status="error")
         event = {"event": "on_tool_end", "name": "search_places", "data": {"output": output, "input": {}}}
         self.assertEqual(project_event(event),
-                         ("tool", {"id": "call_e", "tool_name": "search_places", "status": "failed"}))
+                         ("tool", {"id": "call_e", "tool_name": "search_places", "status": "failed", "kind": "tool", "parent_id": None}))
 
     def test_tool_without_tool_call_id_is_not_exposed_or_guessed(self):
         # 일반 dict 입력(tool_call 아님)이면 LangChain 이 tool_call_id 를 주지 않는다. run_id 로 대체하지 않는다.
@@ -219,11 +219,11 @@ class PublicHistoryProjectionTest(SimpleTestCase):
         items = project_history(_turn(), DONE)
 
         self.assertEqual(items, [
-            {"id": "h1", "role": "user", "content": "잠실 근처 맛집", "status": "completed", "tools": []},
+            {"id": "h1", "role": "user", "content": "잠실 근처 맛집", "status": "completed", "tools": [], "steps": []},
             {"id": "a1", "role": "assistant", "content": "추천 드립니다", "status": "completed", "tools": [
-                {"id": "call_a", "tool_name": "search_places", "status": "completed"},
-                {"id": "call_b", "tool_name": "search_places", "status": "failed"},
-            ]},
+                {"id": "call_a", "tool_name": "search_places", "status": "completed", "kind": "tool", "parent_id": None},
+                {"id": "call_b", "tool_name": "search_places", "status": "failed", "kind": "tool", "parent_id": None},
+            ], "steps": [{"type": "tool", "id": "call_a"}, {"type": "tool", "id": "call_b"}]},
         ])
         _assert_no_leak(self, items)
 
@@ -231,7 +231,7 @@ class PublicHistoryProjectionTest(SimpleTestCase):
         messages = _turn() + [HumanMessage("다음 질문", id="h2"), AIMessage("바로 답변", id="a2")]
         items = project_history(messages, {**DONE, "h2": {"status": "completed", "answer_id": "a2"}})
         self.assertEqual(items[-1],
-                         {"id": "a2", "role": "assistant", "content": "바로 답변", "status": "completed", "tools": []})
+                         {"id": "a2", "role": "assistant", "content": "바로 답변", "status": "completed", "tools": [], "steps": []})
 
     def test_reused_tool_call_id_in_later_turn_does_not_overwrite_earlier_status(self):
         messages = [
@@ -246,8 +246,8 @@ class PublicHistoryProjectionTest(SimpleTestCase):
         ]
         turns = {"h1": {"status": "completed", "answer_id": "a1"}, "h2": {"status": "completed", "answer_id": "a2"}}
         items = project_history(messages, turns)
-        self.assertEqual(items[1]["tools"], [{"id": "call_1", "tool_name": "search_places", "status": "completed"}])
-        self.assertEqual(items[3]["tools"], [{"id": "call_1", "tool_name": "search_places", "status": "failed"}])
+        self.assertEqual(items[1]["tools"], [{"id": "call_1", "tool_name": "search_places", "status": "completed", "kind": "tool", "parent_id": None}])
+        self.assertEqual(items[3]["tools"], [{"id": "call_1", "tool_name": "search_places", "status": "failed", "kind": "tool", "parent_id": None}])
 
     def test_final_answer_comes_only_from_explicit_answer_id(self):
         # 도구 호출 없는 planner READY 는 answer_id 가 아니면 말풍선이 되지 않는다.
@@ -262,8 +262,8 @@ class PublicHistoryProjectionTest(SimpleTestCase):
             AIMessage("", id="p1", tool_calls=[{"name": "search_places", "args": {}, "id": "call_a"}]),
         ]
         items = project_history(messages, {"h1": {"status": "pending", "answer_id": None}})
-        self.assertEqual(items, [{"id": "h1", "role": "user", "content": "q", "status": "pending", "tools": [
-            {"id": "call_a", "tool_name": "search_places", "status": "running"}]}])
+        self.assertEqual(items, [{"id": "h1", "role": "user", "content": "q", "status": "pending", "steps": [{"type": "tool", "id": "call_a"}], "tools": [
+            {"id": "call_a", "tool_name": "search_places", "status": "running", "kind": "tool", "parent_id": None}]}])
 
     def test_failed_turn_without_ai_message_keeps_tools_without_fake_assistant(self):
         messages = [
@@ -275,9 +275,9 @@ class PublicHistoryProjectionTest(SimpleTestCase):
             ToolMessage("TOOL_SENTINEL", tool_call_id="call_a"),
         ]
         items = project_history(messages, {"h1": {"status": "failed", "answer_id": None}})
-        self.assertEqual(items, [{"id": "h1", "role": "user", "content": "q", "status": "failed", "tools": [
-            {"id": "call_a", "tool_name": "search_places", "status": "completed"},
-            {"id": "call_b", "tool_name": "search_places", "status": "running"},
+        self.assertEqual(items, [{"id": "h1", "role": "user", "content": "q", "status": "failed", "steps": [{"type": "tool", "id": "call_a"}, {"type": "tool", "id": "call_b"}], "tools": [
+            {"id": "call_a", "tool_name": "search_places", "status": "completed", "kind": "tool", "parent_id": None},
+            {"id": "call_b", "tool_name": "search_places", "status": "running", "kind": "tool", "parent_id": None},
         ]}])
         _assert_no_leak(self, items)
 
@@ -289,8 +289,8 @@ class PublicHistoryProjectionTest(SimpleTestCase):
         ]
         for status in ("failed", "cancelled"):
             items = project_history(messages, {"h1": {"status": status, "answer_id": None}})
-            self.assertEqual(items, [{"id": "h1", "role": "user", "content": "q", "status": status, "tools": [
-                {"id": "call_a", "tool_name": "search_places", "status": "running"}]}])
+            self.assertEqual(items, [{"id": "h1", "role": "user", "content": "q", "status": status, "steps": [{"type": "tool", "id": "call_a"}], "tools": [
+                {"id": "call_a", "tool_name": "search_places", "status": "running", "kind": "tool", "parent_id": None}]}])
 
     def test_completed_turn_with_unresolved_tool_call_fails_closed(self):
         messages = [
@@ -322,6 +322,7 @@ class DonePayloadTest(SimpleTestCase):
             "message_id": "a1",
             "assistant_message": "추천 드립니다",
             "tools": project_history(messages, DONE)[-1]["tools"],
+            "steps": project_history(messages, DONE)[-1]["steps"],
         })
         _assert_no_leak(self, payload)
 
@@ -359,6 +360,6 @@ class WireStringTypeTest(SimpleTestCase):
         self.assertTrue(all(type(v) is str for v in values))
         frame = project_event({"event": "on_tool_start", "name": "search_places", "run_id": "r",
                                "data": {"input": _call("search_places", "c1")}})
-        self.assertEqual(frame, ("tool", {"id": "c1", "tool_name": "search_places", "status": "running"}))
+        self.assertEqual(frame, ("tool", {"id": "c1", "tool_name": "search_places", "status": "running", "kind": "tool", "parent_id": None}))
         self.assertIs(type(frame[0]), str)
         self.assertIs(type(frame[1]["status"]), str)

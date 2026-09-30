@@ -149,6 +149,6 @@ def _answer(question, history=None, hint_stadium=None):
 
 
 def answer(question, history=None, hint_stadium=None):
-    from ..assistant.tools import request_state
+    from llm.tools.assistant import request_state
     with request_state(hint_stadium, question, history):
         return _answer(question, history, hint_stadium)

@@ -2,10 +2,11 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import type { ChatContext, ChatCourse, ChatMessage, ChatStatus, ChatToolCall } from "@/lib/chat/types";
-import { MAX_MESSAGE_LENGTH } from "@/lib/chat/types";
+import type { ChatContext, ChatCourse, ChatMessage, ChatStatus, ChatTimelineItem } from "@/lib/chat/types";
+import { MAX_MESSAGE_LENGTH, appendTimeline } from "@/lib/chat/types";
 import {
   ChatClientError,
+  ChatStreamStoppedError,
   deleteChatMessages,
   deleteChatSession,
   editChatMessage,
@@ -15,7 +16,7 @@ import {
   sendChatMessage,
   type ChatMode,
 } from "@/lib/chat/client";
-import { commitChatLoad, restoreChatMessages } from "@/lib/chat/history";
+import { commitChatLoad, fromToolDto, restoreChatMessages } from "@/lib/chat/history";
 import type { ChatToolCallDto } from "@/lib/chat/wire";
 import { useMemberAuth } from "@/lib/member-auth";
 import { createClientId } from "@/lib/client-id";
@@ -47,7 +48,8 @@ type ChatControls = ConversationSnapshot & {
   statusError: string;
   pending: string;
   streaming: string;
-  streamingTools: ChatToolCall[];
+  /** Live delta/tool order for the in-flight turn only. */
+  timeline: ChatTimelineItem[];
   /** 수정 중인 서버 저장 질문 id. 보내면 그 질문부터 이후 대화가 지워지고 답변을 새로 받는다. */
   editingMessageId: number | null;
   conversations: { id: string; title: string }[];
@@ -93,7 +95,7 @@ export function ChatSampleProvider({ children }: { children: React.ReactNode }) 
     ...real,
     messages: [], draft: "", context: undefined,
     failed: "", error: "", notice: "",
-    pending: "", streaming: "", streamingTools: [], editingMessageId: null,
+    pending: "", streaming: "", timeline: [], editingMessageId: null,
     conversations: [{ id: "guide-sample", title: "새 대화" }], activeConversationId: "guide-sample",
     openChat: noop, onExpand: noop, onMinimize: noop, onClosePopup: noop,
     onDraftChange: noop, onRefreshStatus: noop, onSend: noop, onRetry: noop, onCancel: noop, onReset: noop,
@@ -131,7 +133,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [streaming, setStreaming] = useState("");
-  const [streamingTools, setStreamingTools] = useState<ChatToolCall[]>([]);
+  const [timeline, setTimeline] = useState<ChatTimelineItem[]>([]);
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
   const [chatIdentity, setChatIdentity] = useState(identity);
   const [courseTarget, setCourseTarget] = useState<CourseTarget | null>(null);
@@ -276,7 +278,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     setDraft("");
     setPending("");
     setStreaming("");
-    setStreamingTools([]);
+    setTimeline([]);
     setFailed("");
     setError("");
     setNotice("");
@@ -293,7 +295,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     setError(saved.error);
     setNotice(saved.notice);
     setStreaming("");
-    setStreamingTools([]);
+    setTimeline([]);
     setEditingMessageId(null);
   }, []);
 
@@ -332,6 +334,13 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           setFailed("");
           if (retryRef.current) retryRef.current = { ...retryRef.current, messageId: stored.id };
         }
+        // 연결은 끊겼지만 같은 질문이 답변과 함께 저장됐으면 실패 표시와 자동 복원된 초안만 거둔다.
+        if (sentContent && stored?.status === "completed" && stored.content === sentContent && historyRef.current.at(-1)?.role === "assistant") {
+          setFailed(""); setError(""); setNotice("");
+          retryRef.current = null;
+          failedContextRef.current = undefined;
+          setDraft(current => current === sentContent ? "" : current);
+        }
       });
     }, () => undefined);
   }, []);
@@ -351,7 +360,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     historyRequestRef.current = controller;
     loadingConversationRef.current = id;
     historyRef.current = [];
-    setMessages([]); setDraft(""); setFailed(""); setError(""); setNotice("대화 기록을 불러오고 있어요."); setStreaming(""); setStreamingTools([]); setEditingMessageId(null);
+    setMessages([]); setDraft(""); setFailed(""); setError(""); setNotice("대화 기록을 불러오고 있어요."); setStreaming(""); setTimeline([]); setEditingMessageId(null);
     void restoreConversation(id, sessionId, controller, identityRef.current);
   }, [activeConversationId, archiveCurrentConversation, invalidateHistory, invalidateSync, restoreConversation, showConversation]);
 
@@ -374,7 +383,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         invalidateSync();
         historyRef.current = [];
         failedContextRef.current = undefined;
-        setMessages([]); setDraft(""); setFailed(""); setError(""); setStreaming(""); setStreamingTools([]); setContext(undefined); setEditingMessageId(null);
+        setMessages([]); setDraft(""); setFailed(""); setError(""); setStreaming(""); setTimeline([]); setContext(undefined); setEditingMessageId(null);
       }
       setNotice("대화 내역을 지웠어요.");
     }
@@ -413,7 +422,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     setStatusError(memberStatus === "unavailable" ? "로그인 상태를 확인하지 못했어요." : "");
     setPending("");
     setStreaming("");
-    setStreamingTools([]);
+    setTimeline([]);
     setEditingMessageId(null);
     setFailed("");
     setError("");
@@ -496,7 +505,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     setNotice("");
     setFailed("");
     setStreaming("");
-    setStreamingTools([]);
+    setTimeline([]);
     failedContextRef.current = undefined;
     retryRef.current = null;
     const userMessage: ChatMessage = { role: "user", content };
@@ -509,17 +518,14 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     }
     let knownSession = sessionId;
     try {
-      const onDelta = (answer: string) => {
+      const onDelta = (piece: string, parentId: string | null) => {
         if (version !== requestVersion.current) return;
-        setStreaming(answer);
+        setStreaming(current => current + piece);
+        setTimeline(current => appendTimeline(current, piece, parentId));
       };
       const onTool = (tool: ChatToolCallDto) => {
         if (version !== requestVersion.current) return;
-        const next = { id: tool.id, toolName: tool.tool_name, status: tool.status };
-        setStreamingTools(current => {
-          const index = current.findIndex(item => item.id === next.id);
-          return index < 0 ? [...current, next] : current.map((item, itemIndex) => itemIndex === index ? next : item);
-        });
+        setTimeline(current => appendTimeline(current, fromToolDto(tool)));
       };
       const reply = editId !== null && sessionId
         ? await editChatMessage(mode, { sessionId, messageId: editId, content, context: selectedContext }, controller.signal, { onDelta, onTool })
@@ -527,7 +533,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       if (version !== requestVersion.current) return;
       knownSession = reply.sessionId;
       if (reply.sessionId) backendSessions.current.set(conversationId, reply.sessionId);
-      const assistant: ChatMessage = { role: "assistant", content: reply.reply, status: "completed", ...(reply.assistantMessageId ? { id: reply.assistantMessageId } : {}), ...(reply.tools?.length ? { tools: reply.tools } : {}) };
+      const assistant: ChatMessage = { role: "assistant", content: reply.reply, status: "completed", ...(reply.assistantMessageId ? { id: reply.assistantMessageId } : {}), ...(reply.tools?.length ? { tools: reply.tools } : {}), ...(reply.timeline?.length ? { timeline: reply.timeline } : {}) };
       const next: ChatMessage[] = [...previous, { ...userMessage, status: "completed" }, assistant];
       historyRef.current = next;
       setMessages(next);
@@ -539,9 +545,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         backendSessions.current.set(conversationId, cause.sessionId);
       }
       setDraft(current => current.trim() ? current : content);
-      if (active.stopped) {
+      if (active.stopped || cause instanceof ChatStreamStoppedError) {
         // 중단은 이 화면의 연결만 끊는다. 서버에는 답변 없는 질문이 남을 수 있어 기록을 다시 읽는다.
-        setNotice("답변 받기를 중단했어요. 받던 답변은 저장되지 않아요.");
+        setNotice(cause instanceof ChatStreamStoppedError ? cause.message : "답변 받기를 중단했어요. 받던 답변은 저장되지 않아요.");
       } else {
         setFailed(content);
         failedContextRef.current = selectedContext;
@@ -554,7 +560,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         pendingRef.current = "";
         setPending("");
         setStreaming("");
-        setStreamingTools([]);
+        setTimeline([]);
         if (knownSession) syncConversation(conversationId, knownSession, expectedIdentity, content);
       }
     }
@@ -682,7 +688,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       statusError: visibleStatusError,
       pending: identityChanged ? "" : pending,
       streaming: identityChanged ? "" : streaming,
-      streamingTools: identityChanged ? [] : streamingTools,
+      timeline: identityChanged ? [] : timeline,
       editingMessageId: identityChanged ? null : editingMessageId,
       failed: identityChanged ? "" : failed,
       error: identityChanged ? "" : error,

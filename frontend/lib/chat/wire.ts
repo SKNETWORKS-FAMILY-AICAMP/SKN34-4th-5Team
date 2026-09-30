@@ -7,7 +7,14 @@ export type ChatMessageStatus = "pending" | "completed" | "failed" | "stopped";
 export type ChatToolStatus = "running" | "completed" | "failed";
 
 export type ChatSessionDto = { id: string; title: string; created_at: string; updated_at: string };
-export type ChatToolCallDto = { id: string; tool_name: string; status: ChatToolStatus };
+export type ChatToolDetailDto = { args: Record<string, unknown>; result: string; messages?: Record<string, unknown>[] };
+// kind/parent_id default to "tool"/null for older servers. detail is sent only to superusers on GET history.
+export type ChatToolCallDto = {
+  id: string; tool_name: string; status: ChatToolStatus;
+  kind?: "tool" | "sub_agent"; parent_id?: string | null; title?: string; summary?: string; detail?: ChatToolDetailDto;
+};
+// Ordered process log of a turn (final answer excluded); tool steps reference `tools` by id.
+export type ChatStepDto = { type: "text"; text: string; parent_id?: string | null } | { type: "tool"; id: string };
 export type ChatMessageDto = {
   id: number;
   sequence_no: number;
@@ -15,6 +22,7 @@ export type ChatMessageDto = {
   content: string;
   status: ChatMessageStatus;
   tools: ChatToolCallDto[];
+  steps?: ChatStepDto[];
   created_at: string;
   updated_at: string;
 };
@@ -24,9 +32,10 @@ export type ChatMessageUpdateRequestDto = ChatMessageRequestDto & { message_id: 
 export type ChatMessageDeleteRequestDto = { message_id: number };
 
 // serializer/message.py project_event()/done_payload(): delta{text} / tool{id, tool_name, status} /
-// done{message_id, assistant_message, tools} / error{detail}.
+// done{message_id, assistant_message, tools} / error{detail} / stopped{}.
 export type ChatSseEvent =
-  | { event: "delta"; data: { text: string } }
+  | { event: "delta"; data: { text: string; parent_id?: string } }
   | { event: "tool"; data: ChatToolCallDto }
-  | { event: "done"; data: { message_id: string; assistant_message: string; tools: ChatToolCallDto[] } }
-  | { event: "error"; data: { detail: string } };
+  | { event: "done"; data: { message_id: string; assistant_message: string; tools: ChatToolCallDto[]; steps?: ChatStepDto[] } }
+  | { event: "error"; data: { detail: string } }
+  | { event: "stopped"; data: Record<string, never> };

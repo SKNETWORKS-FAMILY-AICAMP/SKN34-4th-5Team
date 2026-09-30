@@ -11,8 +11,9 @@ from contextlib import closing
 
 from langchain_core.messages import AIMessage, HumanMessage
 
-from llm.enum import ChatRole, PublicChatEvent, TurnStatus
-from llm.serializer.message import error_payload, project_event, project_history, wire_done
+from llm.enum import ChatRole, TurnStatus
+from llm.serializer.message import project_event, project_history
+from llm.service import chat_runs
 from llm.service.chat_thread import ChatThread
 
 log = logging.getLogger(__name__)
@@ -68,11 +69,7 @@ def _frames(chain, chain_input, run):
 
 
 def _stream_turn(thread, prefix, turns, human):
-    """(event, data) 제너레이터. _start 가 첫 yield 까지 미리 돌려 둔다(priming).
-
-    그래서 소비 전에 close() 돼도 아래 GeneratorExit 경로가 돌아 턴을 cancelled 로 저장한다.
-    프레임: tool*/delta* → done(최종 저장 성공 뒤 한 번) 또는 error.
-    """
+    """프레임: tool*/delta* → done | stopped | error (chat_runs.stream_turn)."""
     run = {
         "answer_run_id": uuid.uuid4(),
         "tool_call_ids": {},    # 도구 run_id(str) -> tool_call_id (v1 파이프라인이 채운다)
@@ -81,43 +78,13 @@ def _stream_turn(thread, prefix, turns, human):
         "cancelled": False,
     }
 
-    def finish(final, status):
-        added = [*run["messages"], *([final] if final else [])]
-        turn = {"status": status.value, "answer_id": final.id if final else None}
-        if not thread.update(added, {human.id: turn}):
-            return None
-        return [*prefix, human, *added], {**turns, human.id: turn}
-
-    final = None
-    try:
-        yield None  # priming
+    def produce():
         from llm.v1.rag.pipeline import chat_chain
-        chain = chat_chain()
         chain_input = {"question": human.content, "chat_history": _model_history(prefix, turns), "run": run}
-        yield from _frames(chain, chain_input, run)
-        answer = run["answer"]
-        if not isinstance(answer, str) or not answer:
-            raise ValueError("agent returned no answer")
-        final = AIMessage(answer, id=str(uuid.uuid4()))
-    except GeneratorExit:
-        # 클라이언트 연결 종료: 이미 저장된 질문·도구 내역은 두고 턴만 cancelled. 부분 답변은 저장 안 함.
-        try:
-            finish(None, TurnStatus.CANCELLED)
-        except Exception:
-            log.exception("v1 chat cancel save failed")
-        raise
-    except Exception:
-        log.exception("v1 chat generation failed")
+        return _frames(chat_chain(), chain_input, run)
 
-    done = None
-    try:
-        saved = finish(final, TurnStatus.COMPLETED if final else TurnStatus.FAILED)
-        if final is not None and saved is not None:
-            done = wire_done(*saved, thread.wire)
-    except Exception:
-        # ponytail: 최종 저장이 실패하면 턴은 pending 으로 남는다(질문은 이미 저장됨). 다음 요청은 정상 진행.
-        log.exception("v1 chat save failed")
-    yield (PublicChatEvent.DONE.value, done) if done else (PublicChatEvent.ERROR.value, error_payload())
+    return chat_runs.stream_turn(thread, prefix, turns, human, produce, run,
+                                 on_stop=lambda: run.update(cancelled=True), label="v1")
 
 
 def _start(thread, turn):

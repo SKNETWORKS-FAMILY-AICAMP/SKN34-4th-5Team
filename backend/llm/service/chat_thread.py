@@ -27,6 +27,7 @@ from langgraph.graph.message import REMOVE_ALL_MESSAGES
 
 from llm.enum import TurnStatus
 from llm.models import ChatSession, ChatThreadDeletion
+from llm.service import chat_runs
 
 log = logging.getLogger(__name__)
 
@@ -204,8 +205,14 @@ class ChatThread:
 
     def _write(self, messages, turns, revision=None):
         # ponytail: 질문/편집 저장이 동시 편집에 밀려 stale 이어도 404 로 합친다(아주 짧은 경쟁 구간).
+        # 편집 commit 뒤 snapshot 하면 그 사이 등록된 새 revision run 까지 취소하므로, 옛 run identity 를 먼저 고정한다.
+        victims = chat_runs.snapshot(self.thread_id) if revision is not None else ()
         if not self.update(messages, turns, revision):
             raise Http404("session not found")
+        if revision is not None:
+            # 편집 checkpoint 는 update 안에서 이미 commit 됐다. commit 전 고정한 옛 run 만 취소한다.
+            for run in victims:
+                run.cancel()
 
     def delete_from(self, message_id):
         """대상 HumanMessage 부터 끝까지 RemoveMessage 로 지우고 지운 메시지 수를 돌려준다."""

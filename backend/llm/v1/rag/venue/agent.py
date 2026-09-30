@@ -111,6 +111,6 @@ def _answer(question, history=None, hint_stadium=None):
     return {"answer": text, "sources": sources, "route": " ".join(route), "timing": timing}
 
 def answer(question, history=None, hint_stadium=None):
-    from ..assistant.tools import request_state
+    from llm.tools.assistant import request_state
     with request_state(hint_stadium, question, history):
         return _answer(question, history, hint_stadium)

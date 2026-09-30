@@ -78,7 +78,7 @@ test("member send creates a UUID session then streams v2 delta/done with Bearer 
   assert.equal((await getChatStatus("member")).provider, "backend");
   const seen = [];
   const reply = await sendChatMessage("member", { content: "  첫 질문 ", context: { stadium: "잠실야구장", intent: "route", origin: { lat: 37.5, lng: 127.07 } } }, undefined, { onDelta: value => seen.push(value) });
-  assert.deepEqual(seen, ["첫 ", "첫 답변"]);
+  assert.deepEqual(seen, ["첫 ", "답변"]);
   assert.deepEqual({ reply: reply.reply, sessionId: reply.sessionId, assistant: reply.assistantMessageId, provider: reply.provider },
     { reply: "첫 답변", sessionId: SESSION, assistant: ASSISTANT_MSG, provider: "backend" });
   assert.deepEqual(calls.map(call => [call.method, call.url]), [
@@ -156,7 +156,7 @@ test("session rename/delete/history use UUID paths, stopped status and tool call
   assert.equal((await renameChatSession("member", SESSION, "이름")).title, "이름");
   const history = await fetchChatHistory("member", SESSION);
   assert.deepEqual(restoreChatMessages(history).map(item => [item.id, item.role, item.status]), [[USER_MSG, "user", "stopped"], [ASSISTANT_MSG, "assistant", "completed"]]);
-  assert.deepEqual(restoreChatMessages(history)[1].tools, [{ id: "call-1", toolName: "search_places", status: "completed" }]);
+  assert.deepEqual(restoreChatMessages(history)[1].tools, [{ id: "call-1", toolName: "search_places", status: "completed", kind: "tool", parentId: null }]);
   assert.equal(await deleteChatSession("member", SESSION), undefined);
   assert.deepEqual(calls.map(call => [call.method, call.url]), [
     ["PATCH", `/api/v2/chat/sessions/${SESSION}/`], ["GET", `/api/v2/chat/sessions/${SESSION}/messages/`], ["DELETE", `/api/v2/chat/sessions/${SESSION}/`],
@@ -186,7 +186,7 @@ test("tool SSE events are accepted and reach onTool with id/tool_name/status; do
   ]);
   const reply = await sendChatMessage("guest", { sessionId: SESSION, content: "질문" }, undefined, { onTool: value => seenTools.push(value) });
   assert.deepEqual(seenTools, [tool("call-1", "search_places", "running"), tool("call-1", "search_places", "completed")]);
-  assert.deepEqual(reply.tools, [{ id: "call-1", toolName: "search_places", status: "completed" }]);
+  assert.deepEqual(reply.tools, [{ id: "call-1", toolName: "search_places", status: "completed", kind: "tool", parentId: null }]);
 });
 
 test("a done frame with a non-integer or empty message_id is rejected as uncertain", async () => {
@@ -226,6 +226,16 @@ test("SSE reader handles split frames and UTF-8 boundaries", async () => {
   }), { headers: { "Content-Type": "text/event-stream" } });
   const reply = await sendChatMessage("guest", { sessionId: SESSION, content: "질문" });
   assert.deepEqual([reply.reply, reply.assistantMessageId], ["잠실 야구장", OTHER_MSG]);
+});
+
+test("server stopped is a known terminal event with no partial reply", async () => {
+  global.fetch = async () => sse([["delta", { text: "부분" }], ["stopped", {}]]);
+  const seen = [];
+  await assert.rejects(
+    sendChatMessage("guest", { sessionId: SESSION, content: "질문" }, undefined, { onDelta: piece => seen.push(piece) }),
+    error => error instanceof ChatClientError && error.status === 409 && !error.uncertain && error.sessionId === SESSION,
+  );
+  assert.deepEqual(seen, ["부분"]);
 });
 
 test("pre-stream JSON errors surface the DRF detail", async () => {
@@ -319,4 +329,21 @@ test("LLM streams skip the 55s total timer while plain API calls keep it", async
   } finally {
     global.window.setTimeout = original;
   }
+});
+
+test("appendTimeline coalesces deltas, keeps delta→tool→delta order, and updates tool ids in place", () => {
+  const { appendTimeline } = require("./lib/chat/types.js");
+  const tool = status => ({ id: "t1", toolName: "search_places", status });
+  let items = [];
+  for (const event of ["가", "나", tool("running"), { id: "t2", toolName: "get_weather", status: "running" }, "", tool("completed"), "다"]) items = appendTimeline(items, event);
+  assert.deepEqual(items, [
+    { kind: "text", text: "가나", parentId: null },
+    { kind: "tools", tools: [tool("completed"), { id: "t2", toolName: "get_weather", status: "running" }] },
+    { kind: "text", text: "다", parentId: null },
+  ]);
+});
+
+test("done.assistant_message longer than MAX_REPLY_LENGTH is rejected even with no deltas", async () => {
+  global.fetch = async () => sse([["done", { message_id: String(ASSISTANT_MSG), assistant_message: "가".repeat(8001), tools: [] }]]);
+  await assert.rejects(sendChatMessage("guest", { sessionId: SESSION, content: "질문" }), error => error instanceof ChatClientError && error.uncertain);
 });
