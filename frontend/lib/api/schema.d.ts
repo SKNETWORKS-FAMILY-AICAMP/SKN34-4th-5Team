@@ -4088,6 +4088,7 @@ export interface components {
             /** Format: date */
             birth_date: string;
             gender: components["schemas"]["GenderEnum"];
+            team_code?: string;
         };
         Snapshot: {
             id: number;

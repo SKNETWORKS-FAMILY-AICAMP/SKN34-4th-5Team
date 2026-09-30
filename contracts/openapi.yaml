@@ -12880,6 +12880,9 @@ components:
           format: date
         gender:
           $ref: '#/components/schemas/GenderEnum'
+        team_code:
+          type: string
+          maxLength: 2
       required:
       - birth_date
       - email

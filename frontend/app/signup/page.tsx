@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { safeMemberReturnPath } from "@/lib/member-return-path";
 import { MemberAuthSwitchLink } from "@/components/member-auth-switch-link";
 import { useRouter } from "next/navigation";
@@ -9,12 +8,13 @@ import { AuthDialog } from "@/components/auth-dialog";
 import { useAuthHydrated } from "@/components/auth-hydration";
 import { signUp } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api/client";
+import { teamBoards } from "@/lib/team-community";
 
-type FieldName = "username" | "password" | "passwordConfirm" | "name" | "birthDate" | "gender" | "email";
+type FieldName = "username" | "password" | "passwordConfirm" | "name" | "birthDate" | "gender" | "email" | "teamCode";
 type SignupValues = Record<FieldName, string>;
 type Agreement = "service" | "privacy" | "marketing";
-const fieldOrder: FieldName[] = ["username", "password", "passwordConfirm", "name", "birthDate", "gender", "email"];
-const fieldIds: Record<FieldName, string> = { username: "signup-id", password: "signup-password", passwordConfirm: "signup-password-confirm", name: "signup-name", birthDate: "signup-birth-date", gender: "signup-gender", email: "signup-email" };
+const fieldOrder: FieldName[] = ["username", "password", "passwordConfirm", "name", "birthDate", "gender", "email", "teamCode"];
+const fieldIds: Record<FieldName, string> = { username: "signup-id", password: "signup-password", passwordConfirm: "signup-password-confirm", name: "signup-name", birthDate: "signup-birth-date", gender: "signup-gender", email: "signup-email", teamCode: "signup-team-code" };
 const policyContent: Record<Agreement, { title: string; description: string }> = {
   service: { title: "서비스 이용약관", description: "정식 서비스의 이용 조건, 회원의 권리와 의무, 게시물 운영 기준이 이곳에 안내될 예정이에요." },
   privacy: { title: "개인정보 수집·이용 안내", description: "수집 항목, 이용 목적, 보유 기간과 동의 거부에 관한 내용을 정식 서비스 시작 전에 안내할 예정이에요." },
@@ -31,13 +31,16 @@ function validate(values: SignupValues): Partial<Record<FieldName, string>> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(values.birthDate) || !Number.isFinite(Date.parse(`${values.birthDate}T00:00:00Z`))) errors.birthDate = "생년월일을 입력해 주세요.";
   if (!['M', 'F'].includes(values.gender)) errors.gender = "성별을 선택해 주세요.";
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email.trim())) errors.email = "올바른 이메일 주소를 입력해 주세요.";
+  if (values.teamCode !== "" && !teamBoards.some(team => team.code === values.teamCode)) {
+    errors.teamCode = "목록에 있는 응원팀을 선택해 주세요.";
+  }
   return errors;
 }
 
 export default function SignupPage() {
   const router = useRouter();
   const hydrated = useAuthHydrated();
-  const [values, setValues] = useState<SignupValues>({ username: "", password: "", passwordConfirm: "", name: "", birthDate: "", gender: "", email: "" });
+  const [values, setValues] = useState<SignupValues>({ username: "", password: "", passwordConfirm: "", name: "", birthDate: "", gender: "", email: "", teamCode: "" });
   const [touched, setTouched] = useState<Partial<Record<FieldName, boolean>>>({});
   const [message, setMessage] = useState("");
   const [visible, setVisible] = useState(false);
@@ -77,17 +80,17 @@ export default function SignupPage() {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
-    setTouched({ username: true, password: true, passwordConfirm: true, name: true, birthDate: true, gender: true, email: true });
+    setTouched({ username: true, password: true, passwordConfirm: true, name: true, birthDate: true, gender: true, email: true, teamCode: true });
     const firstInvalid = fieldOrder.find((field) => errors[field]);
     if (firstInvalid) {
       setMessage("");
-      event.currentTarget.querySelector<HTMLInputElement>(`#${fieldIds[firstInvalid]}`)?.focus();
+      event.currentTarget.querySelector<HTMLInputElement | HTMLSelectElement>(`#${fieldIds[firstInvalid]}`)?.focus();
       return;
     }
     if (!requiredAgreed) return;
     setBusy(true); setMessage("");
     try {
-      await signUp({ username: values.username, password: values.password, re_password: values.passwordConfirm, first_name: values.name.trim(), birth_date: values.birthDate, gender: values.gender as "M" | "F", email: values.email.trim() }, AbortSignal.timeout(40000));
+      await signUp({ username: values.username, password: values.password, re_password: values.passwordConfirm, first_name: values.name.trim(), birth_date: values.birthDate, gender: values.gender as "M" | "F", email: values.email.trim(), team_code: values.teamCode }, AbortSignal.timeout(40000));
       const search = new URLSearchParams(window.location.search);
       const next = safeMemberReturnPath(search.get("next"));
       const query = new URLSearchParams({ registered: "1" });
@@ -96,7 +99,7 @@ export default function SignupPage() {
       router.push(`/login?${query}`);
       return;
     } catch (error) {
-      const mapping: Record<string, FieldName> = { username: "username", password: "password", re_password: "passwordConfirm", first_name: "name", birth_date: "birthDate", gender: "gender", email: "email" };
+      const mapping: Record<string, FieldName> = { username: "username", password: "password", re_password: "passwordConfirm", first_name: "name", birth_date: "birthDate", gender: "gender", email: "email", team_code: "teamCode" };
       const first = Object.keys(error instanceof ApiError ? error.fields ?? {} : {}).map(field => mapping[field]).find(Boolean);
       if (first) { setTouched(current => ({ ...current, [first]: true })); document.getElementById(fieldIds[first])?.focus(); }
       setMessage(error instanceof DOMException && error.name === "TimeoutError" ? "요청 결과를 확인하지 못했어요. 자동으로 다시 제출하지 말고 로그인 또는 아이디 찾기로 계정 생성 여부를 확인해 주세요." : error instanceof Error ? error.message : "회원가입 서버에 연결하지 못했어요.");
@@ -142,6 +145,29 @@ export default function SignupPage() {
             <label htmlFor="signup-email">이메일 <span>필수</span></label>
             <input {...fieldProps("email")} type="email" autoComplete="email" placeholder="hello@example.com" maxLength={254} />
             {hint("email", "계정 안내를 받을 이메일을 입력해 주세요.")}
+          </div>
+          <div className="auth-field">
+            <label htmlFor="signup-team-code">응원팀 / 홈구장 <span>선택</span></label>
+            <select
+              id={fieldIds.teamCode}
+              name="teamCode"
+              value={values.teamCode}
+              disabled={!hydrated || busy}
+              aria-invalid={Boolean(touched.teamCode && errors.teamCode)}
+              aria-describedby={`${fieldIds.teamCode}-hint`}
+              onChange={(event) => {
+                const teamCode = event.target.value;
+                setValues(current => ({ ...current, teamCode }));
+                setMessage("");
+              }}
+              onBlur={() => setTouched(current => ({ ...current, teamCode: true }))}
+            >
+              <option value="">선택 안 함</option>
+              {teamBoards.map(team => (
+                <option key={team.code} value={team.code}>{team.name} · {team.stadium}</option>
+              ))}
+            </select>
+            {hint("teamCode", "응원팀과 홈구장을 선택해 주세요. 선택하지 않아도 가입할 수 있으며, 가입 후 마이페이지에서 변경할 수 있어요.")}
           </div>
           <fieldset className="auth-agreements">
             <legend className="sr-only">정책 동의</legend>
