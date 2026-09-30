@@ -3,7 +3,7 @@ from langchain.tools import ToolRuntime, tool
 from langchain_core.messages import HumanMessage
 
 from . import baseball_chain, place_chain, travel_chain
-from .common import ORCHESTRATOR_RECURSION_LIMIT, build_agent, final_text, invoke_agent
+from .common import ORCHESTRATOR_MODEL_CALL_BUDGET, build_agent, final_text, invoke_agent
 
 ORCHESTRATOR_RULES = """역할: 경기 전후 코스·하루 일정 조율 에이전트.
 직접 조회하지 말고 전문 에이전트에게 하위 작업을 구체적으로 맡긴다.
@@ -43,4 +43,4 @@ def build(model, tools_by_name):
     delegates = [
         _delegate(name, desc, module.build(model, tools_by_name)) for name, (module, desc) in SPECIALISTS.items()
     ]
-    return build_agent(model, [*delegates, tools_by_name["get_directions"]], ORCHESTRATOR_RULES, limit=ORCHESTRATOR_RECURSION_LIMIT)
+    return build_agent(model, [*delegates, tools_by_name["get_directions"]], ORCHESTRATOR_RULES, budget=ORCHESTRATOR_MODEL_CALL_BUDGET)

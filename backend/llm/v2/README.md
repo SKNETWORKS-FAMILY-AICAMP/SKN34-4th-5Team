@@ -46,7 +46,9 @@ answer = result["messages"][-1].content
   이 연동은 v2 범위 밖의 별도 통합 작업입니다.
 - 장소 URL 추출·저장 도구는 없어서 PlaceData Agent는 검색·공개 코스 확인만 합니다.
 - JEV 판정은 1차 필터이며 도구의 인증·권한 검사를 대신하지 않습니다. JEV 호출에는 `OPENROUTER_API_KEY`가 필요합니다(첫 판정 때 생성).
-- 전문/Simple Agent 는 `AGENT_RECURSION_LIMIT`(기본 12), Orchestrator 는 `ORCHESTRATOR_RECURSION_LIMIT`(기본 25)로 멈춥니다. 전문 Agent 실패는 `[조회 실패] ...`로 Orchestrator에 돌아갑니다.
+- 호출(invoke) 당 model 호출 예산 N: 전문/Simple Agent 는 `AGENT_MODEL_CALL_BUDGET`(기본 4), Orchestrator 는 `ORCHESTRATOR_MODEL_CALL_BUDGET`(기본 8), 각자 독립입니다.
+  1..N-1 번째는 도구를 쓸 수 있고 N 번째는 도구 없이 답하며 N+1 번째 provider 호출은 없습니다. 이전 대화는 예산을 쓰지 않습니다.
+  1 이상 정수가 아니면 시작 시 실패합니다. `AGENT_RECURSION_LIMIT`/`ORCHESTRATOR_RECURSION_LIMIT`(step 수)는 V1 전용이라 V2 는 무시하며, 함께 설정돼도 됩니다. 전문 Agent 실패는 `[조회 실패] ...`로 Orchestrator에 돌아갑니다.
 
 ## 테스트
 

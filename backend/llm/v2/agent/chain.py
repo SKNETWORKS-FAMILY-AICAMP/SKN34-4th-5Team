@@ -6,7 +6,7 @@ from langgraph.graph import END, START, StateGraph
 
 from ..middleware.jev_guidelines import SCOPE_MESSAGE
 from . import classifier, orchestrator_chain, simple_chain
-from .common import ORCHESTRATOR_RECURSION_LIMIT, RECURSION_LIMIT, ChainState, invoke_agent
+from .common import ChainState, invoke_agent
 
 
 def _last_question_and_history(messages):
@@ -38,15 +38,15 @@ def build_graph(model, tools_by_name):
     simple_agent = simple_chain.build(model, tools_by_name)
     orchestrator = orchestrator_chain.build(model, tools_by_name)
 
-    def runner(agent, limit=RECURSION_LIMIT):
+    def runner(agent):
         def run(state):  # 내부 tool/AI 메시지는 부모에 복제하지 않고 최종 공개 답변 하나만 돌려준다
-            return {"messages": [invoke_agent(agent, state, limit)["messages"][-1]]}
+            return {"messages": [invoke_agent(agent, state)["messages"][-1]]}
         return run
 
     graph = StateGraph(ChainState)
     graph.add_node("jev_router", jev_router)
     graph.add_node("simple_agent", runner(simple_agent))
-    graph.add_node("orchestrator", runner(orchestrator, ORCHESTRATOR_RECURSION_LIMIT))
+    graph.add_node("orchestrator", runner(orchestrator))
 
     graph.add_edge(START, "jev_router")
     graph.add_conditional_edges("jev_router", _route, ["simple_agent", "orchestrator", END])

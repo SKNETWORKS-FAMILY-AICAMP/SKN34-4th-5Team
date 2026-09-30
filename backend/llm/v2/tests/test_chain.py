@@ -14,11 +14,14 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.tools import tool
-from langgraph.errors import GraphRecursionError
+import os
+import subprocess
+import sys
 
 from llm.v2.agent import chain, classifier
 from llm.v2.agent import baseball_chain, place_chain, travel_chain
-from llm.v2.agent.common import RECURSION_LIMIT, final_text
+from llm.v2.agent import common
+from llm.v2.agent.common import MODEL_CALL_BUDGET, ORCHESTRATOR_MODEL_CALL_BUDGET, final_text
 from llm.v2.middleware.dynamic_tools import CAPABILITY_TOOLS
 from llm.v2.middleware.jev_guidelines import SCOPE_MESSAGE
 
@@ -146,19 +149,66 @@ class ChainTest(unittest.TestCase):
         self.assertIn("내일 잠실 18:30 경기", tool_results)
         self.assertEqual(len(out["messages"]), 2)
 
-    def test_specialist_failure_is_reported_not_hidden(self):
+    def test_specialist_loop_ends_with_answer_within_its_own_budget(self):
         ids = count()
 
-        def baseball_loops(messages):  # 야구 전문 Agent 안에서만 끝없이 도구를 부른다
-            if "야구 전문 에이전트" in messages[0].content:
+        def baseball(messages):  # 야구 전문 Agent 는 도구가 있으면 끝없이 부르고, 없으면 답한다
+            if "야구 전문 에이전트" not in messages[0].content:
+                return None
+            if self.model_calls[-1]["tools"]:
                 return call("get_games", {}, f"b{next(ids)}")
-            return None
+            return AIMessage("경기 시각 미확인")
 
-        script = [call("ask_baseball", {"task": "경기 시각"}, "o1"), baseball_loops, AIMessage("경기 시각은 확인되지 않았어요.")]
+        script = [call("ask_baseball", {"task": "경기 시각"}, "o1"), baseball, AIMessage("경기 시각은 확인되지 않았어요.")]
         self.run_graph(script, decision(complexity="COMPLEX"), [HumanMessage("코스 짜줘")])
         tool_results = [m.content for m in self.model_calls[-1]["messages"] if m.type == "tool"]
-        self.assertEqual(tool_results, ["[조회 실패] ask_baseball: GraphRecursionError"])
-        self.assertLessEqual(self.executed.count("get_games"), RECURSION_LIMIT)  # 자식도 한도 안에서 멈춤
+        self.assertEqual(tool_results, ["경기 시각 미확인"])
+        self.assertEqual(self.executed.count("get_games"), MODEL_CALL_BUDGET - 1)
+        # 전문 Agent 예산은 Orchestrator 예산과 별개: orchestrator 2회 + specialist N회
+        self.assertEqual(len(self.model_calls), 2 + MODEL_CALL_BUDGET)
+
+    def run_budget(self, budget, script, messages):
+        self.executed = []
+        model = ScriptedModel(script=list(script), calls=[])
+        self.model_calls = model.calls
+        tools = fake_tools(self.executed)
+        agent = common.build_agent(model, [tools["get_stadium"]], "", budget=budget)
+        return common.invoke_agent(agent, {"messages": messages, "decision": decision()})
+
+    def test_budget_one_is_single_toolless_call(self):
+        out = self.run_budget(1, [call("get_stadium", {}, "x")], [HumanMessage("q")])  # 고집 모델
+        self.assertEqual([c["tools"] for c in self.model_calls], [()])
+        self.assertEqual(self.executed, [])
+        self.assertEqual(out["messages"][-1].tool_calls, [])
+
+    def test_budget_n_obstinate_model_never_makes_n_plus_one_call(self):
+        obstinate = lambda messages: call("get_stadium", {}, f"s{len(messages)}")  # 도구가 없어도 부른다
+        out = self.run_budget(3, [obstinate], [HumanMessage("q")])
+        self.assertEqual([bool(c["tools"]) for c in self.model_calls], [True, True, False])
+        self.assertEqual(self.executed, ["get_stadium", "get_stadium"])
+        self.assertEqual(out["messages"][-1].tool_calls, [])
+
+    def test_history_consumes_no_budget_and_fresh_invocation_resets(self):
+        history = [HumanMessage("a"), *(AIMessage(str(i)) for i in range(5)), HumanMessage("b")]
+        for _ in range(2):
+            self.run_budget(2, [call("get_stadium", {}, "1"), AIMessage("답")], history)
+            self.assertEqual([bool(c["tools"]) for c in self.model_calls], [True, False])
+
+    def test_invalid_config_fails_at_import(self):
+        for env in ({"AGENT_MODEL_CALL_BUDGET": "0"}, {"ORCHESTRATOR_MODEL_CALL_BUDGET": "x"}):
+            proc = subprocess.run([sys.executable, "-c", "import llm.v2.agent.common"],
+                                  env={**os.environ, **env}, capture_output=True, text=True)
+            self.assertNotEqual(proc.returncode, 0, env)
+            self.assertIn("ValueError", proc.stderr)
+
+    def test_v1_recursion_limits_coexist_and_are_not_budgets(self):
+        env = {k: v for k, v in os.environ.items() if not k.endswith("_MODEL_CALL_BUDGET")}
+        env.update(AGENT_RECURSION_LIMIT="12", ORCHESTRATOR_RECURSION_LIMIT="25")
+        proc = subprocess.run([sys.executable, "-c", "from llm.v2.agent.common import MODEL_CALL_BUDGET as a, "
+                               "ORCHESTRATOR_MODEL_CALL_BUDGET as b; print(a, b)"],
+                              env=env, capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(proc.stdout.split(), ["4", "8"])
 
     def test_tool_loop_ends_with_final_answer_not_recursion_error(self):
         """도구가 계속 실패하고 모델이 계속 부르려 해도 한도 전 마지막 호출은 도구 없이 답한다."""
@@ -168,7 +218,7 @@ class ChainTest(unittest.TestCase):
         out = self.run_graph([loop_while_tools], decision(capabilities=["parking_transport"]), [HumanMessage("주차")])
         self.assertEqual(out["messages"][-1].content, "모은 결과로 답해요.")
         self.assertEqual(self.model_calls[-1]["tools"], ())
-        self.assertGreater(len(self.model_calls), 1)
+        self.assertEqual(len(self.model_calls), MODEL_CALL_BUDGET)
 
     def test_orchestrator_directions_capped_and_ends_with_answer(self):
         def directions_forever(messages):
@@ -177,13 +227,15 @@ class ChainTest(unittest.TestCase):
         out = self.run_graph([directions_forever], decision(complexity="COMPLEX"), [HumanMessage("코스")])
         self.assertEqual(out["messages"][-1].content, "이동 시간 미확인")
         self.assertEqual(self.executed.count("get_directions"), 2)  # ToolCallLimitMiddleware run_limit
+        self.assertEqual(len(self.model_calls), ORCHESTRATOR_MODEL_CALL_BUDGET)
 
-    def test_orchestrator_uses_larger_limit_than_specialists(self):
-        """3 전문 Agent + 이동 시간 재시도로 기본 한도(12 step)를 넘겨도 Orchestrator 는 답까지 간다."""
-        loop = [call("ask_place_data", {"task": "x"}, f"p{i}") for i in range(RECURSION_LIMIT // 3 + 1)]
+    def test_orchestrator_uses_larger_budget_than_specialists(self):
+        n = ORCHESTRATOR_MODEL_CALL_BUDGET - 1
+        loop = [call("ask_place_data", {"task": "x"}, f"p{i}") for i in range(n)]
         loop = [m for c in loop for m in (c, AIMessage("장소 확인됨"))]  # 전문 Agent 한 번씩 답
         out = self.run_graph([*loop, AIMessage("이동 시간은 미확인이에요.")], decision(complexity="COMPLEX"), [HumanMessage("코스")])
         self.assertEqual(out["messages"][-1].content, "이동 시간은 미확인이에요.")
+        self.assertEqual(sum(bool(c["tools"]) and "ask_place_data" in c["tools"] for c in self.model_calls), n)
 
     def test_classifier_failure_does_not_bypass(self):
         def boom(*args):
