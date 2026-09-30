@@ -36,7 +36,7 @@ from llm.service import chat as chat_service
 from llm.service.chat import ChatThread
 from llm.service.chat_thread import purge_deleted_threads, reserve_thread_deletion
 from llm.tests.test_v2_chat import (
-    CheckpointTestCase, PausingChain, _read_sse_body, guest_request, history, seed, snapshot,
+    CheckpointTestCase, PausingChain, _read_sse_body, guest_request, history, patch_chain, seed, snapshot,
 )
 from llm.v1.rag import dispatcher, persona
 from llm.v1.rag.assistant import pipeline as assistant
@@ -112,7 +112,7 @@ def fake_pipeline(steps, tools=(lookup,)):
     stack.enter_context(patch.object(assistant, "retrieve", lambda inputs: {
         **inputs, "context": f"[1] {RAG_SECRET}", "stadium": None, "doc_count": 1,
     }))
-    stack.enter_context(patch("llm.service.chat.get_chain", return_value=rag_chain))
+    stack.enter_context(patch_chain(return_value=rag_chain))
     return stack
 
 
@@ -222,7 +222,7 @@ class CancelAndDeleteTest(CheckpointTestCase):
                 raise RuntimeError("saver down")
             return real_update(self, messages, turns, *args)
 
-        with patch("llm.service.chat.get_chain", return_value=PausingChain(chunks=("답",))), \
+        with patch_chain(return_value=PausingChain(chunks=("답",))), \
                 patch.object(ChatThread, "update", flaky):
             frames = list(chat_service.send_message(self.session, "LG 몇 위야?"))
 
@@ -232,7 +232,7 @@ class CancelAndDeleteTest(CheckpointTestCase):
 
     def test_client_disconnect_marks_cancelled(self):
         from llm.service import chat as chat_service
-        with patch("llm.service.chat.get_chain", return_value=PausingChain(chunks=("안", "녕"))):
+        with patch_chain(return_value=PausingChain(chunks=("안", "녕"))):
             # 테스트 클라이언트의 closing_iterator_wrapper 는 close 중에 close_old_connections 를 다시
             # 연결해 테스트 트랜잭션 연결을 닫아 버린다. 그래서 view 와 같은 SSE 응답을 직접 만든다.
             response = event_stream_response(chat_service.send_message(self.session, "질문", version="v2"))
@@ -258,7 +258,7 @@ class CancelAndDeleteTest(CheckpointTestCase):
         self.assertEqual(self.thread.history(), [])
 
     def test_stream_finishing_after_session_delete_does_not_resurrect(self):
-        with patch("llm.service.chat.get_chain", return_value=PausingChain(chunks=("안", "녕"))):
+        with patch_chain(return_value=PausingChain(chunks=("안", "녕"))):
             from llm.service import chat as chat_service
             events = chat_service.send_message(self.session, "질문")
             next(events)
@@ -266,22 +266,22 @@ class CancelAndDeleteTest(CheckpointTestCase):
                 ChatSession.objects.filter(id=self.session.id).delete()
             self.assertEqual(self.thread.history(), [])
             remaining = list(events)
-        self.assertEqual([e for e, _ in remaining], ["delta", "error"])
+        self.assertEqual([e for e, _ in remaining], ["delta", "error"])  # 남은 청크 뒤 done 없음
         self.assertEqual(self.thread.history(), [])
 
     def test_delete_during_stream_is_not_revived_by_stale_completion(self):
-        with patch("llm.service.chat.get_chain", return_value=PausingChain(chunks=("안", "녕"))):
+        with patch_chain(return_value=PausingChain(chunks=("안", "녕"))):
             events = chat_service.send_message(self.session, "질문")
             next(events)
             human = snapshot(self.session)[0][0]
             self.assertEqual(chat_service.message_delete(guest_request(self.session), self.session.id, human.id), 1)
             remaining = list(events)
-        self.assertEqual([e for e, _ in remaining], ["delta", "error"])  # done 없음
+        self.assertEqual([e for e, _ in remaining], ["delta", "error"])  # 남은 청크 뒤 done 없음  # done 없음
         self.assertEqual(snapshot(self.session), ([], {}))
         self.assertEqual(self.thread.history()[0].values["revision"], 1)  # 최신은 편집 branch
 
     def test_put_during_stream_keeps_edit_and_only_new_stream_completes(self):
-        with patch("llm.service.chat.get_chain", return_value=PausingChain(chunks=("안", "녕"))):
+        with patch_chain(return_value=PausingChain(chunks=("안", "녕"))):
             old = chat_service.send_message(self.session, "옛 질문")
             next(old)
             human = snapshot(self.session)[0][0]

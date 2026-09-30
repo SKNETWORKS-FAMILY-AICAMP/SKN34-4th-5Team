@@ -6,7 +6,7 @@ from django.db import close_old_connections
 
 from llm.models import ChatSession
 from llm.service import chat as chat_service
-from llm.tests.test_v2_chat import CheckpointTestCase, PausingChain, history, snapshot
+from llm.tests.test_v2_chat import CheckpointTestCase, PausingChain, history, patch_chain, snapshot
 from llm.views.sse import event_stream_response
 
 
@@ -15,7 +15,7 @@ class OrdinarySendLinearizationTest(CheckpointTestCase):
         self.session = ChatSession.objects.create(guest="12121212-1212-1212-1212-121212121212")
 
     def test_concurrent_sends_from_same_base_both_stay_in_root_history(self):
-        with patch("llm.service.chat.get_chain", return_value=PausingChain(chunks=("답",))):
+        with patch_chain(return_value=PausingChain(chunks=("답",))):
             a = chat_service.send_message(self.session, "A")
             b = chat_service.send_message(self.session, "B")  # A pending 을 읽은 같은 base
             a_frames, b_frames = list(a), list(b)
@@ -33,7 +33,7 @@ class CloseBeforeFirstIterationTest(CheckpointTestCase):
 
     def test_response_close_before_iteration_cancels_primed_turn(self):
         fake = PausingChain()
-        with patch("llm.service.chat.get_chain", return_value=fake):
+        with patch_chain(return_value=fake):
             response = event_stream_response(chat_service.send_message(self.session, "질문", version="v2"))
             request_finished.disconnect(close_old_connections)  # 테스트 트랜잭션 연결은 살려 둔다
             try:
@@ -59,7 +59,7 @@ class PublicWireCompatTest(CheckpointTestCase):
 
     def _post(self, version, content):
         from llm.tests.test_v2_chat import FakeChain, _read_sse_body
-        with patch("llm.service.chat.get_chain", return_value=FakeChain(chunks=("답",))):
+        with patch_chain(return_value=FakeChain(chunks=("답",))):
             response = self.client_a.post(self._url(version), {"content": content}, format="json",
                                           HTTP_ACCEPT="text/event-stream")
             return _read_sse_body(b"".join(response.streaming_content).decode("utf-8"))
@@ -81,7 +81,7 @@ class PublicWireCompatTest(CheckpointTestCase):
         self.assertEqual(len({i["id"] for i in items}), len(items))
 
     def test_cancelled_turn_is_public_stopped_and_integer_id_edits_and_deletes(self):
-        with patch("llm.service.chat.get_chain", return_value=PausingChain()):
+        with patch_chain(return_value=PausingChain()):
             chat_service.send_message(self.session, "끊긴 질문").close()
         self._post("v2", "둘째 질문")
         items = self.client_a.get(self._url("v2")).json()
@@ -90,7 +90,7 @@ class PublicWireCompatTest(CheckpointTestCase):
         first, second = items[0]["id"], items[1]["id"]
 
         from llm.tests.test_v2_chat import FakeChain
-        with patch("llm.service.chat.get_chain", return_value=FakeChain(chunks=("새 답",))):
+        with patch_chain(return_value=FakeChain(chunks=("새 답",))):
             response = self.client_a.put(self._url("v2"), {"content": "고친 질문", "message_id": second},
                                          format="json", HTTP_ACCEPT="text/event-stream")
             self.assertEqual(response.status_code, 200)
@@ -167,7 +167,7 @@ class LegacyChatHistoryTest(CheckpointTestCase):
         self.assertEqual(_legacy_count(self.session.id), (3, 1))  # 롤백 대비: 옛 행은 세션 삭제 전까지 보존
 
         from llm.tests.test_v2_chat import FakeChain
-        with patch("llm.service.chat.get_chain", return_value=FakeChain(chunks=("새 답",))):
+        with patch_chain(return_value=FakeChain(chunks=("새 답",))):
             list(chat_service.send_message(self.session, "새 질문"))
         items = self._items()
         self.assertEqual([i["content"] for i in items], ["옛 질문", "옛 답", "끊긴 질문", "새 질문", "새 답"])

@@ -3,7 +3,7 @@ from langchain.tools import ToolRuntime, tool
 from langchain_core.messages import HumanMessage
 
 from . import baseball_chain, place_chain, travel_chain
-from .common import build_agent, final_text, invoke_agent
+from .common import ORCHESTRATOR_RECURSION_LIMIT, build_agent, final_text, invoke_agent
 
 ORCHESTRATOR_RULES = """역할: 경기 전후 코스·하루 일정 조율 에이전트.
 직접 조회하지 말고 전문 에이전트에게 하위 작업을 구체적으로 맡긴다.
@@ -12,6 +12,7 @@ ORCHESTRATOR_RULES = """역할: 경기 전후 코스·하루 일정 조율 에�
 - ask_place_data: 기존 공개 코스, 특정 장소 확인
 구장이 정해지지 않았으면 ask_baseball 결과로 구장을 확인한 뒤 장소를 조사한다. 부족한 정보가 있으면 필요한 전문
 에이전트만 다시 부른다. 후보 사이 이동 시간은 get_directions 로 확인한다.
+get_directions 가 실패하면 한 번까지만 다시 부르고, 그래도 실패하면 이동 시간을 미확인으로 밝히고 그대로 답한다.
 받은 결과만으로 시간 순서의 계획을 만들고 경기 시작 전에 구장에 도착하게 짠다. 확인 안 된 시각·영업시간은 단정하지
 않고, 조회 실패나 결과 충돌은 그대로 밝힌다."""
 
@@ -42,4 +43,4 @@ def build(model, tools_by_name):
     delegates = [
         _delegate(name, desc, module.build(model, tools_by_name)) for name, (module, desc) in SPECIALISTS.items()
     ]
-    return build_agent(model, [*delegates, tools_by_name["get_directions"]], ORCHESTRATOR_RULES)
+    return build_agent(model, [*delegates, tools_by_name["get_directions"]], ORCHESTRATOR_RULES, limit=ORCHESTRATOR_RECURSION_LIMIT)

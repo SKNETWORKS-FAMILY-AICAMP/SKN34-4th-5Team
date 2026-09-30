@@ -56,7 +56,7 @@ class SSEAcceptGetListRegressionTest(CheckpointTestCase):
         from django.http import StreamingHttpResponse
         from unittest.mock import patch
 
-        with patch("llm.views.message.send_message", return_value=iter([("delta", {"text": "hi"})])):
+        with patch("llm.service.chat_v2.send_message", return_value=iter([("delta", {"text": "hi"})])):
             response = self.client_a.post(
                 f"/api/v2/chat/sessions/{self.session.id}/messages/",
                 data={"content": "hello"},

@@ -9,9 +9,19 @@ from llm.serializer.message import (
     ChatMessageInputSerializer,
     ChatMessageUpdateSerializer,
 )
-from llm.service.chat import list_messages, message_delete, message_update, send_message
+from llm.enum import ChainVersion
+from llm.service import chat as chat_service
+from llm.service import chat_v1, chat_v2
+from llm.service.chat import list_messages, message_delete
 from llm.service.ownership import get_owned_session
 from llm.views.sse import event_stream_response
+
+
+def _dispatch(version):
+    """version -> chat_v1/chat_v2 의 (send_message, message_update)."""
+    if chat_service.resolve_version(version) == ChainVersion.V1:
+        return chat_v1.send_message, chat_v1.message_update
+    return chat_v2.send_message, chat_v2.message_update
 
 
 class EventStreamRenderer(BaseRenderer):
@@ -63,23 +73,23 @@ class ChatMessageView(GenericAPIView):
 
     # POST: /api/v2/chat/sessions/<session_id>/messages/
     def post(self, request, *args, **kwargs):
-        """LLM 호출 (SSE 스트리밍)"""
+        """LLM 호출 (SSE 스트리밍). version 으로 chat_v1/chat_v2 의 실제 구현을 직접 고른다."""
         session = get_owned_session(request, kwargs["session_id"])
         serializer = ChatMessageInputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
-        events = send_message(session, data["content"], data.get("context"), version=kwargs.get("version"))
+        send, _update = _dispatch(kwargs.get("version"))
+        events = send(session, data["content"], data.get("context"))
         return event_stream_response(events)
 
     def put(self, request, *args, **kwargs):
-        """이후 채팅목록을 수정 + LLM 호출"""
+        """이후 채팅목록을 수정 + LLM 호출. version 으로 chat_v1/chat_v2 의 실제 구현을 직접 고른다."""
         serializer = ChatMessageUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
-        events = message_update(
-            request, kwargs["session_id"], data["message_id"], data["content"], data.get("context"),
-            version=kwargs.get("version"),
-        )
+        _send, update = _dispatch(kwargs.get("version"))
+        session = get_owned_session(request, kwargs["session_id"])
+        events = update(session, data["message_id"], data["content"], data.get("context"))
         return event_stream_response(events)
 
     def delete(self, request, *args, **kwargs):

@@ -7,35 +7,45 @@ python manage.py test 로 실행한다. thread_id 는 매번 새 세션 uuid 라
 """
 import json
 import os
-import sys
 import types
 import uuid
+from contextlib import contextmanager
 from unittest.mock import patch as mock_patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
 from rest_framework.test import APIClient
 
 from llm.models import ChatSession
 from llm.serializer.message import ANSWER_TEXT_EVENT, GENERIC_ERROR_MESSAGE
 from llm.service import chat as chat_service
+from llm.serializer.message import project_history
 from llm.service.chat import ChatThread
+from llm.v1.rag import pipeline as v1_pipeline
+from llm.v2.agent import chain as v2_chain
 
 User = get_user_model()
 
 
 class FakeChain:
-    """v2 chain.stream(inputs) -> Iterator[str] / v1 chain.astream_events(inputs) 를 흉내내는 가짜 체인."""
+    """v2 get_graph().stream(messages+updates, subgraphs) / v1 chain.astream_events(inputs) 가짜."""
 
     def __init__(self, chunks=("안녕", "하세요")):
         self.chunks = chunks
         self.received_inputs = None
+        self.received_config = None
+        self.inputs = []
+        self.configs = []
 
-    def stream(self, inputs):
-        self.received_inputs = inputs
-        for chunk in self.chunks:
-            yield chunk
+    def stream(self, graph_input, config=None, stream_mode=None, subgraphs=False):
+        self.received_inputs, self.received_config = graph_input, config
+        self.inputs.append(graph_input)
+        self.configs.append(config)
+        self.received_stream_mode = stream_mode
+        for chunk in self.chunks:  # 답변 Agent 의 model 노드 토큰
+            yield ("simple_agent:1",), "messages", (AIMessageChunk(chunk), {"langgraph_node": "model"})
+        yield (), "updates", {"simple_agent": {"messages": [AIMessage("".join(self.chunks))]}}
 
     async def astream_events(self, inputs, version):
         # v1 경로: 모델 없는 답과 같은 공개 답변 이벤트로 흘리고 run["answer"] 에 전문을 남긴다.
@@ -46,10 +56,18 @@ class FakeChain:
 
 
 class FailingChain:
-    def stream(self, inputs):
-        self.received_inputs = inputs
+    def stream(self, graph_input, config=None, stream_mode=None, subgraphs=False):
+        self.received_inputs = graph_input
         raise RuntimeError("provider exploded")
         yield  # pragma: no cover - generator 표시용
+
+
+@contextmanager
+def patch_chain(**kw):
+    """v1 chat_chain() 와 v2 get_graph() 를 같은 가짜로 바꾼다. (v1 mock, v2 mock) 을 돌려준다."""
+    with mock_patch.object(v1_pipeline, "chat_chain", **kw) as v1, \
+            mock_patch.object(v2_chain, "get_graph", **kw) as v2:
+        yield v1, v2
 
 
 def _read_sse_body(body):
@@ -92,7 +110,7 @@ def snapshot(session):
 
 
 def history(session):
-    return chat_service.project_history(*snapshot(session))
+    return project_history(*snapshot(session))
 
 
 def guest_request(session):
@@ -100,43 +118,6 @@ def guest_request(session):
         user=types.SimpleNamespace(is_authenticated=False),
         COOKIES={"guest_id": str(session.guest)},
     )
-
-
-class GetChainVersionTest(TestCase):
-    """llm.v2.agent.chain 은 langchain_typesafe(미설치) 를 무겁게 import 하므로, 실제 모듈
-    대신 sys.modules 에 가짜 llm.v2.agent.chain / llm.v1.rag.pipeline 을 심어 get_chain()의
-    분기(버전 문자열 -> 어느 모듈의 무엇을 리턴하는지)만 검증한다. 실제 v1/v2 체인
-    내부 동작은 각각 llm/v1/rag 쪽 테스트와 llm/tests/test_agent_chains.py 가 맡는다.
-    """
-
-    def setUp(self):
-        self.fake_v2_module = types.ModuleType("llm.v2.agent.chain")
-        self.fake_v2_module.chain = object()
-
-        self.fake_v1_module = types.ModuleType("llm.v1.rag.pipeline")
-        self.fake_v1_module.chat_chain = lambda: "fake-v1-chain"
-
-        patcher = mock_patch.dict(sys.modules, {
-            "llm.v2.agent.chain": self.fake_v2_module,
-            "llm.v1.rag.pipeline": self.fake_v1_module,
-        })
-        patcher.start()
-        self.addCleanup(patcher.stop)
-
-    def test_v1_calls_chat_chain(self):
-        self.assertEqual(chat_service.get_chain("v1"), "fake-v1-chain")
-
-    def test_v2_returns_agent_chain(self):
-        self.assertIs(chat_service.get_chain("v2"), self.fake_v2_module.chain)
-
-    def test_defaults_to_v2_when_env_unset(self):
-        with mock_patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("LLM_CHAIN_VERSION", None)
-            self.assertIs(chat_service.get_chain(), self.fake_v2_module.chain)
-
-    def test_env_var_selects_v1(self):
-        with mock_patch.dict(os.environ, {"LLM_CHAIN_VERSION": "v1"}):
-            self.assertEqual(chat_service.get_chain(), "fake-v1-chain")
 
 
 class ResolveVersionTest(TestCase):
@@ -162,7 +143,7 @@ class SendMessageTest(CheckpointTestCase):
         self.session = ChatSession.objects.create(guest="11111111-1111-1111-1111-111111111111")
 
     def _patched_chain(self, chain):
-        return mock_patch("llm.service.chat.get_chain", return_value=chain)
+        return patch_chain(return_value=chain)
 
     def test_sse_frame_order_and_persistence(self):
         fake = FakeChain(chunks=("안", "녕"))
@@ -170,11 +151,10 @@ class SendMessageTest(CheckpointTestCase):
             frames = list(chat_service.send_message(self.session, "안녕?"))
 
         events = [event for event, _ in frames]
-        self.assertEqual(events, ["delta", "delta", "done"])
-        self.assertEqual(frames[0][1], {"text": "안"})
-        self.assertEqual(frames[1][1], {"text": "녕"})
-        self.assertEqual(frames[2][1]["assistant_message"], "안녕")
-        self.assertEqual(frames[2][1]["tools"], [])
+        self.assertEqual(events, ["delta", "delta", "done"])  # v2: 답변 Agent 토큰 그대로
+        self.assertEqual([d["text"] for _, d in frames[:2]], ["안", "녕"])
+        self.assertEqual(frames[-1][1]["assistant_message"], "안녕")
+        self.assertEqual(frames[-1][1]["tools"], [])
 
         messages, turns = snapshot(self.session)
         human, answer = messages
@@ -182,7 +162,7 @@ class SendMessageTest(CheckpointTestCase):
         self.assertIsInstance(answer, AIMessage)
         self.assertEqual((human.content, answer.content), ("안녕?", "안녕"))
         self.assertEqual(turns, {human.id: {"status": "completed", "answer_id": answer.id}})
-        self.assertEqual(frames[2][1]["message_id"], "2")  # 공개 wire: 옛 정수 id 의 숫자 문자열 (thread 안 2번째 메시지)
+        self.assertEqual(frames[-1][1]["message_id"], "2")  # 공개 wire: 옛 정수 id 의 숫자 문자열 (thread 안 2번째 메시지)
 
     def test_history_passed_to_chain_excludes_current_question(self):
         seed(self.session, ("이전 질문", "이전 답변"))
@@ -190,10 +170,146 @@ class SendMessageTest(CheckpointTestCase):
         with self._patched_chain(fake):
             list(chat_service.send_message(self.session, "새 질문"))  # 제너레이터는 실제로 순회해야 chain.stream() 이 돈다
 
-        history_in = fake.received_inputs["chat_history"]
-        self.assertEqual([type(m) for m in history_in], [HumanMessage, AIMessage])
-        self.assertEqual([m.content for m in history_in], ["이전 질문", "이전 답변"])
-        self.assertEqual(fake.received_inputs["question"], "새 질문")
+        messages_in = fake.received_inputs["messages"]
+        self.assertEqual([type(m) for m in messages_in], [HumanMessage, AIMessage, HumanMessage])
+        self.assertEqual([m.content for m in messages_in], ["이전 질문", "이전 답변", "새 질문"])
+        self.assertEqual(fake.received_stream_mode, ["messages", "updates"])
+
+    def test_second_v2_turn_uses_current_history(self):
+        fake = FakeChain(chunks=("첫 답",))
+        with self._patched_chain(fake):
+            list(chat_service.send_message(self.session, "첫 질문"))
+            fake.chunks = ("둘째 답",)
+            list(chat_service.send_message(self.session, "둘째 질문"))
+        self.assertEqual([m.content for m in fake.inputs[0]["messages"]], ["첫 질문"])
+        self.assertEqual(
+            [m.content for m in fake.inputs[1]["messages"]],
+            ["첫 질문", "첫 답", "둘째 질문"],
+        )
+        messages, turns = snapshot(self.session)
+        self.assertEqual([m.content for m in messages], ["첫 질문", "첫 답", "둘째 질문", "둘째 답"])
+        self.assertEqual([i["status"] for i in project_history(messages, turns)], ["completed"] * 4)
+        # 모델 실행은 checkpoint 를 쓰지 않는다: root("") 외 namespace 없음, 모델 기원 메시지 복제 없음
+        self.assertEqual(fake.configs, [None, None])  # checkpointer 없는 그래프라 config(thread_id) 도 안 넘긴다
+        with ChatThread._graph() as graph:
+            ns = {t.config["configurable"]["checkpoint_ns"] for t in graph.checkpointer.list({"configurable": {"thread_id": str(self.session.id)}})}
+        self.assertEqual(ns, {""})
+
+    def test_turn_after_delete_and_edit_completes(self):
+        """PUT/DELETE 로 revision 이 오른 뒤에도 다음 턴은 delta+done, completed."""
+        fake = FakeChain(chunks=("답",))
+        with self._patched_chain(fake):
+            list(chat_service.send_message(self.session, "q1"))
+            list(chat_service.send_message(self.session, "q2"))
+            ChatThread(self.session.id).delete_from(snapshot(self.session)[0][2].id)
+            frames = list(chat_service.send_message(self.session, "q3"))
+            self.assertEqual([e for e, _ in frames], ["delta", "done"])
+            list(chat_service.message_update(guest_request(self.session), self.session.id, snapshot(self.session)[0][0].id, "q1'"))
+            frames = list(chat_service.send_message(self.session, "q4"))
+        self.assertEqual([e for e, _ in frames], ["delta", "done"])
+        messages, turns = snapshot(self.session)
+        self.assertEqual([m.content for m in messages], ["q1'", "답", "q4", "답"])
+        self.assertTrue(all(t["status"] == "completed" for t in turns.values()))
+
+    def test_first_delta_is_yielded_before_model_finishes(self):
+        import threading
+        gate, finished = threading.Event(), []
+
+        class Gated(FakeChain):
+            def stream(self, *a, **kw):
+                yield ("simple_agent:1",), "messages", (AIMessageChunk("먼저"), {"langgraph_node": "model"})
+                gate.wait(5)
+                finished.append(True)
+                yield ("simple_agent:1",), "messages", (AIMessageChunk(" 나중"), {"langgraph_node": "model"})
+                yield (), "updates", {"simple_agent": {"messages": [AIMessage("먼저 나중")]}}
+
+        with self._patched_chain(Gated()):
+            frames = chat_service.send_message(self.session, "q")
+            self.assertEqual(next(frames), ("delta", {"text": "먼저"}))
+            self.assertEqual(finished, [])
+            gate.set()
+            rest = list(frames)
+        self.assertEqual(rest[-1][1]["assistant_message"], "먼저 나중")
+
+    def test_only_answer_agent_tokens_and_tools_are_public(self):
+        """분류기·ask_* 안쪽 전문 Agent 토큰은 안 흘리고, 답변 Agent 의 도구는 tool 프레임 + 저장."""
+        from langchain_core.messages import ToolMessage
+        call = {"name": "ask_baseball", "args": {"task": "SECRET_ARG"}, "id": "c1"}
+
+        class Orchestrated(FakeChain):
+            def stream(self, *a, **kw):
+                yield ("jev_router:1",), "messages", (AIMessageChunk("CLASSIFIER"), {"langgraph_node": "model"})
+                yield ("orchestrator:1",), "messages", (AIMessageChunk("", tool_call_chunks=[{"name": "ask_baseball", "args": "", "id": "c1", "index": 0}]), {"langgraph_node": "model"})
+                yield ("orchestrator:1",), "updates", {"model": {"messages": [AIMessage("", tool_calls=[call])]}}
+                yield ("orchestrator:1", "tools:2"), "messages", (AIMessageChunk("SPECIALIST"), {"langgraph_node": "model"})
+                yield ("orchestrator:1",), "updates", {"tools": {"messages": [ToolMessage("SECRET_RESULT", tool_call_id="c1", name="ask_baseball")]}}
+                yield ("orchestrator:1",), "messages", (AIMessageChunk("최종"), {"langgraph_node": "model"})
+                yield (), "updates", {"orchestrator": {"messages": [AIMessage("최종")]}}
+
+        with self._patched_chain(Orchestrated()):
+            frames = list(chat_service.send_message(self.session, "q"))
+        body = json.dumps(frames, ensure_ascii=False)
+        for secret in ("CLASSIFIER", "SPECIALIST", "SECRET_ARG", "SECRET_RESULT"):
+            self.assertNotIn(secret, body)
+        self.assertEqual(frames[:3], [
+            ("tool", {"id": "c1", "tool_name": "ask_baseball", "status": "running"}),
+            ("tool", {"id": "c1", "tool_name": "ask_baseball", "status": "completed"}),
+            ("delta", {"text": "최종"}),
+        ])
+        self.assertEqual(frames[-1][1]["tools"], [{"id": "c1", "tool_name": "ask_baseball", "status": "completed"}])
+        self.assertEqual(history(self.session)[-1]["tools"], frames[-1][1]["tools"])
+
+    def _pre_tool_then_final(self, stream_final):
+        from langchain_core.messages import ToolMessage
+        call = {"name": "get_stadium", "args": {}, "id": "c1"}
+        node = ("simple_agent:1",)
+
+        class PreTool(FakeChain):
+            def stream(self, *a, **kw):
+                yield node, "messages", (AIMessageChunk("PRE-", id="m1"), {"langgraph_node": "model"})
+                yield node, "messages", (AIMessageChunk("", id="m1", tool_call_chunks=[{"name": "get_stadium", "args": "", "id": "c1", "index": 0}]), {"langgraph_node": "model"})
+                yield node, "messages", (AIMessageChunk("LATE", id="m1"), {"langgraph_node": "model"})
+                yield node, "updates", {"model": {"messages": [AIMessage("PRE-LATE", tool_calls=[call])]}}
+                yield node, "updates", {"tools": {"messages": [ToolMessage("ok", tool_call_id="c1", name="get_stadium")]}}
+                if stream_final:
+                    yield node, "messages", (AIMessageChunk("ANS", id="m2"), {"langgraph_node": "model"})
+                    yield node, "messages", (AIMessageChunk("WER", id="m2"), {"langgraph_node": "model"})
+                yield (), "updates", {"simple_agent": {"messages": [AIMessage("ANSWER")]}}
+
+        with self._patched_chain(PreTool()):
+            frames = list(chat_service.send_message(self.session, "q"))
+        self.assertEqual(frames[-1][0], "done")
+        self.assertEqual(frames[-1][1]["assistant_message"], "ANSWER")
+        self.assertEqual(snapshot(self.session)[0][-1].content, "ANSWER")
+        self.assertNotIn("LATE", json.dumps(frames))  # tool_call 이 드러난 호출의 뒤 텍스트는 안 흘림
+        return [d["text"] for e, d in frames if e == "delta"]
+
+    def test_pre_tool_text_is_not_saved(self):
+        self.assertEqual(self._pre_tool_then_final(True), ["PRE-", "ANS", "WER"])
+
+    def test_non_streamed_final_after_pre_tool_text_is_not_lost(self):
+        self.assertEqual(self._pre_tool_then_final(False), ["PRE-", "ANSWER"])
+
+    def test_scope_refusal_from_updates_is_a_delta(self):
+        class Refused(FakeChain):
+            def stream(self, *a, **kw):
+                yield (), "updates", {"jev_router": {"messages": [AIMessage("범위 밖")]}}
+
+        with self._patched_chain(Refused()):
+            frames = list(chat_service.send_message(self.session, "q"))
+        self.assertEqual(frames[0], ("delta", {"text": "범위 밖"}))
+        self.assertEqual(frames[1][1]["assistant_message"], "범위 밖")
+
+    def test_edit_rebuilds_current_history(self):
+        fake = FakeChain(chunks=("첫 답",))
+        with self._patched_chain(fake):
+            list(chat_service.send_message(self.session, "원래 질문"))
+            target = snapshot(self.session)[0][0]
+            fake.chunks = ("수정 답",)
+            list(chat_service.message_update(
+                guest_request(self.session), self.session.id, target.id, "수정 질문"
+            ))
+        self.assertEqual([m.content for m in fake.inputs[1]["messages"]], ["수정 질문"])
 
     def test_history_passed_to_chain_skips_unfinished_turns(self):
         """실패/취소 턴의 질문은 모델 입력에 다시 넣지 않는다 (완료된 질문/답변만)."""
@@ -202,7 +318,7 @@ class SendMessageTest(CheckpointTestCase):
         fake = FakeChain()
         with self._patched_chain(fake):
             list(chat_service.send_message(self.session, "새 질문"))
-        self.assertEqual(fake.received_inputs["chat_history"], [])
+        self.assertEqual([m.content for m in fake.received_inputs["messages"]], ["새 질문"])
 
     def test_send_message_rejects_unsupported_version_before_insert(self):
         """send_message(version="v3") 는 chain 호출/메시지 저장 전에 막힌다 (조용한 v2 폴백 없음)."""
@@ -246,7 +362,7 @@ class ChatMessageViewSSEWireFormatTest(CheckpointTestCase):
 
     def test_post_message_streams_sse_wire_format(self):
         fake = FakeChain(chunks=("안", "녕"))
-        with mock_patch("llm.service.chat.get_chain", return_value=fake):
+        with patch_chain(return_value=fake):
             response = self.client_a.post(
                 f"/api/v2/chat/sessions/{self.session.id}/messages/",
                 {"content": "안녕?"},
@@ -262,8 +378,7 @@ class ChatMessageViewSSEWireFormatTest(CheckpointTestCase):
         frames = _read_sse_body(body)
         events = [event for event, _ in frames]
         self.assertEqual(events, ["delta", "delta", "done"])
-        self.assertEqual(frames[0][1], {"text": "안"})
-        self.assertEqual(frames[1][1], {"text": "녕"})
+        self.assertEqual([d["text"] for _, d in frames[:2]], ["안", "녕"])
         self.assertEqual(frames[2][1]["assistant_message"], "안녕")
 
 
@@ -343,7 +458,7 @@ class MessageContextValidationTest(CheckpointTestCase):
 
     def test_missing_context_is_backward_compatible(self):
         fake = FakeChain(chunks=("안",))
-        with mock_patch("llm.service.chat.get_chain", return_value=fake):
+        with patch_chain(return_value=fake):
             response = self._post({"content": "안녕"})
             self.assertEqual(response.status_code, 200)
             b"".join(response.streaming_content)  # patch 가 살아있는 동안 순회해야 스트림이 돈다
@@ -352,7 +467,7 @@ class MessageContextValidationTest(CheckpointTestCase):
     def test_valid_context_reaches_chain_input(self):
         fake = FakeChain(chunks=("안",))
         context = {"stadium": "잠실야구장", "intent": "route", "origin": {"lat": 37.51, "lng": 127.07}}
-        with mock_patch("llm.service.chat.get_chain", return_value=fake):
+        with patch_chain(return_value=fake):
             response = self._post({"content": "코스 짜줘", "context": context})
             self.assertEqual(response.status_code, 200)
             b"".join(response.streaming_content)
@@ -409,7 +524,7 @@ class MessageContextValidationTest(CheckpointTestCase):
 
     def test_content_max_length_boundary_accepted(self):
         fake = FakeChain(chunks=("답",))
-        with mock_patch("llm.service.chat.get_chain", return_value=fake):
+        with patch_chain(return_value=fake):
             response = self._post({"content": "가" * 2200})
             self.assertEqual(response.status_code, 200)
             b"".join(response.streaming_content)
@@ -466,7 +581,7 @@ class MessageContextValidationTest(CheckpointTestCase):
 
         fake = FakeChain(chunks=("안",))
         context = {"stadium": "잠실야구장"}
-        with mock_patch("llm.service.chat.get_chain", return_value=fake):
+        with patch_chain(return_value=fake):
             response = self.client_a.put(
                 f"/api/v2/chat/sessions/{self.session.id}/messages/",
                 {"content": "수정된 질문", "message_id": target.id, "context": context},
@@ -481,7 +596,7 @@ class MessageContextValidationTest(CheckpointTestCase):
         self.assertEqual([i["id"] for i in items[:2]], [earlier_q.id, earlier_a.id])  # 이전 턴 보존
         self.assertEqual(items[2]["id"], target.id)  # 수정 대상은 ID 를 유지한 채 내용만 바뀐다
         self.assertNotIn(stale_answer.id, {i["id"] for i in items})  # 이후 답변은 지워짐
-        self.assertEqual([m.content for m in fake.received_inputs["chat_history"]], ["이전 질문", "이전 답변"])
+        self.assertEqual([m.content for m in fake.received_inputs["messages"]], ["이전 질문", "이전 답변", "수정된 질문"])
         self.assertEqual(fake.received_inputs["context"]["stadium"], "잠실야구장")
         # 과거 checkpoint 는 thread 삭제 전까지 남는다 (seed 1 + 수정 pending 1 + completed 1)
         self.assertEqual(len(ChatThread(self.session.id).history()), 3)
@@ -493,7 +608,7 @@ class MessageContextValidationTest(CheckpointTestCase):
         before = snapshot(self.session)
 
         fake = FakeChain(chunks=("안",))
-        with mock_patch("llm.service.chat.get_chain", return_value=fake):
+        with patch_chain(return_value=fake):
             response = self.client_a.put(
                 f"/api/v2/chat/sessions/{self.session.id}/messages/",
                 {"content": "수정된 질문", "message_id": target.id,
@@ -522,7 +637,7 @@ class MessageIdValidationTest(CheckpointTestCase):
 
     def test_put_missing_message_id_rejected_without_deleting(self):
         fake = FakeChain(chunks=("답",))
-        with mock_patch("llm.service.chat.get_chain", return_value=fake):
+        with patch_chain(return_value=fake):
             response = self.client_a.put(
                 f"/api/v2/chat/sessions/{self.session.id}/messages/",
                 {"content": "수정된 질문"},
@@ -534,7 +649,7 @@ class MessageIdValidationTest(CheckpointTestCase):
 
     def test_put_malformed_message_id_rejected_without_deleting(self):
         fake = FakeChain(chunks=("답",))
-        with mock_patch("llm.service.chat.get_chain", return_value=fake):
+        with patch_chain(return_value=fake):
             response = self.client_a.put(
                 f"/api/v2/chat/sessions/{self.session.id}/messages/",
                 {"content": "수정된 질문", "message_id": "not-a-valid-id"},
@@ -582,38 +697,38 @@ class UrlVersionForwardingTest(CheckpointTestCase):
 
     def test_v1_url_forwards_v1_to_chain_selection(self):
         fake = FakeChain(chunks=("안",))
-        with mock_patch("llm.service.chat.get_chain", return_value=fake) as get_chain_mock:
+        with patch_chain(return_value=fake) as (v1_mock, v2_mock):
             response = self.client_a.post(
                 f"/api/v1/chat/sessions/{self.session.id}/messages/",
                 {"content": "안녕"}, format="json", HTTP_ACCEPT="text/event-stream",
             )
             self.assertEqual(response.status_code, 200)
             b"".join(response.streaming_content)
-        get_chain_mock.assert_called_once_with("v1")
+        v1_mock.assert_called_once_with(); v2_mock.assert_not_called()
 
     def test_v2_url_forwards_v2_to_chain_selection(self):
         fake = FakeChain(chunks=("안",))
-        with mock_patch("llm.service.chat.get_chain", return_value=fake) as get_chain_mock:
+        with patch_chain(return_value=fake) as (v1_mock, v2_mock):
             response = self.client_a.post(
                 f"/api/v2/chat/sessions/{self.session.id}/messages/",
                 {"content": "안녕"}, format="json", HTTP_ACCEPT="text/event-stream",
             )
             self.assertEqual(response.status_code, 200)
             b"".join(response.streaming_content)
-        get_chain_mock.assert_called_once_with("v2")
+        v2_mock.assert_called_once(); v1_mock.assert_not_called()
 
     def test_url_version_overrides_env_default(self):
         """env 가 v2 여도 /api/v1/chat/ 로 오면 v1 체인이 선택된다 (URL 이 우선)."""
         fake = FakeChain(chunks=("안",))
         with mock_patch.dict(os.environ, {"LLM_CHAIN_VERSION": "v2"}):
-            with mock_patch("llm.service.chat.get_chain", return_value=fake) as get_chain_mock:
+            with patch_chain(return_value=fake) as (v1_mock, v2_mock):
                 response = self.client_a.post(
                     f"/api/v1/chat/sessions/{self.session.id}/messages/",
                     {"content": "안녕"}, format="json", HTTP_ACCEPT="text/event-stream",
                 )
                 self.assertEqual(response.status_code, 200)
                 b"".join(response.streaming_content)
-        get_chain_mock.assert_called_once_with("v1")
+        v1_mock.assert_called_once_with(); v2_mock.assert_not_called()
 
     def test_unsupported_version_in_url_rejected_without_inserting_message(self):
         """api/v3/chat/... 는 llm/urls.py 안의 re_path 정규식(v1|v2)이 애초에 라우팅하지
@@ -629,14 +744,12 @@ class UrlVersionForwardingTest(CheckpointTestCase):
         은 v1/v2 이외 값을 v2 로 조용히 폴백하지 않고 ValueError 로 막는다."""
         with self.assertRaises(ValueError):
             chat_service.resolve_version("v3")
-        with self.assertRaises(ValueError):
-            chat_service.get_chain("v3")
 
     def test_put_propagates_version_and_invalid_version_makes_no_destructive_changes(self):
         """PUT 도 URL version 을 체인 선택까지 전달한다. 잘못된 버전 URL 은 라우팅조차 안 된다."""
         target = seed(self.session, ("수정 대상", "답변"))[0]
         fake = FakeChain(chunks=("안",))
-        with mock_patch("llm.service.chat.get_chain", return_value=fake) as get_chain_mock:
+        with patch_chain(return_value=fake) as (v1_mock, v2_mock):
             response = self.client_a.put(
                 f"/api/v1/chat/sessions/{self.session.id}/messages/",
                 {"content": "수정된 질문", "message_id": target.id},
@@ -644,7 +757,7 @@ class UrlVersionForwardingTest(CheckpointTestCase):
             )
             self.assertEqual(response.status_code, 200)
             b"".join(response.streaming_content)
-        get_chain_mock.assert_called_once_with("v1")
+        v1_mock.assert_called_once_with(); v2_mock.assert_not_called()
         self.assertEqual([i["content"] for i in history(self.session)], ["수정된 질문", "안"])
 
         # api/v3/chat/... 같은 잘못된 버전 PUT 은 URLconf 단계에서 이미 막힌다 (Resolver404).
@@ -657,17 +770,11 @@ class UrlVersionForwardingTest(CheckpointTestCase):
         self.assertEqual(len(history(other_session)), 2)
 
 
-class PausingChain:
-    """delta 한 개를 낸 뒤 멈춰서, 그 사이 동시 요청을 흉내낼 수 있게 하는 가짜 체인."""
+class PausingChain(FakeChain):
+    """첫 delta 뒤 멈춰서, 그 사이 동시 요청을 흉내낼 수 있게 하는 가짜 체인."""
 
     def __init__(self, chunks=("안", "녕")):
-        self.chunks = chunks
-        self.received_inputs = None
-
-    def stream(self, inputs):
-        self.received_inputs = inputs
-        yield from self.chunks
-
+        super().__init__(chunks)
 
 class StreamConcurrencyTest(CheckpointTestCase):
     """같은 대화 동시 요청은 직렬화하지 않는다(ChatThread 의 ponytail). 스트림 종료/실패/취소 경로만 확인한다."""
@@ -680,7 +787,7 @@ class StreamConcurrencyTest(CheckpointTestCase):
 
     def test_other_session_is_not_blocked(self):
         other = ChatSession.objects.create(guest="99999999-9999-9999-9999-999999999999")
-        with mock_patch("llm.service.chat.get_chain", return_value=PausingChain()):
+        with patch_chain(return_value=PausingChain()):
             events = chat_service.send_message(self.session, "질문")
             next(events)
             frames = list(chat_service.send_message(other, "다른 방 질문"))
@@ -689,13 +796,13 @@ class StreamConcurrencyTest(CheckpointTestCase):
 
     def test_failure_mid_stream_marks_failed(self):
         class PausingFailingChain:
-            def stream(self, inputs):
-                yield "안"
+            def stream(self, inputs, config=None, stream_mode=None, subgraphs=False):
+                yield (), "updates", {"simple_agent": {"messages": []}}
                 raise RuntimeError("provider exploded mid-stream")
 
-        with mock_patch("llm.service.chat.get_chain", return_value=PausingFailingChain()):
+        with patch_chain(return_value=PausingFailingChain()):
             frames = list(chat_service.send_message(self.session, "질문"))
-        self.assertEqual([e for e, _ in frames], ["delta", "error"])
+        self.assertEqual([e for e, _ in frames], ["error"])
         self.assertNotIn("provider exploded", json.dumps(frames, ensure_ascii=False))
         messages, turns = snapshot(self.session)
         self.assertEqual([m.content for m in messages], ["질문"])  # 부분 답변 저장 안 함
@@ -710,7 +817,7 @@ class ChainInitFailureTest(CheckpointTestCase):
         self.session = ChatSession.objects.create(guest="88888888-8888-8888-8888-888888888888")
 
     def test_chain_initialization_error_marks_user_message_failed_and_emits_error(self):
-        with mock_patch("llm.service.chat.get_chain", side_effect=RuntimeError("chain import 실패")):
+        with patch_chain(side_effect=RuntimeError("chain import 실패")):
             frames = list(chat_service.send_message(self.session, "질문"))
 
         self.assertEqual(frames, [("error", {"detail": GENERIC_ERROR_MESSAGE})])
@@ -725,7 +832,7 @@ class ChainInitFailureTest(CheckpointTestCase):
         client.cookies["guest_id"] = "77777777-7777-7777-7777-777777777777"
         session = ChatSession.objects.create(guest="77777777-7777-7777-7777-777777777777")
 
-        with mock_patch("llm.service.chat.get_chain", side_effect=RuntimeError("chain import 실패")):
+        with patch_chain(side_effect=RuntimeError("chain import 실패")):
             response = client.post(
                 f"/api/v2/chat/sessions/{session.id}/messages/",
                 {"content": "질문"}, format="json", HTTP_ACCEPT="text/event-stream",
@@ -756,7 +863,7 @@ class MessageDeleteNotFoundTest(CheckpointTestCase):
         seed(self.session, ("질문", "답변"))
         before = snapshot(self.session)
         fake = FakeChain(chunks=("안",))
-        with mock_patch("llm.service.chat.get_chain", return_value=fake):
+        with patch_chain(return_value=fake):
             response = self.client_a.put(
                 self.url, {"content": "질문", "message_id": str(uuid.uuid4())},
                 format="json", HTTP_ACCEPT="text/event-stream",

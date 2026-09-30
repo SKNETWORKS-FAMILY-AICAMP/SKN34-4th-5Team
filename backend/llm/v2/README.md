@@ -46,7 +46,7 @@ answer = result["messages"][-1].content
   이 연동은 v2 범위 밖의 별도 통합 작업입니다.
 - 장소 URL 추출·저장 도구는 없어서 PlaceData Agent는 검색·공개 코스 확인만 합니다.
 - JEV 판정은 1차 필터이며 도구의 인증·권한 검사를 대신하지 않습니다. JEV 호출에는 `OPENROUTER_API_KEY`가 필요합니다(첫 판정 때 생성).
-- 부모/자식 Agent 모두 `AGENT_RECURSION_LIMIT`(기본 12)로 멈춥니다. 전문 Agent 실패는 `[조회 실패] ...`로 Orchestrator에 돌아갑니다.
+- 전문/Simple Agent 는 `AGENT_RECURSION_LIMIT`(기본 12), Orchestrator 는 `ORCHESTRATOR_RECURSION_LIMIT`(기본 25)로 멈춥니다. 전문 Agent 실패는 `[조회 실패] ...`로 Orchestrator에 돌아갑니다.
 
 ## 테스트
 

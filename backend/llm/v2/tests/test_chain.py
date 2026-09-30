@@ -160,10 +160,30 @@ class ChainTest(unittest.TestCase):
         self.assertEqual(tool_results, ["[조회 실패] ask_baseball: GraphRecursionError"])
         self.assertLessEqual(self.executed.count("get_games"), RECURSION_LIMIT)  # 자식도 한도 안에서 멈춤
 
-    def test_parent_recursion_limit_raises(self):
-        loop = [call("get_stadium", {}, f"s{i}") for i in range(RECURSION_LIMIT)]
-        with self.assertRaises(GraphRecursionError):
-            self.run_graph(loop, decision(capabilities=["parking_transport"]), [HumanMessage("주차")])
+    def test_tool_loop_ends_with_final_answer_not_recursion_error(self):
+        """도구가 계속 실패하고 모델이 계속 부르려 해도 한도 전 마지막 호출은 도구 없이 답한다."""
+        def loop_while_tools(messages):
+            return call("get_stadium", {}, f"s{len(messages)}") if self.model_calls[-1]["tools"] else AIMessage("모은 결과로 답해요.")
+
+        out = self.run_graph([loop_while_tools], decision(capabilities=["parking_transport"]), [HumanMessage("주차")])
+        self.assertEqual(out["messages"][-1].content, "모은 결과로 답해요.")
+        self.assertEqual(self.model_calls[-1]["tools"], ())
+        self.assertGreater(len(self.model_calls), 1)
+
+    def test_orchestrator_directions_capped_and_ends_with_answer(self):
+        def directions_forever(messages):
+            return call("get_directions", {}, f"d{len(messages)}") if self.model_calls[-1]["tools"] else AIMessage("이동 시간 미확인")
+
+        out = self.run_graph([directions_forever], decision(complexity="COMPLEX"), [HumanMessage("코스")])
+        self.assertEqual(out["messages"][-1].content, "이동 시간 미확인")
+        self.assertEqual(self.executed.count("get_directions"), 2)  # ToolCallLimitMiddleware run_limit
+
+    def test_orchestrator_uses_larger_limit_than_specialists(self):
+        """3 전문 Agent + 이동 시간 재시도로 기본 한도(12 step)를 넘겨도 Orchestrator 는 답까지 간다."""
+        loop = [call("ask_place_data", {"task": "x"}, f"p{i}") for i in range(RECURSION_LIMIT // 3 + 1)]
+        loop = [m for c in loop for m in (c, AIMessage("장소 확인됨"))]  # 전문 Agent 한 번씩 답
+        out = self.run_graph([*loop, AIMessage("이동 시간은 미확인이에요.")], decision(complexity="COMPLEX"), [HumanMessage("코스")])
+        self.assertEqual(out["messages"][-1].content, "이동 시간은 미확인이에요.")
 
     def test_classifier_failure_does_not_bypass(self):
         def boom(*args):
@@ -190,7 +210,7 @@ class ChainTest(unittest.TestCase):
             graph.invoke({"messages": [HumanMessage("순위")]})
         with patch.object(classifier, "classify", return_value=decision(capabilities=["weather"])):
             graph.invoke({"messages": [HumanMessage("날씨")]})
-        self.assertEqual([c["tools"] for c in calls], [("get_standings",), ("get_weather",)])
+        self.assertEqual([c["tools"] for c in calls], [("get_standings",), ("get_games", "get_stadium", "get_weather")])
 
 
     def test_graph_has_exactly_three_work_nodes_and_no_checkpointer(self):
@@ -255,7 +275,7 @@ class ChainTest(unittest.TestCase):
         self.assertEqual([o["messages"][-1].content for o in outs], [f"답:{q}" for q in caps])
         seen = {c["messages"][-1].content: set(c["tools"]) for c in calls}
         self.assertEqual(seen["순위"], {"get_standings"})
-        self.assertEqual(seen["날씨"], {"get_weather"})
+        self.assertEqual(seen["날씨"], {"get_games", "get_stadium", "get_weather"})
         self.assertEqual(seen["주차"], {"get_stadium", "get_transport", "search_kbo_documents"})
 
     def test_classifier_malformed_decision_fails_closed(self):
@@ -290,6 +310,18 @@ class ClassifierTest(unittest.TestCase):
 
     def test_capabilities_match_tool_mapping(self):
         self.assertEqual(set(classifier.CAPABILITIES), set(CAPABILITY_TOOLS))
+
+    def test_weather_and_stadium_info_include_prerequisites(self):
+        self.assertEqual(CAPABILITY_TOOLS["weather"], ("get_games", "get_stadium", "get_weather"))
+        self.assertEqual(CAPABILITY_TOOLS["stadium_info"], (
+            "get_stadium", "get_seat_zones", "get_seat_views", "get_seat_maps", "get_ticket_prices",
+            "get_ticket_policies", "get_food_stores", "get_facilities", "get_stadium_contents",
+            "get_transport", "search_kbo_documents"))
+
+    def test_final_text_flattens_responses_blocks(self):
+        msg = AIMessage(content=[{"type": "reasoning", "id": "rs_1", "summary": []},
+                                 {"type": "text", "text": "답변"}])
+        self.assertEqual(final_text({"messages": [msg]}), "답변")
 
     def test_unexpected_label_raises(self):
         from types import SimpleNamespace as NS

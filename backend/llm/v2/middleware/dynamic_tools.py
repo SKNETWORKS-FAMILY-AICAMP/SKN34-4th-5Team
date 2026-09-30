@@ -12,7 +12,7 @@ CAPABILITY_TOOLS = {
     "rules": ("search_kbo_documents",),
     "stadium_info": (
         "get_stadium", "get_seat_zones", "get_seat_views", "get_seat_maps", "get_ticket_prices",
-        "get_ticket_policies", "get_food_stores", "get_facilities", "get_stadium_contents", "search_kbo_documents",
+        "get_ticket_policies", "get_food_stores", "get_facilities", "get_stadium_contents", "get_transport", "search_kbo_documents",
     ),
     "parking_transport": ("get_stadium", "get_transport", "search_kbo_documents"),
     "community": ("search_community_posts", "get_prediction_games", "get_games"),
@@ -20,7 +20,7 @@ CAPABILITY_TOOLS = {
     "tourism": ("get_stadium", "search_tourism", "search_documents_tool"),
     "directions": ("get_stadium", "get_directions"),
     "courses": ("search_courses", "get_course"),
-    "weather": ("get_weather",),
+    "weather": ("get_games", "get_stadium", "get_weather"),
 }
 
 
