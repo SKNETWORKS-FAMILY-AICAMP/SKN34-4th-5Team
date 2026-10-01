@@ -6,6 +6,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.generics import GenericAPIView
 from rest_framework import mixins
 from llm.serializer.sesstion import ChatSessionSerializer
+from llm.views.message import GuestChatThrottle
 from llm.service.ownership import (
     GUEST_COOKIE_NAME,
     get_owned_session,
@@ -27,6 +28,7 @@ class ChatRoomListView(
         POST: 회원/비회원 모두 새 대화방을 생성합니다. 비회원은 guest_id 쿠키로 식별합니다.
     """
     permission_classes = [AllowAny]
+    throttle_classes = [GuestChatThrottle]
     serializer_class = ChatSessionSerializer
     pagination_class = PageNumberPagination
 

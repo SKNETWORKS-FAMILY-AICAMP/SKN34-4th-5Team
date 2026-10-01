@@ -8,6 +8,7 @@ from django.db import connection, transaction
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import StructuredTool, ToolException, tool
+from django.conf import settings
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
@@ -223,7 +224,8 @@ def transform_query(query: str) -> str:
     if _transformer is None:
         from ..v1.rag.venue.prompts import QUERY_TRANSFORM
         prompt = ChatPromptTemplate.from_messages([("system", QUERY_TRANSFORM), ("human", "{query}")])
-        model = ChatOpenAI(model=os.getenv("LLM_MODEL") or "gpt-5.6-luna", temperature=0, timeout=25, max_retries=0, reasoning_effort="medium", use_responses_api=True)
+        model = ChatOpenAI(model=os.getenv("LLM_MODEL") or "gpt-5.6-luna", temperature=0, timeout=25, max_retries=0, reasoning_effort="medium", use_responses_api=True,
+                          max_tokens=settings.USAGE_MAX_CALL_OUTPUT_TOKENS)
         _transformer = prompt | model | StrOutputParser()
     return _transformer.invoke({"query": query}).strip() or query
 

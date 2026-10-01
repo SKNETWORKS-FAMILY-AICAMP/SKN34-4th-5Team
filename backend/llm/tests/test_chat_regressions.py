@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 from django.core.signals import request_finished
 from django.db import close_old_connections
+from django.test import override_settings
 
 from llm.models import ChatSession
 from llm.service import chat as chat_service
@@ -10,6 +11,7 @@ from llm.tests.test_v2_chat import CheckpointTestCase, PausingChain, history, pa
 from llm.views.sse import event_stream_response
 
 
+@override_settings(USAGE_TURN_RESERVE_TOKENS=1000)  # 동시 스트림 여러 개가 비회원 10,000 토큰 안에 들어가게
 class OrdinarySendLinearizationTest(CheckpointTestCase):
     def setUp(self):
         self.session = ChatSession.objects.create(guest="12121212-1212-1212-1212-121212121212")

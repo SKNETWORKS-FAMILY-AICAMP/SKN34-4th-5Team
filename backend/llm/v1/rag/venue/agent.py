@@ -16,6 +16,7 @@ import logging
 import os
 import time
 
+from django.conf import settings
 from langchain_openai import ChatOpenAI
 
 from ...progress import config_kwargs
@@ -47,7 +48,8 @@ _agent = None
 def llm():
     global _llm
     if _llm is None:
-        _llm = ChatOpenAI(model=LLM_MODEL, temperature=0, timeout=25, max_retries=0, reasoning_effort="medium", use_responses_api=True)
+        _llm = ChatOpenAI(model=LLM_MODEL, temperature=0, timeout=25, max_retries=0, reasoning_effort="medium", use_responses_api=True,
+                          max_tokens=settings.USAGE_MAX_CALL_OUTPUT_TOKENS)
     return _llm
 
 def agent():

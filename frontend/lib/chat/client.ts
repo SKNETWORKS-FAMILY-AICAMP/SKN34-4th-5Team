@@ -26,7 +26,25 @@ export type ChatSendRequest = { sessionId?: string; content: string; context?: C
 export type ChatEditRequest = { sessionId: string; messageId: number; content: string; context?: ChatContext };
 
 export class ChatClientError extends Error {
-  constructor(message: string, public status: number, public uncertain = false, public sessionId?: string) { super(message); }
+  constructor(message: string, public status: number, public uncertain = false, public sessionId?: string, public code?: string) { super(message); }
+}
+
+// Backend-owned usage DTO (GET /api/v2/chat/usage/, backend/llm/service/usage.py balance()). 1 credit = 1000 tokens.
+export type ChatUsageDto = {
+  plan: "member" | "guest"; period: string; timezone: string | null; resets_at: string | null; tokens_per_credit: number;
+  limit_tokens: number; used_tokens: number; reserved_tokens: number; remaining_tokens: number; remaining_credits: string; can_send: boolean;
+};
+export const USAGE_EXHAUSTED = "usage_exhausted";
+const isCount = (value: unknown) => Number.isSafeInteger(value) && Number(value) >= 0;
+const isUsage = (value: unknown): value is ChatUsageDto => isRecord(value) && (value.plan === "member" || value.plan === "guest") &&
+  typeof value.period === "string" && (value.timezone === null || typeof value.timezone === "string") && (value.resets_at === null || typeof value.resets_at === "string") &&
+  ["tokens_per_credit", "limit_tokens", "used_tokens", "reserved_tokens", "remaining_tokens"].every(key => isCount(value[key])) &&
+  typeof value.remaining_credits === "string" && /^\d+\.\d{3}$/.test(value.remaining_credits) && typeof value.can_send === "boolean";
+
+export async function fetchChatUsage(mode: ChatMode, signal?: AbortSignal): Promise<ChatUsageDto> {
+  const value = await request(mode, "/api/v2/chat/usage/", { method: "GET" }, signal, readJson);
+  if (!isUsage(value)) throw new ChatClientError("사용량 응답을 확인하지 못했어요.", 502);
+  return value;
 }
 
 export class ChatStreamStoppedError extends ChatClientError {
@@ -37,6 +55,7 @@ function fallback(status: number) {
   if (status === 401) return "팀 계정 로그인을 확인해 주세요.";
   if (status === 403) return "이 대화를 이용할 권한이 없어요.";
   if (status === 404) return "대화를 찾지 못했어요. 새 대화를 시작해 주세요.";
+  if (status === 402) return "사용 가능한 크레딧을 모두 사용했어요.";
   if (status === 429) return "요청이 많아요. 잠시 후 다시 시도해 주세요.";
   if (status >= 500) return "챗봇 서버에서 요청을 처리하지 못했어요.";
   return "입력 내용을 확인해 주세요.";
@@ -65,6 +84,8 @@ async function request<T>(mode: ChatMode, path: string, init: RequestInit, signa
         response.status >= 500 ? fallback(response.status) : memberError(data, fallback(response.status)),
         response.status,
         response.status >= 500 && mutating,
+        undefined,
+        isRecord(data) && data.code === USAGE_EXHAUSTED ? USAGE_EXHAUSTED : undefined,
       );
     }
     return await read(response);
@@ -145,7 +166,8 @@ async function readStream(response: Response, sessionId: string, callbacks: Chat
     if (event === "error") {
       // The stream failed after the server attempted the turn; the final save may or may not have
       // committed, so the client can't assume persistence failed and must reconcile via history.
-      throw new ChatClientError(typeof value.detail === "string" && value.detail && value.detail.length <= 200 ? value.detail : fallback(502), 502, true, sessionId);
+      throw new ChatClientError(typeof value.detail === "string" && value.detail && value.detail.length <= 200 ? value.detail : fallback(502), 502, true, sessionId,
+        value.code === USAGE_EXHAUSTED ? USAGE_EXHAUSTED : undefined);
     }
     if (event === "stopped") throw new ChatStreamStoppedError(sessionId);
     throw new ChatClientError("알 수 없는 스트림 응답을 받았어요.", 502, true, sessionId);

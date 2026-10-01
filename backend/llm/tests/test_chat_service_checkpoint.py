@@ -18,6 +18,7 @@ from io import StringIO
 from contextlib import ExitStack
 from unittest.mock import patch
 
+from django.test import override_settings
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
@@ -61,7 +62,9 @@ def _chunk(**kw):
 def scripted_model(steps):
     """호출마다 steps 의 다음 생성기로 청크를 낸다 (planner invoke 도 스트리밍 콜백 아래에선 _stream 을 탄다)."""
 
-    class _Model(BaseChatModel):
+    from llm.tests.test_v2_chat import PricedModel
+
+    class _Model(PricedModel, BaseChatModel):
         @property
         def _llm_type(self):
             return "scripted-fake"
@@ -81,11 +84,11 @@ def scripted_model(steps):
 def plan_lookup():
     yield _chunk(content="", tool_call_chunks=[{
         "name": "lookup", "args": json.dumps({"q": ARG_SECRET}), "id": "call_1", "index": 0,
-    }])
+    }], usage_metadata={"input_tokens": 10, "output_tokens": 5, "total_tokens": 15})
 
 
 def plan_ready():
-    yield _chunk(content=PLANNER_SECRET)
+    yield _chunk(content=PLANNER_SECRET, usage_metadata={"input_tokens": 10, "output_tokens": 5, "total_tokens": 15})
 
 
 @tool
@@ -140,7 +143,7 @@ class V1CheckpointStreamingTest(CheckpointTestCase):
             yield _chunk(content=[{"type": "text", "text": "첫 답변"}])
             if not gate.wait(5):
                 raise TimeoutError("consumer never received first delta before the model finished")
-            yield _chunk(content="은 이어서")
+            yield _chunk(content="은 이어서", usage_metadata={"input_tokens": 10, "output_tokens": 5, "total_tokens": 15})
             events.append("producer_done")
 
         pieces = []
@@ -206,6 +209,7 @@ class V1CheckpointStreamingTest(CheckpointTestCase):
         self.assertNotIn("db down", json.dumps([frames, [m.content for m in messages]], ensure_ascii=False))
 
 
+@override_settings(USAGE_TURN_RESERVE_TOKENS=1000)  # 동시 스트림 여러 개가 비회원 10,000 토큰 안에 들어가게
 class CancelAndDeleteTest(CheckpointTestCase):
     def setUp(self):
         self.client_a = APIClient()
@@ -484,6 +488,7 @@ class WriteFenceTest(TransactionTestCase):
         self.assertTrue(waited)
 
 
+@override_settings(USAGE_TURN_RESERVE_TOKENS=1000)  # 동시 스트림 여러 개가 비회원 10,000 토큰 안에 들어가게
 class RunCancellationTest(CheckpointTestCase):
     """프로세스 로컬 run 취소(chat_runs): ABA·범위·종료 이벤트·idle timeout·정리."""
 

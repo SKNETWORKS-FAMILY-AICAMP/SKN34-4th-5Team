@@ -313,13 +313,14 @@ for (const [path, exportName] of [["components/chat-workspace", "ChatWorkspace"]
       .replace(/^import "@\/styles\/[^"]+";$/m, "")
       .replace('from "react"', 'from "../test-surface-react"')
       .replace('from "next/link"', 'from "../test-surface-stub"')
+      .replace('from "next/image"', 'from "../test-surface-stub"')
       .replace('from "@/lib/chat/types"', 'from "../lib/chat/types"')
       .replace('from "@/lib/member-auth"', 'from "../test-member-auth"')
-      .replace(/from "\.\/(chat-provider|icons|chat-answer|chat-course-card|chat-pending|chat-progress)"/g, 'from "../test-surface-stub"');
+      .replace(/from "\.\/(chat-provider|icons|chat-answer|chat-course-card|chat-pending|chat-progress|chat-usage)"/g, 'from "../test-surface-stub"');
     writeFileSync(join(scratch, `${path}.js`), ts.transpileModule(source, {
       fileName: `${path}.tsx`, compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
     }).outputText);
-    writeFileSync(join(scratch, "test-surface-react.js"), "exports.useEffect = () => {}; exports.useRef = current => ({ current });");
+    writeFileSync(join(scratch, "test-surface-react.js"), "exports.useEffect = () => {}; exports.useRef = current => ({ current }); exports.useState = value => [value, () => {}];");
     writeFileSync(join(scratch, "test-surface-stub.js"), "const Stub = () => null; module.exports = new Proxy({ __esModule: true, default: Stub, useChat: () => global.__chat }, { get: (target, key) => key in target ? target[key] : Stub });");
     global.__memberAuth = { status: "anonymous", user: null };
     let cancelled = 0;

@@ -13,7 +13,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 from llm.enum import ChatRole, TurnStatus
 from llm.serializer.message import project_event, project_history
-from llm.service import chat_runs
+from llm.service import chat_runs, usage
 from llm.service.chat_thread import ChatThread
 
 log = logging.getLogger(__name__)
@@ -68,7 +68,7 @@ def _frames(chain, chain_input, run):
                 yield frame
 
 
-def _stream_turn(thread, prefix, turns, human):
+def _stream_turn(thread, prefix, turns, human, charge):
     """프레임: tool*/delta* → done | stopped | error (chat_runs.stream_turn)."""
     run = {
         "answer_run_id": uuid.uuid4(),
@@ -84,22 +84,28 @@ def _stream_turn(thread, prefix, turns, human):
         return _frames(chat_chain(), chain_input, run)
 
     return chat_runs.stream_turn(thread, prefix, turns, human, produce, run,
-                                 on_stop=lambda: run.update(cancelled=True), label="v1")
+                                 on_stop=lambda: run.update(cancelled=True), label="v1", charge=charge)
 
 
-def _start(thread, turn):
-    frames = _stream_turn(thread, *turn)
-    next(frames)  # priming
+def _start(session, thread, begin):
+    """예약(부족하면 InsufficientCredits) → 질문 저장 → 스트림. 저장 실패면 예약을 0 으로 푼다."""
+    charge = usage.reserve(session)
+    try:
+        frames = _stream_turn(thread, *begin(), charge)
+        next(frames)  # priming
+    except BaseException:
+        usage.settle(charge)
+        raise
     return frames
 
 
 def send_message(session, content, context=None):
     """V1 사용자 메시지를 저장하고 (event, data) 제너레이터를 돌려준다. context 는 v1 이 안 쓴다."""
     thread = ChatThread(session.id)
-    return _start(thread, thread.ask(content))
+    return _start(session, thread, lambda: thread.ask(content))
 
 
 def message_update(session, message_id, content, context=None):
     """V1: 해당 사용자 메시지 뒤를 지우고 같은 ID 로 질문을 바꾼 뒤 다시 답한다. context 는 안 쓴다."""
     thread = ChatThread(session.id)
-    return _start(thread, thread.edit(message_id, content))
+    return _start(session, thread, lambda: thread.edit(message_id, content))

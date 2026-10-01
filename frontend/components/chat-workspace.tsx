@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef } from "react";
+import Image from "next/image";
+import { useEffect, useRef, useState } from "react";
 import { MAX_MESSAGE_LENGTH } from "@/lib/chat/types";
 import { useMemberAuth } from "@/lib/member-auth";
 import { useChat } from "./chat-provider";
@@ -10,6 +11,7 @@ import { ChatAnswer } from "./chat-answer";
 import { ChatCourseCard } from "./chat-course-card";
 import { ChatPending } from "./chat-pending";
 import { ChatProgress, ChatSubAgentStatus } from "./chat-progress";
+import { ChatUsage } from "./chat-usage";
 import "@/styles/chat-workspace.css";
 
 const SUGGESTIONS = [
@@ -20,7 +22,17 @@ const SUGGESTIONS = [
 
 export function ChatWorkspace() {
   const chat = useChat();
-  const { status: authStatus } = useMemberAuth();
+  const { status: authStatus, user } = useMemberAuth();
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsRef = useRef<HTMLDialogElement>(null);
+  const settingsOpenerRef = useRef<HTMLButtonElement | null>(null);
+  const settingsFromDrawerRef = useRef(false);
+  const profileRef = useRef<HTMLButtonElement>(null);
+  const mobileProfileRef = useRef<HTMLButtonElement>(null);
+  const profileName = authStatus === "authenticated" ? user?.nickname?.trim() || user?.first_name?.trim() || user?.username?.trim() || "회원" : authStatus === "anonymous" ? "게스트" : authStatus === "loading" ? "계정 확인 중" : "계정 확인 불가";
+  const profileAvatar = authStatus === "authenticated" && user?.avatar ? user.avatar : "/images/default-avatar.svg";
+  const usageMode = authStatus === "authenticated" && user ? "member" : null;
+  const usageIdentity = usageMode === "member" ? `member:${user!.id}` : authStatus;
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const drawerRef = useRef<HTMLDialogElement>(null);
@@ -76,6 +88,45 @@ export function ChatWorkspace() {
     chat.onSend();
   }
 
+  useEffect(() => {
+    if (usageMode) return;
+    settingsFromDrawerRef.current = false;
+    settingsOpenerRef.current = null;
+    settingsRef.current?.close();
+  }, [usageMode]);
+
+  function openSettings(opener: HTMLButtonElement, mobile: boolean) {
+    if (!usageMode) return;
+    settingsOpenerRef.current = opener;
+    settingsFromDrawerRef.current = mobile;
+    if (mobile) drawerRef.current?.close();
+    else { setSettingsOpen(true); settingsRef.current?.showModal(); }
+  }
+
+  function onDrawerClose() {
+    if (drawerRef.current?.open || settingsRef.current?.open) return;
+    if (settingsFromDrawerRef.current && usageMode) {
+      setSettingsOpen(true);
+      settingsRef.current?.showModal();
+    } else if (drawerFocusRef.current === "composer") inputRef.current?.focus();
+    else menuRef.current?.focus();
+  }
+
+  function onSettingsClose() {
+    if (settingsRef.current?.open) return;
+    setSettingsOpen(false);
+    const fromDrawer = settingsFromDrawerRef.current;
+    settingsFromDrawerRef.current = false;
+    if (!usageMode) {
+      if (window.matchMedia("(max-width: 767px)").matches) menuRef.current?.focus();
+      else inputRef.current?.focus();
+    } else if (fromDrawer && window.matchMedia("(max-width: 767px)").matches) {
+      drawerRef.current?.showModal();
+      mobileProfileRef.current?.focus();
+    } else if (window.matchMedia("(max-width: 767px)").matches) menuRef.current?.focus();
+    else (fromDrawer ? profileRef.current : settingsOpenerRef.current)?.focus();
+  }
+
   function sidebarContent(mobile = false) {
     return (
       <>
@@ -101,13 +152,10 @@ export function ChatWorkspace() {
             </div>
           ))}</nav> : <p className="workspace-history-empty">함께 나눈 이야기가<br />여기에 모여요.</p>}
         </div>
-        <nav className="workspace-quick-links" aria-label="직관 준비">
-          <span>직관 준비 이어가기</span>
-          <Link href="/routes/new" onClick={() => closeDrawer()}><Icon name="route" size={18} />루트 작성</Link>
-          <Link href="/routes" onClick={() => closeDrawer()}><Icon name="map" size={18} />루트 둘러보기</Link>
-          <Link href="/stadiums" onClick={() => closeDrawer()}><Icon name="stadium" size={18} />구장 알아보기</Link>
-        </nav>
-        <p className="workspace-sidebar-note">나만의 야구 하루, KBO ROUTE</p>
+        {guest ? <Link href="/login" className="workspace-login" onClick={() => closeDrawer()}><Icon name="login" size={20} /><span>로그인</span></Link> : usageMode ? <button ref={mobile ? mobileProfileRef : profileRef} type="button" className="workspace-profile" aria-label={`${profileName} 설정 열기`} aria-haspopup="dialog" onClick={event => openSettings(event.currentTarget, mobile)}>
+          <Image key={profileAvatar} src={profileAvatar} alt="" width={36} height={36} unoptimized onError={event => { event.currentTarget.src = "/images/default-avatar.svg"; }} />
+          <span><strong>{profileName}</strong><small>{user?.is_staff || user?.is_superuser ? "관리자" : "일반 유저"}</small></span>
+        </button> : <button type="button" className="workspace-profile" disabled><span role="status">{profileName}</span></button>}
       </>
     );
   }
@@ -115,8 +163,23 @@ export function ChatWorkspace() {
   return (
     <div className="chat-workspace">
       <aside className="workspace-sidebar" aria-label="직관 도우미 메뉴">{sidebarContent()}</aside>
-      <dialog ref={drawerRef} className="workspace-drawer" aria-label="직관 도우미 메뉴" onClose={() => { if (drawerFocusRef.current === "composer") inputRef.current?.focus(); else menuRef.current?.focus(); }} onCancel={() => { drawerFocusRef.current = "menu"; }} onClick={event => { if (event.target === event.currentTarget) closeDrawer(); }}>
+      <dialog ref={drawerRef} className="workspace-drawer" aria-label="직관 도우미 메뉴" onClose={onDrawerClose} onCancel={() => { drawerFocusRef.current = "menu"; }} onClick={event => { if (event.target === event.currentTarget) closeDrawer(); }}>
         <div className="workspace-drawer-content">{sidebarContent(true)}</div>
+      </dialog>
+      <dialog ref={settingsRef} className="workspace-settings" aria-labelledby="workspace-settings-title" onClose={onSettingsClose} onClick={event => { if (event.target === event.currentTarget) settingsRef.current?.close(); }}>
+        {usageMode && <><div className="workspace-settings-heading"><h2 id="workspace-settings-title">설정</h2><button type="button" className="workspace-icon-button" aria-label="설정 닫기" autoFocus onClick={() => settingsRef.current?.close()}><Icon name="close" size={21} /></button></div>
+        <section aria-labelledby="workspace-account-title">
+          <h3 id="workspace-account-title">계정</h3>
+          <div className="workspace-account-row">
+            <Image key={profileAvatar} src={profileAvatar} alt="" width={36} height={36} unoptimized onError={event => { event.currentTarget.src = "/images/default-avatar.svg"; }} />
+            <strong className="workspace-account-name">{profileName}</strong>
+            <div className="workspace-account-actions">
+              <Link href="/mypage?tab=profile" className="workspace-icon-button" aria-label="회원 정보 관리" title="회원 정보 관리"><Icon name="book" size={20} /></Link>
+            </div>
+          </div>
+        </section>
+        {settingsOpen && <ChatUsage key={usageIdentity} mode={usageMode} refreshKey={busy ? "busy" : chat.messages.length} />}
+        <section className="workspace-subscription-row" aria-labelledby="workspace-subscription-title"><h3 id="workspace-subscription-title">구독</h3><p className="workspace-usage-soon">구독 요금제는 준비 중이에요.</p></section></>}
       </dialog>
       <main className="workspace-main">
         <header className="workspace-topbar">

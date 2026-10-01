@@ -1,3 +1,4 @@
+from django.conf import settings
 from rest_framework.permissions import AllowAny
 from rest_framework.generics import GenericAPIView
 from rest_framework.renderers import BaseRenderer, JSONRenderer
@@ -15,7 +16,45 @@ from llm.service import chat_v1, chat_v2
 from llm.service.chat import list_messages, message_delete
 from llm.service.ownership import get_owned_session
 from llm.serializer.message import public_frame
+from llm.service import usage
+from llm.service.ownership import parse_guest_id
 from llm.views.sse import event_stream_response
+from rest_framework.throttling import SimpleRateThrottle
+
+
+class GuestChatThrottle(SimpleRateThrottle):
+    """비회원 생성 요청(세션 생성·질문)을 클라이언트 주소로 제한한다. 쿠키를 지워 새 guest 를 만드는 반복을 늦출 뿐 막지는 못한다.
+
+    주소는 DRF get_ident(REST_FRAMEWORK.NUM_PROXIES) 기준이고, 공유 cache(settings.CACHES) 가 없으면 프로세스별로 센다.
+    """
+    scope = "chat_guest"
+
+    def get_rate(self):
+        return f"{settings.CHAT_GUEST_RATE_LIMIT}/{settings.CHAT_GUEST_RATE_WINDOW}"
+
+    def parse_rate(self, rate):
+        limit, window = rate.split("/")
+        return int(limit), int(window)
+
+    def get_cache_key(self, request, view):
+        if request.user.is_authenticated or request.method not in ("POST", "PUT"):
+            return None
+        return self.cache_format % {"scope": self.scope, "ident": self.get_ident(request)}
+
+
+def _insufficient():
+    return Response({"code": usage.EXHAUSTED_CODE, "detail": usage.EXHAUSTED_MESSAGE},
+                    status=http_status.HTTP_402_PAYMENT_REQUIRED)
+
+
+class ChatUsageView(GenericAPIView):
+    """GET /api/v{1,2}/chat/usage/: 요청자 본인(회원 JWT / 비회원 guest_id 쿠키)의 토큰 잔액. 조회는 차감하지 않는다."""
+    permission_classes = [AllowAny]
+
+    def get(self, request, *args, **kwargs):
+        if request.user.is_authenticated:
+            return Response(usage.balance(user=request.user))
+        return Response(usage.balance(guest=parse_guest_id(request)))
 
 
 def _role_stream(request, events):
@@ -84,6 +123,7 @@ class ChatMessageView(GenericAPIView):
     """
     permission_classes = [AllowAny]
     renderer_classes = [JSONRenderer, EventStreamRenderer]
+    throttle_classes = [GuestChatThrottle]
 
     # GET: /api/v2/chat/sessions/<session_id>/messages/
     def get(self, request, *args, **kwargs):
@@ -98,7 +138,10 @@ class ChatMessageView(GenericAPIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
         send, _update = _dispatch(kwargs.get("version"))
-        events = send(session, data["content"], data.get("context"))
+        try:
+            events = send(session, data["content"], data.get("context"))
+        except usage.InsufficientCredits:
+            return _insufficient()
         return event_stream_response(_role_stream(request, events))
 
     def put(self, request, *args, **kwargs):
@@ -108,7 +151,10 @@ class ChatMessageView(GenericAPIView):
         data = serializer.validated_data
         _send, update = _dispatch(kwargs.get("version"))
         session = get_owned_session(request, kwargs["session_id"])
-        events = update(session, data["message_id"], data["content"], data.get("context"))
+        try:
+            events = update(session, data["message_id"], data["content"], data.get("context"))
+        except usage.InsufficientCredits:
+            return _insufficient()
         return event_stream_response(_role_stream(request, events))
 
     def delete(self, request, *args, **kwargs):

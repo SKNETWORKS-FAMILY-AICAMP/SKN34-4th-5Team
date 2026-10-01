@@ -78,3 +78,44 @@ class ChatThreadDeletion(models.Model):
     thread_id = models.UUIDField(primary_key=True)
     token = models.UUIDField(default=uuid.uuid4)  # 예약마다 새 값. drain 은 읽은 token 일 때만 행을 지운다
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class UsageWallet(models.Model):
+    """토큰 사용량 지갑. 회원(user) 또는 비회원(guest = ChatSession.guest UUID) 중 하나만 주인이다.
+
+    period: 회원은 USAGE_TIMEZONE 기준 달("2026-09"), 비회원은 "lifetime"(충전 없음). 달이 바뀌면 used 를 0 으로 되돌린다.
+    """
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True,
+                                related_name="usage_wallet")
+    guest = models.UUIDField(null=True, blank=True, unique=True)
+    period = models.CharField(max_length=16)
+    used_tokens = models.BigIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(user__isnull=False, guest__isnull=True) | Q(user__isnull=True, guest__isnull=False),
+                name="usage_wallet_has_one_owner",
+            ),
+        ]
+
+
+class UsageCharge(models.Model):
+    """턴 하나의 예약·정산 원장. reserved 상태 합계가 지갑의 사용 가능량에서 빠진다."""
+    RESERVED, SETTLED = "reserved", "settled"
+    wallet = models.ForeignKey(UsageWallet, on_delete=models.CASCADE, related_name="charges")
+    session_id = models.UUIDField(null=True)  # FK 아님: 세션이 지워져도 원장은 남는다
+    period = models.CharField(max_length=16)
+    status = models.CharField(max_length=16, default=RESERVED)
+    reserved_tokens = models.BigIntegerField()
+    charged_tokens = models.BigIntegerField(default=0)
+    input_tokens = models.BigIntegerField(default=0)
+    output_tokens = models.BigIntegerField(default=0)
+    calls = models.IntegerField(default=0)
+    unknown_calls = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    settled_at = models.DateTimeField(null=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["wallet", "status"], name="usage_charge_wallet_status")]

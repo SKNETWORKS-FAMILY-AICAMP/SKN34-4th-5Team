@@ -40,6 +40,13 @@ CHAT_CHECKPOINT_SIGNING_KEY = os.getenv("CHAT_CHECKPOINT_SIGNING_KEY", "")
 CHAT_TRUST_PROXY_HEADERS = os.getenv("CHAT_TRUST_PROXY_HEADERS", "false").strip().lower() == "true"
 CHAT_GUEST_RATE_LIMIT = int(os.getenv("CHAT_GUEST_RATE_LIMIT", "10"))
 CHAT_GUEST_RATE_WINDOW = int(os.getenv("CHAT_GUEST_RATE_WINDOW", "60"))
+# 채팅 토큰 사용량(llm.service.usage). 1 credit = 1000 토큰. 회원 달 경계는 USAGE_TIMEZONE 기준.
+USAGE_TIMEZONE = os.getenv("USAGE_TIMEZONE", "Asia/Seoul")
+USAGE_GUEST_TOKENS = int(os.getenv("USAGE_GUEST_TOKENS", "500000"))
+USAGE_MEMBER_MONTHLY_TOKENS = int(os.getenv("USAGE_MEMBER_MONTHLY_TOKENS", "999999000"))
+USAGE_TURN_RESERVE_TOKENS = int(os.getenv("USAGE_TURN_RESERVE_TOKENS", "20000"))
+USAGE_MIN_START_TOKENS = int(os.getenv("USAGE_MIN_START_TOKENS", "1000"))
+USAGE_MAX_CALL_OUTPUT_TOKENS = int(os.getenv("USAGE_MAX_CALL_OUTPUT_TOKENS", "4000"))  # ChatOpenAI max_tokens
 KAKAO_REST_API_KEY = os.getenv("KAKAO_REST_API_KEY", "")
 EXTERNAL_DATA_SYNC_INTERVAL_SECONDS = positive_int_env("EXTERNAL_DATA_SYNC_INTERVAL_SECONDS", 600)
 
@@ -224,7 +231,8 @@ if email_backend == "django.core.mail.backends.smtp.EmailBackend":
 
 
 REST_FRAMEWORK = {
-    'NUM_PROXIES': 1,
+    # X-Forwarded-For 는 CHAT_TRUST_PROXY_HEADERS(앞단 nginx 1개) 일 때만 믿는다. 아니면 REMOTE_ADDR(0).
+    'NUM_PROXIES': 1 if CHAT_TRUST_PROXY_HEADERS else 0,
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework_simplejwt.authentication.JWTAuthentication',

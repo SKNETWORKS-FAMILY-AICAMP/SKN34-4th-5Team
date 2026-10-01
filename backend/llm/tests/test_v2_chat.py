@@ -12,7 +12,9 @@ import uuid
 from contextlib import contextmanager
 from unittest.mock import patch as mock_patch
 
+from django.test import override_settings
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import TestCase
 from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
 from rest_framework.test import APIClient
@@ -62,6 +64,14 @@ class FailingChain:
         yield  # pragma: no cover - generator 표시용
 
 
+class PricedModel:
+    """가짜 chat model 에 실제 모델 이름·출력 상한을 붙인다(usage preflight 가 tokenizer·max_tokens 를 요구)."""
+
+    @property
+    def _identifying_params(self):
+        return {"model_name": "gpt-5.6-luna", "max_tokens": 4000}
+
+
 @contextmanager
 def patch_chain(**kw):
     """v1 chat_chain() 와 v2 get_graph() 를 같은 가짜로 바꾼다. (v1 mock, v2 mock) 을 돌려준다."""
@@ -91,6 +101,10 @@ class CheckpointTestCase(TestCase):
     def setUpClass(cls):
         super().setUpClass()
         ChatThread.setup()
+
+    def _callSetUp(self):
+        cache.clear()  # 비회원 채팅 throttle(GuestChatThrottle) 카운트가 테스트끼리 이어지지 않게
+        super()._callSetUp()
 
 
 def seed(session, *pairs):
@@ -907,6 +921,7 @@ class PausingChain(FakeChain):
     def __init__(self, chunks=("안", "녕")):
         super().__init__(chunks)
 
+@override_settings(USAGE_TURN_RESERVE_TOKENS=1000)  # 동시 스트림 여러 개가 비회원 10,000 토큰 안에 들어가게
 class StreamConcurrencyTest(CheckpointTestCase):
     """같은 대화 동시 요청은 직렬화하지 않는다(ChatThread 의 ponytail). 스트림 종료/실패/취소 경로만 확인한다."""
 

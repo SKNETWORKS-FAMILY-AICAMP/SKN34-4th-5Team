@@ -125,7 +125,7 @@ def cancel_after_commit(session_id):
         transaction.on_commit(lambda: [run.cancel() for run in victims], robust=True)
 
 
-def stream_turn(thread, prefix, turns, human, produce, run, on_stop=None, label="chat"):
+def stream_turn(thread, prefix, turns, human, produce, run, on_stop=None, label="chat", charge=None):
     """V1/V2 공통 턴 스트림. (event, data) 제너레이터이며 호출자가 첫 yield(None, priming)까지 미리 돌린다.
 
     produce(): 공개 (event, data) 제너레이터. run: {"answer", "messages"} 를 produce 가 채운다.
@@ -155,11 +155,17 @@ def stream_turn(thread, prefix, turns, human, produce, run, on_stop=None, label=
         except Exception:
             log.exception("%s chat cancel save failed", label)
 
+    meter, owner_started = None, [False]
+    if charge is not None:  # 토큰 계량: produce 를 worker 안에서 Meter 로 감싸고 끝나면 여기(요청 스레드)서 정산
+        from llm.service import usage
+        meter, source = usage.Meter(charge.reserved_tokens), produce
+        produce = lambda: usage.metered(source, meter, charge)  # noqa: E731
     owner = register(thread.thread_id)
     try:
         final = None
         try:
             yield None  # priming: 소비 전에 close() 돼도 아래 GeneratorExit 경로가 돈다
+            owner_started[0] = True
             yield from owner.pump(produce(), on_stop)
             answer = run["answer"]
             if not isinstance(answer, str) or not answer:
@@ -193,6 +199,16 @@ def stream_turn(thread, prefix, turns, human, produce, run, on_stop=None, label=
         except Exception:
             # ponytail: 최종 저장이 실패하면 턴은 pending 으로 남는다(질문은 이미 저장됨). 다음 요청은 정상 진행.
             log.exception("%s chat save failed", label)
-        yield (PublicChatEvent.DONE.value, done) if done else (PublicChatEvent.ERROR.value, error_payload())
+        if done:
+            yield PublicChatEvent.DONE.value, done
+        elif meter is not None and meter.exhausted:  # 이 턴 예약을 다 써서 다음 model 호출을 막았다
+            from llm.service.usage import EXHAUSTED_CODE, EXHAUSTED_MESSAGE
+            yield PublicChatEvent.ERROR.value, {"detail": EXHAUSTED_MESSAGE, "code": EXHAUSTED_CODE}
+        else:
+            yield PublicChatEvent.ERROR.value, error_payload()
     finally:
         unregister(owner)
+        if charge is not None:
+            if not meter.finished.is_set() and not owner_started[0]:
+                meter.finished.set()  # produce 가 시작도 안 됨(priming 전에 닫힘): model 호출 없음
+            usage.finish(charge, meter)

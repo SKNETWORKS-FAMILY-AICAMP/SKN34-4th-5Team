@@ -38,10 +38,12 @@ MAIN_MODEL_CALL_BUDGET = _budget("ORCHESTRATOR_MODEL_CALL_BUDGET", 8)  # env 이
 
 @cache
 def llm():
+    from django.conf import settings
     from langchain_openai import ChatOpenAI
     return ChatOpenAI(
         model=os.getenv("LLM_MODEL") or "gpt-5.6-luna", temperature=0, timeout=25,
         max_retries=0, reasoning_effort="medium", use_responses_api=True,
+        max_tokens=settings.USAGE_MAX_CALL_OUTPUT_TOKENS,
     )
 
 
