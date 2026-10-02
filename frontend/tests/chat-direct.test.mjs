@@ -10,7 +10,7 @@ import ts from "typescript";
 const frontend = dirname(dirname(fileURLToPath(import.meta.url)));
 const scratch = mkdtempSync(join(tmpdir(), "kbo-chat-direct-test-"));
 after(() => rmSync(scratch, { recursive: true, force: true }));
-for (const name of ["lib/member-auth-request", "lib/chat/types", "lib/chat/validation", "lib/chat/course", "lib/chat/history", "lib/chat/client"]) {
+for (const name of ["lib/member-auth-request", "lib/chat/planning", "lib/chat/types", "lib/chat/validation", "lib/chat/course", "lib/chat/history", "lib/chat/client"]) {
   const source = readFileSync(join(frontend, `${name}.ts`), "utf8");
   const { outputText } = ts.transpileModule(source, {
     fileName: `${name}.ts`, compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
@@ -363,4 +363,19 @@ test("usage DTO is fetched from the owner endpoint and quota errors keep a stabl
   await assert.rejects(sendChatMessage("guest", { sessionId: SESSION, content: "질문" }), error => error.status === 402 && error.code === USAGE_EXHAUSTED);
   global.fetch = async (url, init = {}) => (init.method ?? "GET") === "GET" ? json([room()]) : sse([["delta", { text: "부분" }], ["error", { detail: "사용 가능한 크레딧을 모두 사용했어요.", code: USAGE_EXHAUSTED }]]);
   await assert.rejects(sendChatMessage("guest", { sessionId: SESSION, content: "질문" }), error => error.code === USAGE_EXHAUSTED && error.uncertain);
+});
+
+
+test("planning payload is validated on SSE and history; invalid UI keeps text fallback", async () => {
+  const payload = { offer_writer: true, questions: [{ question: "동행", choices: ["혼자", "친구"] }, { question: "이동", choices: ["도보", "차", "버스", "미정"] }] };
+  for (const planning of [payload, { offer_writer: true, questions: [{ question: "bad", choices: ["one"] }] }, { offer_writer: true, questions: [{ question: "bad", choices: ["a", "b", "c", "d", "e"] }] }, { offer_writer: "yes", questions: [] }]) {
+    const seen = [];
+    global.fetch = async (url, init) => init.method === "GET" ? json([{ ...row(2, "assistant", "텍스트"), planning }]) : sse([["planning", planning], ["done", { message_id: "2", assistant_message: "텍스트", tools: [], planning }]]);
+    const reply = await sendChatMessage("guest", { sessionId: SESSION, content: "계획" }, undefined, { onPlanning: value => seen.push(value) });
+    const history = restoreChatMessages(await fetchChatHistory("guest", SESSION));
+    assert.equal(reply.reply, "텍스트");
+    assert.deepEqual(reply.planning, planning === payload ? payload : undefined);
+    assert.deepEqual(history[0].planning, reply.planning);
+    assert.equal(seen.length, planning === payload ? 1 : 0);
+  }
 });

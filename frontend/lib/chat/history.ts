@@ -1,4 +1,5 @@
 import type { ChatMessage, ChatToolCall } from "./types";
+import { parsePlanning } from "./planning";
 import { buildTimeline } from "./types";
 import type { ChatMessageDto, ChatToolCallDto } from "./wire";
 
@@ -19,9 +20,9 @@ export function commitChatLoad(signal: AbortSignal, isCurrent: () => boolean, co
 // to the assistant row and the user row's tools are empty.
 export function restoreChatMessages(history: ChatMessageDto[]): ChatMessage[] {
   return history.map(item => {
-    const tools = item.tools.map(fromToolDto), timeline = buildTimeline(item.steps ?? [], tools);
+    const tools = item.tools.map(fromToolDto), timeline = buildTimeline(item.steps ?? [], tools), planning = parsePlanning(item.planning);
     return {
-      id: item.id, role: item.role, content: item.content, status: item.status,
+      id: item.id, role: item.role, content: item.content, status: item.status, ...(planning ? { planning } : {}),
       ...(tools.length ? { tools } : {}), ...(timeline.length ? { timeline } : {}),
     };
   });

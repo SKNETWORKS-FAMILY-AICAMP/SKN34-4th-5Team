@@ -1,3 +1,4 @@
+import { parsePlanning, type ChatPlanning } from "./planning";
 import { memberError, memberFetch } from "../member-auth-request";
 import { isRecord, parseChatRequest } from "./validation";
 import type { ChatContext, ChatReply, ChatStatus } from "./types";
@@ -21,7 +22,7 @@ const STATUS: Record<ChatMode, ChatStatus> = {
 };
 export const GUEST_STATUS = STATUS.guest;
 
-export type ChatStreamCallbacks = { onDelta?: (piece: string, parentId: string | null) => void; onTool?: (tool: ChatToolCallDto) => void };
+export type ChatStreamCallbacks = { onPlanning?: (payload: ChatPlanning) => void; onDelta?: (piece: string, parentId: string | null) => void; onTool?: (tool: ChatToolCallDto) => void };
 export type ChatSendRequest = { sessionId?: string; content: string; context?: ChatContext };
 export type ChatEditRequest = { sessionId: string; messageId: number; content: string; context?: ChatContext };
 
@@ -130,12 +131,12 @@ const readEmpty = async (response: Response) => { await response.text(); };
 // Frames are `event: <name>\ndata: <json>\n\n` (backend/llm/views/sse.py): delta{text}* / tool{id,
 // tool_name, status}* then exactly one terminal event: done{message_id, assistant_message, tools},
 // error{detail}, or stopped{}. A stream that closes with none is a dropped connection.
-async function readStream(response: Response, sessionId: string, callbacks: ChatStreamCallbacks): Promise<{ reply: string; assistantMessageId: number; tools: ChatToolCallDto[]; steps: ChatStepDto[] }> {
+async function readStream(response: Response, sessionId: string, callbacks: ChatStreamCallbacks): Promise<{ reply: string; assistantMessageId: number; tools: ChatToolCallDto[]; steps: ChatStepDto[]; planning?: ChatPlanning }> {
   if (!response.body || !response.headers.get("Content-Type")?.toLowerCase().startsWith("text/event-stream")) {
     throw new ChatClientError("스트림 응답을 확인하지 못했어요.", 502, true, sessionId);
   }
   const reader = response.body.getReader(), decoder = new TextDecoder();
-  let buffer = "", streamed = 0, result: { reply: string; assistantMessageId: number; tools: ChatToolCallDto[]; steps: ChatStepDto[] } | null = null;
+  let buffer = "", streamed = 0, result: { reply: string; assistantMessageId: number; tools: ChatToolCallDto[]; steps: ChatStepDto[]; planning?: ChatPlanning } | null = null;
   const consume = (frame: string) => {
     const [eventLine, ...lines] = frame.split(/\r?\n/);
     const event = eventLine?.startsWith("event:") ? eventLine.slice(6).trim() : "";
@@ -155,12 +156,17 @@ async function readStream(response: Response, sessionId: string, callbacks: Chat
       callbacks.onTool?.(value);
       return;
     }
+    if (event === "planning") {
+      const payload = parsePlanning(value);
+      if (payload) callbacks.onPlanning?.(payload);
+      return; // Invalid optional UI falls back to the normal text answer.
+    }
     if (event === "done") {
       if (typeof value.message_id !== "string" || !MESSAGE_ID.test(value.message_id) || !isMessageId(Number(value.message_id)) || typeof value.assistant_message !== "string" || value.assistant_message.length > MAX_REPLY_LENGTH ||
         !Array.isArray(value.tools) || !value.tools.every(isTool) || !isSteps(value.steps)) {
         throw new ChatClientError("최종 답변을 확인하지 못했어요.", 502, true, sessionId);
       }
-      result = { reply: value.assistant_message, assistantMessageId: Number(value.message_id), tools: value.tools, steps: (value.steps as ChatStepDto[] | undefined) ?? [] };
+      result = { reply: value.assistant_message, assistantMessageId: Number(value.message_id), tools: value.tools, steps: (value.steps as ChatStepDto[] | undefined) ?? [], planning: parsePlanning(value.planning) };
       return;
     }
     if (event === "error") {

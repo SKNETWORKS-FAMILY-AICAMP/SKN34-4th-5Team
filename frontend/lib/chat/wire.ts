@@ -1,6 +1,7 @@
 // Hand-typed wire DTOs for /api/v2/chat/ (backend/llm/serializer/message.py, views/sse.py).
 // Message ids are server-issued positive integers kept from the v1 wire (serializer wire_history); sequence_no is
 // the 1-based position in the returned list. done.message_id is the same id as a digit string.
+import type { ChatPlanning } from "./planning";
 import type { ChatContext } from "./types";
 
 export type ChatMessageStatus = "pending" | "completed" | "failed" | "stopped";
@@ -23,6 +24,7 @@ export type ChatMessageDto = {
   status: ChatMessageStatus;
   tools: ChatToolCallDto[];
   steps?: ChatStepDto[];
+  planning?: ChatPlanning;
   created_at: string;
   updated_at: string;
 };
@@ -36,6 +38,7 @@ export type ChatMessageDeleteRequestDto = { message_id: number };
 export type ChatSseEvent =
   | { event: "delta"; data: { text: string; parent_id?: string } }
   | { event: "tool"; data: ChatToolCallDto }
+  | { event: "planning"; data: ChatPlanning }
   | { event: "done"; data: { message_id: string; assistant_message: string; tools: ChatToolCallDto[]; steps?: ChatStepDto[] } }
   | { event: "error"; data: { detail: string } }
   | { event: "stopped"; data: Record<string, never> };

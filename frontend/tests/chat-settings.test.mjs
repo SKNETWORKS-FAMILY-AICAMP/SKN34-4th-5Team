@@ -30,14 +30,14 @@ const deferred = () => { let resolve; const promise = new Promise(done => { reso
 const workspaceSource = readFileSync(join(frontend, "components/chat-workspace.tsx"), "utf8");
 const workspaceAst = ts.createSourceFile("workspace.tsx", workspaceSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 const workspaceBody = workspaceAst.statements.filter(node => !ts.isImportDeclaration(node)).map(node => node.getText(workspaceAst)).join("\n");
-const workspaceCode = ts.transpileModule(`const { Link, Image, useEffect, useRef, useState, useMemberAuth, useChat, Icon, ChatUsage, ChatSubAgentStatus, MAX_MESSAGE_LENGTH } = global.__workspaceDependencies;\n${workspaceBody}`, {
+const workspaceCode = ts.transpileModule(`const { Link, Image, useEffect, useRef, useState, useMemberAuth, useChat, Icon, ChatUsage, ChatSubAgentStatus, ChatQuestions, ChatWriterOffer, MAX_MESSAGE_LENGTH } = global.__workspaceDependencies;\n${workspaceBody}`, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
 }).outputText;
 writeFileSync(join(scratch, "workspace.js"), workspaceCode);
 let identity;
 const Link = () => null;
 global.__workspaceDependencies = {
-  Link, Image: () => null, Icon: () => null, ChatUsage, ChatSubAgentStatus: () => null, MAX_MESSAGE_LENGTH: 2000,
+  Link, Image: () => null, Icon: () => null, ChatUsage, ChatSubAgentStatus: () => null, ChatQuestions: () => null, ChatWriterOffer: () => null, MAX_MESSAGE_LENGTH: 2000,
   useState: (...args) => global.__hooks.useState(...args),
   useEffect: (...args) => global.__hooks.useEffect(...args),
   useRef: (...args) => global.__hooks.useRef(...args),
