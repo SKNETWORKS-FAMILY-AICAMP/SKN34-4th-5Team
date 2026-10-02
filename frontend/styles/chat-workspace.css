@@ -183,7 +183,7 @@
 .workspace-message-note, .workspace-message-actions { flex-basis: 100%; margin-top: 4px; color: #94a1b4; font-size: 11px; text-align: right; }
 .workspace-message-assistant .workspace-message-note { text-align: left; }
 .workspace-message-actions { display: flex; justify-content: flex-end; gap: 10px; }
-.workspace-message-actions button, .workspace-edit-banner button { padding: 2px 0; border: 0; background: transparent; color: #3974c9; text-decoration: underline; text-underline-offset: 3px; font-size: 11px; }
+.workspace-edit-banner button { padding: 2px 0; border: 0; background: transparent; color: #3974c9; text-decoration: underline; text-underline-offset: 3px; font-size: 11px; }
 .workspace-edit-banner { margin-bottom: 8px; color: #7186a1; font-size: 11px; text-align: center; }
 .workspace-settings { position: fixed; inset: 0; width: min(460px, calc(100vw - 32px)); max-width: calc(100vw - 32px); max-height: calc(100dvh - 32px); margin: auto; padding: 22px; border: 1px solid #e1eafa; border-radius: 18px; background: #fff; color: #384c68; overflow-y: auto; overflow-wrap: anywhere; box-shadow: 0 16px 48px #14285026; }
 .workspace-settings::backdrop { background: #1a2c4770; }
@@ -215,3 +215,9 @@
 .workspace-usage-soon { color: #5b6e86; }
 .workspace-profile:focus-visible, .workspace-settings :focus-visible { outline: 2px solid #3974c9; outline-offset: 3px; }
 @media (max-width: 767px) { .workspace-settings { padding: 18px; } }
+
+.workspace-message-actions { opacity: 0; pointer-events: none; }
+.workspace-message-actions button { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: #477ecd; }
+.workspace-message:hover .workspace-message-actions, .workspace-message:focus-within .workspace-message-actions { opacity: 1; pointer-events: auto; }
+.workspace-message-actions button:focus-visible { outline: 2px solid #477ecd; outline-offset: 2px; }
+@media (hover: none), (pointer: coarse) { .workspace-message-actions { opacity: 1; pointer-events: auto; } }

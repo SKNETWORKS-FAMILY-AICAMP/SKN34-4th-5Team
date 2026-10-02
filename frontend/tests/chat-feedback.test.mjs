@@ -30,8 +30,8 @@ test("feedback actions are icon-only, named, toggle-aware and conditionally canc
   for (const rating of [undefined, "up", "down"]) {
     const html = render(rating ? { rating, reason: "", comment: "" } : undefined);
     const buttons = [...html.matchAll(/<button\b([^>]*)>(.*?)<\/button>/gs)];
-    assert.equal(buttons.length, rating ? 3 : 2);
-    for (const [index, label] of ["답변 좋아요", "답변 아쉬워요", "평가 취소"].slice(0, buttons.length).entries()) {
+    assert.equal(buttons.length, rating ? 4 : 3);
+    for (const [index, label] of ["답변 좋아요", "답변 아쉬워요", "이 답변만 삭제", "평가 취소"].slice(0, buttons.length).entries()) {
       const [, attributes, content] = buttons[index];
       assert.ok(attributes.includes(`aria-label="${label}"`));
       assert.ok(attributes.includes(`title="${label === "이 답변만 삭제" ? "이 답변만 지우고 질문과 다른 대화는 남겨요" : label}"`));
@@ -42,7 +42,7 @@ test("feedback actions are icon-only, named, toggle-aware and conditionally canc
     assert.match(html, /aria-busy="false"/);
     assert.match(html, /role="status"/);
   }
-  assert.equal([...render({ rating: "up" }, true).matchAll(/ disabled=""/g)].length, 3);
+  assert.equal([...render({ rating: "up" }, true).matchAll(/ disabled=""/g)].length, 4);
 });
 
 test("feedback never submits or mutates an enclosing course form, and works standalone", { skip: !process.env.PLAYWRIGHT_MODULE }, async () => {

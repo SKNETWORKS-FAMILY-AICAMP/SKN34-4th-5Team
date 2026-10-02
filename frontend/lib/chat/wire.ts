@@ -16,6 +16,7 @@ export type ChatToolCallDto = {
 // Ordered process log of a turn (final answer excluded); tool steps reference `tools` by id.
 export type ChatStepDto = { type: "text"; text: string; parent_id?: string | null } | { type: "tool"; id: string };
 export type ChatMessageDto = {
+  answer_deleted?: boolean;
   feedback?: AnswerFeedback | null;
   id: number;
   sequence_no: number;

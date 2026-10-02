@@ -260,6 +260,27 @@ test("colliding answer IDs vote independently across conversations and account c
   votes[2].pending.resolve(up); await newOwner;
 });
 
+test("assistant deletion removes only its answer and reloads a truthful question tombstone", async () => {
+  global.__memberAuth = { status: "authenticated", user: { id: 7 } };
+  let rows = [row(1, "user", "question"), row(2, "assistant", "answer"), row(3, "user", "later"), row(4, "assistant", "later answer")];
+  const confirmations = [];
+  window.confirm = text => { confirmations.push(text); return true; };
+  global.__chatApi = {
+    ...baseApi, listChatSessions: async () => [rooms[0]], fetchChatHistory: async () => rows,
+    deleteChatMessages: async (_mode, _session, id) => { rows = id === 2 ? [{ ...rows[0], answer_deleted: true }, ...rows.slice(2)] : rows.slice(0, rows.findIndex(item => item.id === id)); },
+  };
+  const runner = hookRunner();
+  let controls = runner.render(); runner.flushEffects(); await tick(); controls = runner.render();
+  controls.onDeleteMessage(2); await tick(); controls = runner.render();
+  assert.deepEqual(controls.messages.map(message => message.id), [1, 3, 4]);
+  assert.equal(controls.messages[0].answerDeleted, true);
+  assert.match(confirmations[0], /이 답변만/);
+  assert.match(confirmations[0], /질문과 다른 대화는 그대로/);
+  controls.onDeleteMessage(3); await tick(); controls = runner.render();
+  assert.deepEqual(controls.messages.map(message => message.id), [1]);
+  assert.match(confirmations[1], /이 질문과 이후 대화를 모두/);
+});
+
 test("guest reload lists cookie-owned sessions and restores history in guest mode", async () => {
   global.__memberAuth = { status: "anonymous", user: null };
   const calls = [];
@@ -409,6 +430,27 @@ for (const [path, exportName] of [["components/chat-workspace", "ChatWorkspace"]
     stop.props.onClick({ preventDefault: () => { prevented = true; } });
     assert.equal(cancelled, 1);
     assert.equal(prevented, true);
+    global.__chat.pending = "";
+    global.__chat.messages = [{ id: 1, role: "user", content: "question", status: "completed" }, { id: 2, role: "assistant", content: "answer", status: "completed" }];
+    const actions = [];
+    const feedback = [];
+    const collect = node => {
+      if (!node || typeof node !== "object") return;
+      if (Array.isArray(node)) { node.forEach(collect); return; }
+      if (["이 질문 수정", "이 질문부터 삭제", "이 답변만 삭제"].includes(node.props?.["aria-label"])) actions.push(node);
+      if (node.props?.message?.role === "assistant") feedback.push(node);
+      collect(node.props?.children);
+    };
+    collect(Surface({}));
+    assert.deepEqual(actions.map(node => node.props["aria-label"]), ["이 질문 수정", "이 질문부터 삭제"]);
+    assert.equal(feedback.length, 1, "assistant actions are delegated to one shared feedback toolbar");
+    assert.equal(feedback[0].props.disabled, false);
+    for (const action of actions) {
+      assert.equal(action.props.type, "button");
+      assert.equal(action.props.children.type, "svg");
+      assert.equal(action.props.children.props["aria-hidden"], "true");
+      assert.equal(action.props.children.props.width, "16");
+    }
     global.__memberAuth = { status: "authenticated", user: { id: 7 } };
   });
 }

@@ -587,8 +587,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const deleteMessage = useCallback(async (id: number) => {
     const sessionId = backendSessions.current.get(activeConversationId);
     if (requestRef.current || loadingConversationRef.current || !mode || !sessionId) return;
-    if (!historyRef.current.some(message => message.id === id && message.role === "user")) return;
-    if (!window.confirm("이 질문과 이후 대화를 모두 지울까요? 지운 대화는 되돌릴 수 없어요.")) return;
+    const target = historyRef.current.find(message => message.id === id);
+    if (!target || (target.role === "assistant" && target.status !== "completed")) return;
+    const answerOnly = target.role === "assistant";
+    if (!window.confirm(answerOnly ? "이 답변만 지울까요? 질문과 다른 대화는 그대로 남아요." : "이 질문과 이후 대화를 모두 지울까요? 지운 대화는 되돌릴 수 없어요.")) return;
     const controller = new AbortController();
     const version = ++requestVersion.current;
     const conversationId = activeConversationId, expectedIdentity = identity;
@@ -601,11 +603,11 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       await deleteChatMessages(mode, sessionId, id, controller.signal);
       if (version !== requestVersion.current) return;
       const index = historyRef.current.findIndex(message => message.id === id);
-      historyRef.current = historyRef.current.slice(0, index);
+      historyRef.current = answerOnly ? historyRef.current.filter(message => message.id !== id) : historyRef.current.slice(0, index);
       setMessages(historyRef.current);
       setFailed("");
       retryRef.current = null;
-      setNotice("선택한 질문부터 이후 대화를 지웠어요.");
+      setNotice(answerOnly ? "선택한 답변만 지웠어요." : "선택한 질문부터 이후 대화를 지웠어요.");
     } catch (cause) {
       if (version !== requestVersion.current) return;
       setNotice("");

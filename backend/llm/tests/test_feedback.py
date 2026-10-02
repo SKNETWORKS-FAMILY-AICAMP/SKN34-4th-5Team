@@ -71,6 +71,93 @@ class FeedbackTests(TestCase):
                          (before.question, before.answer, before.metadata, before.message_id, before.created_at))
         self.assertEqual((after.rating, after.reason, after.comment), ("down", "incorrect", "updated"))
 
+    def test_answer_only_delete_preserves_question_tools_later_and_snapshot(self):
+        from langchain_core.messages import ToolMessage
+        from llm.serializer.message import project_history
+        from llm.service.chat_v1 import _model_history as v1_history
+        from llm.service.chat_v2 import _model_history as v2_history
+        from llm.service import chat_runs
+        from unittest.mock import Mock, patch
+        self.vote()
+        tool = AIMessage("", id=str(uuid.uuid4()), tool_calls=[{"name": "lookup", "args": {"private": "secret"}, "id": "call", "type": "tool_call"}])
+        result = ToolMessage("private result", tool_call_id="call", id=str(uuid.uuid4()))
+        later = HumanMessage("later question", id=str(uuid.uuid4()))
+        later_answer = AIMessage("later answer", id=str(uuid.uuid4()))
+        # Rebuild a canonical two-turn checkpoint with private tool records.
+        from langchain_core.messages import RemoveMessage
+        from langgraph.graph.message import REMOVE_ALL_MESSAGES
+        self.thread.update([RemoveMessage(id=REMOVE_ALL_MESSAGES), self.human, tool, result, self.answer, later, later_answer],
+                           {later.id: {"status": "completed", "answer_id": later_answer.id}})
+        stale = ChatThread(self.session.id)
+        stale.state()
+        run = Mock()
+        path = f"/api/v2/chat/sessions/{self.session.id}/messages/"
+        with patch.object(chat_runs, "snapshot", return_value=[run]) as snapshot:
+            self.assertEqual(self.client.delete(path, {"message_id": self.answer_no}, format="json").status_code, 204)
+        snapshot.assert_called_once_with(str(self.session.id))
+        run.cancel.assert_called_once()
+        self.assertFalse(stale.update([self.answer], {}))
+        reloaded = ChatThread(self.session.id)
+        messages, turns = reloaded.state()
+        self.assertEqual([m.id for m in messages], [self.human.id, tool.id, result.id, later.id, later_answer.id])
+        self.assertEqual(turns[self.human.id], {"status": "completed", "answer_id": None, "answer_deleted": True})
+        items = project_history(messages, turns)
+        self.assertTrue(items[0]["answer_deleted"])
+        for history in (v1_history, v2_history):
+            self.assertEqual([m.content for m in history(messages, turns)], ["later question", "later answer"])
+        public = self.client.get(path)
+        self.assertEqual(public.status_code, 200)
+        self.assertEqual([item["content"] for item in public.data], ["server question", "later question", "later answer"])
+        self.assertNotIn("private result", str(public.data))
+        self.assertNotIn("secret", str(public.data))
+        self.assertEqual(self.vote().status_code, 404)
+        self.assertEqual(self.client.delete(path, {"message_id": self.answer_no}, format="json").status_code, 404)
+        self.assertEqual(AnswerFeedback.objects.get().answer, "server answer")
+        self.assertEqual(self.client.delete(path, {"message_id": reloaded.wire[later.id]["id"]}, format="json").status_code, 204)
+        self.assertEqual([item["content"] for item in self.client.get(path).data], ["server question"])
+
+    def test_answer_delete_fences_pending_turn_without_failing_completed_question(self):
+        pending = HumanMessage("in flight", id=str(uuid.uuid4()))
+        self.thread.update([pending], {pending.id: {"status": "pending", "answer_id": None}})
+        stale = ChatThread(self.session.id)
+        stale.state()
+        self.thread.delete_message(self.answer_no)
+        messages, turns = ChatThread(self.session.id).state()
+        self.assertEqual(turns[self.human.id]["status"], "completed")
+        self.assertTrue(turns[self.human.id]["answer_deleted"])
+        self.assertEqual(turns[pending.id]["status"], "cancelled")
+        self.assertIn(pending.id, [m.id for m in messages])
+        self.assertFalse(stale.update([AIMessage("late answer", id=str(uuid.uuid4()))], {}))
+        from llm.serializer.message import project_history, done_payload
+        self.assertEqual(project_history(messages, turns)[-1]["status"], "cancelled")
+        with self.assertRaises(ValueError):
+            done_payload(messages, turns)
+        with self.assertRaises(ValueError):
+            project_history([self.human], {self.human.id: {"status": "completed", "answer_id": None}})
+        with self.assertRaises(ValueError):
+            project_history([self.human], {self.human.id: {"status": "failed", "answer_id": None, "answer_deleted": True}})
+
+    def test_delete_owner_and_guest_isolation(self):
+        path = f"/api/v2/chat/sessions/{self.session.id}/messages/"
+        for client in (self.member(self.other), APIClient(), self.member(self.admin)):
+            self.assertEqual(client.delete(path, {"message_id": self.answer_no}, format="json").status_code, 404)
+        guest_id = uuid.uuid4()
+        session = ChatSession.objects.create(guest=guest_id)
+        thread = ChatThread(session.id)
+        self.addCleanup(thread.delete)
+        thread.update([self.human, self.answer], {self.human.id: {"status": "completed", "answer_id": self.answer.id}})
+        path = f"/api/v1/chat/sessions/{session.id}/messages/"
+        guest = APIClient()
+        guest.cookies["guest_id"] = str(uuid.uuid4())
+        self.assertEqual(guest.delete(path, {"message_id": 2}, format="json").status_code, 404)
+        member = self.member(self.owner)
+        member.cookies["guest_id"] = str(guest_id)
+        self.assertEqual(member.delete(path, {"message_id": 2}, format="json").status_code, 404)
+        guest.cookies["guest_id"] = str(guest_id)
+        self.assertEqual(guest.delete(path, {"message_id": 2}, format="json").status_code, 204)
+        self.assertEqual([item["content"] for item in guest.get(path).data], ["server question"])
+        self.assertEqual(self.client.get(f"/api/v2/chat/sessions/{self.session.id}/messages/").data[-1]["content"], "server answer")
+
     def test_ownership_and_guest_capability(self):
         for client in (self.member(self.other), APIClient(), self.member(self.admin)):
             self.assertEqual(client.put(self.path, {"message_id": self.answer_no, "rating": "up"}, format="json").status_code, 404)

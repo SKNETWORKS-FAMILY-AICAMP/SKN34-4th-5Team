@@ -23,7 +23,7 @@ def _model_history(messages, turns):
     """다음 모델 입력용 projection: 완료된 턴의 질문/최종 답변만."""
     return [
         HumanMessage(item["content"]) if item["role"] == ChatRole.USER else AIMessage(item["content"])
-        for item in project_history(messages, turns) if item["status"] == TurnStatus.COMPLETED
+        for item in project_history(messages, turns) if item["status"] == TurnStatus.COMPLETED and not item.get("answer_deleted")
     ]
 
 

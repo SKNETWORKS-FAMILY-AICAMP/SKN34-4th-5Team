@@ -242,7 +242,10 @@ def project_history(messages, turns, detail=False):
         if status not in TURN_STATUSES:
             raise ValueError("missing turn status")
         answer_id = turn.get("answer_id")
-        if status == TurnStatus.COMPLETED and not answer_id:
+        deleted = turn.get("answer_deleted") is True
+        if deleted and (status != TurnStatus.COMPLETED or answer_id):
+            raise ValueError("invalid deleted answer turn")
+        if status == TurnStatus.COMPLETED and not answer_id and not deleted:
             raise ValueError("completed turn without answer")
 
         tools, steps = [], []
@@ -250,7 +253,10 @@ def project_history(messages, turns, detail=False):
         if answer_id and answer is None:
             raise ValueError("answer message not found")
 
-        items.append(_history_item(human, ChatRole.USER.value, status, [] if answer else tools, [] if answer else steps))
+        item = _history_item(human, ChatRole.USER.value, status, [] if answer else tools, [] if answer else steps)
+        if deleted:
+            item["answer_deleted"] = True
+        items.append(item)
         if answer:
             items.append(_history_item(answer, ChatRole.ASSISTANT.value, status, tools, steps))
     return items

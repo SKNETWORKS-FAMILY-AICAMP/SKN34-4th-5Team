@@ -78,6 +78,6 @@ def message_update(request, session_id, message_id, content, context=None, versi
 
 
 def message_delete(request, session_id, message_id):
-    """해당 사용자 메시지부터 이후 메시지를 최신 대화에서 제거한다. 제거한 메시지 수를 돌려준다."""
+    """질문은 이후 대화까지, 최종 답변은 해당 답변만 제거한다. 제거한 메시지 수를 돌려준다."""
     session = get_owned_session(request, session_id)
-    return ChatThread(session.id).delete_from(message_id)
+    return ChatThread(session.id).delete_message(message_id)

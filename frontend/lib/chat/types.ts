@@ -26,6 +26,7 @@ export type ChatMessageStatus = "pending" | "completed" | "failed" | "stopped";
 // id·status·tools 는 서버에 저장된 메시지에만 있다 (id 는 서버가 만든 양의 정수). course 는 화면 표시용이다.
 export type AnswerFeedback = { rating: "up" | "down"; reason: string; comment: string };
 export type ChatMessage = {
+  answerDeleted?: boolean;
   feedback?: AnswerFeedback | null;
   role: "user" | "assistant";
   content: string;
