@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import type { ChatContext, ChatCourse, ChatMessage, ChatStatus, ChatTimelineItem } from "@/lib/chat/types";
+import type { AnswerFeedback, ChatContext, ChatCourse, ChatMessage, ChatStatus, ChatTimelineItem } from "@/lib/chat/types";
 import { MAX_MESSAGE_LENGTH, appendTimeline } from "@/lib/chat/types";
 import {
   ChatClientError,
@@ -14,6 +14,7 @@ import {
   getChatStatus,
   listChatSessions,
   sendChatMessage,
+  saveAnswerFeedback,
   type ChatMode,
 } from "@/lib/chat/client";
 import { commitChatLoad, fromToolDto, restoreChatMessages } from "@/lib/chat/history";
@@ -69,6 +70,7 @@ type ChatControls = ConversationSnapshot & {
   /** 저장된 질문과 그 이후 대화를 서버에서 지운다 (확인 후) */
   onDeleteMessage: (id: number) => void;
   onContextChange: (context?: ChatContext) => void;
+  onFeedback: (id: number, feedback: AnswerFeedback | null) => Promise<void>;
   courseTarget: CourseTarget | null;
   registerCourseTarget: (target: CourseTarget | null) => void;
   openCourseInWriter: (course: ChatCourse) => void;
@@ -99,7 +101,7 @@ export function ChatSampleProvider({ children }: { children: React.ReactNode }) 
     conversations: [{ id: "guide-sample", title: "새 대화" }], activeConversationId: "guide-sample",
     openChat: noop, onExpand: noop, onMinimize: noop, onClosePopup: noop,
     onDraftChange: noop, onRefreshStatus: noop, onSend: noop, onRetry: noop, onCancel: noop, onReset: noop,
-    onSuggestion: noop, onSelectConversation: noop, onDeleteConversation: noop,
+    onSuggestion: noop, onSelectConversation: noop, onDeleteConversation: noop, onFeedback: async () => {},
     onEditMessage: noop, onCancelEdit: noop, onDeleteMessage: noop, onContextChange: noop,
     // 샘플 화면은 실제 챗봇 코스를 받지 않는다
     courseTarget: null, registerCourseTarget: noop, openCourseInWriter: noop, takePendingCourse: () => null,
@@ -616,6 +618,30 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     }
   }, [activeConversationId, identity, invalidateSync, mode, syncConversation]);
 
+  const feedbackRequests = useRef(new Set<string>());
+  const saveFeedback = useCallback(async (id: number, feedback: AnswerFeedback | null) => {
+    const sessionId = backendSessions.current.get(activeConversationId);
+    const requestKey = JSON.stringify([identity, sessionId, id]);
+    if (!mode || !sessionId || identityRef.current !== identity || requestRef.current || feedbackRequests.current.has(requestKey)) throw new Error("잠시 후 다시 평가해 주세요.");
+    const target = historyRef.current.find(message => message.id === id && message.role === "assistant" && message.status === "completed");
+    if (!target) throw new Error("저장된 완료 답변만 평가할 수 있어요.");
+    const conversationId = activeConversationId, expectedIdentity = identity;
+    feedbackRequests.current.add(requestKey);
+    invalidateSync();
+    try {
+      const saved = await saveAnswerFeedback(mode, sessionId, id, feedback);
+      if (identityRef.current !== expectedIdentity) return;
+      if (activeConversationRef.current === conversationId) invalidateSync();
+      const update = (items: ChatMessage[]) => items.map(message => message.id === id ? { ...message, feedback: saved } : message);
+      if (activeConversationRef.current === conversationId) {
+        historyRef.current = update(historyRef.current);
+        setMessages(historyRef.current);
+      }
+      const archived = archivedConversations.current.get(conversationId);
+      if (archived) archivedConversations.current.set(conversationId, { ...archived, messages: update(archived.messages) });
+    } finally { feedbackRequests.current.delete(requestKey); }
+  }, [activeConversationId, identity, invalidateSync, mode]);
+
   const retry = useCallback(() => {
     const target = retryRef.current;
     if (!target) return;
@@ -702,7 +728,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       onSelectConversation: selectConversation,
       onDeleteConversation: deleteConversation,
       onEditMessage: editMessage, onCancelEdit: cancelEdit, onDeleteMessage: id => void deleteMessage(id),
-      onContextChange: setContext,
+      onContextChange: setContext, onFeedback: saveFeedback,
       courseTarget, registerCourseTarget, openCourseInWriter, takePendingCourse,
       appliedCourses, applyChatCourse, undoChatCourse,
     }}>

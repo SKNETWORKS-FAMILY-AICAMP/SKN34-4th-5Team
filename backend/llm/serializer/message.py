@@ -93,6 +93,8 @@ class MessageIdField(serializers.Field):
     default_error_messages = {"invalid": "메시지 번호 또는 UUID 여야 합니다."}
 
     def to_internal_value(self, data):
+        if isinstance(data, bool):
+            self.fail("invalid")
         if isinstance(data, str) and data.isascii() and data.isdigit():
             data = int(data)
         if isinstance(data, int) and not isinstance(data, bool):

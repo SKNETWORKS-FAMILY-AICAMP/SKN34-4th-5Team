@@ -64,6 +64,9 @@ def list_messages(request, session_id):
     # 관리자만 도구 인자·결과·하위 Agent 대화(detail)를 본다. 게스트/익명은 is_superuser 가 없거나 False.
     privileged = getattr(request.user, "is_superuser", False) is True
     items = wire_history(*thread.state(), thread.wire, detail=privileged)
+    from llm.serializer.feedback import public_feedback
+    ratings = {row.message_id: public_feedback(row) for row in session.feedback.all()}
+    items = [{**item, "feedback": ratings.get(item["id"])} if item["role"] == "assistant" else item for item in items]
     return items if privileged else [hide_private_tools(item) for item in items]
 
 

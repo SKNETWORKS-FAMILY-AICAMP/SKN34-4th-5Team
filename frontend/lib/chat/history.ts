@@ -22,6 +22,7 @@ export function restoreChatMessages(history: ChatMessageDto[]): ChatMessage[] {
     const tools = item.tools.map(fromToolDto), timeline = buildTimeline(item.steps ?? [], tools);
     return {
       id: item.id, role: item.role, content: item.content, status: item.status,
+      ...(item.feedback !== undefined ? { feedback: item.feedback } : {}),
       ...(tools.length ? { tools } : {}), ...(timeline.length ? { timeline } : {}),
     };
   });

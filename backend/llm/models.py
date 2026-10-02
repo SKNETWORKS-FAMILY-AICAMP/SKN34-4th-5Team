@@ -80,6 +80,28 @@ class ChatThreadDeletion(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
 
+class AnswerFeedback(models.Model):
+    """소유 세션의 완료 답변 평가. 편집 전 스냅샷은 유지하되 세션/회원 삭제 시 함께 삭제한다."""
+    session = models.ForeignKey(ChatSession, on_delete=models.CASCADE, related_name="feedback")
+    answer_id = models.CharField(max_length=255)  # checkpoint AIMessage.id (legacy IDs included)
+    message_id = models.PositiveBigIntegerField()  # public wire ID; never reused within the session
+    rating = models.CharField(max_length=4, choices=[("up", "좋아요"), ("down", "아쉬워요")])
+    reason = models.CharField(max_length=24, blank=True)
+    comment = models.CharField(max_length=1000, blank=True)
+    question = models.TextField()
+    answer = models.TextField()
+    metadata = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["session", "answer_id"], name="feedback_session_answer_unique"),
+            models.CheckConstraint(condition=Q(rating__in=["up", "down"]), name="feedback_valid_rating"),
+        ]
+        ordering = ["-updated_at", "-id"]
+
+
 class UsageWallet(models.Model):
     """토큰 사용량 지갑. 회원(user) 또는 비회원(guest = ChatSession.guest UUID) 중 하나만 주인이다.
 

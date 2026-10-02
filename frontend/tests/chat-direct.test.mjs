@@ -28,7 +28,7 @@ global.sessionStorage = {
 };
 const require = createRequire(join(scratch, "entry.cjs"));
 const { clearMemberTokens, saveMemberTokens } = require("./lib/member-auth-request.js");
-const { ChatClientError, deleteChatMessages, deleteChatSession, editChatMessage, fetchChatHistory, getChatStatus, listChatSessions, renameChatSession, sendChatMessage } = require("./lib/chat/client.js");
+const { saveAnswerFeedback, ChatClientError, deleteChatMessages, deleteChatSession, editChatMessage, fetchChatHistory, getChatStatus, listChatSessions, renameChatSession, sendChatMessage } = require("./lib/chat/client.js");
 const { restoreChatMessages } = require("./lib/chat/history.js");
 const { courseToStops, parseChatCourse } = require("./lib/chat/course.js");
 const json = (value, status = 200) => Response.json(value, { status });
@@ -363,4 +363,39 @@ test("usage DTO is fetched from the owner endpoint and quota errors keep a stabl
   await assert.rejects(sendChatMessage("guest", { sessionId: SESSION, content: "질문" }), error => error.status === 402 && error.code === USAGE_EXHAUSTED);
   global.fetch = async (url, init = {}) => (init.method ?? "GET") === "GET" ? json([room()]) : sse([["delta", { text: "부분" }], ["error", { detail: "사용 가능한 크레딧을 모두 사용했어요.", code: USAGE_EXHAUSTED }]]);
   await assert.rejects(sendChatMessage("guest", { sessionId: SESSION, content: "질문" }), error => error.code === USAGE_EXHAUSTED && error.uncertain);
+});
+
+
+test("feedback create/change/cancel uses real server message ID and survives history restoration", async () => {
+  saveMemberTokens("access-token", "refresh-token");
+  let feedback = null;
+  const calls = [];
+  global.fetch = async (url, init = {}) => {
+    calls.push({ url: String(url), init });
+    if (init.method === "PUT") {
+      const body = JSON.parse(init.body);
+      assert.equal(body.message_id, ASSISTANT_MSG);
+      feedback = body.rating === null ? null : { rating: body.rating, reason: body.reason, comment: body.comment };
+      return json({ feedback });
+    }
+    return json([{ ...row(ASSISTANT_MSG, "assistant", "answer"), feedback }]);
+  };
+  assert.deepEqual(await saveAnswerFeedback("member", SESSION, ASSISTANT_MSG, { rating: "up", reason: "", comment: "" }), { rating: "up", reason: "", comment: "" });
+  await saveAnswerFeedback("member", SESSION, ASSISTANT_MSG, { rating: "down", reason: "incorrect", comment: "wrong" });
+  assert.deepEqual(restoreChatMessages(await fetchChatHistory("member", SESSION))[0].feedback, feedback);
+  assert.equal(await saveAnswerFeedback("member", SESSION, ASSISTANT_MSG, null), null);
+  assert.equal(calls[0].url, `/api/v2/chat/sessions/${SESSION}/feedback/`);
+  assert.equal(new Headers(calls[0].init.headers).get("Authorization"), "Bearer access-token");
+  await saveAnswerFeedback("guest", SESSION, ASSISTANT_MSG, { rating: "up", reason: "", comment: "" });
+  assert.equal(new Headers(calls.at(-1).init.headers).get("Authorization"), null);
+  assert.equal(calls.at(-1).init.credentials, undefined);
+});
+
+test("feedback validates IDs, comment boundaries and API errors without optimistic success", async () => {
+  global.fetch = async () => json({ detail: "stale answer" }, 404);
+  await assert.rejects(saveAnswerFeedback("guest", SESSION, 0, null), error => error.status === 400);
+  await assert.rejects(saveAnswerFeedback("guest", SESSION, 2, { rating: "down", reason: "other", comment: "x".repeat(1001) }), error => error.status === 400);
+  await assert.rejects(saveAnswerFeedback("guest", SESSION, 2, null), error => error.status === 404);
+  global.fetch = async () => json({ feedback: { rating: "invented" } });
+  await assert.rejects(saveAnswerFeedback("guest", SESSION, 2, null), error => error.status === 502);
 });

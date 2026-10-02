@@ -1,6 +1,7 @@
 from django.urls import include, path, re_path
 
 from llm.views.message import ChatMessageView, ChatUsageView
+from llm.views.feedback import ChatFeedbackView, AdminFeedbackListView, AdminFeedbackDetailView
 from llm.views.sesstion import ChatRoomDetailView, ChatRoomListView
 
 """v1/v2 공통 채팅 URL. config/urls.py 는 plain path("api/", include("llm.urls")) 로 여기를
@@ -11,6 +12,9 @@ from llm.views.sesstion import ChatRoomDetailView, ChatRoomListView
 
 _session_patterns = [
     path("usage/", ChatUsageView.as_view(), name="chat-usage"),
+    path("sessions/<uuid:session_id>/feedback/", ChatFeedbackView.as_view(), name="chat-feedback"),
+    path("admin/feedback/", AdminFeedbackListView.as_view(), name="admin-chat-feedback"),
+    path("admin/feedback/<int:pk>/", AdminFeedbackDetailView.as_view(), name="admin-chat-feedback-detail"),
     path("sessions/", ChatRoomListView.as_view(), name="chat-session-list-create"),
     path("sessions/<uuid:session_id>/", ChatRoomDetailView.as_view(), name="chat-session-detail"),
     path(

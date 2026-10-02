@@ -715,7 +715,8 @@ class MessageContextValidationTest(CheckpointTestCase):
         body = response.json()
         self.assertEqual(len(body), 2)
         for item in body:
-            self.assertEqual(set(item), {"id", "sequence_no", "role", "content", "status", "tools", "steps", "created_at", "updated_at"})
+            fields = {"id", "sequence_no", "role", "content", "status", "tools", "steps", "created_at", "updated_at"}
+            self.assertEqual(set(item), fields | ({"feedback"} if item["role"] == "assistant" else set()))
 
     def test_put_updates_message_and_forwards_context_after_truncating_later_turns(self):
         """PUT 은 target 뒤를 RemoveMessage 로 지우고 target 을 같은 ID 의 새 질문으로 바꿔 다시 답한다.

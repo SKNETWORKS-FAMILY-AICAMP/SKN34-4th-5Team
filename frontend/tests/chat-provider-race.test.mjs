@@ -59,7 +59,7 @@ class ChatStreamStoppedError extends ChatClientError {}
 exports.ChatClientError = ChatClientError;
 exports.ChatStreamStoppedError = ChatStreamStoppedError;
 exports.GUEST_STATUS = { provider: "guest", model: "guest", ready: true };
-for (const name of ["deleteChatMessages", "deleteChatSession", "editChatMessage", "fetchChatHistory", "getChatStatus", "listChatSessions", "sendChatMessage"])
+for (const name of ["deleteChatMessages", "deleteChatSession", "editChatMessage", "fetchChatHistory", "getChatStatus", "listChatSessions", "sendChatMessage", "saveAnswerFeedback"])
   exports[name] = (...args) => global.__chatApi[name](...args);
 `);
 
@@ -195,6 +195,71 @@ test("provider ignores delayed list/history callbacks and reloads an interrupted
   assert.deepEqual(historyCalls, [["member", FIRST], ["member", SECOND], ["member", FIRST]]);
 });
 
+test("feedback updates shared history, rejects duplicate writes and ignores an old identity", async () => {
+  global.__memberAuth = { status: "authenticated", user: { id: 7 } };
+  let pendingVote = deferred();
+  const calls = [];
+  global.__chatApi = {
+    ...baseApi,
+    listChatSessions: async () => [rooms[0]],
+    fetchChatHistory: async () => [row(USER_MSG, "user", "질문"), row(ASSISTANT_MSG, "assistant", "답변")],
+    saveAnswerFeedback: (...args) => { calls.push(args); return pendingVote.promise; },
+  };
+  const runner = hookRunner();
+  let controls = runner.render();
+  runner.flushEffects();
+  await tick();
+  controls = runner.render();
+  const up = { rating: "up", reason: "", comment: "" };
+  const saving = controls.onFeedback(ASSISTANT_MSG, up);
+  await assert.rejects(controls.onFeedback(ASSISTANT_MSG, up));
+  pendingVote.resolve(up);
+  await saving;
+  controls = runner.render();
+  assert.deepEqual(controls.messages.find(message => message.id === ASSISTANT_MSG).feedback, up);
+  assert.deepEqual(calls, [["member", FIRST, ASSISTANT_MSG, up]]);
+  pendingVote = deferred();
+  const cancelling = controls.onFeedback(ASSISTANT_MSG, null);
+  global.__memberAuth = { status: "anonymous", user: null };
+  controls = runner.render();
+  runner.flushEffects();
+  pendingVote.resolve(null);
+  await cancelling;
+  await tick();
+  controls = runner.render();
+  assert.ok(controls.messages.every(message => !message.feedback));
+  global.__memberAuth = { status: "authenticated", user: { id: 7 } };
+});
+
+test("colliding answer IDs vote independently across conversations and account changes", async () => {
+  global.__memberAuth = { status: "authenticated", user: { id: 7 } };
+  const votes = [];
+  global.__chatApi = {
+    ...baseApi, listChatSessions: async () => rooms,
+    fetchChatHistory: async () => [row(1, "user", "question"), row(2, "assistant", "answer")],
+    saveAnswerFeedback: (...args) => { const pending = deferred(); votes.push({ args, pending }); return pending.promise; },
+  };
+  const runner = hookRunner();
+  let controls = runner.render(); runner.flushEffects(); await tick(); controls = runner.render();
+  const up = { rating: "up", reason: "", comment: "" };
+  const first = controls.onFeedback(2, up);
+  controls.onSelectConversation(`member:${SECOND}`); await tick(); controls = runner.render();
+  const second = controls.onFeedback(2, up);
+  assert.equal(votes.length, 2);
+  votes[0].pending.resolve(up); await first;
+  await assert.rejects(controls.onFeedback(2, up));
+  global.__memberAuth = { status: "authenticated", user: { id: 8 } };
+  controls = runner.render(); runner.flushEffects(); await tick(); controls = runner.render();
+  controls.onSelectConversation(`member:${SECOND}`); await tick(); controls = runner.render();
+  const newOwner = controls.onFeedback(2, up);
+  assert.equal(votes.length, 3);
+  votes[1].pending.resolve(up); await second;
+  controls = runner.render();
+  assert.ok(controls.messages.every(message => !message.feedback));
+  await assert.rejects(controls.onFeedback(2, up));
+  votes[2].pending.resolve(up); await newOwner;
+});
+
 test("guest reload lists cookie-owned sessions and restores history in guest mode", async () => {
   global.__memberAuth = { status: "anonymous", user: null };
   const calls = [];
@@ -316,7 +381,7 @@ for (const [path, exportName] of [["components/chat-workspace", "ChatWorkspace"]
       .replace('from "next/image"', 'from "../test-surface-stub"')
       .replace('from "@/lib/chat/types"', 'from "../lib/chat/types"')
       .replace('from "@/lib/member-auth"', 'from "../test-member-auth"')
-      .replace(/from "\.\/(chat-provider|icons|chat-answer|chat-course-card|chat-pending|chat-progress|chat-usage)"/g, 'from "../test-surface-stub"');
+      .replace(/from "\.\/(chat-provider|icons|chat-answer|chat-course-card|chat-pending|chat-progress|chat-usage|chat-feedback)"/g, 'from "../test-surface-stub"');
     writeFileSync(join(scratch, `${path}.js`), ts.transpileModule(source, {
       fileName: `${path}.tsx`, compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
     }).outputText);

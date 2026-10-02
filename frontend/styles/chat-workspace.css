@@ -92,6 +92,7 @@
 .workspace-user-bubble { max-width: 90%; padding: 13px 20px; border-radius: 21px 21px 5px 21px; background: #edf4ff; color: #355478; font-size: 15px; line-height: 1.85; white-space: pre-wrap; overflow-wrap: anywhere; }
 .workspace-assistant-label { display: flex; align-items: center; gap: 8px; margin-bottom: 15px; color: #6f839d; font-size: 11px; font-weight: 550; }
 .workspace-assistant-label > span { display: grid; place-items: center; width: 26px; height: 26px; border: 1px solid #e7effa; border-radius: 9px; background: #f7faff; color: #4b83df; }
+.chat-workspace .answer-feedback { margin-left: 34px; }
 .chat-workspace .chat-answer { padding-left: 34px; color: #3e4d62; font-size: 15px; line-height: 1.95; overflow-wrap: anywhere; }
 .chat-workspace .chat-answer > * + * { margin-top: 17px; }
 .chat-workspace .chat-answer strong { color: #273d59; font-weight: 650; }
@@ -163,6 +164,7 @@
   .workspace-message-user { padding-left: 16px; }
   .workspace-user-bubble { max-width: 95%; padding: 12px 16px; font-size: 14px; border-radius: 18px 18px 4px 18px; }
   .workspace-assistant-label { margin-bottom: 13px; font-size: 10px; }
+  .chat-workspace .answer-feedback { margin-left: 0; }
   .chat-workspace .chat-answer { padding-left: 0; font-size: 14px; line-height: 1.95; }
   .chat-workspace .chat-answer h3 { font-size: 15px; }
   .workspace-thinking { margin-left: 2px; }
