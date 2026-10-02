@@ -17,6 +17,7 @@ from ..tools import DOMAIN_TOOL_NAMES
 
 
 EXPECTED = set(DOMAIN_TOOL_NAMES) | {
+    "search_place_knowledge",
     "get_baseball_schema", "execute_baseball_select", "get_ticket_policy", "search_kbo_documents",
     "search_nearby_places", "plan_course", "search_documents_tool",
 }

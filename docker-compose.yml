@@ -45,7 +45,9 @@ services:
       CHAT_CHECKPOINT_SIGNING_KEY: ${CHAT_CHECKPOINT_SIGNING_KEY:?Set CHAT_CHECKPOINT_SIGNING_KEY}
       CHAT_TRUST_PROXY_HEADERS: "true"
       EMBEDDING_MODEL: ${EMBEDDING_MODEL}
-      LLM_MODEL: ${LLM_MODEL:-gpt-5.6-luna}
+      LLM_MODEL: ${LLM_MODEL:-gpt-6-luna}
+      SERPER_API_KEY: ${SERPER_API_KEY:-${Serper_API_KEY:-}}
+      COURSE_WEB_VERIFICATION_ENABLED: ${COURSE_WEB_VERIFICATION_ENABLED:-false}
       # LangSmith 추적·평가. 키가 없으면 traceable 이 no-op 이라 오버헤드 0
       LANGSMITH_TRACING: ${LANGSMITH_TRACING:-false}
       LANGSMITH_ENDPOINT: 'https://api.smith.langchain.com'

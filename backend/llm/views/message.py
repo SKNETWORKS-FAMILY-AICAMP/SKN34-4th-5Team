@@ -20,6 +20,7 @@ from llm.service import usage
 from llm.service.ownership import parse_guest_id
 from llm.views.sse import event_stream_response
 from rest_framework.throttling import SimpleRateThrottle
+from drf_spectacular.utils import extend_schema, OpenApiTypes
 
 
 class GuestChatThrottle(SimpleRateThrottle):
@@ -51,6 +52,7 @@ class ChatUsageView(GenericAPIView):
     """GET /api/v{1,2}/chat/usage/: 요청자 본인(회원 JWT / 비회원 guest_id 쿠키)의 토큰 잔액. 조회는 차감하지 않는다."""
     permission_classes = [AllowAny]
 
+    @extend_schema(responses={200: OpenApiTypes.OBJECT}, description="본인 토큰/크레딧 잔액. 조회로 차감하지 않습니다.")
     def get(self, request, *args, **kwargs):
         if request.user.is_authenticated:
             return Response(usage.balance(user=request.user))
@@ -126,11 +128,20 @@ class ChatMessageView(GenericAPIView):
     throttle_classes = [GuestChatThrottle]
 
     # GET: /api/v2/chat/sessions/<session_id>/messages/
+    @extend_schema(responses={200: {"type": "array", "items": {"type": "object", "properties": {
+        "id": {"type": "integer"}, "sequence_no": {"type": "integer"},
+        "role": {"type": "string"}, "content": {"type": "string"}, "status": {"type": "string"},
+        "tools": {"type": "array", "items": {"type": "object"}},
+        "steps": {"type": "array", "items": {"type": "object"}},
+        "created_at": {"type": "string", "format": "date-time"},
+        "updated_at": {"type": "string", "format": "date-time"},
+    }}}})
     def get(self, request, *args, **kwargs):
         """해당 세션의 채팅목록을 가져온다. 소유하지 않은/존재하지 않는 세션이면 404."""
         return Response(list_messages(request, kwargs["session_id"]))
 
     # POST: /api/v2/chat/sessions/<session_id>/messages/
+    @extend_schema(request=ChatMessageInputSerializer, responses={(200, "text/event-stream"): OpenApiTypes.STR})
     def post(self, request, *args, **kwargs):
         """LLM 호출 (SSE 스트리밍). version 으로 chat_v1/chat_v2 의 실제 구현을 직접 고른다."""
         session = get_owned_session(request, kwargs["session_id"])
@@ -144,6 +155,7 @@ class ChatMessageView(GenericAPIView):
             return _insufficient()
         return event_stream_response(_role_stream(request, events))
 
+    @extend_schema(request=ChatMessageUpdateSerializer, responses={(200, "text/event-stream"): OpenApiTypes.STR})
     def put(self, request, *args, **kwargs):
         """이후 채팅목록을 수정 + LLM 호출. version 으로 chat_v1/chat_v2 의 실제 구현을 직접 고른다."""
         serializer = ChatMessageUpdateSerializer(data=request.data)
@@ -157,6 +169,7 @@ class ChatMessageView(GenericAPIView):
             return _insufficient()
         return event_stream_response(_role_stream(request, events))
 
+    @extend_schema(request=ChatMessageDeleteSerializer, responses={204: None})
     def delete(self, request, *args, **kwargs):
         """이후 채팅목록을 삭제한다."""
         serializer = ChatMessageDeleteSerializer(data=request.data)

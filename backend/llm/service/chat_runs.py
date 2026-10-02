@@ -145,6 +145,11 @@ def stream_turn(thread, prefix, turns, human, produce, run, on_stop=None, label=
     def finish(final, status):
         added = [*run["messages"], *([final] if final else [])]
         turn = {"status": status.value, "answer_id": final.id if final else None}
+        if final is not None and status == TurnStatus.COMPLETED:
+            from llm.v2.course.runtime import course_snapshot
+            snapshot = course_snapshot(run.get("course_state"))
+            if snapshot is not None:
+                turn["course_state"] = snapshot
         if not thread.update(added, {human.id: turn}):
             return None
         return [*prefix, human, *added], {**turns, human.id: turn}

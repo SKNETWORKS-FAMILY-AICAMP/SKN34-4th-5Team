@@ -38,7 +38,7 @@ except ImportError:                                   # pragma: no cover
     create_agent = None
     READY = False
 
-LLM_MODEL = os.getenv("LLM_MODEL") or "gpt-5.6-luna"
+LLM_MODEL = os.getenv("LLM_MODEL") or "gpt-6-luna"
 RECURSION_LIMIT = int(os.getenv("AGENT_RECURSION_LIMIT", "12"))   # 도구 호출 약 4~5번까지
 HISTORY_TURNS = 8
 CONTEXT_K = 6
@@ -132,7 +132,7 @@ def llm():
         from django.conf import settings
         from langchain_openai import ChatOpenAI
         _llm = ChatOpenAI(
-            model=LLM_MODEL, temperature=0, timeout=25, max_retries=0,
+            model=LLM_MODEL, timeout=25, max_retries=0,
             reasoning_effort="medium", use_responses_api=True,
             max_tokens=settings.USAGE_MAX_CALL_OUTPUT_TOKENS,
         )

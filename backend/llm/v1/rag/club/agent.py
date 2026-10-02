@@ -21,7 +21,7 @@ from .router import PLACE_ALIAS, TEAM_ALIAS, detect_categories, detect_stadium
 from ..domain_tools import invoke as invoke_domain_tool, run_model, visible_text
 
 READY = True
-LLM_MODEL = os.getenv("LLM_MODEL") or "gpt-5.6-luna"
+LLM_MODEL = os.getenv("LLM_MODEL") or "gpt-6-luna"
 
 _llm = None
 
@@ -36,7 +36,7 @@ def llm():
     """LangChain ChatOpenAI — 서버 기동 후 한 번만 만든다 (chat_service.py 와 같은 방식)"""
     global _llm
     if _llm is None:
-        _llm = ChatOpenAI(model=LLM_MODEL, temperature=0, timeout=25, max_retries=0, reasoning_effort="medium", use_responses_api=True,
+        _llm = ChatOpenAI(model=LLM_MODEL, timeout=25, max_retries=0, reasoning_effort="medium", use_responses_api=True,
                           max_tokens=settings.USAGE_MAX_CALL_OUTPUT_TOKENS)
     return _llm
 

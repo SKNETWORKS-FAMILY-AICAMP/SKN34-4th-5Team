@@ -2,6 +2,7 @@ import math
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage, messages_from_dict
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
 
 from llm.enum import ChatRole, ContextIntent, MessageStatus, PublicChatEvent, PublicToolStatus, TurnStatus
 
@@ -12,7 +13,7 @@ def _validate_context(value):
     """POST/PUT content 와 함께 오는 선택 사항 context 검증. 없으면 그대로 통과 (하위 호환).
 
     형식: {"stadium"?: str(<=100), "intent"?: "route"|"baseball"|"stadium",
-           "origin"?: {"lat": float(-90~90), "lng": float(-180~180)}}
+           "origin"?: {"lat": float(-90~90), "lng": float(-180~180)}, "course"?: 조건 객체}
     origin 이 있으면 lat/lng 둘 다 있어야 하고, 둘 다 유한한 실수(math.isfinite)여야 한다.
     DRF FloatField 의 min_value/max_value 비교는 NaN 과 항상 False 라 안 걸리고
     "NaN"/"Infinity" 문자열도 float() 변환만으로 통과하므로, 범위 검사 전에 isfinite 로 막는다.
@@ -26,6 +27,21 @@ def _validate_context(value):
 
     errors = {}
     cleaned = {}
+
+    # UI 선택용 조건만 허용한다. profile/state/runtime 은 클라이언트가 지정할 수 없다.
+    if "course" in value and value["course"] is not None:
+        from llm.v2.course.conditions import CONDITION_FIELDS, ConditionPatch
+        course = value["course"]
+        allowed = set(CONDITION_FIELDS) | {"clear_fields"}
+        if not isinstance(course, dict) or set(course) - allowed:
+            errors["course"] = "course에는 팀·구장·날짜·경기 선택 조건만 입력할 수 있습니다."
+        else:
+            try:
+                patch = ConditionPatch.model_validate(course)
+                cleaned["course"] = {k: v for k, v in patch.model_dump(mode="json").items()
+                                     if k in allowed and v is not None and v != []}
+            except ValueError:
+                errors["course"] = "코스 선택 조건의 형식을 확인해 주세요."
 
     if "stadium" in value:
         stadium = value["stadium"]
@@ -87,6 +103,7 @@ class ChatMessageInputSerializer(serializers.Serializer):
         return _validate_context(value)
 
 
+@extend_schema_field({"oneOf": [{"type": "integer", "minimum": 1}, {"type": "string", "format": "uuid"}]})
 class MessageIdField(serializers.Field):
     """공개 wire 의 정수 id(옛 ChatMessage.id 호환, 숫자 문자열 포함) → int, 저장된 HumanMessage.id(UUID) → str.
     최신 스냅샷에 없는 id 는 서비스 계층이 404 로 처리한다."""

@@ -104,9 +104,13 @@ def resolve_stadium(code, fetch=None):
     query = STADIUM_QUERY.get(code)
     if not query:
         return None
+    from baseball.stadium_locations import reviewed_venue
+    point = reviewed_venue(code)
+    def venue_coordinates(result):
+        return {**result, "lat": point["lat"], "lng": point["lng"]} if point else result
     cache, ck = _cache(), f"kakao:stadium:{code}"
     if cache and (hit := cache.get(ck)):
-        return hit
+        return venue_coordinates(hit)
     data = _get("keyword", {"query": query, "size": 15, "sort": "accuracy"}, fetch)
     compact = lambda v: re.sub(r"[\s-]", "", v or "").lower().replace("kia", "기아")   # noqa: E731
     want = compact(query).removeprefix("인천")
@@ -114,6 +118,7 @@ def resolve_stadium(code, fetch=None):
         if "야구장" in (d.get("category_name") or "") and want in compact(d.get("place_name")):
             out = {"name": d["place_name"], "lat": float(d["y"]), "lng": float(d["x"]),
                    "address": d.get("road_address_name") or d.get("address_name") or ""}
+            out = venue_coordinates(out)
             if cache:
                 cache.set(ck, out, 24 * 60 * 60)
             return out

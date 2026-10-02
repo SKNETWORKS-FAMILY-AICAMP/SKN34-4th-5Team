@@ -111,7 +111,7 @@ class V2RegressionTest(CheckpointTestCase):
         self.assertIn("v2 답변", body)
 
         self.assertIsNone(fake_graph.received_config)  # checkpointer 없는 그래프: thread_id 는 CRUD(ChatThread) 에만
-        self.assertEqual(fake_graph.received_stream_mode, ["messages", "updates"])
+        self.assertEqual(fake_graph.received_stream_mode, ["messages", "updates", "custom"])
         self.assertTrue(fake_graph.received_subgraphs)
         self.assertNotIn("INTERNAL_", body)
         self.assertEqual(body.count("event: delta"), 1)

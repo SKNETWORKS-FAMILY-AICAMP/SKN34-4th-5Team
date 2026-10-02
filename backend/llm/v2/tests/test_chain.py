@@ -79,10 +79,17 @@ def decision(allowed=True, capabilities=()):
     return {"allowed": allowed, "capabilities": list(capabilities)}
 
 
-PLAN = decision(capabilities=["day_plan"])
+# 기존 범용 위임 루프만 분리 검증하는 테스트 전용 capability.
+# 실제 day_plan은 test_course_graph_bridge에서 개인 코스 chain 직행을 검증한다.
+PLAN = decision(capabilities=["_delegation_test"])
 
 
 class ChainTest(unittest.TestCase):
+    def setUp(self):
+        patcher = patch.dict(CAPABILITY_TOOLS, {"_delegation_test": CAPABILITY_TOOLS["day_plan"]})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def run_graph(self, script, verdict, messages, context=None):
         self.executed, calls = [], []
         model = ScriptedModel(script=list(script), calls=calls)
@@ -298,7 +305,7 @@ class ChainTest(unittest.TestCase):
         self.assertFalse({"jev_router", "simple_agent", "orchestrator"} & nodes)
         self.assertIsNone(graph.checkpointer)
 
-    def test_day_plan_exposes_only_sub_agents_and_directions(self):
+    def test_delegation_component_exposes_only_declared_tools(self):
         self.run_graph([AIMessage("x")], PLAN, [HumanMessage("코스")])
         self.assertEqual(set(self.model_calls[0]["tools"]), set(CAPABILITY_TOOLS["day_plan"]))
 

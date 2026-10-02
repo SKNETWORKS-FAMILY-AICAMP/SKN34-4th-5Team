@@ -30,6 +30,7 @@ EXPECTED_NAMES = (
 # domain_tools.tools_for() 가 도메인 도구에 더해 노출하는 assistant 전용·SQL·knowledge 도구.
 # test_rag_domain_bindings.EXPECTED / test_assistant 와 같은 집합이다.
 REGISTRY_EXTRA_NAMES = {
+    "search_place_knowledge",
     "get_baseball_schema", "execute_baseball_select", "get_ticket_policy",
     "search_kbo_documents", "search_nearby_places", "plan_course", "search_documents_tool",
 }
@@ -240,20 +241,21 @@ class PlaceAdapterTest(TestCase):
 
     @staticmethod
     def module(search):
-        module = ModuleType("travel.place_service")
+        module = ModuleType("travel.collected_places")
 
         class PlaceError(Exception):
             message = "안전한 장소 오류"
 
-        module.PlaceError = PlaceError
-        module.search_and_sync_places = search
+        module.CatalogueUnavailable = PlaceError
+        module.CatalogueQueryError = ValueError
+        module.search_collected_places = search
         return module, PlaceError
 
     def test_adapter_delegates_exact_contract_and_result(self):
         seen = []
         expected = {"places": [{"id": "1", "place_name": "식당", "x": "127.1", "y": "37.5"}], "hasNextPage": False, "syncedAt": "2026-09-15T10:00:00+00:00"}
         module, _ = self.module(lambda query: seen.append(query) or expected)
-        with patch.dict(sys.modules, {"travel.place_service": module}):
+        with patch.dict(sys.modules, {"travel.collected_places": module}):
             result = next(t for t in create_domain_tools() if t.name == "search_places").invoke(self.args)
         self.assertEqual(result, expected)
         self.assertEqual(seen, [{"method": "keyword", "keyword": "야구장 맛집", "category": "FD6", "lat": 37.5, "lng": 127.1, "page": 1, "size": 15, "sort": "distance", "radius": 1000}])
@@ -262,7 +264,7 @@ class PlaceAdapterTest(TestCase):
         original_import = builtins.__import__
 
         def missing(name, *args, **kwargs):
-            if name == "travel.place_service":
+            if name == "travel.collected_places":
                 raise ModuleNotFoundError(name=name)
             return original_import(name, *args, **kwargs)
 
@@ -270,8 +272,8 @@ class PlaceAdapterTest(TestCase):
             self.assertEqual(next(t for t in create_domain_tools() if t.name == "search_places").invoke(self.args), "장소 검색 서비스 통합이 필요합니다.")
 
         module, error = self.module(None)
-        module.search_and_sync_places = lambda _: (_ for _ in ()).throw(error("private detail"))
-        with patch.dict(sys.modules, {"travel.place_service": module}):
+        module.search_collected_places = lambda _: (_ for _ in ()).throw(error("private detail"))
+        with patch.dict(sys.modules, {"travel.collected_places": module}):
             self.assertEqual(next(t for t in create_domain_tools() if t.name == "search_places").invoke(self.args), "안전한 장소 오류")
 
 
@@ -300,7 +302,7 @@ class ExternalDomainToolAdapterTest(SimpleTestCase):
                 "mode": "walk", "points": [{"lat": 37.5, "lng": 127.0}, {"lat": 37.6, "lng": 127.1}],
             }), directions)
         fetch.assert_called_once()
-        with patch("travel.tourism_service.search_tourism", return_value=tourism) as search:
+        with patch("travel.collected_places.search_collected_tourism", return_value=tourism) as search:
             self.assertEqual(self.tools["search_tourism"].invoke({
                 "stadium_code": "JAMSIL", "latitude": 37.5161987797456, "longitude": 127.075940589715,
             }), tourism)

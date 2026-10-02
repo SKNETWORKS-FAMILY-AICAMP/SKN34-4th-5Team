@@ -20,6 +20,7 @@ class PlacesInput(ToolInput):
     page: StrictInt = Field(default=1, ge=1, le=3)
     limit: StrictInt = Field(default=15, ge=1, le=15)
     sort: str = Field(default="distance", pattern="^(accuracy|distance)$")
+    stadium_code: str | None = Field(default=None, pattern="^(JAMSIL|GOCHEOK|MUNHAK|SUWON|DAEJEON|DAEGU|GWANGJU|SAJIK|CHANGWON)$")
 
     @model_validator(mode="after")
     def validate_search(self):
@@ -84,12 +85,12 @@ def _course_item(course, include_stops=False):
 
 def create_travel_tools():
 
-    def search_places(method, latitude, longitude, query=None, category=None, radius=None, page=1, limit=15, sort="distance"):
-        """기존 장소 서비스로 검색하고 그 서비스가 제공자 결과를 동기화한다."""
+    def search_places(method, latitude, longitude, query=None, category=None, radius=None, page=1, limit=15, sort="distance", stadium_code=None):
+        """수집본에서만 검색한다. 카카오 등 외부 장소 API로 대체하지 않는다."""
         try:
-            from travel.place_service import PlaceError, search_and_sync_places
+            from travel.collected_places import CatalogueQueryError, CatalogueUnavailable, search_collected_places
         except ModuleNotFoundError as error:
-            if error.name != "travel.place_service":
+            if error.name != "travel.collected_places":
                 raise
             raise ToolException("장소 검색 서비스 통합이 필요합니다.") from None
         payload = {
@@ -102,9 +103,13 @@ def create_travel_tools():
             payload["category"] = category
         if radius is not None:
             payload["radius"] = radius
+        if stadium_code is not None:
+            payload["stadium"] = stadium_code
         try:
-            return search_and_sync_places(payload)
-        except PlaceError as error:
+            return search_collected_places(payload)
+        except CatalogueQueryError as error:
+            raise ToolException(str(error)) from None
+        except CatalogueUnavailable as error:
             raise ToolException(error.message) from None
 
     def search_courses(query=None, stadium=None, tag=None, limit=20):
@@ -134,22 +139,20 @@ def create_travel_tools():
             raise ToolException(message) from None
 
     def search_tourism(stadium_code, latitude, longitude):
-        """기존 한국관광공사 연동 서비스로 구장 주변 관광지를 조회한다."""
-        from rest_framework.exceptions import ValidationError
-        from travel.tourism_provider import TourismProviderError
-        from travel.tourism_service import search_tourism as service
+        """저장된 공원·산책 후보만 조회한다. 관광공사 실시간 검색은 없다."""
+        from travel.collected_places import CatalogueQueryError, CatalogueUnavailable, search_collected_tourism
         try:
-            return service({"stadium": stadium_code, "lat": latitude, "lng": longitude})
-        except ValidationError:
+            return search_collected_tourism({"stadium": stadium_code, "lat": latitude, "lng": longitude})
+        except CatalogueQueryError:
             raise ToolException("관광지 검색 위치를 확인해 주세요.") from None
-        except TourismProviderError:
-            raise ToolException("관광지 정보를 불러오지 못했습니다.") from None
+        except CatalogueUnavailable as error:
+            raise ToolException(error.message) from None
 
     specs = (
-        (search_places, 'search_places', '기존 장소 서비스로 주변 장소를 검색하고 최신 결과를 동기화한다.', PlacesInput),
+        (search_places, 'search_places', '저장된 수집본에서만 주변 장소를 검색한다. stadium_code를 함께 지정한다. category는 FD6 음식, CE7 카페·디저트, CS2 편의점, CT1 놀이시설, AT4 산책이다. category만으로도 검색 가능하며 query는 이름·주소·업종에 실제 포함된 단어를 짧게 사용한다. 숙박(AD5)은 ID만 있어 상세 미연결이다. 현재 영업·메뉴는 미확인이다.', PlacesInput),
         (search_courses, 'search_courses', '공개 코스를 검색한다.', CourseSearchInput),
         (get_course, 'get_course', 'UUID로 공개 코스 상세를 조회한다.', CourseInput),
         (get_directions, 'get_directions', '기존 길찾기 서비스로 2~13개 지점의 경로를 조회한다.', DirectionsInput),
-        (search_tourism, 'search_tourism', '한국관광공사 연동 서비스로 구장 주변 관광지를 조회한다.', TourismInput),
+        (search_tourism, 'search_tourism', '저장된 공원·산책 후보를 조회한다. 실제 산책 경로·입구·접근성은 미확인이다. 외부 관광 API는 호출하지 않는다.', TourismInput),
     )
     return tuple(_tool(*spec) for spec in specs)

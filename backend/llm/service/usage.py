@@ -5,12 +5,14 @@
 - 예약: 세션 질문 저장(ask/edit) 전에 지갑 행 잠금 안에서 min(남은 양, USAGE_TURN_RESERVE_TOKENS) 을 잡는다(동시 초과 방지).
   provider 호출은 이 transaction 밖에서만 일어난다.
 - 계량: register_configure_hook 의 ContextVar 로 이 턴 안의 모든 LangChain model run(v1 중첩, v2 하위 Agent, 재시도 run)에
-  Meter 가 붙는다. run_id 로 한 번만 센다. JEV 분류기는 LangChain llm 콜백을 안 내므로 classify() 가 응답 usage 를 직접 넘긴다.
+  Meter 가 붙는다. run_id 로 한 번만 센다. JEV 분류기는 classify() 가 usage를 직접 넘기고,
+  코스 Luna 본문 분석은 metered_external로 입력/스키마/출력 예산 예약 후 usage를 정산한다.
 - 정산: 알려진 토큰. usage 를 모르는 호출(응답에 usage 없음, 오류·중단(Stop) 으로 끝나 usage 가 안 온 호출 포함)이 있으면
   예약 전체를 청구한다(무료로 새지 않게).
 - 호출 전 검사(preflight): 이미 쓴 양 + 이 호출 입력(설치된 tiktoken 으로 메시지·system·도구 schema 를 셈) + 출력 상한
   (ChatOpenAI max_tokens == USAGE_MAX_CALL_OUTPUT_TOKENS) 이 예약을 넘으면 시작 전에 막는다(UsageExhausted).
   토큰을 셀 수 없는 모델(tokenizer 없음, 상한 없음, chat 이 아닌 LLM)은 fail-closed 로 막는다.
+  단, gpt-6-luna의 tiktoken 매핑이 없을 때는 UTF-8 바이트+서식 여유로 보수적으로 예약한다(정확한 토큰 수 아님).
 - JEV(TypeSafe SDK) 는 출력 상한·토큰 계산 API 가 없어 호출 전에는 누적 사용만 본다. 응답 usage 가 없으면 모름 → 예약 전체.
 - 정산은 provider 작업(worker)이 끝난 뒤에만. 요청 스레드가 USAGE_SETTLE_WAIT_SECONDS 안에 못 보면 worker 가 끝날 때 정산한다.
 ponytail: 프로세스가 죽어 정산 못 한 예약은 자동 만료하지 않는다(아직 쓰는 중인지 알 수 없음) → 잔액에서 잠긴 채 남는다.
@@ -19,10 +21,12 @@ ponytail: 프로세스가 죽어 정산 못 한 예약은 자동 만료하지 �
 import json
 import logging
 import threading
+from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import datetime
 from decimal import Decimal
 from zoneinfo import ZoneInfo
+from uuid import uuid4
 
 from django.conf import settings
 from django.db import IntegrityError, transaction
@@ -198,6 +202,9 @@ class Meter(BaseCallbackHandler):
         with self._lock:
             # usage 를 모르는 호출이 하나라도 끝났으면 이 턴은 예약 전체로 정산된다: 더 허용하면 공짜가 된다
             if self._unknown or self._in + self._out + sum(self._inflight.values()) + max(next_call, 1) > self.budget:
+                log.warning("chat_token_budget_block budget=%d used=%d inflight=%d next=%d unknown=%d",
+                            self.budget, self._in+self._out, sum(self._inflight.values()),
+                            max(next_call, 1), self._unknown)
                 self.exhausted = True
                 raise UsageExhausted
             if run_id is not None and run_id not in self._done:
@@ -252,12 +259,20 @@ def _call_cost(messages, params):
     try:
         encoding = tiktoken.encoding_for_model(params.get("model") or params.get("model_name") or "")
     except KeyError:
-        raise UsageExhausted from None
-    tokens = len(encoding.encode(json.dumps(params.get("tools") or [], ensure_ascii=False, default=str), disallowed_special=()))
+        # tiktoken has not published a GPT-6 mapping yet. Do not pretend that a
+        # different model's tokenizer is exact. For this explicitly supported
+        # text model reserve UTF-8 bytes + framing headroom; settle actual usage.
+        if (params.get("model") or params.get("model_name")) != "gpt-6-luna":
+            raise UsageExhausted from None
+        encoding = None
+    def count(value):
+        text = json.dumps(value, ensure_ascii=False, default=str)
+        return len(encoding.encode(text, disallowed_special=())) if encoding else len(text.encode("utf-8"))
+    tokens = count(params.get("tools") or []) + (1024 if encoding is None else 0)
     for batch in messages:
         for message in batch:  # ponytail: 메시지당 +8 는 role/구분자 여유. 실제 서식보다 크게 잡는다.
             body = [message.content, getattr(message, "tool_calls", None) or []]
-            tokens += 8 + len(encoding.encode(json.dumps(body, ensure_ascii=False, default=str), disallowed_special=()))
+            tokens += (64 if encoding is None else 8) + count(body)
     return tokens + limit
 
 
@@ -280,6 +295,29 @@ def _usage(response):
 
 _meter = ContextVar("chat_usage_meter", default=None)
 register_configure_hook(_meter, inheritable=True)
+
+
+@contextmanager
+def metered_external(messages, params):
+    """Reserve a direct text-model call and settle once, even on errors/abort.
+
+    The caller supplies all input/schema and the output cap before network I/O,
+    then reports response token usage. No response usage means unknown cost.
+    """
+    meter = _meter.get()
+    if meter is None:
+        yield lambda input_tokens, output_tokens: None
+        return
+    run_id = uuid4()
+    meter.check(_call_cost(messages, params), run_id)
+    actual = None
+    def report(input_tokens, output_tokens):
+        nonlocal actual
+        actual = (input_tokens, output_tokens) if _valid(input_tokens, output_tokens) else None
+    try:
+        yield report
+    finally:
+        meter.record(actual, run_id)
 
 
 def record_external(input_tokens, output_tokens):

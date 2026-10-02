@@ -230,6 +230,10 @@ frontend/.member-preview/
 
 # Mailpit runtime data
 /data/mailpit/
+# Local database backups can contain account and chat data.
+/output/backups/
+# Local browser captures and paid-provider evaluation responses stay private.
+/output/
 **/graphify-out/**
 /data/mailpit/*
 .gstack/*

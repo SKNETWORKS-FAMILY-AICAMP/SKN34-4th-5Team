@@ -89,19 +89,27 @@ class MigratedToolsTest(unittest.TestCase):
         self.assertIn("잠실호텔", self.tool_msg(out, "search_nearby_places").content)
         self.assertIn("잠실호텔", self.calls[1]["messages"][-1].content)
 
-    def test_plan_course_gets_question_history_hint(self):
+    def test_new_course_bypasses_legacy_plan_tool_and_keeps_question_history(self):
         got = []
 
-        def answer(question, history=None, hint_stadium=None):
-            got.append((question, history, hint_stadium))
-            return {"answer": "코스 완성", "sources": []}
-        with patch("llm.v1.rag.course.agent.answer", side_effect=answer):
-            out = self.run_graph([call("plan_course", {"request": "코스"}, "c1"), AIMessage("완성")], ["day_plan"],
+        class Course:
+            def stream(self, inputs):
+                from llm.v2.course.state import empty_state
+                got.append(inputs)
+                inputs["course_runtime"]["next_state"] = empty_state()
+                yield "검증된 코스 완성"
+
+        with patch("llm.v1.rag.course.agent.answer") as legacy, \
+                patch("llm.v2.agent.course_chain.course_chain", Course()):
+            out = self.run_graph([], ["day_plan"],
                                  [HumanMessage("잠실 가요"), AIMessage("네"), HumanMessage("경기 전후 코스 짜줘")],
                                  {"stadium": "잠실"})
-        self.assertEqual(got, [("경기 전후 코스 짜줘", [{"role": "user", "content": "잠실 가요"},
-                                                   {"role": "assistant", "content": "네"}], "JAMSIL")])
-        self.assertEqual(self.tool_msg(out, "plan_course").content, "코스 완성")
+        self.assertEqual(got[0]["question"], "경기 전후 코스 짜줘")
+        self.assertEqual([m.content for m in got[0]["chat_history"]], ["잠실 가요", "네"])
+        self.assertEqual(got[0]["context"], {"stadium": "잠실"})
+        self.assertEqual(out["messages"][-1].content, "검증된 코스 완성")
+        self.assertEqual(self.calls, [])
+        legacy.assert_not_called()
 
     def test_hidden_migrated_tools_rejected(self):
         with patch.object(assistant, "_run_fixed") as db, patch("llm.v1.rag.course.agent.answer") as course:

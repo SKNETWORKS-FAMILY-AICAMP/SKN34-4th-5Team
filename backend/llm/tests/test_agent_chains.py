@@ -26,7 +26,7 @@ ALL_TOOL_NAMES = {
     "search_courses", "get_course", "search_community_posts", "get_prediction_games",
     "search_players", "get_directions", "search_tourism", "get_weather",
     "get_baseball_schema", "execute_baseball_select",
-    "search_documents_tool", "search_kbo_documents",
+    "search_documents_tool", "search_kbo_documents", "search_place_knowledge",
     "get_ticket_policy", "search_nearby_places", "plan_course",
 }
 

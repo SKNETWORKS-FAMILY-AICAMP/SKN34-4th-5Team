@@ -32,12 +32,17 @@ def _frames(graph_input, run):
       메인 호출/결과 원본(하위 대화는 ask_* 결과 artifact)만 run["messages"] 에 모아 턴에 저장한다.
     """
     from llm.v2.agent.chain import get_graph
-    stream = get_graph().stream(graph_input, stream_mode=["messages", "updates"], subgraphs=True)
+    stream = get_graph().stream(graph_input, stream_mode=["messages", "updates", "custom"], subgraphs=True)
     parents, titles, summaries = {}, {}, {}  # namespace 첫 칸 → parent tool_call_id / tool_call_id → 하위 Agent title
     streamed = False  # 마지막 메인 도구 호출 뒤 메인 텍스트를 흘렸는지
     with closing(stream):
         for ns, mode, data in stream:
             parent = parents.get(ns[0]) if ns else None
+            if mode == "custom":
+                if not ns and isinstance(data, dict) and isinstance(data.get("course_delta"), str):
+                    streamed = True
+                    yield PublicChatEvent.DELTA.value, {"text": data["course_delta"]}
+                continue
             if mode == "messages":
                 chunk, meta = data
                 if ns and meta.get("parent_id"):
@@ -51,6 +56,8 @@ def _frames(graph_input, run):
                 yield PublicChatEvent.DELTA.value, {"text": chunk.text, **({"parent_id": parent} if ns else {})}
                 continue
             for update in data.values():
+                if not ns and isinstance(update, dict) and update.get("course_state") is not None:
+                    run["course_state"] = update["course_state"]
                 for message in (update or {}).get("messages") or [] if isinstance(update, dict) else ():
                     if not ns and isinstance(message, AIMessage) and not message.tool_calls:
                         run["answer"] = str(message.text)
@@ -75,10 +82,12 @@ def _frames(graph_input, run):
                             summaries.get(message.tool_call_id))
 
 
-def _stream_turn(thread, prefix, turns, human, context, charge):
+def _stream_turn(thread, prefix, turns, human, context, charge, profile_team=None):
     """프레임: tool*/delta* → done | stopped | error (chat_runs.stream_turn). 저장 답변 = 마지막 도구 없는 model 호출의 답."""
     run = {"answer": "", "messages": []}
     graph_input = {"messages": [*_model_history(prefix, turns), human]}
+    from llm.v2.course.runtime import previous_course_state
+    graph_input["course_runtime"] = {"state": previous_course_state(prefix, turns), "profile_team": profile_team}
     if context:
         graph_input["context"] = context
     return chat_runs.stream_turn(thread, prefix, turns, human, lambda: _frames(graph_input, run), run,
@@ -89,7 +98,10 @@ def _start(session, thread, begin, context):
     """예약(부족하면 InsufficientCredits) → 질문 저장 → 스트림. 저장 실패면 예약을 0 으로 푼다."""
     charge = usage.reserve(session)
     try:
-        frames = _stream_turn(thread, *begin(), context, charge)
+        from django.contrib.auth import get_user_model
+        profile_team = (get_user_model().objects.filter(pk=session.user_id).values_list("team_code", flat=True).first()
+                        if session.user_id else None)
+        frames = _stream_turn(thread, *begin(), context, charge, profile_team)
         next(frames)  # priming
     except BaseException:
         usage.settle(charge)

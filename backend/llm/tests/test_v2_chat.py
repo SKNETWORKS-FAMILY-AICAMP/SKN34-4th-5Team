@@ -187,7 +187,7 @@ class SendMessageTest(CheckpointTestCase):
         messages_in = fake.received_inputs["messages"]
         self.assertEqual([type(m) for m in messages_in], [HumanMessage, AIMessage, HumanMessage])
         self.assertEqual([m.content for m in messages_in], ["이전 질문", "이전 답변", "새 질문"])
-        self.assertEqual(fake.received_stream_mode, ["messages", "updates"])
+        self.assertEqual(fake.received_stream_mode, ["messages", "updates", "custom"])
 
     def test_second_v2_turn_uses_current_history(self):
         fake = FakeChain(chunks=("첫 답",))

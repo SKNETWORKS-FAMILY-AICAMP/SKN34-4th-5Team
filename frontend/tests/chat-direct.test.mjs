@@ -277,6 +277,15 @@ test("course parsing ignores non-course answers and builds editable stops", () =
   assert.ok(stops.every(stop => stop.visitId));
 });
 
+test("collected place identities survive chat parsing and route pin conversion", () => {
+  const id = "collected:SBIZ:" + "a".repeat(80);
+  const course = parseChatCourse({ places: [{ ...coursePlaces[0], placeId: id }, coursePlaces[2]], stadiumCode: "JAMSIL" });
+  const stops = courseToStops(course, () => "visit-1");
+  assert.equal(stops[0].placeId, id);
+  assert.equal(stops[0].isDrawnPoint, true);
+  assert.equal(stops[1].category, "야구장");
+});
+
 test("member auth failure never falls back to the guest cookie", async () => {
   global.fetch = async () => { throw new Error("no request may be sent without a member token"); };
   await assert.rejects(getChatStatus("member"), error => error instanceof ChatClientError && error.status === 401);

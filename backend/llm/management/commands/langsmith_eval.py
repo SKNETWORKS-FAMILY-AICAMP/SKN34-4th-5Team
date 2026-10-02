@@ -138,5 +138,5 @@ class Command(BaseCommand):
                 data = list(client.list_examples(dataset_name=o["dataset"], limit=o["limit"]))
             result = evaluate(target, data=data, evaluators=[hit_at_5, expect_ok, must_ok, number_grounded],
                               experiment_prefix=o["prefix"], max_concurrency=o["concurrency"],
-                              metadata={"llm": __import__("os").getenv("LLM_MODEL") or "gpt-5.6-luna"})
+                              metadata={"llm": __import__("os").getenv("LLM_MODEL") or "gpt-6-luna"})
             self.stdout.write(f"실험 완료: {getattr(result, 'experiment_name', '')} — LangSmith 화면에서 hit_at_5·expect_ok·must_ok·number_grounded·latency 확인")

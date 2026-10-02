@@ -10,7 +10,7 @@ from ..middleware.dynamic_tools import DynamicToolMiddleware
 from ..middleware.jev_guidelines import JevGuidelineMiddleware
 
 
-# 상위 그래프와 create_agent 공용 state. 인증/세션/저장 필드는 두지 않는다.
+# 인증 정보는 넣지 않는다. course_runtime은 서버가 읽은 방별 코스 스냅샷이다.
 class Decision(TypedDict):
     allowed: bool  # JEV guard PASS 여부
     capabilities: list[str]  # 도구 노출용 capability 이름
@@ -19,6 +19,8 @@ class Decision(TypedDict):
 class V2AgentState(AgentState):
     decision: NotRequired[Decision]
     context: NotRequired[dict | None]  # 선택: {"stadium", "intent", "origin": {"lat", "lng"}}
+    course_runtime: NotRequired[dict]
+    course_state: NotRequired[dict]
 
 
 def _budget(name, default):
@@ -41,7 +43,7 @@ def llm():
     from django.conf import settings
     from langchain_openai import ChatOpenAI
     return ChatOpenAI(
-        model=os.getenv("LLM_MODEL") or "gpt-5.6-luna", temperature=0, timeout=25,
+        model=os.getenv("LLM_MODEL") or "gpt-6-luna", timeout=25,
         max_retries=0, reasoning_effort="medium", use_responses_api=True,
         max_tokens=settings.USAGE_MAX_CALL_OUTPUT_TOKENS,
     )

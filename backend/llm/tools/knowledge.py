@@ -224,7 +224,7 @@ def transform_query(query: str) -> str:
     if _transformer is None:
         from ..v1.rag.venue.prompts import QUERY_TRANSFORM
         prompt = ChatPromptTemplate.from_messages([("system", QUERY_TRANSFORM), ("human", "{query}")])
-        model = ChatOpenAI(model=os.getenv("LLM_MODEL") or "gpt-5.6-luna", temperature=0, timeout=25, max_retries=0, reasoning_effort="medium", use_responses_api=True,
+        model = ChatOpenAI(model=os.getenv("LLM_MODEL") or "gpt-6-luna", timeout=25, max_retries=0, reasoning_effort="medium", use_responses_api=True,
                           max_tokens=settings.USAGE_MAX_CALL_OUTPUT_TOKENS)
         _transformer = prompt | model | StrOutputParser()
     return _transformer.invoke({"query": query}).strip() or query
@@ -300,7 +300,9 @@ def search_kbo_documents(query, stadium_code=None, categories=None, _search=None
     return _format_kbo(rows)
 
 def create_knowledge_tools():
+    from .place_rag import create_place_rag_tool
     return (
+        create_place_rag_tool(),
         search_documents_tool,
         StructuredTool.from_function(
             _tool_error(search_kbo_documents), name="search_kbo_documents", args_schema=SearchInput,

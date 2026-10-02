@@ -49,6 +49,11 @@ USAGE_MIN_START_TOKENS = int(os.getenv("USAGE_MIN_START_TOKENS", "1000"))
 USAGE_MAX_CALL_OUTPUT_TOKENS = int(os.getenv("USAGE_MAX_CALL_OUTPUT_TOKENS", "4000"))  # ChatOpenAI max_tokens
 KAKAO_REST_API_KEY = os.getenv("KAKAO_REST_API_KEY", "")
 EXTERNAL_DATA_SYNC_INTERVAL_SECONDS = positive_int_env("EXTERNAL_DATA_SYNC_INTERVAL_SECONDS", 600)
+COLLECTED_PLACES_DIR = Path(os.getenv("COLLECTED_PLACES_DIR") or BASE_DIR.parent / "data/staging/stadium_places/20260927T092810Z")
+PLACE_RAG_PATH = Path(os.getenv("PLACE_RAG_PATH") or BASE_DIR / "artifacts/place-rag/index.sqlite3")
+# Explicit opt-in only; a local knowledge miss must not silently buy web searches.
+COURSE_WEB_VERIFICATION_ENABLED = os.getenv("COURSE_WEB_VERIFICATION_ENABLED", "false").strip().lower() == "true"
+SERPER_API_KEY = os.getenv("SERPER_API_KEY") or os.getenv("Serper_API_KEY", "")
 
 ALLOWED_HOSTS = [
     host.strip()

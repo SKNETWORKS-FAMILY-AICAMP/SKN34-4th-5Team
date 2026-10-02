@@ -156,7 +156,7 @@ class DbToolTest(unittest.TestCase):
             set(names),
             set(DOMAIN_TOOL_NAMES) | {
                 "get_baseball_schema", "execute_baseball_select", "search_kbo_documents",
-                "search_nearby_places", "plan_course", "get_ticket_policy", "search_documents_tool",
+                "search_nearby_places", "plan_course", "get_ticket_policy", "search_documents_tool", "search_place_knowledge",
             },
         )
         self.assertIs(tools.build_tools()[0].func, tools.get_games)

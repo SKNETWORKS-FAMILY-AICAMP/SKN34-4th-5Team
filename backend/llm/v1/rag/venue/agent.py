@@ -36,7 +36,7 @@ except ImportError:                                 # langchain 패키지가 없
     READY = False
     log.warning("langchain.agents.create_agent 를 불러올 수 없어 venue 도메인을 비활성화합니다 (pip install langchain)")
 
-LLM_MODEL = os.getenv("LLM_MODEL") or "gpt-5.6-luna"
+LLM_MODEL = os.getenv("LLM_MODEL") or "gpt-6-luna"
 infer_slots = knowledge.infer_slots
 transform_query = knowledge.transform_query
 search_documents_tool = knowledge.search_documents_tool
@@ -48,7 +48,7 @@ _agent = None
 def llm():
     global _llm
     if _llm is None:
-        _llm = ChatOpenAI(model=LLM_MODEL, temperature=0, timeout=25, max_retries=0, reasoning_effort="medium", use_responses_api=True,
+        _llm = ChatOpenAI(model=LLM_MODEL, timeout=25, max_retries=0, reasoning_effort="medium", use_responses_api=True,
                           max_tokens=settings.USAGE_MAX_CALL_OUTPUT_TOKENS)
     return _llm
 

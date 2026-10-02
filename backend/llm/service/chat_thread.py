@@ -327,6 +327,17 @@ def _legacy_state(rows, tools):
         if ai:
             messages.append(ai)
         turns[human.id] = {"status": status, "answer_id": ai.id if ai else None}
+        if status == TurnStatus.COMPLETED and answer and answer.get("status") == "completed":
+            from llm.v2.course.runtime import course_snapshot
+            value = answer.get("course_state")
+            if isinstance(value, str):
+                try:
+                    value = json.loads(value)
+                except ValueError:
+                    value = None
+            snapshot = course_snapshot(value)
+            if snapshot is not None:
+                turns[human.id]["course_state"] = snapshot
         for row, message in ((user, human), (answer, ai)):
             if message:
                 wire[message.id] = {"id": row["id"], "created_at": _wire_time(row["created_at"]),
@@ -347,7 +358,9 @@ def convert_legacy_threads():
             if not ChatSession.objects.select_for_update().filter(id=session_id).exists():
                 continue
             with connection.cursor() as cursor:
-                cursor.execute('SELECT id, role, message, status, created_at, updated_at FROM "llm_chatmessage"'
+                # 개인 브랜치에만 있던 열: 없는 DB에서도 JSON record 조회는 NULL이므로 양쪽 설치를 지원한다.
+                cursor.execute('SELECT id, role, message, status, created_at, updated_at, '
+                               'to_jsonb(m)->\'course_state\' AS course_state FROM "llm_chatmessage" m'
                                " WHERE session_id = %s ORDER BY sequence_no, id", [session_id])
                 columns = [c[0] for c in cursor.description]
                 rows = [dict(zip(columns, r)) for r in cursor.fetchall()]

@@ -31,7 +31,10 @@ CAPABILITY_INSTRUCTIONS = {
     "directions": "이동 경로·소요 시간을 물었는가",
     "courses": "기존 공개 코스를 찾거나 확인해 달라고 했는가",
     "weather": "날씨를 물었는가",
-    "day_plan": "경기 전후 코스·하루 일정처럼 경기·주변 장소·이동을 묶어 조율해 달라고 했는가",
+    "day_plan": ("경기 전후 코스·하루 일정처럼 경기·주변 장소·이동을 묶어 조율해 달라고 했는가. "
+                 "진행 중인 코스가 있으면 팀·구장·날짜만 답하기, 1안·홈경기 선택, 동의, "
+                 "조건 변경·해제, 이전 코스 조회·수정, 다음 경기 요청도 포함한다. "
+                 "단, 순위·주차 등 이번 질문이 분명히 다른 주제면 코스 기억이나 화면 의도만으로 선택하지 않는다"),
 }
 
 GUARD_INSTRUCTIONS = (
@@ -88,6 +91,8 @@ def _context_text(context) -> str:
         parts.append(f"화면 의도={context['intent']}")
     if context.get("origin"):
         parts.append("출발지 좌표 있음")
+    if context.get("course_pending"):
+        parts.append("진행 중인 코스의 조건/경기 선택 기억 있음(다른 주제의 질문은 우선)")
     return ", ".join(parts)
 
 
@@ -230,10 +235,13 @@ class JevGuidelineMiddleware(AgentMiddleware):
         분류기 예외는 그대로 올린다 (fail closed)."""
         if not self.run_jev:
             return None
+        from llm.v2.course.runtime import routing_context, run_course
         question, history = _last_question_and_history(state["messages"])
-        decision = classify(question, history, state.get("context"))
+        decision = classify(question, history, routing_context(state.get("context"), state.get("course_runtime")))
         if decision["allowed"] is not True:
             return {"decision": decision, "messages": [AIMessage(SCOPE_MESSAGE)], "jump_to": "end"}
+        if "day_plan" in decision.get("capabilities", []):
+            return {"decision": decision, **run_course(question, history, state.get("context"), state.get("course_runtime"))}
         return {"decision": decision}
 
     def wrap_model_call(self, request, handler):
