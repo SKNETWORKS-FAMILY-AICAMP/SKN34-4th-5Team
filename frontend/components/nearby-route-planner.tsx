@@ -26,6 +26,7 @@ type PlannerProps = {
   /** 챗봇 코스를 담을 때마다 version 이 오른다 → 내 코스 탭을 열고 코스 전체를 보여준다 */
   courseApplied?: { version: number; stadiumCode: string } | null;
   courseName: string; onCourseNameChange: (name: string) => void;
+  allowSave?: boolean;
   onSaveCourse: () => Promise<void>; saving: boolean; saveError: string;
   startWithAllPlaces?: boolean;
   onCompletionChange?: (completed: boolean) => void;
@@ -86,7 +87,7 @@ export function NearbyRoutePlanner(props: PlannerProps) {
   </div>;
 }
 
-function LoadedPlanner({ maps, plannerMode = "places", stadium, stops, onChange: onStopsChange, initialStart, onStartChange, initialTravelMode, onTravelModeChange, travelMode, courseApplied, courseName, onCourseNameChange, onSaveCourse, saving, saveError, startWithAllPlaces = false, onCompletionChange, autoComplete = false, onAutoCompleted, unlockRequest = "", guide = false }: PlannerProps & { maps: KakaoMaps }) {
+function LoadedPlanner({ maps, plannerMode = "places", stadium, stops, onChange: onStopsChange, initialStart, onStartChange, initialTravelMode, onTravelModeChange, travelMode, courseApplied, courseName, onCourseNameChange, allowSave = false, onSaveCourse, saving, saveError, startWithAllPlaces = false, onCompletionChange, autoComplete = false, onAutoCompleted, unlockRequest = "", guide = false }: PlannerProps & { maps: KakaoMaps }) {
   const drawOnly = plannerMode === "draw";
   const [courseCompleted, setCourseCompleted] = useState(false);
   // 사용 가이드: while set, the map only accepts a press on this dashed start-point target.
@@ -163,7 +164,7 @@ function LoadedPlanner({ maps, plannerMode = "places", stadium, stops, onChange:
   });
   useEffect(() => { onStartChange(travel.location ?? undefined); }, [travel.location, onStartChange]);
   const canComplete = stops.length > 0 && !travel.picking && !travel.locating && (travel.origin === "first" || Boolean(travel.location));
-  const canSaveCourse = canComplete && Boolean(courseName.trim()) && !saving;
+  const canSaveCourse = allowSave && canComplete && Boolean(courseName.trim()) && !saving;
   const separateStart = travel.origin !== "first";
   const drawing = !courseCompleted && !travel.picking && !mapLocationPicking && !guideOrigin;
   const mapNode = useRef<HTMLDivElement>(null);
@@ -702,13 +703,13 @@ function LoadedPlanner({ maps, plannerMode = "places", stadium, stops, onChange:
       {!drawOnly && <aside className="planner-side">
         <div className="planner-side-tabs" role="tablist" aria-label="장소 목록"><button type="button" role="tab" id="nearby-places-tab" aria-controls="nearby-side-panel" aria-selected={sideTab === "places"} onClick={() => setSideTab("places")}>주변 장소 <b>{listedPlaces.length}</b></button><button type="button" role="tab" id="nearby-route-tab" aria-controls="nearby-side-panel" aria-selected={sideTab === "route"} onClick={() => setSideTab("route")}>내 코스 <b>{stops.length}</b></button></div>
         <div id="nearby-side-panel" role="tabpanel" aria-labelledby={sideTab === "places" ? "nearby-places-tab" : "nearby-route-tab"} className="planner-side-content">
-          {sideTab === "route" ? <><CourseTravelPanel travel={travel} stops={stops} showDirections={courseCompleted} originReplacement={courseCompleted ? <div className="course-save" aria-busy={saving}>
+          {sideTab === "route" ? <><CourseTravelPanel travel={travel} stops={stops} showDirections={courseCompleted} originReplacement={courseCompleted ? allowSave ? <div className="course-save" aria-busy={saving}>
             <label htmlFor="planner-course-name">코스 이름</label>
             <input id="planner-course-name" autoComplete="off" value={courseName} maxLength={80} disabled={saving} placeholder="코스 이름을 입력하세요" onChange={(event) => onCourseNameChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); if (canSaveCourse) void onSaveCourse(); } }} />
-            <button type="button" className="course-save-button" disabled={!canSaveCourse} onClick={() => void onSaveCourse()}>{saving ? "저장 중…" : "코스 저장"}</button>
+            <button type="button" className="course-save-button" disabled={!canSaveCourse} onClick={() => { if (canSaveCourse) void onSaveCourse(); }}>{saving ? "저장 중…" : "코스 저장"}</button>
             <small>저장한 코스는 코스 둘러보기에 공개돼요.</small>
             {saveError && <p role="alert" className="course-save-error">{saveError}</p>}
-          </div> : undefined} onFit={fitCourse} /><RouteStops stops={stops} onChange={onChange} separateStart={separateStart} readOnly={courseCompleted} steps={{ canUndo: observedHistory.past.length > 0, canRedo: observedHistory.future.length > 0, onUndo: stepBack, onRedo: stepForward }} onFocus={(stop) => selectPlace(places.find((p) => sameStop(stop, p)) ?? stop)} /></> : <>
+          </div> : <p className="planner-small">코스 구성이 완료됐어요. 아래에서 이동 경로를 확인하세요. 현재 코스는 저장되지 않습니다.</p> : undefined} onFit={fitCourse} /><RouteStops stops={stops} onChange={onChange} separateStart={separateStart} readOnly={courseCompleted} steps={{ canUndo: observedHistory.past.length > 0, canRedo: observedHistory.future.length > 0, onUndo: stepBack, onRedo: stepForward }} onFocus={(stop) => selectPlace(places.find((p) => sameStop(stop, p)) ?? stop)} /></> : <>
             <label className="planner-search"><span className="sr-only">불러온 장소에서 찾기</span><input type="search" value={query} placeholder="불러온 장소에서 찾기" onChange={(event) => { setQuery(event.target.value); setListLimit(30); }} onKeyDown={(event) => { if (event.key === "Enter") event.preventDefault(); }} /></label>
             <div className="planner-list-caption"><span>{activeNearPoint ? "찍은 지점에서 가까운 순 · 직선거리" : "구장에서 가까운 순 · 직선거리"}{activeNearPoint && <small>찍은 지점 반경 70m 내 시설</small>}{activeListArea && <small>선택한 지도 범위 내 장소</small>}</span><button type="button" disabled={!activeListArea && !activeNearPoint} title="지도 범위 해제" aria-label="지도 범위 해제" onClick={() => { setListArea(null); setNearPoint(null); setListLimit(30); }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 10a9 9 0 1 1 2 8M3 4v6h6" /></svg></button></div>
             {listedPlaces.length === 0 ? <div className="planner-empty"><strong>{loading ? "주변 장소를 찾고 있어요" : "조건에 맞는 장소가 없어요"}</strong><p>{loading ? "조회되는 장소부터 차례로 표시할게요." : activeNearPoint ? "이 지점의 70m 안에는 현재 조건에 맞는 시설이 없어요. 다른 지점을 누르거나 범위를 해제해 보세요." : activeListArea ? "다른 위치에서 ‘지금 지도에서 보기’를 누르거나 지도 범위를 해제해 보세요." : "다른 카테고리나 검색어로 살펴보세요."}</p></div> : <ul className="planner-place-list">{[...listedPlaces].sort((a, b) => activeNearPoint ? distanceMeters(activeNearPoint, a) - distanceMeters(activeNearPoint, b) : a.distance - b.distance).slice(0, listLimit).map((place) => <li key={place.placeId}><button type="button" aria-pressed={Boolean(selected && sameStop(place, selected))} onClick={() => selectPlace(place)}>
