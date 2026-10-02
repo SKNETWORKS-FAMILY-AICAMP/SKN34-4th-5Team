@@ -60,7 +60,7 @@ class ChatStreamStoppedError extends ChatClientError {}
 exports.ChatClientError = ChatClientError;
 exports.ChatStreamStoppedError = ChatStreamStoppedError;
 exports.GUEST_STATUS = { provider: "guest", model: "guest", ready: true };
-for (const name of ["deleteChatMessages", "deleteChatSession", "editChatMessage", "fetchChatHistory", "getChatStatus", "listChatSessions", "sendChatMessage"])
+for (const name of ["deleteChatMessages", "deleteChatSession", "editChatMessage", "fetchChatHistory", "getChatStatus", "listChatSessions", "sendChatMessage", "saveAnswerFeedback"])
   exports[name] = (...args) => global.__chatApi[name](...args);
 `);
 
@@ -198,6 +198,92 @@ test("provider ignores delayed list/history callbacks and reloads an interrupted
   assert.deepEqual(historyCalls, [["member", FIRST], ["member", SECOND], ["member", FIRST]]);
 });
 
+test("feedback updates shared history, rejects duplicate writes and ignores an old identity", async () => {
+  global.__memberAuth = { status: "authenticated", user: { id: 7 } };
+  let pendingVote = deferred();
+  const calls = [];
+  global.__chatApi = {
+    ...baseApi,
+    listChatSessions: async () => [rooms[0]],
+    fetchChatHistory: async () => [row(USER_MSG, "user", "질문"), row(ASSISTANT_MSG, "assistant", "답변")],
+    saveAnswerFeedback: (...args) => { calls.push(args); return pendingVote.promise; },
+  };
+  const runner = hookRunner();
+  let controls = runner.render();
+  runner.flushEffects();
+  await tick();
+  controls = runner.render();
+  const up = { rating: "up", reason: "", comment: "" };
+  const saving = controls.onFeedback(ASSISTANT_MSG, up);
+  await assert.rejects(controls.onFeedback(ASSISTANT_MSG, up));
+  pendingVote.resolve(up);
+  await saving;
+  controls = runner.render();
+  assert.deepEqual(controls.messages.find(message => message.id === ASSISTANT_MSG).feedback, up);
+  assert.deepEqual(calls, [["member", FIRST, ASSISTANT_MSG, up]]);
+  pendingVote = deferred();
+  const cancelling = controls.onFeedback(ASSISTANT_MSG, null);
+  global.__memberAuth = { status: "anonymous", user: null };
+  controls = runner.render();
+  runner.flushEffects();
+  pendingVote.resolve(null);
+  await cancelling;
+  await tick();
+  controls = runner.render();
+  assert.ok(controls.messages.every(message => !message.feedback));
+  global.__memberAuth = { status: "authenticated", user: { id: 7 } };
+});
+
+test("colliding answer IDs vote independently across conversations and account changes", async () => {
+  global.__memberAuth = { status: "authenticated", user: { id: 7 } };
+  const votes = [];
+  global.__chatApi = {
+    ...baseApi, listChatSessions: async () => rooms,
+    fetchChatHistory: async () => [row(1, "user", "question"), row(2, "assistant", "answer")],
+    saveAnswerFeedback: (...args) => { const pending = deferred(); votes.push({ args, pending }); return pending.promise; },
+  };
+  const runner = hookRunner();
+  let controls = runner.render(); runner.flushEffects(); await tick(); controls = runner.render();
+  const up = { rating: "up", reason: "", comment: "" };
+  const first = controls.onFeedback(2, up);
+  controls.onSelectConversation(`member:${SECOND}`); await tick(); controls = runner.render();
+  const second = controls.onFeedback(2, up);
+  assert.equal(votes.length, 2);
+  votes[0].pending.resolve(up); await first;
+  await assert.rejects(controls.onFeedback(2, up));
+  global.__memberAuth = { status: "authenticated", user: { id: 8 } };
+  controls = runner.render(); runner.flushEffects(); await tick(); controls = runner.render();
+  controls.onSelectConversation(`member:${SECOND}`); await tick(); controls = runner.render();
+  const newOwner = controls.onFeedback(2, up);
+  assert.equal(votes.length, 3);
+  votes[1].pending.resolve(up); await second;
+  controls = runner.render();
+  assert.ok(controls.messages.every(message => !message.feedback));
+  await assert.rejects(controls.onFeedback(2, up));
+  votes[2].pending.resolve(up); await newOwner;
+});
+
+test("assistant deletion removes only its answer and reloads a truthful question tombstone", async () => {
+  global.__memberAuth = { status: "authenticated", user: { id: 7 } };
+  let rows = [row(1, "user", "question"), row(2, "assistant", "answer"), row(3, "user", "later"), row(4, "assistant", "later answer")];
+  const confirmations = [];
+  window.confirm = text => { confirmations.push(text); return true; };
+  global.__chatApi = {
+    ...baseApi, listChatSessions: async () => [rooms[0]], fetchChatHistory: async () => rows,
+    deleteChatMessages: async (_mode, _session, id) => { rows = id === 2 ? [{ ...rows[0], answer_deleted: true }, ...rows.slice(2)] : rows.slice(0, rows.findIndex(item => item.id === id)); },
+  };
+  const runner = hookRunner();
+  let controls = runner.render(); runner.flushEffects(); await tick(); controls = runner.render();
+  controls.onDeleteMessage(2); await tick(); controls = runner.render();
+  assert.deepEqual(controls.messages.map(message => message.id), [1, 3, 4]);
+  assert.equal(controls.messages[0].answerDeleted, true);
+  assert.match(confirmations[0], /이 답변만/);
+  assert.match(confirmations[0], /질문과 다른 대화는 그대로/);
+  controls.onDeleteMessage(3); await tick(); controls = runner.render();
+  assert.deepEqual(controls.messages.map(message => message.id), [1]);
+  assert.match(confirmations[1], /이 질문과 이후 대화를 모두/);
+});
+
 test("guest reload lists cookie-owned sessions and restores history in guest mode", async () => {
   global.__memberAuth = { status: "anonymous", user: null };
   const calls = [];
@@ -319,7 +405,7 @@ for (const [path, exportName] of [["components/chat-workspace", "ChatWorkspace"]
       .replace('from "next/image"', 'from "../test-surface-stub"')
       .replace('from "@/lib/chat/types"', 'from "../lib/chat/types"')
       .replace('from "@/lib/member-auth"', 'from "../test-member-auth"')
-      .replace(/from "\.\/(chat-provider|icons|chat-answer|chat-course-card|chat-pending|chat-progress|chat-usage)"/g, 'from "../test-surface-stub"');
+      .replace(/from "\.\/(chat-provider|icons|chat-answer|chat-course-card|chat-pending|chat-progress|chat-usage|chat-feedback)"/g, 'from "../test-surface-stub"');
     writeFileSync(join(scratch, `${path}.js`), ts.transpileModule(source, {
       fileName: `${path}.tsx`, compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
     }).outputText);
@@ -347,6 +433,27 @@ for (const [path, exportName] of [["components/chat-workspace", "ChatWorkspace"]
     stop.props.onClick({ preventDefault: () => { prevented = true; } });
     assert.equal(cancelled, 1);
     assert.equal(prevented, true);
+    global.__chat.pending = "";
+    global.__chat.messages = [{ id: 1, role: "user", content: "question", status: "completed" }, { id: 2, role: "assistant", content: "answer", status: "completed" }];
+    const actions = [];
+    const feedback = [];
+    const collect = node => {
+      if (!node || typeof node !== "object") return;
+      if (Array.isArray(node)) { node.forEach(collect); return; }
+      if (["이 질문 수정", "이 질문부터 삭제", "이 답변만 삭제"].includes(node.props?.["aria-label"])) actions.push(node);
+      if (node.type === require("./test-surface-stub.js").ChatFeedback && node.props?.message?.role === "assistant") feedback.push(node);
+      collect(node.props?.children);
+    };
+    collect(Surface({}));
+    assert.deepEqual(actions.map(node => node.props["aria-label"]), ["이 질문 수정", "이 질문부터 삭제"]);
+    assert.equal(feedback.length, 1, "assistant actions are delegated to one shared feedback toolbar");
+    assert.equal(feedback[0].props.disabled, false);
+    for (const action of actions) {
+      assert.equal(action.props.type, "button");
+      assert.equal(action.props.children.type, "svg");
+      assert.equal(action.props.children.props["aria-hidden"], "true");
+      assert.equal(action.props.children.props.width, "16");
+    }
     global.__memberAuth = { status: "authenticated", user: { id: 7 } };
   });
 }

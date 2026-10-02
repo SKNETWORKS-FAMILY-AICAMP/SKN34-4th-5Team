@@ -31,6 +31,7 @@ export function MemberHeaderActions() {
           <Link href="/mypage?tab=members" onClick={() => setOpen(false)}>회원 관리</Link>
           <Link href="/mypage?tab=manage-posts" onClick={() => setOpen(false)}>게시글 관리</Link>
           <Link href="/mypage?tab=reports" onClick={() => setOpen(false)}>신고 관리</Link>
+          {status === "authenticated" && user.is_superuser === true && <Link href="/mypage?tab=feedback" onClick={() => setOpen(false)}>챗봇 답변 평가</Link>}
           <hr className="member-menu-divider" />
         </>}
         <Link href="/mypage?tab=profile" onClick={() => setOpen(false)}>회원 정보</Link>

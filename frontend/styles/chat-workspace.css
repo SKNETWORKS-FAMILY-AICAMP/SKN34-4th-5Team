@@ -92,6 +92,7 @@
 .workspace-user-bubble { max-width: 90%; padding: 13px 20px; border-radius: 21px 21px 5px 21px; background: #edf4ff; color: #355478; font-size: 15px; line-height: 1.85; white-space: pre-wrap; overflow-wrap: anywhere; }
 .workspace-assistant-label { display: flex; align-items: center; gap: 8px; margin-bottom: 15px; color: #6f839d; font-size: 11px; font-weight: 550; }
 .workspace-assistant-label > span { display: grid; place-items: center; width: 26px; height: 26px; border: 1px solid #e7effa; border-radius: 9px; background: #f7faff; color: #4b83df; }
+.chat-workspace .answer-feedback { margin-left: 34px; }
 .chat-workspace .chat-answer { padding-left: 34px; color: #3e4d62; font-size: 15px; line-height: 1.95; overflow-wrap: anywhere; }
 .chat-workspace .chat-answer > * + * { margin-top: 17px; }
 .chat-workspace .chat-answer strong { color: #273d59; font-weight: 650; }
@@ -163,6 +164,7 @@
   .workspace-message-user { padding-left: 16px; }
   .workspace-user-bubble { max-width: 95%; padding: 12px 16px; font-size: 14px; border-radius: 18px 18px 4px 18px; }
   .workspace-assistant-label { margin-bottom: 13px; font-size: 10px; }
+  .chat-workspace .answer-feedback { margin-left: 0; }
   .chat-workspace .chat-answer { padding-left: 0; font-size: 14px; line-height: 1.95; }
   .chat-workspace .chat-answer h3 { font-size: 15px; }
   .workspace-thinking { margin-left: 2px; }
@@ -181,7 +183,7 @@
 .workspace-message-note, .workspace-message-actions { flex-basis: 100%; margin-top: 4px; color: #94a1b4; font-size: 11px; text-align: right; }
 .workspace-message-assistant .workspace-message-note { text-align: left; }
 .workspace-message-actions { display: flex; justify-content: flex-end; gap: 10px; }
-.workspace-message-actions button, .workspace-edit-banner button { padding: 2px 0; border: 0; background: transparent; color: #3974c9; text-decoration: underline; text-underline-offset: 3px; font-size: 11px; }
+.workspace-edit-banner button { padding: 2px 0; border: 0; background: transparent; color: #3974c9; text-decoration: underline; text-underline-offset: 3px; font-size: 11px; }
 .workspace-edit-banner { margin-bottom: 8px; color: #7186a1; font-size: 11px; text-align: center; }
 .workspace-settings { position: fixed; inset: 0; width: min(460px, calc(100vw - 32px)); max-width: calc(100vw - 32px); max-height: calc(100dvh - 32px); margin: auto; padding: 22px; border: 1px solid #e1eafa; border-radius: 18px; background: #fff; color: #384c68; overflow-y: auto; overflow-wrap: anywhere; box-shadow: 0 16px 48px #14285026; }
 .workspace-settings::backdrop { background: #1a2c4770; }
@@ -213,3 +215,9 @@
 .workspace-usage-soon { color: #5b6e86; }
 .workspace-profile:focus-visible, .workspace-settings :focus-visible { outline: 2px solid #3974c9; outline-offset: 3px; }
 @media (max-width: 767px) { .workspace-settings { padding: 18px; } }
+
+.workspace-message-actions { opacity: 0; pointer-events: none; }
+.workspace-message-actions button { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: #477ecd; }
+.workspace-message:hover .workspace-message-actions, .workspace-message:focus-within .workspace-message-actions { opacity: 1; pointer-events: auto; }
+.workspace-message-actions button:focus-visible { outline: 2px solid #477ecd; outline-offset: 2px; }
+@media (hover: none), (pointer: coarse) { .workspace-message-actions { opacity: 1; pointer-events: auto; } }

@@ -22,7 +22,10 @@ export function restoreChatMessages(history: ChatMessageDto[]): ChatMessage[] {
   return history.map(item => {
     const tools = item.tools.map(fromToolDto), timeline = buildTimeline(item.steps ?? [], tools), planning = parsePlanning(item.planning);
     return {
-      id: item.id, role: item.role, content: item.content, status: item.status, ...(planning ? { planning } : {}),
+      id: item.id, role: item.role, content: item.content, status: item.status,
+      ...(item.answer_deleted ? { answerDeleted: true } : {}),
+      ...(item.feedback !== undefined ? { feedback: item.feedback } : {}),
+      ...(planning ? { planning } : {}),
       ...(tools.length ? { tools } : {}), ...(timeline.length ? { timeline } : {}),
     };
   });

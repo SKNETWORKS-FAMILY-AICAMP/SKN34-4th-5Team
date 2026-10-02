@@ -18,7 +18,7 @@ def _model_history(messages, turns):
     return [
         HumanMessage(item["content"]) if item["role"] == ChatRole.USER else AIMessage(item["content"] + ("\n" if item.get("planning", {}).get("questions") else "") + "\n".join(
             q["question"] + ": " + " / ".join(q["choices"]) for q in item.get("planning", {}).get("questions", [])))
-        for item in project_history(messages, turns) if item["status"] == TurnStatus.COMPLETED
+        for item in project_history(messages, turns) if item["status"] == TurnStatus.COMPLETED and not item.get("answer_deleted")
     ]
 
 

@@ -715,7 +715,8 @@ class MessageContextValidationTest(CheckpointTestCase):
         body = response.json()
         self.assertEqual(len(body), 2)
         for item in body:
-            self.assertEqual(set(item), {"id", "sequence_no", "role", "content", "status", "tools", "steps", "created_at", "updated_at"})
+            fields = {"id", "sequence_no", "role", "content", "status", "tools", "steps", "created_at", "updated_at"}
+            self.assertEqual(set(item), fields | ({"feedback"} if item["role"] == "assistant" else set()))
 
     def test_put_updates_message_and_forwards_context_after_truncating_later_turns(self):
         """PUT 은 target 뒤를 RemoveMessage 로 지우고 target 을 같은 ID 의 새 질문으로 바꿔 다시 답한다.
@@ -1026,9 +1027,13 @@ class MessageDeleteNotFoundTest(CheckpointTestCase):
         self.assertEqual(response.status_code, 404)
         self.assertEqual(len(history(other_session)), 2)
 
-    def test_delete_assistant_role_message_id_returns_404_not_500(self):
-        """message_id 가 실존해도 assistant 답변이면(사용자 메시지가 아니면) 404."""
+    def test_delete_assistant_role_message_id_removes_only_answer(self):
+        """완료된 assistant 답변은 해당 답변만 지우고 질문은 남긴다."""
         answer = seed(self.session, ("질문", "AI 답변"))[1]
         response = self.client_a.delete(self.url, {"message_id": answer.id}, format="json")
-        self.assertEqual(response.status_code, 404)
-        self.assertEqual(len(history(self.session)), 2)
+        self.assertEqual(response.status_code, 204)
+        items = history(self.session)
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["content"], "질문")
+        self.assertTrue(items[0]["answer_deleted"])
+        self.assertEqual(items[0]["status"], "completed")

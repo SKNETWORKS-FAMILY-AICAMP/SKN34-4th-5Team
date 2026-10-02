@@ -7560,8 +7560,511 @@ paths:
               schema:
                 $ref: '#/components/schemas/WeatherErrorResponse'
           description: ''
+  /api/v1/ads/admin/creatives/:
+    get:
+      operationId: v1_ads_admin_creatives_list
+      parameters:
+      - description: A page number within the paginated result set.
+        in: query
+        name: page
+        required: false
+        schema:
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAdAdminList'
+          description: ''
+      security:
+      - jwtAuth: []
+      tags:
+      - v1
+    post:
+      operationId: v1_ads_admin_creatives_create
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdAdmin'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AdAdmin'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AdAdmin'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdAdmin'
+          description: ''
+      security:
+      - jwtAuth: []
+      tags:
+      - v1
+  /api/v1/ads/admin/creatives/{id}/:
+    get:
+      operationId: v1_ads_admin_creatives_retrieve
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdAdmin'
+          description: ''
+      security:
+      - jwtAuth: []
+      tags:
+      - v1
+    patch:
+      operationId: v1_ads_admin_creatives_partial_update
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedAdAdmin'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedAdAdmin'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedAdAdmin'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdAdmin'
+          description: ''
+      security:
+      - jwtAuth: []
+      tags:
+      - v1
+  /api/v1/ads/events/:
+    post:
+      operationId: v1_ads_events_create
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdEventInput'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AdEventInput'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AdEventInput'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdEventResult'
+          description: ''
+      security:
+      - {}
+      tags:
+      - v1
+  /api/v1/ads/slots/:
+    get:
+      operationId: v1_ads_slots_retrieve
+      parameters:
+      - description: '* `home-club-banner` - 홈 구단 광고
+
+          * `home-route-partner-banner` - 홈 음식점·시설 광고'
+        in: query
+        name: placement
+        required: true
+        schema:
+          enum:
+          - home-club-banner
+          - home-route-partner-banner
+          minLength: 1
+          type: string
+      - in: query
+        name: route_ids
+        schema:
+          items:
+            maxLength: 80
+            type: string
+          maxItems: 3
+          type: array
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdSlotResponse'
+          description: ''
+      security:
+      - {}
+      tags:
+      - v1
 components:
   schemas:
+    AdAdmin:
+      properties:
+        active:
+          title: 활성
+          type: boolean
+        advertiser:
+          maxLength: 120
+          title: 광고주
+          type: string
+        button_label:
+          maxLength: 40
+          title: 버튼 문구
+          type: string
+        context_label:
+          maxLength: 120
+          title: 지역·분류
+          type: string
+        courses:
+          items:
+            format: uuid
+            title: 노출 대상 코스
+            type: string
+          title: 노출 대상 코스
+          type: array
+        created_at:
+          format: date-time
+          readOnly: true
+          type: string
+        description:
+          maxLength: 250
+          title: 설명
+          type: string
+        destination_url:
+          format: uri
+          maxLength: 1000
+          title: 이동 URL
+          type: string
+        ends_at:
+          format: date-time
+          title: 종료 일시
+          type: string
+        id:
+          readOnly: true
+          type: integer
+        image_alt:
+          maxLength: 250
+          title: 이미지 설명
+          type: string
+        image_url:
+          format: uri
+          maxLength: 1000
+          title: 이미지 URL
+          type: string
+        is_test:
+          title: 테스트 광고
+          type: boolean
+        place:
+          nullable: true
+          title: 제휴 장소
+          type: integer
+        placement:
+          allOf:
+          - $ref: '#/components/schemas/PlacementEnum'
+          title: 위치
+        priority:
+          maximum: 32767
+          minimum: 0
+          title: 우선순위
+          type: integer
+        starts_at:
+          format: date-time
+          title: 시작 일시
+          type: string
+        team_code:
+          maxLength: 10
+          title: 구단 코드
+          type: string
+        title:
+          maxLength: 120
+          title: 제목
+          type: string
+        updated_at:
+          format: date-time
+          readOnly: true
+          type: string
+      required:
+      - advertiser
+      - created_at
+      - destination_url
+      - ends_at
+      - id
+      - image_url
+      - placement
+      - starts_at
+      - title
+      - updated_at
+      type: object
+    AdEventInput:
+      properties:
+        event_id:
+          format: uuid
+          type: string
+        kind:
+          $ref: '#/components/schemas/AdEventInputKindEnum'
+        token:
+          maxLength: 2048
+          type: string
+      required:
+      - event_id
+      - kind
+      - token
+      type: object
+    AdEventInputKindEnum:
+      description: '* `impression` - 노출
+
+        * `click` - 클릭'
+      enum:
+      - impression
+      - click
+      type: string
+    AdEventResult:
+      properties:
+        accepted:
+          type: boolean
+        duplicate:
+          type: boolean
+      required:
+      - accepted
+      - duplicate
+      type: object
+    AdPublic:
+      properties:
+        active:
+          readOnly: true
+          title: 활성
+          type: boolean
+        advertiser:
+          readOnly: true
+          title: 광고주
+          type: string
+        button_label:
+          readOnly: true
+          title: 버튼 문구
+          type: string
+        context_label:
+          readOnly: true
+          title: 지역·분류
+          type: string
+        description:
+          readOnly: true
+          title: 설명
+          type: string
+        destination_url:
+          format: uri
+          readOnly: true
+          title: 이동 URL
+          type: string
+        ends_at:
+          format: date-time
+          readOnly: true
+          title: 종료 일시
+          type: string
+        id:
+          readOnly: true
+          type: integer
+        image_alt:
+          readOnly: true
+          title: 이미지 설명
+          type: string
+        image_url:
+          format: uri
+          readOnly: true
+          title: 이미지 URL
+          type: string
+        placement:
+          allOf:
+          - $ref: '#/components/schemas/PlacementEnum'
+          readOnly: true
+          title: 위치
+        starts_at:
+          format: date-time
+          readOnly: true
+          title: 시작 일시
+          type: string
+        title:
+          readOnly: true
+          title: 제목
+          type: string
+      required:
+      - active
+      - advertiser
+      - button_label
+      - context_label
+      - description
+      - destination_url
+      - ends_at
+      - id
+      - image_alt
+      - image_url
+      - placement
+      - starts_at
+      - title
+      type: object
+    AdSlotResponse:
+      properties:
+        ad:
+          allOf:
+          - $ref: '#/components/schemas/AdPublic'
+          nullable: true
+        exposure_id:
+          format: uuid
+          nullable: true
+          type: string
+        server_now:
+          format: date-time
+          type: string
+        token:
+          type: string
+        valid_until:
+          format: date-time
+          nullable: true
+          type: string
+      required:
+      - ad
+      - exposure_id
+      - server_now
+      - token
+      - valid_until
+      type: object
+    PaginatedAdAdminList:
+      properties:
+        count:
+          example: 123
+          type: integer
+        next:
+          example: http://api.example.org/accounts/?page=4
+          format: uri
+          nullable: true
+          type: string
+        previous:
+          example: http://api.example.org/accounts/?page=2
+          format: uri
+          nullable: true
+          type: string
+        results:
+          items:
+            $ref: '#/components/schemas/AdAdmin'
+          type: array
+      required:
+      - count
+      - results
+      type: object
+    PatchedAdAdmin:
+      properties:
+        active:
+          title: 활성
+          type: boolean
+        advertiser:
+          maxLength: 120
+          title: 광고주
+          type: string
+        button_label:
+          maxLength: 40
+          title: 버튼 문구
+          type: string
+        context_label:
+          maxLength: 120
+          title: 지역·분류
+          type: string
+        courses:
+          items:
+            format: uuid
+            title: 노출 대상 코스
+            type: string
+          title: 노출 대상 코스
+          type: array
+        created_at:
+          format: date-time
+          readOnly: true
+          type: string
+        description:
+          maxLength: 250
+          title: 설명
+          type: string
+        destination_url:
+          format: uri
+          maxLength: 1000
+          title: 이동 URL
+          type: string
+        ends_at:
+          format: date-time
+          title: 종료 일시
+          type: string
+        id:
+          readOnly: true
+          type: integer
+        image_alt:
+          maxLength: 250
+          title: 이미지 설명
+          type: string
+        image_url:
+          format: uri
+          maxLength: 1000
+          title: 이미지 URL
+          type: string
+        is_test:
+          title: 테스트 광고
+          type: boolean
+        place:
+          nullable: true
+          title: 제휴 장소
+          type: integer
+        placement:
+          allOf:
+          - $ref: '#/components/schemas/PlacementEnum'
+          title: 위치
+        priority:
+          maximum: 32767
+          minimum: 0
+          title: 우선순위
+          type: integer
+        starts_at:
+          format: date-time
+          title: 시작 일시
+          type: string
+        team_code:
+          maxLength: 10
+          title: 구단 코드
+          type: string
+        title:
+          maxLength: 120
+          title: 제목
+          type: string
+        updated_at:
+          format: date-time
+          readOnly: true
+          type: string
+      type: object
+    PlacementEnum:
+      description: '* `home-club-banner` - 홈 구단 광고
+
+        * `home-route-partner-banner` - 홈 음식점·시설 광고'
+      enum:
+      - home-club-banner
+      - home-route-partner-banner
+      type: string
     AdminMember:
       type: object
       properties:

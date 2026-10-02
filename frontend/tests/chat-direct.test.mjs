@@ -28,7 +28,7 @@ global.sessionStorage = {
 };
 const require = createRequire(join(scratch, "entry.cjs"));
 const { clearMemberTokens, saveMemberTokens } = require("./lib/member-auth-request.js");
-const { ChatClientError, deleteChatMessages, deleteChatSession, editChatMessage, fetchChatHistory, getChatStatus, listChatSessions, renameChatSession, sendChatMessage } = require("./lib/chat/client.js");
+const { saveAnswerFeedback, fetchAdminFeedback, fetchAdminFeedbackDetail, ChatClientError, deleteChatMessages, deleteChatSession, editChatMessage, fetchChatHistory, getChatStatus, listChatSessions, renameChatSession, sendChatMessage } = require("./lib/chat/client.js");
 const { restoreChatMessages } = require("./lib/chat/history.js");
 const { courseToStops, parseChatCourse } = require("./lib/chat/course.js");
 const json = (value, status = 200) => Response.json(value, { status });
@@ -370,12 +370,65 @@ test("planning payload is validated on SSE and history; invalid UI keeps text fa
   const payload = { offer_writer: true, questions: [{ question: "동행", choices: ["혼자", "친구"] }, { question: "이동", choices: ["도보", "차", "버스", "미정"] }] };
   for (const planning of [payload, { offer_writer: true, questions: [{ question: "bad", choices: ["one"] }] }, { offer_writer: true, questions: [{ question: "bad", choices: ["a", "b", "c", "d", "e"] }] }, { offer_writer: "yes", questions: [] }]) {
     const seen = [];
-    global.fetch = async (url, init) => init.method === "GET" ? json([{ ...row(2, "assistant", "텍스트"), planning }]) : sse([["planning", planning], ["done", { message_id: "2", assistant_message: "텍스트", tools: [], planning }]]);
+    const feedback = { rating: "up", reason: "", comment: "" };
+    global.fetch = async (url, init) => init.method === "GET" ? json([{ ...row(2, "assistant", "텍스트"), planning, feedback }, { ...row(3, "user", "삭제된 답변의 질문"), answer_deleted: true }]) : sse([["planning", planning], ["done", { message_id: "2", assistant_message: "텍스트", tools: [], planning }]]);
     const reply = await sendChatMessage("guest", { sessionId: SESSION, content: "계획" }, undefined, { onPlanning: value => seen.push(value) });
     const history = restoreChatMessages(await fetchChatHistory("guest", SESSION));
     assert.equal(reply.reply, "텍스트");
     assert.deepEqual(reply.planning, planning === payload ? payload : undefined);
     assert.deepEqual(history[0].planning, reply.planning);
+    assert.deepEqual(history[0].feedback, feedback);
+    assert.equal(history[1].answerDeleted, true);
     assert.equal(seen.length, planning === payload ? 1 : 0);
   }
+});
+
+test("feedback create/change/cancel uses real server message ID and survives history restoration", async () => {
+  saveMemberTokens("access-token", "refresh-token");
+  let feedback = null;
+  const calls = [];
+  global.fetch = async (url, init = {}) => {
+    calls.push({ url: String(url), init });
+    if (init.method === "PUT") {
+      const body = JSON.parse(init.body);
+      assert.equal(body.message_id, ASSISTANT_MSG);
+      feedback = body.rating === null ? null : { rating: body.rating, reason: body.reason, comment: body.comment };
+      return json({ feedback });
+    }
+    return json([{ ...row(ASSISTANT_MSG, "assistant", "answer"), feedback }]);
+  };
+  assert.deepEqual(await saveAnswerFeedback("member", SESSION, ASSISTANT_MSG, { rating: "up", reason: "", comment: "" }), { rating: "up", reason: "", comment: "" });
+  await saveAnswerFeedback("member", SESSION, ASSISTANT_MSG, { rating: "down", reason: "incorrect", comment: "wrong" });
+  assert.deepEqual(restoreChatMessages(await fetchChatHistory("member", SESSION))[0].feedback, feedback);
+  assert.equal(await saveAnswerFeedback("member", SESSION, ASSISTANT_MSG, null), null);
+  assert.equal(calls[0].url, `/api/v2/chat/sessions/${SESSION}/feedback/`);
+  assert.equal(new Headers(calls[0].init.headers).get("Authorization"), "Bearer access-token");
+  await saveAnswerFeedback("guest", SESSION, ASSISTANT_MSG, { rating: "up", reason: "", comment: "" });
+  assert.equal(new Headers(calls.at(-1).init.headers).get("Authorization"), null);
+  assert.equal(calls.at(-1).init.credentials, undefined);
+});
+
+test("feedback validates IDs, comment boundaries and API errors without optimistic success", async () => {
+  global.fetch = async () => json({ detail: "stale answer" }, 404);
+  await assert.rejects(saveAnswerFeedback("guest", SESSION, 0, null), error => error.status === 400);
+  await assert.rejects(saveAnswerFeedback("guest", SESSION, 2, { rating: "down", reason: "other", comment: "x".repeat(1001) }), error => error.status === 400);
+  await assert.rejects(saveAnswerFeedback("guest", SESSION, 2, null), error => error.status === 404);
+  global.fetch = async () => json({ feedback: { rating: "invented" } });
+  await assert.rejects(saveAnswerFeedback("guest", SESSION, 2, null), error => error.status === 502);
+});
+
+test("admin feedback list filters/page and detail reuse Bearer requests", async () => {
+  saveMemberTokens("access-token", "refresh-token");
+  const detail = { id: 1, session_id: SESSION, answer_id: "stored-answer-id", message_id: 2, rating: "down", reason: "other", comment: "", question: "q", answer: "a", metadata: {}, created_at: "now", updated_at: "now" };
+  global.fetch = async (url, init) => {
+    assert.equal(new Headers(init.headers).get("Authorization"), "Bearer access-token");
+    if (String(url).includes("?")) {
+      assert.equal(String(url), "/api/v2/chat/admin/feedback/?page=2&rating=down&reason=other");
+      return json({ count: 21, results: [detail] });
+    }
+    assert.equal(String(url), "/api/v2/chat/admin/feedback/1/");
+    return json(detail);
+  };
+  assert.equal((await fetchAdminFeedback(2, "down", "other")).count, 21);
+  assert.deepEqual(await fetchAdminFeedbackDetail(1), detail);
 });

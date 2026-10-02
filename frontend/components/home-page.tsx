@@ -7,6 +7,7 @@ import { useChat } from "./chat-provider";
 import { MAX_MESSAGE_LENGTH } from "@/lib/chat/types";
 import { Baseball, CapBot, Icon } from "./icons";
 import { GameSchedule } from "./game-schedule";
+import { AdSlot } from "./ad-slot";
 import { RouteCard } from "./route-card";
 import { RouteCardsSkeleton } from "./route-skeleton";
 import { useRoutes, useRoutesReady } from "@/lib/routes";
@@ -58,13 +59,14 @@ export function HomePage() {
           <div className="hero-shortcuts">{shortcuts.map(shortcut => <Link href={shortcut.href} className="shortcut" key={shortcut.title}>{"image" in shortcut ? <span className="shortcut-icon has-image"><Image src={shortcut.image} alt="" width={96} height={96} /></span> : <span className="shortcut-icon"><Icon name={shortcut.icon} size={30} /></span>}<strong>{shortcut.title}</strong><small>{shortcut.caption}</small></Link>)}</div>
         </div>
       </section>
-      <GameSchedule beforeTeamBoards={
+      <GameSchedule afterSchedule={<AdSlot placement="home-club-banner" />} beforeTeamBoards={<>
         <section className="home-popular-section" aria-labelledby="popular-heading"><div className="container">
         <div className="section-heading"><div><span className="eyebrow">FAN FAVORITES</span><h2 id="popular-heading">루트 추천</h2><p>경기 전후의 즐거움까지, 마음에 드는 하루를 골라보세요.</p></div><Link className="text-link" href="/routes">더보기 <Icon name="chevron" size={17} /></Link></div>
         <div className="home-popular-meta"><span>인기 루트</span><p>예시 코스 중 좋아요 순으로 3개를 보여드려요.</p></div>
         {!ready ? <RouteCardsSkeleton count={3} className="home-popular-grid" /> : <div className="home-popular-grid">{popular.map(route => <RouteCard key={route.id} route={route} />)}</div>}
       </div></section>
-      } />
+        <AdSlot placement="home-route-partner-banner" routeIds={ready ? popular.map(route => route.apiId ?? route.id) : []} />
+      </>} />
       <section className="home-stadium-section" aria-labelledby="stadium-heading"><div className="container">
         <div className="section-heading"><div><span className="eyebrow">CHOOSE YOUR BALLPARK</span><h2 id="stadium-heading">어느 구장으로 떠날까요?</h2><p>응원하는 팀의 마크를 눌러 홈구장을 만나보세요.</p></div><Link href="/stadiums" className="text-link">구장 정보 <Icon name="chevron" size={17} /></Link></div>
         <nav className="home-team-strip" aria-label="팀별 홈구장">

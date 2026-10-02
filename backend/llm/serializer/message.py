@@ -93,6 +93,8 @@ class MessageIdField(serializers.Field):
     default_error_messages = {"invalid": "메시지 번호 또는 UUID 여야 합니다."}
 
     def to_internal_value(self, data):
+        if isinstance(data, bool):
+            self.fail("invalid")
         if isinstance(data, str) and data.isascii() and data.isdigit():
             data = int(data)
         if isinstance(data, int) and not isinstance(data, bool):
@@ -240,7 +242,10 @@ def project_history(messages, turns, detail=False):
         if status not in TURN_STATUSES:
             raise ValueError("missing turn status")
         answer_id = turn.get("answer_id")
-        if status == TurnStatus.COMPLETED and not answer_id:
+        deleted = turn.get("answer_deleted") is True
+        if deleted and (status != TurnStatus.COMPLETED or answer_id):
+            raise ValueError("invalid deleted answer turn")
+        if status == TurnStatus.COMPLETED and not answer_id and not deleted:
             raise ValueError("completed turn without answer")
 
         tools, steps = [], []
@@ -248,7 +253,10 @@ def project_history(messages, turns, detail=False):
         if answer_id and answer is None:
             raise ValueError("answer message not found")
 
-        items.append(_history_item(human, ChatRole.USER.value, status, [] if answer else tools, [] if answer else steps))
+        item = _history_item(human, ChatRole.USER.value, status, [] if answer else tools, [] if answer else steps)
+        if deleted:
+            item["answer_deleted"] = True
+        items.append(item)
         if answer:
             item = _history_item(answer, ChatRole.ASSISTANT.value, status, tools, steps)
             from llm.v2.agent.chat_ui import public_ui
