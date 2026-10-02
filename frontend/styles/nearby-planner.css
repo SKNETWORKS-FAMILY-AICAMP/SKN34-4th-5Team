@@ -233,15 +233,3 @@
 .driver-active .planner-guide-origin, .driver-active .planner-guide-origin * { pointer-events: auto; }
 @keyframes planner-guide-pulse { 50% { transform: scale(1.08); } }
 @media (prefers-reduced-motion: reduce) { .planner-guide-origin { animation: none; } }
-.writer-layout[data-member-tools="false"] {
-  grid-template-areas: "planner planner" "chat chat";
-}
-@media (max-width: 860px) {
-  .writer-layout[data-member-tools="false"] { grid-template-areas: "planner" "chat"; }
-}
-@media (max-width: 767px) {
-  .writer-layout[data-member-tools="false"] { display: block; grid-template-areas: none; }
-}
-@media (min-width: 1200px) {
-  .writer-layout[data-member-tools="false"] { grid-template-areas: "planner chat"; }
-}
