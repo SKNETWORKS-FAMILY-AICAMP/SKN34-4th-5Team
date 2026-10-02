@@ -1,6 +1,7 @@
+import { parsePlanning, type ChatPlanning } from "./planning";
 import { memberError, memberFetch } from "../member-auth-request";
 import { isRecord, parseChatRequest } from "./validation";
-import type { ChatContext, ChatReply, ChatStatus } from "./types";
+import type { AnswerFeedback, ChatContext, ChatReply, ChatStatus } from "./types";
 import { MAX_REPLY_LENGTH, buildTimeline } from "./types";
 import { fromToolDto } from "./history";
 import type { ChatMessageDto, ChatSessionDto, ChatStepDto, ChatToolCallDto } from "./wire";
@@ -21,7 +22,7 @@ const STATUS: Record<ChatMode, ChatStatus> = {
 };
 export const GUEST_STATUS = STATUS.guest;
 
-export type ChatStreamCallbacks = { onDelta?: (piece: string, parentId: string | null) => void; onTool?: (tool: ChatToolCallDto) => void };
+export type ChatStreamCallbacks = { onPlanning?: (payload: ChatPlanning) => void; onDelta?: (piece: string, parentId: string | null) => void; onTool?: (tool: ChatToolCallDto) => void };
 export type ChatSendRequest = { sessionId?: string; content: string; context?: ChatContext };
 export type ChatEditRequest = { sessionId: string; messageId: number; content: string; context?: ChatContext };
 
@@ -123,19 +124,20 @@ const isSteps = (value: unknown) => value === undefined || (Array.isArray(value)
 const isMessage = (value: unknown): value is ChatMessageDto => isRecord(value) && isMessageId(value.id) && isMessageId(value.sequence_no) &&
   (value.role === "user" || value.role === "assistant") && typeof value.content === "string" &&
   ["pending", "completed", "failed", "stopped"].includes(String(value.status)) &&
-  Array.isArray(value.tools) && value.tools.every(isTool) && isSteps(value.steps) && typeof value.created_at === "string" && typeof value.updated_at === "string";
+  Array.isArray(value.tools) && value.tools.every(isTool) && isSteps(value.steps) && typeof value.created_at === "string" && typeof value.updated_at === "string" &&
+  (value.feedback === undefined || value.feedback === null || isAnswerFeedback(value.feedback));
 // DELETE answers 204 with no body.
 const readEmpty = async (response: Response) => { await response.text(); };
 
 // Frames are `event: <name>\ndata: <json>\n\n` (backend/llm/views/sse.py): delta{text}* / tool{id,
 // tool_name, status}* then exactly one terminal event: done{message_id, assistant_message, tools},
 // error{detail}, or stopped{}. A stream that closes with none is a dropped connection.
-async function readStream(response: Response, sessionId: string, callbacks: ChatStreamCallbacks): Promise<{ reply: string; assistantMessageId: number; tools: ChatToolCallDto[]; steps: ChatStepDto[] }> {
+async function readStream(response: Response, sessionId: string, callbacks: ChatStreamCallbacks): Promise<{ reply: string; assistantMessageId: number; tools: ChatToolCallDto[]; steps: ChatStepDto[]; planning?: ChatPlanning }> {
   if (!response.body || !response.headers.get("Content-Type")?.toLowerCase().startsWith("text/event-stream")) {
     throw new ChatClientError("스트림 응답을 확인하지 못했어요.", 502, true, sessionId);
   }
   const reader = response.body.getReader(), decoder = new TextDecoder();
-  let buffer = "", streamed = 0, result: { reply: string; assistantMessageId: number; tools: ChatToolCallDto[]; steps: ChatStepDto[] } | null = null;
+  let buffer = "", streamed = 0, result: { reply: string; assistantMessageId: number; tools: ChatToolCallDto[]; steps: ChatStepDto[]; planning?: ChatPlanning } | null = null;
   const consume = (frame: string) => {
     const [eventLine, ...lines] = frame.split(/\r?\n/);
     const event = eventLine?.startsWith("event:") ? eventLine.slice(6).trim() : "";
@@ -155,12 +157,17 @@ async function readStream(response: Response, sessionId: string, callbacks: Chat
       callbacks.onTool?.(value);
       return;
     }
+    if (event === "planning") {
+      const payload = parsePlanning(value);
+      if (payload) callbacks.onPlanning?.(payload);
+      return; // Invalid optional UI falls back to the normal text answer.
+    }
     if (event === "done") {
       if (typeof value.message_id !== "string" || !MESSAGE_ID.test(value.message_id) || !isMessageId(Number(value.message_id)) || typeof value.assistant_message !== "string" || value.assistant_message.length > MAX_REPLY_LENGTH ||
         !Array.isArray(value.tools) || !value.tools.every(isTool) || !isSteps(value.steps)) {
         throw new ChatClientError("최종 답변을 확인하지 못했어요.", 502, true, sessionId);
       }
-      result = { reply: value.assistant_message, assistantMessageId: Number(value.message_id), tools: value.tools, steps: (value.steps as ChatStepDto[] | undefined) ?? [] };
+      result = { reply: value.assistant_message, assistantMessageId: Number(value.message_id), tools: value.tools, steps: (value.steps as ChatStepDto[] | undefined) ?? [], planning: parsePlanning(value.planning) };
       return;
     }
     if (event === "error") {
@@ -211,6 +218,34 @@ export async function renameChatSession(mode: ChatMode, sessionId: string, title
 
 export async function deleteChatSession(mode: ChatMode, sessionId: string, signal?: AbortSignal): Promise<void> {
   await request(mode, sessionPath(sessionId), { method: "DELETE" }, signal, readEmpty);
+}
+
+export const FEEDBACK_REASONS = { incorrect: "정보가 부정확해요", irrelevant: "질문과 맞지 않아요", incomplete: "설명이 부족해요", other: "기타" };
+export function isAnswerFeedback(value: unknown): value is AnswerFeedback {
+  return isRecord(value) && (value.rating === "up" || value.rating === "down") && typeof value.reason === "string" &&
+    (value.reason === "" || Object.hasOwn(FEEDBACK_REASONS, value.reason)) && typeof value.comment === "string" && value.comment.length <= 1000;
+}
+export async function saveAnswerFeedback(mode: ChatMode, sessionId: string, messageId: number, feedback: AnswerFeedback | null): Promise<AnswerFeedback | null> {
+  if (!isMessageId(messageId) || (feedback !== null && !isAnswerFeedback(feedback))) throw new ChatClientError("평가 내용을 확인해 주세요.", 400);
+  const result = await request(mode, `${sessionPath(sessionId)}feedback/`, json("PUT", { message_id: messageId, rating: feedback?.rating ?? null, reason: feedback?.reason ?? "", comment: feedback?.comment ?? "" }), undefined, readJson);
+  if (!isRecord(result) || (result.feedback !== null && !isAnswerFeedback(result.feedback))) throw new ChatClientError("평가 응답을 확인하지 못했어요.", 502);
+  return result.feedback;
+}
+
+export type AdminAnswerFeedback = AnswerFeedback & { id: number; session_id: string; answer_id: string; message_id: number; question: string; answer: string; metadata: Record<string, unknown>; created_at: string; updated_at: string };
+const isAdminFeedback = (value: unknown): value is AdminAnswerFeedback => isRecord(value) && isMessageId(value.id) && isMessageId(value.message_id) &&
+  typeof value.session_id === "string" && UUID.test(value.session_id) && typeof value.answer_id === "string" && typeof value.question === "string" && typeof value.answer === "string" && isRecord(value.metadata) && typeof value.created_at === "string" && typeof value.updated_at === "string" && isAnswerFeedback(value);
+export async function fetchAdminFeedback(page: number, rating: string, reason: string, signal?: AbortSignal): Promise<{ count: number; results: AdminAnswerFeedback[] }> {
+  const params = new URLSearchParams({ page: String(page), rating, reason });
+  const result = await request("member", `/api/v2/chat/admin/feedback/?${params}`, { method: "GET" }, signal, readJson);
+  if (!isRecord(result) || !isCount(result.count) || !Array.isArray(result.results) || !result.results.every(isAdminFeedback)) throw new ChatClientError("평가 목록을 확인하지 못했어요.", 502);
+  return { count: Number(result.count), results: result.results };
+}
+export async function fetchAdminFeedbackDetail(id: number, signal?: AbortSignal): Promise<AdminAnswerFeedback> {
+  if (!isMessageId(id)) throw new ChatClientError("평가 번호를 확인해 주세요.", 400);
+  const result = await request("member", `/api/v2/chat/admin/feedback/${id}/`, { method: "GET" }, signal, readJson);
+  if (!isAdminFeedback(result)) throw new ChatClientError("평가 상세를 확인하지 못했어요.", 502);
+  return result;
 }
 
 export async function fetchChatHistory(mode: ChatMode, sessionId: string, signal?: AbortSignal): Promise<ChatMessageDto[]> {

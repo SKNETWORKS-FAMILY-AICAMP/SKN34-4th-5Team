@@ -36,13 +36,66 @@ class CourseGraphBridgeTest(SimpleTestCase):
                 patch("llm.v2.agent.course_chain.course_chain", Course()):
             frames = list(_frames({"messages": [HumanMessage("코스 짜줘")],
                                   "course_runtime": {"state": None, "profile_team": "OB"}}, run))
-        self.assertEqual(frames, [("delta", {"text": "기준 경기\n"}), ("delta", {"text": "검증된 코스"})])
+        self.assertEqual([frame for frame in frames if frame[0] == "delta"],
+                         [("delta", {"text": "기준 경기\n"}), ("delta", {"text": "검증된 코스"})])
+        self.assertEqual([data for event, data in frames if event == "planning"],
+                         [{"offer_writer": True, "questions": []}])
         self.assertEqual(run["answer"], "기준 경기\n검증된 코스")
         self.assertEqual(run["course_state"], saved)
         self.assertEqual(captured["course_runtime"]["profile_team"], "OB")
         self.assertEqual(model.calls, [])
         self.assertEqual(executed, [])
         self.assertEqual(classify.call_count, 1)
+
+    def test_validated_choices_stream_and_survive_history_without_reasking_known_conditions(self):
+        from llm.serializer.message import done_payload, project_history
+        saved = {**empty_state(), "pending": "choice", "candidates": [
+            {"date": "2026-10-03", "time": "18:30", "away_name": "두산", "home_name": "LG"},
+            {"date": "2026-10-04", "time": "14:00", "away_name": "LG", "home_name": "두산"},
+        ]}
+        model = ScriptedModel(script=[], calls=[])
+        graph = build_graph(model, fake_tools([]))
+
+        class Course:
+            def stream(self, inputs):
+                inputs["course_runtime"]["next_state"] = saved
+                yield "검증된 경기 후보 중 선택해 주세요."
+
+        human = HumanMessage("다음 경기", id="h")
+        run = {"answer": "", "messages": []}
+        with patch("llm.v2.middleware.jev_guidelines.classify", return_value={"allowed": True, "capabilities": ["day_plan"]}), \
+                patch("llm.v2.agent.chain.get_graph", return_value=graph), \
+                patch("llm.v2.agent.course_chain.course_chain", Course()):
+            frames = list(_frames({"messages": [human], "course_runtime": {"state": empty_state()}}, run))
+        payload = next(data for event, data in frames if event == "planning")
+        self.assertFalse(payload["offer_writer"])
+        self.assertEqual(payload["questions"], [{"question": "어느 경기 기준으로 코스를 짤까요?", "choices": [
+            "1안: 2026-10-03 18:30 두산 vs LG", "2안: 2026-10-04 14:00 LG vs 두산"]}])
+        messages = [human, *run["messages"], AIMessage(run["answer"], id="a")]
+        turns = {"h": {"status": "completed", "answer_id": "a", "course_state": saved}}
+        self.assertEqual(project_history(messages, turns)[-1]["planning"], payload)
+        self.assertEqual(done_payload(messages, turns)["planning"], payload)
+        self.assertEqual(previous_course_state(messages, turns), saved)
+        self.assertEqual(model.calls, [])
+
+    def test_changed_and_expired_questions_use_existing_public_ui_limits(self):
+        from llm.v2.course.runtime import run_course
+        for pending in ("changed", "expired"):
+            saved = {**empty_state(), "pending": pending, "pending_question": "일정 조건을 어떻게 바꿀까요?"}
+
+            class Course:
+                def stream(self, inputs):
+                    inputs["course_runtime"]["next_state"] = saved
+                    yield saved["pending_question"]
+
+            with self.subTest(pending=pending), patch("langgraph.config.get_stream_writer", return_value=lambda _: None), \
+                    patch("llm.v2.agent.course_chain.course_chain", Course()):
+                out = run_course("수정", [], None, {"state": empty_state()})
+            payload = out["messages"][0].artifact
+            self.assertFalse(payload["offer_writer"])
+            self.assertEqual(payload["questions"][0]["question"], saved["pending_question"])
+            self.assertEqual(len(payload["questions"][0]["choices"]), 2)
+            self.assertEqual(out["course_state"], saved)
 
     def test_pending_course_does_not_capture_unrelated_question(self):
         previous = {**empty_state(), "pending": "choice"}

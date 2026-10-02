@@ -3,6 +3,59 @@ info:
   title: KBO Journey API
   version: 1.0.0
 paths:
+  /api/{version}/chat/admin/feedback/:
+    get:
+      operationId: chat_admin_feedback_list
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: path
+        name: version
+        schema:
+          type: string
+          pattern: ^v1|v2$
+        required: true
+      tags:
+      - chat
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAdminFeedbackList'
+          description: ''
+  /api/{version}/chat/admin/feedback/{id}/:
+    get:
+      operationId: chat_admin_feedback_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: version
+        schema:
+          type: string
+          pattern: ^v1|v2$
+        required: true
+      tags:
+      - chat
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminFeedback'
+          description: ''
   /api/{version}/chat/sessions/:
     get:
       operationId: chat_sessions_list
@@ -192,6 +245,46 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/{version}/chat/sessions/{session_id}/feedback/:
+    put:
+      operationId: chat_sessions_feedback_update
+      parameters:
+      - in: path
+        name: session_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: version
+        schema:
+          type: string
+          pattern: ^v1|v2$
+        required: true
+      tags:
+      - chat
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeedbackInput'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FeedbackInput'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FeedbackInput'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedbackInput'
+          description: ''
   /api/{version}/chat/sessions/{session_id}/messages/:
     get:
       operationId: chat_sessions_messages_retrieve
@@ -433,6 +526,163 @@ paths:
               schema:
                 type: object
                 additionalProperties: {}
+          description: ''
+  /api/v1/ads/admin/creatives/:
+    get:
+      operationId: v1_ads_admin_creatives_list
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAdAdminList'
+          description: ''
+    post:
+      operationId: v1_ads_admin_creatives_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdAdmin'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AdAdmin'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AdAdmin'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdAdmin'
+          description: ''
+  /api/v1/ads/admin/creatives/{id}/:
+    get:
+      operationId: v1_ads_admin_creatives_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdAdmin'
+          description: ''
+    patch:
+      operationId: v1_ads_admin_creatives_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedAdAdmin'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedAdAdmin'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedAdAdmin'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdAdmin'
+          description: ''
+  /api/v1/ads/events/:
+    post:
+      operationId: v1_ads_events_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdEventInput'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AdEventInput'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AdEventInput'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdEventResult'
+          description: ''
+  /api/v1/ads/slots/:
+    get:
+      operationId: v1_ads_slots_retrieve
+      parameters:
+      - in: query
+        name: placement
+        schema:
+          enum:
+          - home-club-banner
+          - home-route-partner-banner
+          type: string
+          minLength: 1
+        description: |-
+          * `home-club-banner` - 홈 구단 광고
+          * `home-route-partner-banner` - 홈 음식점·시설 광고
+        required: true
+      - in: query
+        name: route_ids
+        schema:
+          type: array
+          items:
+            type: string
+            maxLength: 80
+          maxItems: 3
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdSlotResponse'
           description: ''
   /api/v1/auth/admin/members/:
     get:
@@ -7882,6 +8132,298 @@ paths:
           description: ''
 components:
   schemas:
+    AdAdmin:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        advertiser:
+          type: string
+          title: 광고주
+          maxLength: 120
+        title:
+          type: string
+          title: 제목
+          maxLength: 120
+        description:
+          type: string
+          title: 설명
+          maxLength: 250
+        image_url:
+          type: string
+          format: uri
+          title: 이미지 URL
+          maxLength: 1000
+        image_alt:
+          type: string
+          title: 이미지 설명
+          maxLength: 250
+        destination_url:
+          type: string
+          format: uri
+          title: 이동 URL
+          maxLength: 1000
+        button_label:
+          type: string
+          title: 버튼 문구
+          maxLength: 40
+        context_label:
+          type: string
+          title: 지역·분류
+          maxLength: 120
+        placement:
+          allOf:
+          - $ref: '#/components/schemas/PlacementEnum'
+          title: 위치
+        starts_at:
+          type: string
+          format: date-time
+          title: 시작 일시
+        ends_at:
+          type: string
+          format: date-time
+          title: 종료 일시
+        active:
+          type: boolean
+          title: 활성
+        is_test:
+          type: boolean
+          title: 테스트 광고
+        priority:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          title: 우선순위
+        team_code:
+          type: string
+          title: 구단 코드
+          maxLength: 10
+        place:
+          type: integer
+          nullable: true
+          title: 제휴 장소
+        courses:
+          type: array
+          items:
+            type: string
+            format: uuid
+            title: 노출 대상 코스
+          title: 노출 대상 코스
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - advertiser
+      - created_at
+      - destination_url
+      - ends_at
+      - id
+      - image_url
+      - placement
+      - starts_at
+      - title
+      - updated_at
+    AdEventInput:
+      type: object
+      properties:
+        event_id:
+          type: string
+          format: uuid
+        token:
+          type: string
+          maxLength: 2048
+        kind:
+          $ref: '#/components/schemas/AdEventInputKindEnum'
+      required:
+      - event_id
+      - kind
+      - token
+    AdEventInputKindEnum:
+      enum:
+      - impression
+      - click
+      type: string
+      description: |-
+        * `impression` - 노출
+        * `click` - 클릭
+    AdEventResult:
+      type: object
+      properties:
+        accepted:
+          type: boolean
+        duplicate:
+          type: boolean
+      required:
+      - accepted
+      - duplicate
+    AdPublic:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        advertiser:
+          type: string
+          readOnly: true
+          title: 광고주
+        title:
+          type: string
+          readOnly: true
+          title: 제목
+        description:
+          type: string
+          readOnly: true
+          title: 설명
+        image_url:
+          type: string
+          format: uri
+          readOnly: true
+          title: 이미지 URL
+        image_alt:
+          type: string
+          readOnly: true
+          title: 이미지 설명
+        destination_url:
+          type: string
+          format: uri
+          readOnly: true
+          title: 이동 URL
+        button_label:
+          type: string
+          readOnly: true
+          title: 버튼 문구
+        context_label:
+          type: string
+          readOnly: true
+          title: 지역·분류
+        placement:
+          allOf:
+          - $ref: '#/components/schemas/PlacementEnum'
+          readOnly: true
+          title: 위치
+        starts_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: 시작 일시
+        ends_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: 종료 일시
+        active:
+          type: boolean
+          readOnly: true
+          title: 활성
+      required:
+      - active
+      - advertiser
+      - button_label
+      - context_label
+      - description
+      - destination_url
+      - ends_at
+      - id
+      - image_alt
+      - image_url
+      - placement
+      - starts_at
+      - title
+    AdSlotResponse:
+      type: object
+      properties:
+        ad:
+          allOf:
+          - $ref: '#/components/schemas/AdPublic'
+          nullable: true
+        token:
+          type: string
+        exposure_id:
+          type: string
+          format: uuid
+          nullable: true
+        server_now:
+          type: string
+          format: date-time
+        valid_until:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - ad
+      - exposure_id
+      - server_now
+      - token
+      - valid_until
+    AdminFeedback:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        session_id:
+          type: string
+          format: uuid
+          readOnly: true
+        answer_id:
+          type: string
+          readOnly: true
+        message_id:
+          type: integer
+          readOnly: true
+        rating:
+          allOf:
+          - $ref: '#/components/schemas/AdminFeedbackRatingEnum'
+          readOnly: true
+        reason:
+          type: string
+          readOnly: true
+        comment:
+          type: string
+          readOnly: true
+        question:
+          type: string
+          readOnly: true
+        answer:
+          type: string
+          readOnly: true
+        metadata:
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - answer
+      - answer_id
+      - comment
+      - created_at
+      - id
+      - message_id
+      - metadata
+      - question
+      - rating
+      - reason
+      - session_id
+      - updated_at
+    AdminFeedbackRatingEnum:
+      enum:
+      - up
+      - down
+      type: string
+      description: |-
+        * `up` - 좋아요
+        * `down` - 아쉬워요
     AdminMember:
       type: object
       properties:
@@ -8026,7 +8568,7 @@ components:
           readOnly: true
         reason:
           allOf:
-          - $ref: '#/components/schemas/ReasonEnum'
+          - $ref: '#/components/schemas/ReasonF32Enum'
           readOnly: true
         detail:
           type: string
@@ -8608,7 +9150,7 @@ components:
       type: object
       properties:
         reason:
-          $ref: '#/components/schemas/ReasonEnum'
+          $ref: '#/components/schemas/ReasonF32Enum'
         detail:
           type: string
           maxLength: 50
@@ -9498,6 +10040,41 @@ components:
       - record_code
       - side
       - stadium_id
+    FeedbackInput:
+      type: object
+      properties:
+        message_id:
+          oneOf:
+          - type: integer
+            minimum: 1
+          - type: string
+            format: uuid
+        rating:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/Rating224Enum'
+          - $ref: '#/components/schemas/NullEnum'
+        reason:
+          default: ''
+          oneOf:
+          - $ref: '#/components/schemas/FeedbackInputReasonEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        comment:
+          type: string
+          default: ''
+          maxLength: 1000
+      required:
+      - message_id
+      - rating
+    FeedbackInputReasonEnum:
+      enum:
+      - incorrect
+      - irrelevant
+      - incomplete
+      - other
+      type: string
+      description: "* `` - \n* `incorrect` - incorrect\n* `irrelevant` - irrelevant\n*
+        `incomplete` - incomplete\n* `other` - other"
     FoodStore:
       type: object
       properties:
@@ -10145,6 +10722,52 @@ components:
     NullEnum:
       enum:
       - null
+    PaginatedAdAdminList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdAdmin'
+    PaginatedAdminFeedbackList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminFeedback'
     PaginatedAdminMemberList:
       type: object
       required:
@@ -10845,6 +11468,92 @@ components:
           type: string
           writeOnly: true
           maxLength: 128
+    PatchedAdAdmin:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        advertiser:
+          type: string
+          title: 광고주
+          maxLength: 120
+        title:
+          type: string
+          title: 제목
+          maxLength: 120
+        description:
+          type: string
+          title: 설명
+          maxLength: 250
+        image_url:
+          type: string
+          format: uri
+          title: 이미지 URL
+          maxLength: 1000
+        image_alt:
+          type: string
+          title: 이미지 설명
+          maxLength: 250
+        destination_url:
+          type: string
+          format: uri
+          title: 이동 URL
+          maxLength: 1000
+        button_label:
+          type: string
+          title: 버튼 문구
+          maxLength: 40
+        context_label:
+          type: string
+          title: 지역·분류
+          maxLength: 120
+        placement:
+          allOf:
+          - $ref: '#/components/schemas/PlacementEnum'
+          title: 위치
+        starts_at:
+          type: string
+          format: date-time
+          title: 시작 일시
+        ends_at:
+          type: string
+          format: date-time
+          title: 종료 일시
+        active:
+          type: boolean
+          title: 활성
+        is_test:
+          type: boolean
+          title: 테스트 광고
+        priority:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          title: 우선순위
+        team_code:
+          type: string
+          title: 구단 코드
+          maxLength: 10
+        place:
+          type: integer
+          nullable: true
+          title: 제휴 장소
+        courses:
+          type: array
+          items:
+            type: string
+            format: uuid
+            title: 노출 대상 코스
+          title: 노출 대상 코스
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
     PatchedChatSession:
       type: object
       properties:
@@ -11781,6 +12490,14 @@ components:
       - lat
       - lng
       - name
+    PlacementEnum:
+      enum:
+      - home-club-banner
+      - home-route-partner-banner
+      type: string
+      description: |-
+        * `home-club-banner` - 홈 구단 광고
+        * `home-route-partner-banner` - 홈 음식점·시설 광고
     PlayerEntity:
       type: object
       properties:
@@ -12390,7 +13107,15 @@ components:
       - seat_zone_code
       - seat_zone_id
       - seat_zone_name
-    ReasonEnum:
+    Rating224Enum:
+      enum:
+      - up
+      - down
+      type: string
+      description: |-
+        * `up` - up
+        * `down` - down
+    ReasonF32Enum:
       enum:
       - spam
       - abuse

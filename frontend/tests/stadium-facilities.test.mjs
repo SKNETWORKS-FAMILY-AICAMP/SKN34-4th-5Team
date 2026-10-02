@@ -43,6 +43,9 @@ test('integration keeps catalogue separate and leaves course policy untouched',(
   const component=readFileSync(new URL('../components/nearby-route-planner.tsx',import.meta.url),'utf8');
   assert.match(component,/placeCollection === "stadium"/);
   assert.match(component,/selectedPlacePins\(pinPlaces, selected, stops\)/);
+  assert.match(component,/onFocus=\{\(stop\) => selectPlace\(pinPlaces\.find/);
+  assert.match(component,/courseCompleted \? allowSave \?/);
+  assert.match(component,/현재 코스는 저장되지 않습니다/);
   assert.match(component,/useStadiumFacilities\(stadium.code, !drawOnly\)/);
   assert.match(component,/stadiumAffiliation\.label/);
   const backend=readFileSync(new URL('../../backend/travel/stadium_facilities.py',import.meta.url),'utf8');

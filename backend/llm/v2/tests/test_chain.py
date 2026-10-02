@@ -86,7 +86,7 @@ PLAN = decision(capabilities=["_delegation_test"])
 
 class ChainTest(unittest.TestCase):
     def setUp(self):
-        patcher = patch.dict(CAPABILITY_TOOLS, {"_delegation_test": CAPABILITY_TOOLS["day_plan"]})
+        patcher = patch.dict(CAPABILITY_TOOLS, {"_delegation_test": (*CAPABILITY_TOOLS["day_plan"], "present_planning_questions")})
         patcher.start()
         self.addCleanup(patcher.stop)
 
@@ -168,7 +168,7 @@ class ChainTest(unittest.TestCase):
         self.assertEqual(out["messages"][-1].content, "16:00 카페 A → 17:30 잠실 도착")
         self.assertEqual(self.executed, ["get_games", "search_places", "get_directions"])
         self.assertEqual(set(self.model_calls[0]["tools"]),
-                         {"ask_baseball", "ask_travel_research", "ask_place_data", "get_directions", "plan_course"})
+                         {"ask_baseball", "ask_travel_research", "ask_place_data", "get_directions", "plan_course", "present_planning_questions"})
         baseball_call = self.model_calls[1]
         self.assertIn("get_games", baseball_call["tools"])
         self.assertNotIn("ask_travel_research", baseball_call["tools"])  # 전문 Agent 간 직접 위임 없음
@@ -307,7 +307,7 @@ class ChainTest(unittest.TestCase):
 
     def test_delegation_component_exposes_only_declared_tools(self):
         self.run_graph([AIMessage("x")], PLAN, [HumanMessage("코스")])
-        self.assertEqual(set(self.model_calls[0]["tools"]), set(CAPABILITY_TOOLS["day_plan"]))
+        self.assertEqual(set(self.model_calls[0]["tools"]), set(CAPABILITY_TOOLS["day_plan"]) | {"present_planning_questions"})
 
     def test_hidden_sub_agent_call_is_blocked(self):
         script = [call("ask_baseball", {"task": "몰래"}, "o1"), AIMessage("순위 안내")]

@@ -45,5 +45,27 @@ def run_course(question, history, context, runtime):
                                       "context": context, "course_runtime": runtime}):
         chunks.append(chunk)
         writer({"course_delta": chunk})
-    return {"messages": [AIMessage("".join(chunks))],
-            "course_state": course_snapshot(runtime.get("next_state")), "jump_to": "end"}
+    from uuid import uuid4
+    from llm.v2.agent.chat_ui import present_planning_questions, public_ui
+
+    state = course_snapshot(runtime.get("next_state"))
+    previous = course_snapshot(runtime.get("state"))
+    questions = []
+    if state and state.get("pending") == "choice":
+        choices = [f"{i}안: {game['date']} {game['time'][:5]} {game['away_name']} vs {game['home_name']}"
+                   for i, game in enumerate(state.get("candidates", []), 1)]
+        if len(choices) == 1:
+            choices.append("조건을 바꿀게요")
+        questions = [{"question": "어느 경기 기준으로 코스를 짤까요?", "choices": choices}]
+    elif state and state.get("pending") in ("changed", "expired"):
+        choices = (["기존 조건을 유지할게요", "바뀐 일정에 맞게 조건을 수정할게요"]
+                   if state["pending"] == "changed" else ["이전 코스를 수정할게요", "같은 조건의 다음 경기로 짜 주세요"])
+        questions = [{"question": state["pending_question"], "choices": choices}]
+    payload = (public_ui({"offer_writer": previous is None, "questions": questions})
+               or {"offer_writer": previous is None, "questions": []})
+    messages = []
+    if payload and (payload["offer_writer"] or payload["questions"]):
+        messages.append(present_planning_questions.invoke({"type": "tool_call", "id": str(uuid4()),
+            "name": present_planning_questions.name, "args": payload}))
+    return {"messages": [*messages, AIMessage("".join(chunks))],
+            "course_state": state, "jump_to": "end"}

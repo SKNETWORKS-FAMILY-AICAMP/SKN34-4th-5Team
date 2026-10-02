@@ -64,6 +64,9 @@ def list_messages(request, session_id):
     # 관리자만 도구 인자·결과·하위 Agent 대화(detail)를 본다. 게스트/익명은 is_superuser 가 없거나 False.
     privileged = getattr(request.user, "is_superuser", False) is True
     items = wire_history(*thread.state(), thread.wire, detail=privileged)
+    from llm.serializer.feedback import public_feedback
+    ratings = {row.message_id: public_feedback(row) for row in session.feedback.all()}
+    items = [{**item, "feedback": ratings.get(item["id"])} if item["role"] == "assistant" else item for item in items]
     return items if privileged else [hide_private_tools(item) for item in items]
 
 
@@ -75,6 +78,6 @@ def message_update(request, session_id, message_id, content, context=None, versi
 
 
 def message_delete(request, session_id, message_id):
-    """해당 사용자 메시지부터 이후 메시지를 최신 대화에서 제거한다. 제거한 메시지 수를 돌려준다."""
+    """질문은 이후 대화까지, 최종 답변은 해당 답변만 제거한다. 제거한 메시지 수를 돌려준다."""
     session = get_owned_session(request, session_id)
-    return ChatThread(session.id).delete_from(message_id)
+    return ChatThread(session.id).delete_message(message_id)

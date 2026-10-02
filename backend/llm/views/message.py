@@ -121,7 +121,7 @@ class ChatMessageView(GenericAPIView):
     GET: 해당 대화방의 저장된 메시지를 조회합니다 (공개 항목 {id, role, content, status, tools, steps}; superuser 는 tools[].detail 포함).
     POST: 사용자 메시지를 보내고 AI 답변을 생성합니다 (SSE 스트리밍).
     PUT: 메시지 하나를 수정하고 그 이후 대화를 다시 생성합니다.
-    DELETE: 메시지 하나부터 이후 대화를 모두 삭제합니다.
+    DELETE: 질문은 이후 대화까지 삭제하고, 완료된 답변은 선택한 답변만 삭제합니다.
     """
     permission_classes = [AllowAny]
     renderer_classes = [JSONRenderer, EventStreamRenderer]

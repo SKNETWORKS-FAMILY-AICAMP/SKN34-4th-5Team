@@ -30,6 +30,7 @@ type PlannerProps = {
   /** 챗봇 코스를 담을 때마다 version 이 오른다 → 내 코스 탭을 열고 코스 전체를 보여준다 */
   courseApplied?: { version: number; stadiumCode: string } | null;
   courseName: string; onCourseNameChange: (name: string) => void;
+  allowSave?: boolean;
   onSaveCourse: () => Promise<void>; saving: boolean; saveError: string;
   startWithAllPlaces?: boolean;
   onCompletionChange?: (completed: boolean) => void;
@@ -89,7 +90,7 @@ export function NearbyRoutePlanner(props: PlannerProps) {
   </div>;
 }
 
-function LoadedPlanner({ maps, plannerMode = "places", stadium, stops, onChange: onStopsChange, initialStart, onStartChange, initialTravelMode, onTravelModeChange, travelMode, courseApplied, courseName, onCourseNameChange, onSaveCourse, saving, saveError, startWithAllPlaces = false, onCompletionChange, autoComplete = false, onAutoCompleted, unlockRequest = "", guide = false }: PlannerProps & { maps: KakaoMaps }) {
+function LoadedPlanner({ maps, plannerMode = "places", stadium, stops, onChange: onStopsChange, initialStart, onStartChange, initialTravelMode, onTravelModeChange, travelMode, courseApplied, courseName, onCourseNameChange, allowSave = false, onSaveCourse, saving, saveError, startWithAllPlaces = false, onCompletionChange, autoComplete = false, onAutoCompleted, unlockRequest = "", guide = false }: PlannerProps & { maps: KakaoMaps }) {
   const drawOnly = plannerMode === "draw";
   const [courseCompleted, setCourseCompleted] = useState(false);
   const lodgingRestore = useRef<AbortController | null>(null);
@@ -168,7 +169,7 @@ function LoadedPlanner({ maps, plannerMode = "places", stadium, stops, onChange:
   });
   useEffect(() => { onStartChange(travel.location ?? undefined); }, [travel.location, onStartChange]);
   const canComplete = stops.length > 0 && !travel.picking && !travel.locating && (travel.origin === "first" || Boolean(travel.location));
-  const canSaveCourse = canComplete && Boolean(courseName.trim()) && !saving;
+  const canSaveCourse = allowSave && canComplete && Boolean(courseName.trim()) && !saving;
   const separateStart = travel.origin !== "first";
   const drawing = !courseCompleted && !travel.picking && !mapLocationPicking && !guideOrigin;
   const mapNode = useRef<HTMLDivElement>(null);
@@ -758,13 +759,13 @@ function LoadedPlanner({ maps, plannerMode = "places", stadium, stops, onChange:
         }} />}
         <div className="planner-side-tabs" role="tablist" aria-label="장소 목록"><button type="button" role="tab" id="nearby-places-tab" aria-controls="nearby-side-panel" aria-selected={sideTab === "places"} onClick={() => setSideTab("places")}>{placeCollection === "stadium" ? "구장 먹거리·시설" : "주변 장소"} <b>{placeCollection === "stadium" ? facilities.data?.count ?? 0 : listedPlaces.length}</b></button><button type="button" role="tab" id="nearby-route-tab" aria-controls="nearby-side-panel" aria-selected={sideTab === "route"} onClick={() => setSideTab("route")}>내 코스 <b>{stops.length}</b></button></div>
         <div id="nearby-side-panel" role="tabpanel" aria-labelledby={sideTab === "places" ? "nearby-places-tab" : "nearby-route-tab"} className="planner-side-content">
-          {sideTab === "route" ? <><CourseTravelPanel travel={travel} stops={stops} showDirections={courseCompleted} originReplacement={courseCompleted ? <div className="course-save" aria-busy={saving}>
+          {sideTab === "route" ? <><CourseTravelPanel travel={travel} stops={stops} showDirections={courseCompleted} originReplacement={courseCompleted ? allowSave ? <div className="course-save" aria-busy={saving}>
             <label htmlFor="planner-course-name">코스 이름</label>
             <input id="planner-course-name" autoComplete="off" value={courseName} maxLength={80} disabled={saving} placeholder="코스 이름을 입력하세요" onChange={(event) => onCourseNameChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); if (canSaveCourse) void onSaveCourse(); } }} />
-            <button type="button" className="course-save-button" disabled={!canSaveCourse} onClick={() => void onSaveCourse()}>{saving ? "저장 중…" : "코스 저장"}</button>
+            <button type="button" className="course-save-button" disabled={!canSaveCourse} onClick={() => { if (canSaveCourse) void onSaveCourse(); }}>{saving ? "저장 중…" : "코스 저장"}</button>
             <small>저장한 코스는 코스 둘러보기에 공개돼요.</small>
             {saveError && <p role="alert" className="course-save-error">{saveError}</p>}
-          </div> : undefined} onFit={fitCourse} /><RouteStops stops={stops} onChange={onChange} separateStart={separateStart} readOnly={courseCompleted} steps={{ canUndo: observedHistory.past.length > 0, canRedo: observedHistory.future.length > 0, onUndo: stepBack, onRedo: stepForward }} onFocus={(stop) => selectPlace(pinPlaces.find((p) => sameStop(stop, p)) ?? stop)} /></> : <>
+          </div> : <p className="planner-small">코스 구성이 완료됐어요. 아래에서 이동 경로를 확인하세요. 현재 코스는 저장되지 않습니다.</p> : undefined} onFit={fitCourse} /><RouteStops stops={stops} onChange={onChange} separateStart={separateStart} readOnly={courseCompleted} steps={{ canUndo: observedHistory.past.length > 0, canRedo: observedHistory.future.length > 0, onUndo: stepBack, onRedo: stepForward }} onFocus={(stop) => selectPlace(pinPlaces.find((p) => sameStop(stop, p)) ?? stop)} /></> : <>
             <label className="planner-search"><span className="sr-only">불러온 장소에서 찾기</span><input type="search" value={query} placeholder="불러온 장소에서 찾기" onChange={(event) => { setQuery(event.target.value); setListLimit(30); }} onKeyDown={(event) => { if (event.key === "Enter") event.preventDefault(); }} /></label>
             <div className="planner-facility-switch" role="group" aria-label="장소 소속 구분"><button type="button" aria-pressed={placeCollection === "nearby"} onClick={() => setPlaceCollection("nearby")}>주변 장소</button><button type="button" aria-pressed={placeCollection === "stadium"} onClick={() => setPlaceCollection("stadium")}>구장 먹거리·시설</button></div>
             {placeCollection === "stadium" ? <StadiumFacilityList key={stadium.code} data={facilities.data} error={facilities.error} query={query} selectedId={selected?.placeId?.startsWith("stadium-facility:") ? selected.placeId.split(":").at(-1) : undefined} onSelect={(row, pin) => { if (map) map.setLevel(2); selectPlace(facilityPlace(row,pin,stadium)); }} /> : <>

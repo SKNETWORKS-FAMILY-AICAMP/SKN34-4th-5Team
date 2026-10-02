@@ -175,7 +175,8 @@ def stream_turn(thread, prefix, turns, human, produce, run, on_stop=None, label=
             answer = run["answer"]
             if not isinstance(answer, str) or not answer:
                 raise ValueError("agent returned no answer")
-            final = AIMessage(answer, id=str(uuid.uuid4()))
+            final = AIMessage(answer, id=str(uuid.uuid4()),
+                              response_metadata={"chain_version": label} if label in ("v1", "v2") else {})
             if owner.cancelled:  # 최종 저장(소유권) 전에 이긴 취소는 stopped
                 raise Stopped
         except GeneratorExit:

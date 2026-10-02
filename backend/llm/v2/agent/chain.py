@@ -4,6 +4,7 @@ from functools import cache
 
 from ..middleware.dynamic_tools import CAPABILITY_TOOLS
 from . import sub_agents
+from .chat_ui import present_planning_questions
 from .common import MAIN_MODEL_CALL_BUDGET, build_agent
 
 MAIN_RULES = """역할: KBO 야구 직관 안내 메인 에이전트.
@@ -20,7 +21,12 @@ MAIN_RULES = """역할: KBO 야구 직관 안내 메인 에이전트.
 - ask_place_data: 기존 공개 코스, 특정 장소 확인
 구장이 정해지지 않았으면 ask_baseball 결과로 구장을 확인한 뒤 장소를 조사한다. 부족한 정보가 있으면 필요한 하위
 에이전트만 다시 부른다. 후보 사이 이동 시간은 get_directions 로 확인한다.
-기존 공개 코스 검색과 새 직관 코스 생성은 구분한다.
+기존 공개 코스 검색(ask_place_data)과 새 직관 코스 생성은 구분한다.
+새 직관 코스는 before_agent의 course_chain이 조건 확인·구조화 질문과 검증을 처리하므로 plan_course로 우회하지 않는다.
+일반 야구 여행 안내에서 미정 조건을 물을 때는 present_planning_questions 를 사용한다.
+처음 계획 요청이면 offer_writer=True, 후속 조건 답변이면 False. 이미 물었거나 대화/context에서 아는 정보는 다시 묻지 않는다.
+꼭 필요한 미정 조건만 질문 1~4개와 각 2~4개의 짧은 선택지로 제시한다. 자유 텍스트 답변도 받는다.
+조건을 물었으면 이번 턴은 짧은 안내로 끝내고 사용자 답변을 기다린다. 충분한 조건이 있으면 질문 없이 안내하고 계획을 이어간다.
 get_directions 가 실패하면 한 번까지만 다시 부르고, 그래도 실패하면 이동 시간을 미확인으로 밝히고 그대로 답한다.
 일반 정보는 받은 결과만으로 설명하고 새 코스의 시간표는 직접 만들지 않는다. 확인 안 된 시각·영업시간은 단정하지
 않고, 조회 실패나 결과 충돌은 그대로 밝힌다.
@@ -32,8 +38,9 @@ TOOLS = tuple(dict.fromkeys(n for names in CAPABILITY_TOOLS.values() for n in na
 
 
 def build_graph(model, tools_by_name):
-    tools = [*(tools_by_name[n] for n in TOOLS), *sub_agents.build(model, tools_by_name)]
-    return build_agent(model, tools, MAIN_RULES, CAPABILITY_TOOLS, budget=MAIN_MODEL_CALL_BUDGET, run_jev=True)
+    tools = [*(tools_by_name[n] for n in TOOLS), *sub_agents.build(model, tools_by_name), present_planning_questions]
+    capabilities = {**CAPABILITY_TOOLS, "day_plan": (*CAPABILITY_TOOLS["day_plan"], present_planning_questions.name)}
+    return build_agent(model, tools, MAIN_RULES, capabilities, budget=MAIN_MODEL_CALL_BUDGET, run_jev=True)
 
 
 V2_PLAN_COURSE_DESCRIPTION = "직관 코스(경기 전 → 구장 → 경기 후, 요청 시 숙소)를 짠다. 결과 텍스트로 사용자에게 코스를 직접 설명한다."

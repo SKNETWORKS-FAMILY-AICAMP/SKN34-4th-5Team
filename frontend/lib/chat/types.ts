@@ -1,3 +1,4 @@
+import type { ChatPlanning } from "./planning";
 export type ChatCoursePhase = "BEFORE" | "GAME" | "AFTER";
 export type ChatCoursePlace = {
   phase: ChatCoursePhase; name: string; lat: number; lng: number;
@@ -24,7 +25,10 @@ export type ChatToolCall = {
 };
 export type ChatMessageStatus = "pending" | "completed" | "failed" | "stopped";
 // id·status·tools 는 서버에 저장된 메시지에만 있다 (id 는 서버가 만든 양의 정수). course 는 화면 표시용이다.
+export type AnswerFeedback = { rating: "up" | "down"; reason: string; comment: string };
 export type ChatMessage = {
+  answerDeleted?: boolean;
+  feedback?: AnswerFeedback | null;
   role: "user" | "assistant";
   content: string;
   id?: number;
@@ -32,6 +36,7 @@ export type ChatMessage = {
   course?: ChatCourse;
   tools?: ChatToolCall[];
   timeline?: ChatTimelineItem[];
+  planning?: ChatPlanning;
 };
 export type ChatOrigin = { lat: number; lng: number };
 // origin: 코스 작성 화면에서 지도에 찍은 출발지. 백엔드 코스 챗봇이 이 지점부터 이어서 코스를 짠다.
@@ -44,6 +49,7 @@ export type ChatReply = ChatStatus & {
   assistantMessageId?: number;
   tools?: ChatToolCall[];
   timeline?: ChatTimelineItem[];
+  planning?: ChatPlanning;
 };
 
 export const MAX_MESSAGE_LENGTH = 2000;

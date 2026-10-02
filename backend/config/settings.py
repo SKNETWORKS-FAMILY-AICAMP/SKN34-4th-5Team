@@ -84,6 +84,7 @@ INSTALLED_APPS = [
     'accounts',
     'travel',
     'community',
+    'ads.apps.AdsConfig',
     'tving.apps.TvingConfig',
 ]
 
@@ -244,6 +245,8 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_THROTTLE_RATES': {
         'course_write': '30/hour',
+        'ad_delivery': '60/minute',
+        'ad_event': '120/minute',
         'place_search': '240/minute',
         'tourism': '20/minute',
     },

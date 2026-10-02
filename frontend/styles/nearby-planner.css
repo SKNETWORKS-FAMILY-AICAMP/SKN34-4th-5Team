@@ -241,3 +241,15 @@
 .planner-facility-switch { display: flex; gap: 6px; padding: 8px 0 12px; }
 .planner-facility-switch button { flex: 1; padding: 9px; border: 1px solid #b9c7d9; border-radius: 7px; background: #fff; color: #2b4568; cursor: pointer; }
 .planner-facility-switch button[aria-pressed="true"] { background: #eaf2ff; border-color: #2b67bd; color: #164785; font-weight: 700; }
+.writer-layout[data-member-tools="false"] {
+  grid-template-areas: "planner planner" "chat chat";
+}
+@media (max-width: 860px) {
+  .writer-layout[data-member-tools="false"] { grid-template-areas: "planner" "chat"; }
+}
+@media (max-width: 767px) {
+  .writer-layout[data-member-tools="false"] { display: block; grid-template-areas: none; }
+}
+@media (min-width: 1200px) {
+  .writer-layout[data-member-tools="false"] { grid-template-areas: "planner chat"; }
+}

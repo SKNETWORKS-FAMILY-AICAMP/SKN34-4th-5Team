@@ -4,6 +4,38 @@
  */
 
 export interface paths {
+    "/api/{version}/chat/admin/feedback/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["chat_admin_feedback_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/{version}/chat/admin/feedback/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["chat_admin_feedback_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/{version}/chat/sessions/": {
         parameters: {
             query?: never;
@@ -70,6 +102,22 @@ export interface paths {
         patch: operations["chat_sessions_partial_update"];
         trace?: never;
     };
+    "/api/{version}/chat/sessions/{session_id}/feedback/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["chat_sessions_feedback_update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/{version}/chat/sessions/{session_id}/messages/": {
         parameters: {
             query?: never;
@@ -99,6 +147,70 @@ export interface paths {
         };
         /** @description 본인 토큰/크레딧 잔액. 조회로 차감하지 않습니다. */
         get: operations["chat_usage_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ads/admin/creatives/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["v1_ads_admin_creatives_list"];
+        put?: never;
+        post: operations["v1_ads_admin_creatives_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ads/admin/creatives/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["v1_ads_admin_creatives_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["v1_ads_admin_creatives_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/ads/events/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["v1_ads_events_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ads/slots/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["v1_ads_slots_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1961,6 +2073,147 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AdAdmin: {
+            readonly id: number;
+            /** 광고주 */
+            advertiser: string;
+            /** 제목 */
+            title: string;
+            /** 설명 */
+            description?: string;
+            /**
+             * 이미지 URL
+             * Format: uri
+             */
+            image_url: string;
+            /** 이미지 설명 */
+            image_alt?: string;
+            /**
+             * 이동 URL
+             * Format: uri
+             */
+            destination_url: string;
+            /** 버튼 문구 */
+            button_label?: string;
+            /** 지역·분류 */
+            context_label?: string;
+            /** 위치 */
+            placement: components["schemas"]["PlacementEnum"];
+            /**
+             * 시작 일시
+             * Format: date-time
+             */
+            starts_at: string;
+            /**
+             * 종료 일시
+             * Format: date-time
+             */
+            ends_at: string;
+            /** 활성 */
+            active?: boolean;
+            /** 테스트 광고 */
+            is_test?: boolean;
+            /** 우선순위 */
+            priority?: number;
+            /** 구단 코드 */
+            team_code?: string;
+            /** 제휴 장소 */
+            place?: number | null;
+            /** 노출 대상 코스 */
+            courses?: string[];
+            /** Format: date-time */
+            readonly created_at: string;
+            /** Format: date-time */
+            readonly updated_at: string;
+        };
+        AdEventInput: {
+            /** Format: uuid */
+            event_id: string;
+            token: string;
+            kind: components["schemas"]["AdEventInputKindEnum"];
+        };
+        /**
+         * @description * `impression` - 노출
+         *     * `click` - 클릭
+         * @enum {string}
+         */
+        AdEventInputKindEnum: "impression" | "click";
+        AdEventResult: {
+            accepted: boolean;
+            duplicate: boolean;
+        };
+        AdPublic: {
+            readonly id: number;
+            /** 광고주 */
+            readonly advertiser: string;
+            /** 제목 */
+            readonly title: string;
+            /** 설명 */
+            readonly description: string;
+            /**
+             * 이미지 URL
+             * Format: uri
+             */
+            readonly image_url: string;
+            /** 이미지 설명 */
+            readonly image_alt: string;
+            /**
+             * 이동 URL
+             * Format: uri
+             */
+            readonly destination_url: string;
+            /** 버튼 문구 */
+            readonly button_label: string;
+            /** 지역·분류 */
+            readonly context_label: string;
+            /** 위치 */
+            readonly placement: components["schemas"]["PlacementEnum"];
+            /**
+             * 시작 일시
+             * Format: date-time
+             */
+            readonly starts_at: string;
+            /**
+             * 종료 일시
+             * Format: date-time
+             */
+            readonly ends_at: string;
+            /** 활성 */
+            readonly active: boolean;
+        };
+        AdSlotResponse: {
+            ad: components["schemas"]["AdPublic"] | null;
+            token: string;
+            /** Format: uuid */
+            exposure_id: string | null;
+            /** Format: date-time */
+            server_now: string;
+            /** Format: date-time */
+            valid_until: string | null;
+        };
+        AdminFeedback: {
+            readonly id: number;
+            /** Format: uuid */
+            readonly session_id: string;
+            readonly answer_id: string;
+            readonly message_id: number;
+            readonly rating: components["schemas"]["AdminFeedbackRatingEnum"];
+            readonly reason: string;
+            readonly comment: string;
+            readonly question: string;
+            readonly answer: string;
+            readonly metadata: unknown;
+            /** Format: date-time */
+            readonly created_at: string;
+            /** Format: date-time */
+            readonly updated_at: string;
+        };
+        /**
+         * @description * `up` - 좋아요
+         *     * `down` - 아쉬워요
+         * @enum {string}
+         */
+        AdminFeedbackRatingEnum: "up" | "down";
         AdminMember: {
             readonly id: number;
             /** @description Required. 150 characters or fewer. Letters, digits and @/./+/-/_ only. */
@@ -2019,7 +2272,7 @@ export interface components {
             readonly id: number;
             readonly post: components["schemas"]["AdminReportPost"];
             readonly reporter: string;
-            readonly reason: components["schemas"]["ReasonEnum"];
+            readonly reason: components["schemas"]["ReasonF32Enum"];
             readonly detail: string;
             /** Format: date-time */
             readonly created_at: string;
@@ -2240,7 +2493,7 @@ export interface components {
             created: boolean;
         };
         CommunityReportWrite: {
-            reason: components["schemas"]["ReasonEnum"];
+            reason: components["schemas"]["ReasonF32Enum"];
             detail: string;
         };
         CommunityVoteState: {
@@ -2592,6 +2845,23 @@ export interface components {
             /** etag */
             readonly _etag: string;
         };
+        FeedbackInput: {
+            message_id: number | string;
+            rating: (components["schemas"]["Rating224Enum"] | components["schemas"]["NullEnum"]) | null;
+            /** @default  */
+            reason: components["schemas"]["FeedbackInputReasonEnum"] | components["schemas"]["BlankEnum"];
+            /** @default  */
+            comment: string;
+        };
+        /**
+         * @description * `` -
+         *     * `incorrect` - incorrect
+         *     * `irrelevant` - irrelevant
+         *     * `incomplete` - incomplete
+         *     * `other` - other
+         * @enum {string}
+         */
+        FeedbackInputReasonEnum: "incorrect" | "irrelevant" | "incomplete" | "other";
         FoodStore: {
             id: number;
             record_code: string;
@@ -2826,6 +3096,36 @@ export interface components {
         };
         /** @enum {unknown} */
         NullEnum: null;
+        PaginatedAdAdminList: {
+            /** @example 123 */
+            count: number;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?page=4
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?page=2
+             */
+            previous?: string | null;
+            results: components["schemas"]["AdAdmin"][];
+        };
+        PaginatedAdminFeedbackList: {
+            /** @example 123 */
+            count: number;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?page=4
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?page=2
+             */
+            previous?: string | null;
+            results: components["schemas"]["AdminFeedback"][];
+        };
         PaginatedAdminMemberList: {
             /** @example 123 */
             count: number;
@@ -3271,6 +3571,59 @@ export interface components {
             password?: string;
             re_password?: string;
         };
+        PatchedAdAdmin: {
+            readonly id?: number;
+            /** 광고주 */
+            advertiser?: string;
+            /** 제목 */
+            title?: string;
+            /** 설명 */
+            description?: string;
+            /**
+             * 이미지 URL
+             * Format: uri
+             */
+            image_url?: string;
+            /** 이미지 설명 */
+            image_alt?: string;
+            /**
+             * 이동 URL
+             * Format: uri
+             */
+            destination_url?: string;
+            /** 버튼 문구 */
+            button_label?: string;
+            /** 지역·분류 */
+            context_label?: string;
+            /** 위치 */
+            placement?: components["schemas"]["PlacementEnum"];
+            /**
+             * 시작 일시
+             * Format: date-time
+             */
+            starts_at?: string;
+            /**
+             * 종료 일시
+             * Format: date-time
+             */
+            ends_at?: string;
+            /** 활성 */
+            active?: boolean;
+            /** 테스트 광고 */
+            is_test?: boolean;
+            /** 우선순위 */
+            priority?: number;
+            /** 구단 코드 */
+            team_code?: string;
+            /** 제휴 장소 */
+            place?: number | null;
+            /** 노출 대상 코스 */
+            courses?: string[];
+            /** Format: date-time */
+            readonly created_at?: string;
+            /** Format: date-time */
+            readonly updated_at?: string;
+        };
         PatchedChatSession: {
             /** Format: uuid */
             readonly id?: string;
@@ -3648,6 +4001,12 @@ export interface components {
             lng: number;
             url?: string;
         };
+        /**
+         * @description * `home-club-banner` - 홈 구단 광고
+         *     * `home-route-partner-banner` - 홈 음식점·시설 광고
+         * @enum {string}
+         */
+        PlacementEnum: "home-club-banner" | "home-route-partner-banner";
         PlayerEntity: {
             externalCode: string;
             teamCode: string;
@@ -3850,6 +4209,12 @@ export interface components {
             readonly seat_zone_name: string;
         };
         /**
+         * @description * `up` - up
+         *     * `down` - down
+         * @enum {string}
+         */
+        Rating224Enum: "up" | "down";
+        /**
          * @description * `spam` - spam
          *     * `abuse` - abuse
          *     * `inappropriate` - inappropriate
@@ -3857,7 +4222,7 @@ export interface components {
          *     * `other` - other
          * @enum {string}
          */
-        ReasonEnum: "spam" | "abuse" | "inappropriate" | "privacy" | "other";
+        ReasonF32Enum: "spam" | "abuse" | "inappropriate" | "privacy" | "other";
         /**
          * @description * `daily` - Daily
          *     * `month` - Month
@@ -4392,6 +4757,52 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    chat_admin_feedback_list: {
+        parameters: {
+            query?: {
+                /** @description A page number within the paginated result set. */
+                page?: number;
+            };
+            header?: never;
+            path: {
+                version: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedAdminFeedbackList"];
+                };
+            };
+        };
+    };
+    chat_admin_feedback_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+                version: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminFeedback"];
+                };
+            };
+        };
+    };
     chat_sessions_list: {
         parameters: {
             query?: {
@@ -4516,6 +4927,34 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ChatSession"];
+                };
+            };
+        };
+    };
+    chat_sessions_feedback_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+                version: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeedbackInput"];
+                "application/x-www-form-urlencoded": components["schemas"]["FeedbackInput"];
+                "multipart/form-data": components["schemas"]["FeedbackInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedbackInput"];
                 };
             };
         };
@@ -4671,6 +5110,152 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    v1_ads_admin_creatives_list: {
+        parameters: {
+            query?: {
+                /** @description A page number within the paginated result set. */
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedAdAdminList"];
+                };
+            };
+        };
+    };
+    v1_ads_admin_creatives_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdAdmin"];
+                "application/x-www-form-urlencoded": components["schemas"]["AdAdmin"];
+                "multipart/form-data": components["schemas"]["AdAdmin"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdAdmin"];
+                };
+            };
+        };
+    };
+    v1_ads_admin_creatives_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdAdmin"];
+                };
+            };
+        };
+    };
+    v1_ads_admin_creatives_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedAdAdmin"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedAdAdmin"];
+                "multipart/form-data": components["schemas"]["PatchedAdAdmin"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdAdmin"];
+                };
+            };
+        };
+    };
+    v1_ads_events_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdEventInput"];
+                "application/x-www-form-urlencoded": components["schemas"]["AdEventInput"];
+                "multipart/form-data": components["schemas"]["AdEventInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdEventResult"];
+                };
+            };
+        };
+    };
+    v1_ads_slots_retrieve: {
+        parameters: {
+            query: {
+                /**
+                 * @description * `home-club-banner` - 홈 구단 광고
+                 *     * `home-route-partner-banner` - 홈 음식점·시설 광고
+                 */
+                placement: "home-club-banner" | "home-route-partner-banner";
+                route_ids?: string[];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdSlotResponse"];
                 };
             };
         };

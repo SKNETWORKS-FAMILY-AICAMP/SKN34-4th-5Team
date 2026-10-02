@@ -214,6 +214,27 @@ class ChatThread:
             for run in victims:
                 run.cancel()
 
+    def delete_message(self, message_id):
+        """질문은 이후 대화까지, 완료된 최종 답변은 그 답변만 제거한다."""
+        with transaction.atomic():
+            if not ChatSession.objects.select_for_update().filter(id=self.thread_id).exists():
+                raise Http404("session not found")
+            messages, turns = self.state()
+            target = next((key for key, entry in self.wire.items() if entry["id"] == message_id), None) if isinstance(message_id, int) else message_id
+            if any(isinstance(m, HumanMessage) and m.id == target for m in messages):
+                return self.delete_from(message_id)
+            owner = next((key for key, turn in turns.items() if turn.get("answer_id") == target and turn.get("status") == TurnStatus.COMPLETED), None)
+            answer = next((m for m in messages if m.id == target and isinstance(m, AIMessage) and not m.tool_calls), None)
+            if owner is None or answer is None:
+                raise Http404("completed answer not found")
+            # Keep tool records and a truthful completed-turn tombstone, never a fabricated failure.
+            changed = {owner: {**turns[owner], "answer_id": None, "answer_deleted": True}}
+            # This session's revision fences in-flight writes; their unanswered questions really are cancelled.
+            changed.update({key: {**turn, "status": TurnStatus.CANCELLED.value} for key, turn in turns.items()
+                            if turn.get("status") == TurnStatus.PENDING})
+            self._write([RemoveMessage(id=target)], changed, self.revision + 1)
+            return 1
+
     def delete_from(self, message_id):
         """대상 HumanMessage 부터 끝까지 RemoveMessage 로 지우고 지운 메시지 수를 돌려준다."""
         messages, turns, index = self._find(message_id)

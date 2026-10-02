@@ -13,7 +13,7 @@ const frontend = dirname(dirname(fileURLToPath(import.meta.url)));
 const scratch = mkdtempSync(join(tmpdir(), "kbo-chat-progress-test-"));
 after(() => rmSync(scratch, { recursive: true, force: true }));
 symlinkSync(join(frontend, "node_modules"), join(scratch, "node_modules"), "dir");
-for (const name of ["lib/member-auth-request", "lib/chat/types", "lib/chat/validation", "lib/chat/course", "lib/chat/wire", "lib/chat/history", "lib/chat/client"]) {
+for (const name of ["lib/member-auth-request", "lib/chat/planning", "lib/chat/types", "lib/chat/validation", "lib/chat/course", "lib/chat/wire", "lib/chat/history", "lib/chat/client"]) {
   const source = readFileSync(join(frontend, `${name}.ts`), "utf8");
   const { outputText } = ts.transpileModule(source, {
     fileName: `${name}.ts`, compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },

@@ -8,6 +8,7 @@ from llm.enum import ChatRole, PublicChatEvent, PublicToolStatus, TurnStatus
 from llm.serializer.message import _public_tool, project_history, tool_summary, tool_title
 from llm.service import chat_runs, usage
 from llm.service.chat_thread import ChatThread
+from llm.v2.agent.chat_ui import public_ui
 
 log = logging.getLogger(__name__)
 
@@ -15,8 +16,9 @@ log = logging.getLogger(__name__)
 def _model_history(messages, turns):
     """다음 모델 입력용 projection: 완료된 턴의 질문/최종 답변만."""
     return [
-        HumanMessage(item["content"]) if item["role"] == ChatRole.USER else AIMessage(item["content"])
-        for item in project_history(messages, turns) if item["status"] == TurnStatus.COMPLETED
+        HumanMessage(item["content"]) if item["role"] == ChatRole.USER else AIMessage(item["content"] + ("\n" if item.get("planning", {}).get("questions") else "") + "\n".join(
+            q["question"] + ": " + " / ".join(q["choices"]) for q in item.get("planning", {}).get("questions", [])))
+        for item in project_history(messages, turns) if item["status"] == TurnStatus.COMPLETED and not item.get("answer_deleted")
     ]
 
 
@@ -76,6 +78,10 @@ def _frames(graph_input, run):
                     elif isinstance(message, ToolMessage):
                         if not ns:
                             run["messages"].append(message)
+                            if message.name == "present_planning_questions" and message.status != "error":
+                                payload = public_ui(message.artifact)
+                                if payload:
+                                    yield "planning", payload
                         status = PublicToolStatus.FAILED if message.status == "error" else PublicToolStatus.COMPLETED
                         yield PublicChatEvent.TOOL.value, _public_tool(
                             message.tool_call_id, message.name, status.value, parent, titles.get(message.tool_call_id),
