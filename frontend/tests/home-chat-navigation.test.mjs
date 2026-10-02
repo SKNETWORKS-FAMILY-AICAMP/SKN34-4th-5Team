@@ -27,15 +27,17 @@ function elements(node) {
   return [node, ...elements(node.props.children)];
 }
 
-test("anonymous home CTA navigates to the rendered chat page without submitting a question", () => {
+test("home question form hands guest and member questions to chat only on submit", () => {
   let status = "anonymous";
   const calls = [];
   const auth = { useMemberAuth: () => ({ status, user: null }) };
   const chat = { messages: [], conversations: [], draft: "", pending: "", failed: "",
     activeConversationId: "initial-chat", status: null, statusLoading: false,
     editingMessageId: null, timeline: [], openChat: (...args) => calls.push(args) };
-  const hooks = { ...React, useState: value => [value, () => {}],
-    useRef: value => ({ current: value }), useEffect() {} };
+  let question = "";
+  const composingRef = { current: false };
+  const hooks = { ...React, useState: () => [question, value => { question = value; }],
+    useRef: () => composingRef, useEffect() {} };
   const common = { react: hooks, "next/link": { __esModule: true, default: "a" },
     "next/image": { __esModule: true, default: "img" },
     "@/lib/member-auth": auth, "./chat-provider": { useChat: () => chat },
@@ -45,12 +47,34 @@ test("anonymous home CTA navigates to the rendered chat page without submitting 
     "@/lib/routes": { useRoutes: () => [], useRoutesReady: () => true },
     "./game-schedule": { GameSchedule: "schedule" }, "./ad-slot": { AdSlot: "ad" },
     "./route-card": { RouteCard: "route" }, "./route-skeleton": { RouteCardsSkeleton: "skeleton" } });
-  const hero = elements(home.HomePage()).find(item => item.props.className === "hero-search");
-  assert.equal(hero.type, "a");
-  assert.equal(hero.props.href, "/chat");
+  const renderHero = () => elements(home.HomePage()).find(item => item.props.className === "hero-search");
+  const findInput = hero => elements(hero).find(item => item.type === "input");
+  const submit = hero => {
+    let prevented = false;
+    hero.props.onSubmit({ preventDefault() { prevented = true; } });
+    assert.equal(prevented, true);
+  };
+  // Model the browser's implicit form submission only when Enter isn't cancelled.
+  const enter = (hero, options = {}) => {
+    let prevented = false;
+    findInput(hero).props.onKeyDown({ key: "Enter", nativeEvent: { isComposing: false },
+      keyCode: 13, ...options, preventDefault() { prevented = true; } });
+    if (!prevented) submit(hero);
+    return prevented;
+  };
+  const hero = renderHero();
+  const input = findInput(hero);
+  assert.equal(hero.type, "form");
+  assert.equal(hero.props.href, undefined);
   assert.equal(hero.props.onClick, undefined);
-  assert.ok(!elements(hero).some(item => item.type === "form"));
+  assert.equal(input.props.onClick, undefined);
+  assert.equal(input.props.onFocus, undefined);
+  assert.equal(input.props.maxLength, 2000);
+  assert.equal(input.props.tabIndex, undefined);
+  assert.ok(elements(hero).some(item => item.type === "label" && item.props.htmlFor === input.props.id));
+  input.props.onChange({ target: { value: "잠실 경기 전 맛집 추천" } });
   assert.deepEqual(calls, []);
+  assert.equal(findInput(renderHero()).props.value, "잠실 경기 전 맛집 추천");
 
   const workspace = load("../components/chat-workspace.tsx", { ...common,
     "./chat-answer": { ChatAnswer: "answer" }, "./chat-planning": { ChatQuestions: "questions", ChatUserContent: "content", ChatWriterOffer: "offer" },
@@ -64,9 +88,47 @@ test("anonymous home CTA navigates to the rendered chat page without submitting 
   assert.ok(elements(rendered).some(item => item.type === "h1" && item.props.children === "직관 도우미"));
   assert.deepEqual(calls, []);
 
-  status = "authenticated";
-  const memberHero = elements(home.HomePage()).find(item => item.props.className === "hero-search");
-  assert.equal(memberHero.type, "form");
-  memberHero.props.onSubmit({ preventDefault() {} });
-  assert.deepEqual(calls, [[""]]);
+  for (status of ["anonymous", "authenticated"]) {
+    const current = renderHero();
+    const button = elements(current).find(item => item.type === "button");
+    assert.equal(button.props.type, "submit");
+    assert.equal(button.props.disabled, false);
+    assert.equal(button.props["aria-label"], "직관 도우미에게 질문하기");
+    calls.length = 0;
+    submit(current);
+    assert.deepEqual(calls, [[question]]);
+    calls.length = 0;
+    assert.equal(enter(current), false);
+    assert.deepEqual(calls, [[question]]);
+
+    calls.length = 0;
+    const currentInput = findInput(current);
+    currentInput.props.onCompositionStart();
+    assert.equal(enter(current), true);
+    submit(current);
+    assert.deepEqual(calls, []);
+    currentInput.props.onCompositionEnd();
+    assert.equal(enter(current, { nativeEvent: { isComposing: true } }), true);
+    assert.equal(enter(current, { keyCode: 229 }), true);
+    assert.deepEqual(calls, []);
+    assert.equal(enter(current), false);
+    assert.deepEqual(calls, [[question]]);
+  }
+
+  for (status of ["loading", "unavailable"]) {
+    calls.length = 0;
+    const blocked = renderHero();
+    assert.equal(elements(blocked).find(item => item.type === "button").props.disabled, true);
+    submit(blocked);
+    enter(blocked);
+    assert.deepEqual(calls, []);
+  }
+
+  for (status of ["anonymous", "authenticated"]) {
+    for (question of ["", "   "]) {
+      calls.length = 0;
+      submit(renderHero());
+      assert.deepEqual(calls, [[question]]);
+    }
+  }
 });
