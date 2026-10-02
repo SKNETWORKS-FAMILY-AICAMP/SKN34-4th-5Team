@@ -226,6 +226,22 @@ export async function saveAnswerFeedback(mode: ChatMode, sessionId: string, mess
   return result.feedback;
 }
 
+export type AdminAnswerFeedback = AnswerFeedback & { id: number; session_id: string; answer_id: string; message_id: number; question: string; answer: string; metadata: Record<string, unknown>; created_at: string; updated_at: string };
+const isAdminFeedback = (value: unknown): value is AdminAnswerFeedback => isRecord(value) && isMessageId(value.id) && isMessageId(value.message_id) &&
+  typeof value.session_id === "string" && UUID.test(value.session_id) && typeof value.answer_id === "string" && typeof value.question === "string" && typeof value.answer === "string" && isRecord(value.metadata) && typeof value.created_at === "string" && typeof value.updated_at === "string" && isAnswerFeedback(value);
+export async function fetchAdminFeedback(page: number, rating: string, reason: string, signal?: AbortSignal): Promise<{ count: number; results: AdminAnswerFeedback[] }> {
+  const params = new URLSearchParams({ page: String(page), rating, reason });
+  const result = await request("member", `/api/v2/chat/admin/feedback/?${params}`, { method: "GET" }, signal, readJson);
+  if (!isRecord(result) || !isCount(result.count) || !Array.isArray(result.results) || !result.results.every(isAdminFeedback)) throw new ChatClientError("평가 목록을 확인하지 못했어요.", 502);
+  return { count: Number(result.count), results: result.results };
+}
+export async function fetchAdminFeedbackDetail(id: number, signal?: AbortSignal): Promise<AdminAnswerFeedback> {
+  if (!isMessageId(id)) throw new ChatClientError("평가 번호를 확인해 주세요.", 400);
+  const result = await request("member", `/api/v2/chat/admin/feedback/${id}/`, { method: "GET" }, signal, readJson);
+  if (!isAdminFeedback(result)) throw new ChatClientError("평가 상세를 확인하지 못했어요.", 502);
+  return result;
+}
+
 export async function fetchChatHistory(mode: ChatMode, sessionId: string, signal?: AbortSignal): Promise<ChatMessageDto[]> {
   const messages = await request(mode, `${sessionPath(sessionId)}messages/`, { method: "GET" }, signal, readJson);
   if (!Array.isArray(messages) || !messages.every(isMessage)) throw new ChatClientError("대화 기록 응답을 확인하지 못했어요.", 502, false, sessionId);

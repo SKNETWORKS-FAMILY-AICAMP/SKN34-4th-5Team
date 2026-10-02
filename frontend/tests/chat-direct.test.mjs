@@ -28,7 +28,7 @@ global.sessionStorage = {
 };
 const require = createRequire(join(scratch, "entry.cjs"));
 const { clearMemberTokens, saveMemberTokens } = require("./lib/member-auth-request.js");
-const { saveAnswerFeedback, ChatClientError, deleteChatMessages, deleteChatSession, editChatMessage, fetchChatHistory, getChatStatus, listChatSessions, renameChatSession, sendChatMessage } = require("./lib/chat/client.js");
+const { saveAnswerFeedback, fetchAdminFeedback, fetchAdminFeedbackDetail, ChatClientError, deleteChatMessages, deleteChatSession, editChatMessage, fetchChatHistory, getChatStatus, listChatSessions, renameChatSession, sendChatMessage } = require("./lib/chat/client.js");
 const { restoreChatMessages } = require("./lib/chat/history.js");
 const { courseToStops, parseChatCourse } = require("./lib/chat/course.js");
 const json = (value, status = 200) => Response.json(value, { status });
@@ -398,4 +398,20 @@ test("feedback validates IDs, comment boundaries and API errors without optimist
   await assert.rejects(saveAnswerFeedback("guest", SESSION, 2, null), error => error.status === 404);
   global.fetch = async () => json({ feedback: { rating: "invented" } });
   await assert.rejects(saveAnswerFeedback("guest", SESSION, 2, null), error => error.status === 502);
+});
+
+test("admin feedback list filters/page and detail reuse Bearer requests", async () => {
+  saveMemberTokens("access-token", "refresh-token");
+  const detail = { id: 1, session_id: SESSION, answer_id: "stored-answer-id", message_id: 2, rating: "down", reason: "other", comment: "", question: "q", answer: "a", metadata: {}, created_at: "now", updated_at: "now" };
+  global.fetch = async (url, init) => {
+    assert.equal(new Headers(init.headers).get("Authorization"), "Bearer access-token");
+    if (String(url).includes("?")) {
+      assert.equal(String(url), "/api/v2/chat/admin/feedback/?page=2&rating=down&reason=other");
+      return json({ count: 21, results: [detail] });
+    }
+    assert.equal(String(url), "/api/v2/chat/admin/feedback/1/");
+    return json(detail);
+  };
+  assert.equal((await fetchAdminFeedback(2, "down", "other")).count, 21);
+  assert.deepEqual(await fetchAdminFeedbackDetail(1), detail);
 });
