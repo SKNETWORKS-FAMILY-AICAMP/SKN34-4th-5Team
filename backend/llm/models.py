@@ -5,6 +5,12 @@ from django.db import models
 from pgvector.django import VectorField, HnswIndex
 
 
+class GuestChatUsage(models.Model):
+    """Persistent per-IP guest allowance; no time-based reset."""
+    identity = models.CharField(max_length=64, primary_key=True)
+    used = models.PositiveSmallIntegerField(default=0)
+
+
 class Document(models.Model):
     title = models.CharField(max_length=255)
     source = models.CharField(max_length=255)

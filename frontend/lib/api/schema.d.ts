@@ -1161,7 +1161,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        get: operations["chat_guest_retrieve"];
         put?: never;
         post: operations["chat_guest_create"];
         delete?: never;
@@ -2774,6 +2774,10 @@ export interface components {
             assistant_message: string;
         };
         GuestChatEventPayload: components["schemas"]["GuestChatDeltaEvent"] | components["schemas"]["GuestChatDoneEvent"] | components["schemas"]["ChatProgressEvent"] | components["schemas"]["ChatErrorEvent"];
+        GuestChatLimit: {
+            detail: string;
+            code: string;
+        };
         GuestChatMessage: {
             role: components["schemas"]["GuestChatMessageRoleEnum"];
             content: string;
@@ -2784,6 +2788,10 @@ export interface components {
          * @enum {string}
          */
         GuestChatMessageRoleEnum: "user" | "assistant";
+        GuestChatStatus: {
+            limit: number;
+            remaining: number | null;
+        };
         HomeContext: {
             id: number;
             season: number;
@@ -9208,6 +9216,28 @@ export interface operations {
             };
         };
     };
+    chat_guest_retrieve: {
+        parameters: {
+            query?: {
+                format?: "json" | "sse";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuestChatStatus"];
+                    "text/event-stream": components["schemas"]["GuestChatStatus"];
+                };
+            };
+        };
+    };
     chat_guest_create: {
         parameters: {
             query?: {
@@ -9233,6 +9263,22 @@ export interface operations {
                 content: {
                     "text/event-stream": components["schemas"]["GuestChatEventPayload"];
                 };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuestChatLimit"];
+                    "text/event-stream": components["schemas"]["GuestChatLimit"];
+                };
+            };
+            /** @description Existing per-IP rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

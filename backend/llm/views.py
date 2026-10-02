@@ -25,6 +25,7 @@ from community.pagination import PublicPageNumberPagination
 
 from .chat_message_histories import DjangoChatMessageHistory
 from .chat_service import ChatService, StaleChatHistoryError
+from .guest_quota import GUEST_QUESTION_LIMIT, guest_remaining, reserve_guest_question
 from .models import ChatMessage, ChatProgressEvent, ChatSession, ChatTurn
 from .progress import ProgressCollector, collect, project_event
 from .rag.pipeline import last_detail
@@ -472,12 +473,30 @@ def guest_rate_limited(request):
         return False
 
 
+class GuestChatStatusSerializer(serializers.Serializer):
+    limit = serializers.IntegerField()
+    remaining = serializers.IntegerField(allow_null=True)
+
+
+class GuestChatLimitSerializer(serializers.Serializer):
+    detail = serializers.CharField()
+    code = serializers.CharField()
+
+
 class GuestChatView(generics.GenericAPIView):
     serializer_class = GuestChatSerializer
-    permission_classes = (IsAuthenticated,)
+    permission_classes = (AllowAny,)
     renderer_classes = (JSONRenderer, EventStreamRenderer)
 
+    @extend_schema(auth=[], responses={200: GuestChatStatusSerializer})
+    def get(self, request):
+        remaining = None if request.user.is_authenticated else guest_remaining(guest_client_ip(request))
+        response = Response({"limit": GUEST_QUESTION_LIMIT, "remaining": remaining})
+        response["Cache-Control"] = "no-store"
+        return response
+
     @extend_schema(
+        auth=[],
         request=GuestChatSerializer,
         responses={
             (200, "text/event-stream"): OpenApiResponse(
@@ -492,7 +511,9 @@ class GuestChatView(generics.GenericAPIView):
                     resource_type_field_name=None,
                 ),
                 description="SSE delta, done, or error event payload",
-            )
+            ),
+            403: GuestChatLimitSerializer,
+            429: OpenApiResponse(description="Existing per-IP rate limit exceeded"),
         },
     )
     def post(self, request):
@@ -503,6 +524,13 @@ class GuestChatView(generics.GenericAPIView):
                 {"detail": "요청이 많습니다. 잠시 후 다시 시도해 주세요."},
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
+        if not request.user.is_authenticated and not reserve_guest_question(guest_client_ip(request)):
+            return Response(
+                {"detail": "비회원 질문 2회를 모두 사용했어요. 로그인 후 계속 이용해 주세요.",
+                 "code": "guest_quota_exhausted"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        # Accepted attempts count even when generation fails or is cancelled.
         messages = serializer.validated_data["messages"]
         question = messages[-1]["content"]
         history = [

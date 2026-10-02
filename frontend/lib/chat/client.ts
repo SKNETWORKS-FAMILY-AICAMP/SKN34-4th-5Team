@@ -426,6 +426,16 @@ export async function sendChatMessage(body: ChatRequest, signal?: AbortSignal, c
   }
 }
 
+export async function getGuestChatStatus(signal?: AbortSignal): Promise<ChatStatus> {
+  const value = await guestRequest("/api/v1/chat/guest/", { method: "GET" }, signal, readJson);
+  if (!isRecord(value) || value.limit !== 2 || !Number.isInteger(value.remaining) ||
+      Number(value.remaining) < 0 || Number(value.remaining) > 2) {
+    throw new ChatClientError("비회원 이용 횟수를 확인하지 못했어요.", 502);
+  }
+  const remaining = Number(value.remaining);
+  return { ...GUEST_STATUS, ready: remaining > 0, remaining };
+}
+
 export async function sendGuestChatMessage(body: ChatRequest, signal?: AbortSignal, callbacks: ChatStreamCallbacks = {}): Promise<ChatReply> {
   const input = parseModelRequest(body);
   const messages = input.messages.map((message, index) => ({

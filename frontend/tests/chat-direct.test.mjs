@@ -46,6 +46,34 @@ const memberEvents = (turn = "turn-1", chunks = ["첫 ", "답변"]) => [
 
 beforeEach(() => { stored.clear(); clearMemberTokens(); });
 
+test("guest status is server-authoritative and exhausted quota disables sending", async () => {
+  const { getGuestChatStatus } = require("./lib/chat/client.js");
+  const requests = [];
+  global.fetch = async (url, options) => {
+    requests.push({ url, options });
+    return json({ limit: 2, remaining: 0 });
+  };
+  const status = await getGuestChatStatus();
+  assert.equal(status.ready, false);
+  assert.equal(status.remaining, 0);
+  assert.equal(requests[0].url, "/api/v1/chat/guest/");
+  assert.equal(requests[0].options.method, "GET");
+  global.fetch = async () => json({ limit: 2, remaining: 3 });
+  await assert.rejects(getGuestChatStatus(), ChatClientError);
+});
+
+test("guest quota and rate errors are surfaced without retry or member fallback", async () => {
+  for (const status of [403, 429]) {
+    let count = 0;
+    global.fetch = async () => { count++; return json({ detail: "이용 제한" }, status); };
+    await assert.rejects(
+      sendGuestChatMessage({ messages: [{ role: "user", content: "질문" }] }),
+      error => error instanceof ChatClientError && error.status === status && error.message === "이용 제한",
+    );
+    assert.equal(count, 1);
+  }
+});
+
 test("member completion uses protected direct endpoints and observable finalize ids", async () => {
   saveMemberTokens("access-token", "refresh-token");
   const calls = [];
@@ -272,7 +300,7 @@ test("guest read failure is retryable while failed member auth never falls back 
   await assert.rejects(getChatStatus(), error => error instanceof ChatClientError && error.status === 401);
 });
 
-test("provider blocks guest questions and clears state on every identity switch", () => {
+test("provider separates guest requests and clears state on every identity switch", () => {
   const provider = readFileSync(join(frontend, "components/chat-provider.tsx"), "utf8");
   const surfaces = ["components/chat-popup.tsx", "components/chat-workspace.tsx"].map(path => readFileSync(join(frontend, path), "utf8"));
   assert.match(provider, /const identity = memberStatus === "authenticated"/);
@@ -288,7 +316,9 @@ test("provider blocks guest questions and clears state on every identity switch"
   assert.match(provider, /받은 답변은 저장되지 않았어요/);
   for (const surface of surfaces) {
     assert.match(surface, /답변 생성 중단/);
-    assert.match(surface, /로그인하고 질문하기/);
+    assert.match(surface, /로그인하고 계속하기/);
+    assert.ok(surface.includes('chat.status.remaining'));
+    assert.ok(surface.includes('authStatus === "anonymous"'));
     assert.match(surface, /aria-relevant="additions"/);
   }
 });

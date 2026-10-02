@@ -461,7 +461,7 @@ class ChatApiTest(APITestCase):
         self.assertNotIn("private provider detail", body)
         self.assertFalse(session.messages.exists())
 
-    def test_guest_questions_are_read_only_and_never_reach_the_model(self):
+    def test_guest_questions_use_ephemeral_history_without_member_chat_rows(self):
         cache.clear()
         before = (ChatSession.objects.count(), ChatMessage.objects.count(), ChatTurn.objects.count())
         guest = APIClient()
@@ -475,6 +475,8 @@ class ChatApiTest(APITestCase):
                 ]},
                 format="json", HTTP_ACCEPT="text/event-stream", REMOTE_ADDR="203.0.113.9",
             )
-        self.assertEqual(response.status_code, 401)
-        self.assertEqual(model.call_count, 0)
+            body = b"".join(response.streaming_content).decode()
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("답", body)
+        self.assertEqual(model.call_count, 1)
         self.assertEqual(before, (ChatSession.objects.count(), ChatMessage.objects.count(), ChatTurn.objects.count()))

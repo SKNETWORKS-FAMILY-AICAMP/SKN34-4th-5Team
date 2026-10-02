@@ -4545,6 +4545,28 @@ paths:
                 $ref: '#/components/schemas/PaginatedPublicTicketPriceList'
           description: ''
   /api/v1/chat/guest/:
+    get:
+      operationId: chat_guest_retrieve
+      parameters:
+      - in: query
+        name: format
+        schema:
+          type: string
+          enum:
+          - json
+          - sse
+      tags:
+      - chat
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuestChatStatus'
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/GuestChatStatus'
+          description: ''
     post:
       operationId: chat_guest_create
       parameters:
@@ -4569,8 +4591,6 @@ paths:
             schema:
               $ref: '#/components/schemas/GuestChat'
         required: true
-      security:
-      - jwtAuth: []
       responses:
         '200':
           content:
@@ -4578,6 +4598,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/GuestChatEventPayload'
           description: SSE delta, done, or error event payload
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuestChatLimit'
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/GuestChatLimit'
+          description: ''
+        '429':
+          description: Existing per-IP rate limit exceeded
   /api/v1/chat/sessions/:
     get:
       operationId: chat_sessions_list
@@ -9881,6 +9912,16 @@ components:
       - $ref: '#/components/schemas/GuestChatDoneEvent'
       - $ref: '#/components/schemas/ChatProgressEvent'
       - $ref: '#/components/schemas/ChatErrorEvent'
+    GuestChatLimit:
+      type: object
+      properties:
+        detail:
+          type: string
+        code:
+          type: string
+      required:
+      - code
+      - detail
     GuestChatMessage:
       type: object
       properties:
@@ -9899,6 +9940,17 @@ components:
       description: |-
         * `user` - user
         * `assistant` - assistant
+    GuestChatStatus:
+      type: object
+      properties:
+        limit:
+          type: integer
+        remaining:
+          type: integer
+          nullable: true
+      required:
+      - limit
+      - remaining
     HomeContext:
       type: object
       properties:

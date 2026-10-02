@@ -10,6 +10,7 @@ import {
   fetchChatHistory,
   fetchChatTurns,
   getChatStatus,
+  getGuestChatStatus,
   listChatSessions,
   sendChatMessage,
   sendGuestChatMessage,
@@ -176,7 +177,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   }, [invalidateHistory]);
 
   const loadStatus = useCallback((controller: AbortController) => {
-    return getChatStatus(controller.signal).then(
+    return (memberStatus === "anonymous" ? getGuestChatStatus(controller.signal) : getChatStatus(controller.signal)).then(
       nextStatus => {
         if (!controller.signal.aborted) { setStatus(nextStatus); setStatusError(""); }
       },
@@ -189,18 +190,11 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     ).finally(() => {
       if (!controller.signal.aborted) setStatusLoading(false);
     });
-  }, []);
+  }, [memberStatus]);
 
   const refreshStatus = useCallback(() => {
     statusRequestRef.current?.abort();
-    if (memberStatus === "anonymous") {
-      // 비로그인 상태에서는 챗봇을 둘러보기만 할 수 있다 (질문은 로그인 후)
-      setStatus(null);
-      setStatusLoading(false);
-      setStatusError("");
-      return;
-    }
-    if (memberStatus !== "authenticated") {
+    if (memberStatus !== "authenticated" && memberStatus !== "anonymous") {
       setStatus(null); setStatusLoading(memberStatus === "loading");
       setStatusError(memberStatus === "unavailable" ? "로그인 상태를 확인하지 못했어요." : "");
       return;
@@ -472,10 +466,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     const controller = new AbortController();
     const identityController = new AbortController();
     const version = ++requestVersion.current;
-    if (memberStatus !== "authenticated") { setError(memberStatus === "anonymous" ? "챗봇 질문은 로그인 후 이용할 수 있어요." : "로그인 상태를 확인한 뒤 다시 시도해 주세요."); return; }
-    const mode = "member" as "member" | "guest";
+    if (memberStatus !== "authenticated" && memberStatus !== "anonymous") { setError("로그인 상태를 확인한 뒤 다시 시도해 주세요."); return; }
+    const mode = memberStatus === "authenticated" ? "member" : "guest";
     invalidateHistory();
-    const active = { controller, identityController, version, mode, checkpoint: null as ChatCheckpoint | null, stop: null as ChatCheckpoint | null, wantsStop: false };
+    const active = { controller, identityController, version, mode: mode as "member" | "guest", checkpoint: null as ChatCheckpoint | null, stop: null as ChatCheckpoint | null, wantsStop: false };
     requestRef.current = active;
     pendingRef.current = content;
     setPending(content);
@@ -566,9 +560,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         setPending("");
         setStreaming("");
         streamingRef.current = "";
+        if (mode === "guest") refreshStatus();
       }
     }
-  }, [activeConversationId, applyChatCourse, context, draft, identity, invalidateHistory, memberStatus, uncertain]);
+  }, [activeConversationId, applyChatCourse, context, draft, identity, invalidateHistory, memberStatus, uncertain, refreshStatus]);
 
   const openCourseInWriter = useCallback((course: ChatCourse) => {
     pendingCourseRef.current = course;
@@ -604,7 +599,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!isChatPage && !popupOpen && !hasEmbeddedChat) return;
     statusRequestRef.current?.abort();
-    if (memberStatus !== "authenticated") return;
+    if (memberStatus !== "authenticated" && memberStatus !== "anonymous") return;
     const controller = new AbortController();
     statusRequestRef.current = controller;
     void loadStatus(controller);
@@ -619,9 +614,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     historyRequestRef.current?.abort();
   }, []);
 
-  const visibleStatus = memberStatus === "authenticated" ? status : null;
-  const visibleStatusLoading = memberStatus === "loading" || (memberStatus === "authenticated" && statusLoading);
-  const visibleStatusError = memberStatus === "unavailable" ? "로그인 상태를 확인하지 못했어요." : memberStatus === "authenticated" ? statusError : "";
+  const chatAllowed = memberStatus === "authenticated" || memberStatus === "anonymous";
+  const visibleStatus = chatAllowed && !identityChanged ? status : null;
+  const visibleStatusLoading = memberStatus === "loading" || (chatAllowed && (statusLoading || identityChanged));
+  const visibleStatusError = memberStatus === "unavailable" ? "로그인 상태를 확인하지 못했어요." : chatAllowed ? statusError : "";
 
   return (
     <ChatControlsContext.Provider value={{
