@@ -20,7 +20,7 @@ from ..tools import DOMAIN_TOOL_NAMES, create_default_tools, create_domain_tools
 
 
 EXPECTED_NAMES = (
-    "get_standings", "get_games", "get_stadium", "get_seat_zones", "get_seat_views",
+    "get_standings", "get_games", "get_stadiums", "get_stadium", "get_seat_zones", "get_seat_views",
     "get_ticket_prices", "get_ticket_policies", "get_transport", "get_food_stores",
     "get_facilities", "get_stadium_contents", "get_seat_maps", "search_places",
     "search_courses", "get_course", "search_community_posts", "get_prediction_games",
@@ -42,7 +42,7 @@ class DomainToolsTest(TestCase):
     def setUpTestData(cls):
         now = timezone.now()
         cls.lg, _ = baseball.Team.objects.get_or_create(team_code="LG", defaults={"id": 990001, "team_name_ko": "LG 트윈스"})
-        cls.ob, _ = baseball.Team.objects.get_or_create(team_code="OB", defaults={"id": 990002, "team_name_ko": "두산 베어스"})
+        cls.ob, _ = baseball.Team.objects.get_or_create(team_code="DOOSAN", defaults={"id": 990002, "team_name_ko": "두산 베어스"})
         cls.stadium = baseball.Stadium.objects.create(
             id=990001, stadium_code="TEST-JAMSIL", stadium_name_ko="테스트 잠실", address="서울",
             longitude="127.071", latitude="37.512", geocode_source="official", collected_at=now,
@@ -103,8 +103,8 @@ class DomainToolsTest(TestCase):
     def test_deterministic_invoke_keeps_canonical_schemas_and_dict_results(self):
         fresh = {"stale": False, "warning": None}
         with (
-            patch("tving.service.ensure_game_range_fresh", return_value=fresh),
-            patch("tving.service.ensure_standings_fresh", return_value=fresh),
+            patch("tving.service.get_game_range_freshness", return_value=fresh),
+            patch("tving.service.get_standings_freshness", return_value=fresh),
         ):
             games = domain_tools.invoke("course", "get_games", {
                 "start_date": "2099-09-15", "end_date": "2099-09-15", "team_code": "LG",
@@ -122,6 +122,7 @@ class DomainToolsTest(TestCase):
         calls = {
             "get_standings": {"snapshot_date": "2099-09-15"},
             "get_games": {"start_date": "2099-09-15", "end_date": "2099-09-15", "team_code": "LG", "stadium_id": 990001},
+            "get_stadiums": {"limit": 5},
             "get_stadium": {"stadium_code": "TEST-JAMSIL"},
             "get_seat_zones": {"season": 2099, "team_code": "LG", "stadium_id": 990001},
             "get_seat_views": {"season": 2099, "team_code": "LG", "stadium_id": 990001},
@@ -180,6 +181,16 @@ class DomainToolsTest(TestCase):
         self.assertEqual(self.tools["get_standings"].invoke({})["actual_date"], "2099-09-15")
         ob = self.tools["get_seat_zones"].invoke({"season": 2099, "team_code": "OB", "stadium_id": 990001})
         self.assertEqual([item["zone_code"] for item in ob["items"]], ["OB-Z"])
+        # 도구는 TVING 약어(OB)를 받고 DB Team 은 표준 코드(DOOSAN)라서, 조회 직전에 변환돼야 한다.
+        baseball.TicketPolicy.objects.create(id=990002, policy_code="TEST-OB-GENERAL", team=self.ob, policy_type="sale", subtype="general", channel_no=1, booking_channel="official", channel_condition="", collected_at=timezone.now())
+        policies = self.tools["get_ticket_policies"].invoke({"team_code": "OB"})
+        self.assertIn("TEST-OB-GENERAL", [item["policy_code"] for item in policies["items"]])
+        self.assertEqual({item["team__team_code"] for item in policies["items"]}, {"DOOSAN"})
+        # get_games 결과의 표준 코드(DOOSAN)를 LLM이 그대로 넘겨도 같은 결과여야 한다.
+        standard = self.tools["get_ticket_policies"].invoke({"team_code": "DOOSAN"})
+        self.assertEqual([item["policy_code"] for item in standard["items"]], [item["policy_code"] for item in policies["items"]])
+        games = self.tools["get_games"].invoke({"start_date": "2099-09-15", "end_date": "2099-09-15", "team_code": "OB"})
+        self.assertIn("TEST-G1", [item["game_code"] for item in games["items"]])
         for name, args in (
             ("get_games", {"start_date": "2026-09-16", "end_date": "2026-09-15"}),
             ("get_stadium", {"stadium_id": 1, "stadium_code": "JAMSIL"}),
@@ -214,14 +225,14 @@ class DomainToolsTest(TestCase):
             )
             return {"stale": False, "warning": None}
 
-        with patch("tving.service.ensure_game_range_fresh", side_effect=sync_games) as games_sync, patch("tving.service.ensure_standings_fresh", side_effect=sync_standings) as standings_sync:
+        with patch("tving.service.get_game_range_freshness", side_effect=sync_games) as games_sync, patch("tving.service.get_standings_freshness", side_effect=sync_standings) as standings_sync:
             games = self.tools["get_games"].invoke({"start_date": game_day.isoformat(), "end_date": game_day.isoformat(), "team_code": "LG"})
             standings = self.tools["get_standings"].invoke({"snapshot_date": game_day.isoformat()})
         games_sync.assert_called_once_with(game_day, game_day)
         standings_sync.assert_called_once_with(game_day)
         self.assertIn("SYNCED-G1", [item["game_code"] for item in games["items"]])
         self.assertTrue(all(item["game_date"] == game_day.isoformat() for item in games["items"]))
-        self.assertEqual(standings["items"][0]["team__team_code"], "OB")
+        self.assertEqual(standings["items"][0]["team__team_code"], "DOOSAN")
 
 
 class PlaceAdapterTest(TestCase):
@@ -243,7 +254,7 @@ class PlaceAdapterTest(TestCase):
         expected = {"places": [{"id": "1", "place_name": "식당", "x": "127.1", "y": "37.5"}], "hasNextPage": False, "syncedAt": "2026-09-15T10:00:00+00:00"}
         module, _ = self.module(lambda query: seen.append(query) or expected)
         with patch.dict(sys.modules, {"travel.place_service": module}):
-            result = create_domain_tools()[12].invoke(self.args)
+            result = next(t for t in create_domain_tools() if t.name == "search_places").invoke(self.args)
         self.assertEqual(result, expected)
         self.assertEqual(seen, [{"method": "keyword", "keyword": "야구장 맛집", "category": "FD6", "lat": 37.5, "lng": 127.1, "page": 1, "size": 15, "sort": "distance", "radius": 1000}])
 
@@ -256,12 +267,12 @@ class PlaceAdapterTest(TestCase):
             return original_import(name, *args, **kwargs)
 
         with patch("builtins.__import__", side_effect=missing):
-            self.assertEqual(create_domain_tools()[12].invoke(self.args), "장소 검색 서비스 통합이 필요합니다.")
+            self.assertEqual(next(t for t in create_domain_tools() if t.name == "search_places").invoke(self.args), "장소 검색 서비스 통합이 필요합니다.")
 
         module, error = self.module(None)
         module.search_and_sync_places = lambda _: (_ for _ in ()).throw(error("private detail"))
         with patch.dict(sys.modules, {"travel.place_service": module}):
-            self.assertEqual(create_domain_tools()[12].invoke(self.args), "안전한 장소 오류")
+            self.assertEqual(next(t for t in create_domain_tools() if t.name == "search_places").invoke(self.args), "안전한 장소 오류")
 
 
 class ExternalDomainToolAdapterTest(SimpleTestCase):
@@ -299,3 +310,19 @@ class ExternalDomainToolAdapterTest(SimpleTestCase):
                 "stadium_code": "JAMSIL", "game_date": "2026-09-16", "game_time": "18:30",
             }), weather)
         get_weather.assert_called_once_with("JAMSIL", "2026-09-16", "18:30")
+
+
+class ToolErrorContractTest(__import__("unittest").TestCase):
+    def test_knowledge_and_schema_tools_return_error_toolmessage(self):
+        from unittest.mock import patch
+        from llm.tools import knowledge, baseball
+        call = lambda t, args: t.invoke({"type": "tool_call", "id": "c1", "name": t.name, "args": args})
+        with patch.object(knowledge, "search_documents", side_effect=RuntimeError("boom")):
+            msg = call(knowledge.search_documents_tool, {"query": "q"})
+        self.assertEqual((msg.status, msg.content[:7]), ("error", "[조회 실패]"))
+        kbo = knowledge.create_knowledge_tools()[1]
+        with patch.object(knowledge, "search_kbo_rows", side_effect=RuntimeError("boom")):
+            self.assertEqual(call(kbo, {"query": "q"}).status, "error")
+        service = type("S", (), {"get_baseball_schema": lambda self: (_ for _ in ()).throw(RuntimeError("x"))})()
+        schema = next(t for t in baseball.create_baseball_tools(service) if t.name == "get_baseball_schema")
+        self.assertEqual(call(schema, {}).status, "error")

@@ -61,7 +61,8 @@ jobs:
           script: |
             set -eu
             cd ~/dev
-            git pull --ff-only origin develop
+            git fetch origin
+            git reset --hard origin/develop
             docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build backend frontend
             docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --no-deps --force-recreate nginx
             docker compose -f docker-compose.yml -f docker-compose.dev.yml exec -T nginx nginx -t

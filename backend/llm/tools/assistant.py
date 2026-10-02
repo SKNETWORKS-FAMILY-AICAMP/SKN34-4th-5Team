@@ -53,7 +53,7 @@ def new_state(hint_stadium=None, question="", history=None) -> dict:
     """테스트/직접 도구 호출용 상태를 만든다. 답변 진입점은 request_state를 쓴다."""
     st = _new_state(hint_stadium, question, history)
     _STATE.set(st)
-    from ....tools.knowledge import assistant_context
+    from .knowledge import assistant_context
     assistant_context.set(st)
     return st
 
@@ -63,7 +63,7 @@ def request_state(hint_stadium=None, question="", history=None):
     """한 답변 요청 동안만 assistant 도구 상태를 공유하고 부모 상태를 복원한다."""
     st = _new_state(hint_stadium, question, history)
     token = _STATE.set(st)
-    from ....tools.knowledge import assistant_context
+    from .knowledge import assistant_context
     knowledge_token = assistant_context.set(st)
     try:
         yield st
@@ -76,7 +76,7 @@ def state() -> dict:
     try:
         return _STATE.get()
     except LookupError:
-        from ....tools.knowledge import assistant_context
+        from .knowledge import assistant_context
         current = assistant_context.get(None)
         if current is not None:
             _STATE.set(current)
@@ -107,7 +107,7 @@ def to_stadium_code(value) -> str | None:
     v = str(value or "").strip().upper()
     if v in STADIUMS:
         return v
-    from ..club.router import detect_stadium        # "잠실", "챔피언스 필드" 같은 한글도 받는다
+    from llm.v1.rag.club.router import detect_stadium        # "잠실", "챔피언스 필드" 같은 한글도 받는다
     code = detect_stadium(str(value or ""))
     return code if code in STADIUMS else None
 
@@ -312,11 +312,11 @@ def execute_baseball_select(sql, params=None, max_rows=20, _service_obj=None) ->
 
 
 # ── RAG 추가 검색 ─────────────────────────────────────────────────────────────
-from ....tools.knowledge import SearchInput
+from .knowledge import SearchInput
 
 
 def search_documents(query, stadium=None, categories=None, k=DOC_K, _search=None, _embed=None) -> list[dict]:
-    from ....tools.knowledge import search_kbo_rows
+    from .knowledge import search_kbo_rows
     return search_kbo_rows(query, stadium, categories, k, _search, _embed)
 
 
@@ -335,7 +335,7 @@ def add_sources(rows):
 
 def search_kbo_documents(query, stadium_code=None, categories=None, _search=None, _embed=None) -> str:
     """기존 직접 호출 계약을 유지하는 문서 검색 어댑터."""
-    from ....tools.knowledge import search_kbo_documents as search
+    from .knowledge import search_kbo_documents as search
     return search(query, stadium_code, categories, _search, _embed)
 
 
@@ -353,7 +353,7 @@ def search_nearby_places(kind, stadium_code=None, keyword=None, _nearby=None) ->
     code = to_stadium_code(stadium_code) if stadium_code else s.get("hint")
     if not code:
         return "어느 구장인지 모릅니다. 사용자에게 구장을 물어보세요."
-    from ..nearby import agent as nearby_agent, kakao
+    from llm.v1.rag.nearby import agent as nearby_agent, kakao
     if _nearby is None and not kakao.enabled():
         return "카카오 장소 조회가 설정되지 않았습니다. 옆 지도의 해당 카테고리에서 확인하라고 안내하세요."
     places = nearby_agent.narrow((_nearby or kakao.nearby)(code, kind), kind, keyword or "")[:8]
@@ -373,11 +373,11 @@ def plan_course(request, _course=None) -> str:
     """직관 코스(경기 전 → 구장 → 경기 후, 요청 시 숙소)를 짠다. 결과는 옆 지도와 코스 카드에 그대로 표시된다."""
     s = state()
     s["tools"].append("course")
-    from ..domain_tools import active_domain
+    from llm.v1.rag.domain_tools import active_domain
     if active_domain() == "course":
         return "현재 코스 생성 중에는 plan_course를 다시 호출할 수 없습니다. 주어진 후보로 답하세요."
     if _course is None:
-        from ..course import agent as _course
+        from llm.v1.rag.course import agent as _course
     question = request if request and len(request) >= len(s.get("question") or "") else (s.get("question") or request)
     result = _course.answer(question, history=s.get("history"), hint_stadium=s.get("hint"))
     s["course"] = result
@@ -386,7 +386,7 @@ def plan_course(request, _course=None) -> str:
 
 
 def build_specialized_tools():
-    from ....tools.knowledge import search_kbo_documents as knowledge_search_kbo_documents
+    from .knowledge import search_kbo_documents as knowledge_search_kbo_documents
 
     def tool(fn, schema):
         return StructuredTool.from_function(fn, name=fn.__name__, args_schema=schema, description=fn.__doc__,
@@ -405,5 +405,5 @@ def build_specialized_tools():
 
 
 def build_tools():
-    from ..domain_tools import tools_for
+    from llm.v1.rag.domain_tools import tools_for
     return list(tools_for("assistant"))

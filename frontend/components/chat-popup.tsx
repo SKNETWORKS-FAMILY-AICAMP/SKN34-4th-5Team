@@ -7,7 +7,7 @@ import { useMemberAuth } from "@/lib/member-auth";
 import { ChatAnswer } from "./chat-answer";
 import { ChatCourseCard } from "./chat-course-card";
 import { ChatPending } from "./chat-pending";
-import { ChatProgress } from "./chat-progress";
+import { ChatProgress, ChatSubAgentStatus } from "./chat-progress";
 import { useChat } from "./chat-provider";
 import { Icon } from "./icons";
 import "@/styles/chat-popup.css";
@@ -112,10 +112,10 @@ export function ChatPopup({
         {chat.context?.stadium && <p className="chat-popup-context"><Icon name="pin" size={13} />{chat.context.stadium}에서의 하루</p>}
         <div className="chat-popup-messages" role="log" aria-label="직관 도우미 대화 내용" aria-live="polite" aria-relevant="additions">
           {chat.messages.map((message, index) => <article key={`${chat.activeConversationId}-${index}`} className={`chat-popup-message chat-popup-message-${message.role}`}>
-            {message.role === "assistant" ? <><div className="chat-popup-assistant-label"><Icon name="sparkles" size={14} />직관 도우미</div><ChatProgress operations={message.progress ?? []} />{message.content && <ChatAnswer text={message.content} />}{message.status && message.status !== "completed" && <p className="chat-popup-message-note">끝까지 만들지 못한 답변이에요.</p>}{message.course && <ChatCourseCard course={message.course} />}</> : <><span className="sr-only">나</span><div className="chat-popup-user-bubble">{message.content}</div>{message.status && message.status !== "completed" && <p className="chat-popup-message-note">답변을 받지 못한 질문이에요.</p>}{message.id !== undefined && available && !busy && <div className="chat-popup-message-actions"><button type="button" aria-label="이 질문 수정" title="수정하면 이 질문 이후의 대화가 지워져요" onClick={() => { chat.onEditMessage(message.id!); inputRef.current?.focus(); }}>수정</button><button type="button" aria-label="이 질문부터 삭제" title="이 질문과 이후 대화를 모두 지워요" onClick={() => chat.onDeleteMessage(message.id!)}>삭제</button></div>}</>}
+            {message.role === "assistant" ? <><div className="chat-popup-assistant-label"><Icon name="sparkles" size={14} />직관 도우미</div><ChatProgress items={message.timeline ?? []} />{message.content && <ChatAnswer text={message.content} />}{message.status && message.status !== "completed" && <p className="chat-popup-message-note">끝까지 만들지 못한 답변이에요.</p>}{message.course && <ChatCourseCard course={message.course} />}</> : <><span className="sr-only">나</span><div className="chat-popup-user-bubble">{message.content}</div>{message.status && message.status !== "completed" && <p className="chat-popup-message-note">답변을 받지 못한 질문이에요.</p>}{message.id !== undefined && available && !busy && <div className="chat-popup-message-actions"><button type="button" aria-label="이 질문 수정" title="수정하면 이 질문 이후의 대화가 지워져요" onClick={() => { chat.onEditMessage(message.id!); inputRef.current?.focus(); }}>수정</button><button type="button" aria-label="이 질문부터 삭제" title="이 질문과 이후 대화를 모두 지워요" onClick={() => chat.onDeleteMessage(message.id!)}>삭제</button></div>}</>}
           </article>)}
           {(chat.pending || chat.failed) && <article className="chat-popup-message chat-popup-message-user"><span className="sr-only">나</span><div className="chat-popup-user-bubble">{chat.pending || chat.failed}</div></article>}
-          {busy && <article className="chat-popup-message chat-popup-message-assistant"><div className="chat-popup-assistant-label"><Icon name="sparkles" size={14} />직관 도우미</div>{chat.streaming ? <ChatAnswer text={chat.streaming} /> : <ChatPending busy={busy} streaming={chat.streaming} className="chat-popup-thinking" />}</article>}
+          {busy && <article className="chat-popup-message chat-popup-message-assistant"><div className="chat-popup-assistant-label"><Icon name="sparkles" size={14} />직관 도우미</div><ChatProgress items={chat.timeline} live /><ChatPending busy={busy} streaming={chat.streaming} className="chat-popup-thinking" /></article>}
         </div>
         {chat.error && <div className="chat-popup-feedback is-error" role="alert"><p>{chat.error}</p><button type="button" onClick={chat.onRetry} disabled={busy || !available}>다시 시도</button></div>}
         {chat.statusError && <div className="chat-popup-feedback is-error" role="alert"><p>{chat.statusError}</p><button type="button" onClick={chat.onRefreshStatus} disabled={chat.statusLoading}>연결 다시 확인</button></div>}
@@ -124,6 +124,7 @@ export function ChatPopup({
       </div>
 
       {<div className="chat-popup-composer-area">
+          <ChatSubAgentStatus items={busy ? chat.timeline : []} />
         {chat.editingMessageId !== null && <p className="chat-popup-edit-banner" role="status">질문을 수정하고 있어요. 보내면 이 질문 이후의 대화는 지워져요. <button type="button" onClick={chat.onCancelEdit}>수정 취소</button></p>}
         <div className="chat-popup-composer">
           <label className="sr-only" htmlFor={questionId}>직관 도우미에게 질문</label>

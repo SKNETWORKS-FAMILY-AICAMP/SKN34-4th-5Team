@@ -12,7 +12,8 @@ from django.test import override_settings
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, SystemMessage
 
-from . import pipeline, tools
+from . import pipeline
+from ....tools import assistant as tools
 from ....tools import DOMAIN_TOOL_NAMES
 
 ALL_TABLES = ["TEAM", "STADIUM", "HOME_CONTEXT", "POSTSEASON_STAGE", "GAME", "STANDING_HISTORY", "SEAT_ZONE",

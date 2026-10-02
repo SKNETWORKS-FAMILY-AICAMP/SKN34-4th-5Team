@@ -1,11 +1,20 @@
-// Hand-typed wire DTOs for /api/v2/chat/ (backend/llm/serializer, views/sse.py).
-// contracts/openapi.yaml and lib/api/schema.d.ts still describe the retired turns/finalize API.
+// Hand-typed wire DTOs for /api/v2/chat/ (backend/llm/serializer/message.py, views/sse.py).
+// Message ids are server-issued positive integers kept from the v1 wire (serializer wire_history); sequence_no is
+// the 1-based position in the returned list. done.message_id is the same id as a digit string.
 import type { ChatContext } from "./types";
 
 export type ChatMessageStatus = "pending" | "completed" | "failed" | "stopped";
+export type ChatToolStatus = "running" | "completed" | "failed";
 
 export type ChatSessionDto = { id: string; title: string; created_at: string; updated_at: string };
-export type ChatToolCallDto = { id: number; tool_name: string; status: string; created_at: string };
+export type ChatToolDetailDto = { args: Record<string, unknown>; result: string; messages?: Record<string, unknown>[] };
+// kind/parent_id default to "tool"/null for older servers. detail is sent only to superusers on GET history.
+export type ChatToolCallDto = {
+  id: string; tool_name: string; status: ChatToolStatus;
+  kind?: "tool" | "sub_agent"; parent_id?: string | null; title?: string; summary?: string; detail?: ChatToolDetailDto;
+};
+// Ordered process log of a turn (final answer excluded); tool steps reference `tools` by id.
+export type ChatStepDto = { type: "text"; text: string; parent_id?: string | null } | { type: "tool"; id: string };
 export type ChatMessageDto = {
   id: number;
   sequence_no: number;
@@ -13,6 +22,7 @@ export type ChatMessageDto = {
   content: string;
   status: ChatMessageStatus;
   tools: ChatToolCallDto[];
+  steps?: ChatStepDto[];
   created_at: string;
   updated_at: string;
 };
@@ -21,8 +31,11 @@ export type ChatMessageRequestDto = { content: string; context?: ChatContext };
 export type ChatMessageUpdateRequestDto = ChatMessageRequestDto & { message_id: number };
 export type ChatMessageDeleteRequestDto = { message_id: number };
 
-// done.message_id is the saved assistant message id, serialized as a string of digits.
+// serializer/message.py project_event()/done_payload(): delta{text} / tool{id, tool_name, status} /
+// done{message_id, assistant_message, tools} / error{detail} / stopped{}.
 export type ChatSseEvent =
-  | { event: "delta"; data: { text: string } }
-  | { event: "done"; data: { message_id: string; assistant_message: string } }
-  | { event: "error"; data: { detail: string } };
+  | { event: "delta"; data: { text: string; parent_id?: string } }
+  | { event: "tool"; data: ChatToolCallDto }
+  | { event: "done"; data: { message_id: string; assistant_message: string; tools: ChatToolCallDto[]; steps?: ChatStepDto[] } }
+  | { event: "error"; data: { detail: string } }
+  | { event: "stopped"; data: Record<string, never> };

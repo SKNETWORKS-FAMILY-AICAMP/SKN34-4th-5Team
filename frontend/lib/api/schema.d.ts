@@ -219,7 +219,7 @@ export interface paths {
         };
         /**
          * @description 로그인한 사용자 정보를 조회합니다.
-         *     Url: GET /v1/auth/user (Nginx 경유: /api/v1/auth/user)
+         *     Url: GET /api/v1/auth/user
          *     Headers: Authorization: Bearer <access_token>
          *     Return:
          *         - HTTP_200_OK
@@ -233,7 +233,7 @@ export interface paths {
         head?: never;
         /**
          * @description 로그인한 사용자 정보를 조회합니다.
-         *     Url: GET /v1/auth/user (Nginx 경유: /api/v1/auth/user)
+         *     Url: GET /api/v1/auth/user
          *     Headers: Authorization: Bearer <access_token>
          *     Return:
          *         - HTTP_200_OK
@@ -252,6 +252,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["auth_username_request_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/users/{member_id}/public/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["auth_users_public_retrieve"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1306,6 +1322,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/community/comments/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["community_comments_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/community/comments/{comment_id}/": {
         parameters: {
             query?: never;
@@ -2228,6 +2260,16 @@ export interface components {
             readonly width: number;
             readonly height: number;
         };
+        CommunityMemberComment: {
+            readonly id: number;
+            readonly content: string;
+            /** Format: date-time */
+            readonly createdAt: string;
+            readonly postId: string;
+            readonly postTitle: string;
+            readonly board: components["schemas"]["BoardEnum"];
+            readonly teamCode: string;
+        };
         CommunityPost: {
             readonly id: string;
             readonly sourceId: string;
@@ -2940,6 +2982,21 @@ export interface components {
              */
             previous: string | null;
             results: components["schemas"]["ChatTurn"][];
+        };
+        PaginatedCommunityMemberCommentList: {
+            /** @example 123 */
+            count: number;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?page=4
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?page=2
+             */
+            previous?: string | null;
+            results: components["schemas"]["CommunityMemberComment"][];
         };
         PaginatedFacilityList: {
             /** @example 123 */
@@ -3834,6 +3891,11 @@ export interface components {
             readonly name: string;
             season: number;
         };
+        PublicMember: {
+            readonly id: number;
+            readonly nickname: string;
+            readonly activityVisible: boolean;
+        };
         PublicSeatMap: {
             id: number;
             readonly home_context_id: number;
@@ -4026,6 +4088,7 @@ export interface components {
             /** Format: date */
             birth_date: string;
             gender: components["schemas"]["GenderEnum"];
+            team_code?: string;
         };
         Snapshot: {
             id: number;
@@ -4730,6 +4793,47 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UsernameRequestResponse"];
+                };
+            };
+        };
+    };
+    auth_users_public_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                member_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicMember"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };
@@ -9426,6 +9530,69 @@ export interface operations {
             };
         };
     };
+    community_comments_list: {
+        parameters: {
+            query: {
+                author_id: number;
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedCommunityMemberCommentList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
     community_comments_destroy: {
         parameters: {
             query?: never;
@@ -10030,6 +10197,8 @@ export interface operations {
     community_posts_list: {
         parameters: {
             query?: {
+                /** @description 작성자 활동 목록. JWT 인증 필요, 본인 또는 공개 설정된 회원만 조회 가능. */
+                author_id?: number;
                 board?: "free" | "teams";
                 mine?: "1";
                 page?: number;
@@ -10063,6 +10232,16 @@ export interface operations {
                 };
             };
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

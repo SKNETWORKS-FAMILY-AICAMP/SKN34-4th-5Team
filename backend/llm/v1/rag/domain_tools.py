@@ -17,7 +17,7 @@ def active_domain():
 
 def _all_tools():
     from ...tools import create_default_tools
-    from .assistant.tools import build_specialized_tools
+    from llm.tools.assistant import build_specialized_tools
     from ...tools.knowledge import create_knowledge_tools
 
     registered = {tool.name: tool for tool in build_specialized_tools()}
