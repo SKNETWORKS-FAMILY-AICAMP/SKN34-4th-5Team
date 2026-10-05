@@ -2,7 +2,7 @@
 from langchain.agents.middleware import AgentMiddleware
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-# llm.tools.assistant 에서 옮겨온 도구. 요청 상태(구장 hint·질문·대화)를 ContextVar(request_state)로 읽는다.
+# llm.tools.assistant 에서 옮겨온 도구. 요청 상태(구장 hint·질문·대화·출발지)를 ContextVar(request_state)로 읽는다.
 MIGRATED_TOOLS = frozenset({"get_ticket_policy", "search_nearby_places", "plan_course"})
 
 
@@ -54,6 +54,23 @@ class DynamicToolMiddleware(AgentMiddleware):
         return self.role_tools & {n for c in capabilities for n in self.capability_tools.get(c, ())}
 
     def wrap_model_call(self, request, handler):
+        messages = request.state.get("messages") or []
+        # 완성된 코스를 다시 서술하게 하면 본문과 지도/카드가 달라질 수 있다.
+        # 현재 턴에서 코스 하나만 생성한 경우 계산된 시간표를 그대로 최종 답변으로 사용한다.
+        completed = []
+        for message in reversed(messages):
+            if not isinstance(message, ToolMessage):
+                break
+            completed.append(message)
+        if completed and len(messages) > len(completed):
+            call = messages[-len(completed) - 1]
+            for result in completed:
+                if (result.name == "plan_course" and result.status != "error"
+                        and ((result.artifact or {}).get("course") or (result.artifact or {}).get("course_edit_handled")
+                             or (result.artifact or {}).get("course_evidence_handled")) and isinstance(call, AIMessage)
+                        and any(c["id"] == result.tool_call_id for c in call.tool_calls)
+                        and (len(call.tool_calls) == 1 or (request.state.get("context") or {}).get("intent") == "route")):
+                    return AIMessage(content=result.content)
         allowed = self.allowed(request.state)
         return handler(request.override(tools=[t for t in request.tools if getattr(t, "name", None) in allowed]))
 
@@ -64,8 +81,26 @@ class DynamicToolMiddleware(AgentMiddleware):
                 content=f"허용되지 않은 도구입니다: {name}", tool_call_id=request.tool_call["id"], name=name, status="error",
             )
         if name in MIGRATED_TOOLS:
-            # ponytail: sources/course 는 호출 단위 상태에만 남고 버려진다. V2 스트림/저장에 소비처가 없어서, 생기면 artifact 로.
             from llm.tools.assistant import request_state
-            with request_state(*request_args(request.state)):
-                return handler(request)
+            from llm.v2.agent.course_output import public_course
+            context = request.state.get("context") or {}
+            with request_state(*request_args(request.state), origin=context.get("origin"), route_path=context.get("routePath"), current_course=context.get("currentCourse")) as state:
+                state["course_memory"] = request.state.get("course_memory", {})
+                state["course_request"] = (request.state.get("decision") or {}).get("course_request")
+                result = handler(request)
+                if name == "plan_course" and isinstance(result, ToolMessage) and result.status != "error":
+                    course = public_course(state.get("course"))
+                    artifact = {"course": course} if course else {}
+                    outcome = state.get("course") or {}
+                    if outcome.get("courseHistoryReset"):
+                        artifact["course_history_reset"] = True
+                    if outcome.get("evidenceHandled"):
+                        artifact["course_evidence_handled"] = True
+                    if outcome.get("route", "").startswith("course:edit"):
+                        artifact["course_edit_handled"] = True
+                    if "courseMemory" in outcome:
+                        artifact["course_memory"] = outcome["courseMemory"]
+                    if artifact:
+                        result = result.model_copy(update={"artifact": artifact})
+                return result
         return handler(request)

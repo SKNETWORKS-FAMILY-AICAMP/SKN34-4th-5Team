@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
 import os
+import json
 from datetime import timedelta
 from pathlib import Path
 
@@ -47,11 +48,12 @@ USAGE_MEMBER_MONTHLY_TOKENS = int(os.getenv("USAGE_MEMBER_MONTHLY_TOKENS", "9999
 USAGE_MAX_CALL_OUTPUT_TOKENS = int(os.getenv("USAGE_MAX_CALL_OUTPUT_TOKENS", "4000"))  # ChatOpenAI max_tokens
 KAKAO_REST_API_KEY = os.getenv("KAKAO_REST_API_KEY", "")
 EXTERNAL_DATA_SYNC_INTERVAL_SECONDS = positive_int_env("EXTERNAL_DATA_SYNC_INTERVAL_SECONDS", 600)
-COLLECTED_PLACES_DIR = Path(os.getenv("COLLECTED_PLACES_DIR") or BASE_DIR.parent / "data/staging/stadium_places/20260927T092810Z")
+COLLECTED_PLACES_DIR = Path(os.getenv("COLLECTED_PLACES_DIR") or BASE_DIR.parent / "data/staging/stadium_places/20260927T092810Z-no-sbiz")
 PLACE_RAG_PATH = Path(os.getenv("PLACE_RAG_PATH") or BASE_DIR / "artifacts/place-rag/index.sqlite3")
 # Explicit opt-in only; a local knowledge miss must not silently buy web searches.
 COURSE_WEB_VERIFICATION_ENABLED = os.getenv("COURSE_WEB_VERIFICATION_ENABLED", "false").strip().lower() == "true"
 SERPER_API_KEY = os.getenv("SERPER_API_KEY") or os.getenv("Serper_API_KEY", "")
+PLACE_EVIDENCE_STORAGE_POLICIES = json.loads(os.getenv("PLACE_EVIDENCE_STORAGE_POLICIES", "[]"))
 
 ALLOWED_HOSTS = [
     host.strip()
@@ -138,10 +140,22 @@ DATABASES = {
     },
 }
 
-DATABASE_ROUTERS = ["baseball.db_router.BaseballDatabaseRouter"]
+# Production uses default (RDS). A local developer may share ONLY public evidence
+# via a separate RAG connection; conversations/accounts remain in the local DB.
+PLACE_KNOWLEDGE_DB_ALIAS = "default"
+if os.getenv("RAG_DB_HOST"):
+    PLACE_KNOWLEDGE_DB_ALIAS = "place_knowledge"
+    DATABASES[PLACE_KNOWLEDGE_DB_ALIAS] = {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.environ["RAG_DB_NAME"], "USER": os.environ["RAG_DB_USER"],
+        "PASSWORD": os.environ["RAG_DB_PASSWORD"], "HOST": os.environ["RAG_DB_HOST"],
+        "PORT": os.getenv("RAG_DB_PORT", "5432"), "CONN_MAX_AGE": 60,
+        "OPTIONS": {"sslmode": os.getenv("RAG_DB_SSLMODE", "require"), "connect_timeout": 5},
+    }
+DATABASE_ROUTERS = ["travel.knowledge_router.PlaceKnowledgeRouter", "baseball.db_router.BaseballDatabaseRouter"]
 
-# 공개 SSE 이벤트 사이 최대 대기(초). 넘으면 error 하나로 끝낸다. 이벤트마다 다시 잰다.
-CHAT_STREAM_IDLE_TIMEOUT_SECONDS = positive_int_env("CHAT_STREAM_IDLE_TIMEOUT_SECONDS", 90)
+# 식사·숙소 근거 조사를 연속 실행할 수 있는 공개 이벤트 대기 예산. heartbeat는 이 제한을 연장하지 않는다.
+CHAT_STREAM_IDLE_TIMEOUT_SECONDS = positive_int_env("CHAT_STREAM_IDLE_TIMEOUT_SECONDS", 300)
 
 BASEBALL_QUERY_MAX_ROWS = positive_int_env("BASEBALL_QUERY_MAX_ROWS", 200)
 BASEBALL_QUERY_TIMEOUT_MS = positive_int_env("BASEBALL_QUERY_TIMEOUT_MS", 3000)

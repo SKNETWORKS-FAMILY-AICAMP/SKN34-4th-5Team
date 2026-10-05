@@ -10,6 +10,7 @@ ChatThread.update 의 revision fence/세션 행 잠금에 막혀 error 로 끝�
 """
 import queue
 import threading
+import time
 
 from django.conf import settings
 from django.db import connections
@@ -18,6 +19,7 @@ _lock = threading.Lock()
 _runs = {}  # session_id(str) -> set[Run]
 MAX_PENDING = 64  # worker 가 소비자보다 앞서 쌓을 수 있는 이벤트 수(백프레셔)
 _POLL = 0.1  # 막힌 put 이 취소/종료를 확인하는 간격
+_HEARTBEAT_SECONDS = 10
 
 
 class Stopped(Exception):
@@ -40,7 +42,8 @@ class Run:
     def pump(self, frames, on_stop=None):
         """공개 (event, data) 제너레이터를 worker 스레드에서 돌려, 이벤트마다 CHAT_STREAM_IDLE_TIMEOUT_SECONDS 안에 받는다.
 
-        이벤트가 오면 timeout 이 다시 시작된다. 취소면 Stopped, 정체면 TimeoutError, 원본 예외는 그대로 올린다.
+        실제 이벤트가 오면 timeout 이 다시 시작된다. 대기 중 heartbeat는 전송 연결만 유지하고 제한을 연장하지 않는다.
+        취소면 Stopped, 정체면 TimeoutError, 원본 예외는 그대로 올린다.
         끝나거나 닫히면 on_stop(원본 쪽 취소 플래그) 을 부르고 worker 에 멈추라고 알린다.
         큐는 MAX_PENDING 으로 묶여 있고, 막힌 put 은 취소·소비자 종료 때 풀려 원본을 닫는다(협조적 중단).
         ponytail: 원본이 next() 안에서 막혀 있으면 worker 스레드는 다음 청크(또는 원본 timeout)까지 남는다.
@@ -71,14 +74,23 @@ class Run:
                 connections.close_all()  # 이 스레드가 연 DB 연결(도구 등)
 
         threading.Thread(target=work, daemon=True, name=f"chat-run-{self.session_id}").start()
+        deadline = time.monotonic() + settings.CHAT_STREAM_IDLE_TIMEOUT_SECONDS
         try:
             while True:
                 if self.cancelled:
                     raise Stopped
                 try:
-                    kind, value = self._inbox.get(timeout=settings.CHAT_STREAM_IDLE_TIMEOUT_SECONDS)
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise queue.Empty
+                    kind, value = self._inbox.get(timeout=min(_HEARTBEAT_SECONDS, remaining))
                 except queue.Empty:
-                    raise TimeoutError("chat stream idle timeout") from None
+                    if self.cancelled:
+                        raise Stopped
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError("chat stream idle timeout") from None
+                    yield "heartbeat", {}  # HTTP 계층에서 SSE 주석으로 직렬화; 대화/진행 기록에는 저장하지 않는다.
+                    continue
                 if self.cancelled:  # get 과 kind 처리 사이에 이긴 취소가 producer terminal 을 덮는다
                     raise Stopped
                 if kind == "end":
@@ -86,6 +98,7 @@ class Run:
                 if kind == "error":
                     raise value
                 if kind == "item" and not self.cancelled:
+                    deadline = time.monotonic() + settings.CHAT_STREAM_IDLE_TIMEOUT_SECONDS
                     yield value
             if self.cancelled:
                 raise Stopped
@@ -171,7 +184,8 @@ def stream_turn(thread, prefix, turns, human, produce, run, on_stop=None, label=
             if not isinstance(answer, str) or not answer:
                 raise ValueError("agent returned no answer")
             final = AIMessage(answer, id=str(uuid.uuid4()),
-                              response_metadata={"chain_version": label} if label in ("v1", "v2") else {})
+                              response_metadata={**({"chain_version": label} if label in ("v1", "v2") else {}),
+                                                 **({"course_history_reset": True} if run.get("course_history_reset") else {})})
             if owner.cancelled:  # 최종 저장(소유권) 전에 이긴 취소는 stopped
                 raise Stopped
         except GeneratorExit:

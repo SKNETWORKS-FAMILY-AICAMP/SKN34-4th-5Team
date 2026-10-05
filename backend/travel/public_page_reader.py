@@ -20,7 +20,7 @@ HOSTS = frozenset({"blog.naver.com", "m.blog.naver.com", "www.diningcode.com", "
     "polle.com", "www.siksinhot.com", "siksinhot.com", "app.passorder.co.kr", "app.catchtable.co.kr",
     "tabling.co.kr", "www.tabling.co.kr", "www.daangn.com", "www.instagram.com", "www.baskinrobbins.co.kr",
     "www.kkanbu.co.kr", "www.mega-mgccoffee.com", "www.ediya.com", "www.starbucks.co.kr",
-    "www.cafewhale.com", "www.jongrokimbap.co.kr", "ontheborder.co.kr"})
+    "www.cafewhale.com", "www.jongrokimbap.co.kr", "ontheborder.co.kr", "nol.yanolja.com"})
 
 
 def allowed_url(url):
@@ -185,7 +185,7 @@ class PublicReader:
             time.sleep(wait)
         return True, "robots_allowed"
 
-    def read(self, url, terms):
+    def read(self, url, terms, *, complete_text=False):
         row = {"url": url, "body_read": False, "body_text": "", "status": "unread"}
         if not allowed_url(url):
             return {**row, "status": "unsupported_host_or_scheme"}
@@ -225,7 +225,7 @@ class PublicReader:
                 if len(text) < 250:
                     row["status"] = "thin_or_javascript_page"
                     break
-                passage, complete = excerpt(text, terms)
+                passage, complete = (text, True) if complete_text else excerpt(text, terms)
                 row.update(status="read", body_read=True, body_text=passage, title=title,
                            visible_text_complete=complete, visible_text_characters=len(text),
                            text_sha256=sha256(text.encode()).hexdigest(), final_url=current)

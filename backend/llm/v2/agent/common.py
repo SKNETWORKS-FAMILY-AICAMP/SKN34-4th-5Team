@@ -14,9 +14,11 @@ from ..middleware.jev_guidelines import JevGuidelineMiddleware
 class Decision(TypedDict):
     allowed: bool  # JEV guard PASS 여부
     capabilities: list[str]  # 도구 노출용 capability 이름
+    course_request: NotRequired[str]  # NEW / EDIT / NONE
 
 
 class V2AgentState(AgentState):
+    course_memory: NotRequired[dict]  # 완료된 턴의 서버 체크포인트에서만 복원
     decision: NotRequired[Decision]
     context: NotRequired[dict | None]  # 선택: {"stadium", "intent", "origin": {"lat", "lng"}}
 

@@ -35,11 +35,12 @@ class V1ToolMigrationTest(unittest.TestCase):
         actual = {t.name: t.args_schema.model_json_schema() for t in assistant.build_specialized_tools()}
         self.assertEqual(actual, expected)
 
-    def test_registry_keeps_29_names_with_specialized_precedence(self):
+    def test_registry_includes_place_evidence_with_specialized_precedence(self):
         tools = domain_tools.tools_for("assistant")
         names = [t.name for t in tools]
-        self.assertEqual(len(names), 29)
-        self.assertEqual(len(set(names)), 29)
+        self.assertEqual(len(names), 30)
+        self.assertEqual(len(set(names)), 30)
+        self.assertIn("search_place_knowledge", names)
         self.assertEqual(names[:9], SPECIALIZED)
         self.assertIs(tools[0].func, assistant.get_games)
 

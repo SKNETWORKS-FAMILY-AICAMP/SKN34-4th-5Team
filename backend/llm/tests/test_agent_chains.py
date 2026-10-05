@@ -34,7 +34,7 @@ ALL_TOOL_NAMES = {
 def fake_result(guard="PASS", nouls=None):
     nouls = nouls or {}
     return SimpleNamespace(
-        choices={"guard": SimpleNamespace(choice=guard)},
+        choices={"guard": SimpleNamespace(choice=guard), "course_request": SimpleNamespace(choice="NONE")},
         nouls={name: SimpleNamespace(noul=nouls.get(name, 0.0)) for name in classifier.CAPABILITIES},
     )
 
@@ -107,7 +107,7 @@ class ClassifyTest(unittest.TestCase):
 
     def test_pass_selects_capabilities_above_threshold(self):
         decision, _ = self.classify(fake_result(nouls={"schedule": 0.9, "weather": 0.4}))
-        self.assertEqual(decision, {"allowed": True, "capabilities": ["schedule"]})
+        self.assertEqual(decision, {"allowed": True, "capabilities": ["schedule"], "course_request": "NONE"})
 
     def test_non_pass_has_no_capabilities(self):
         decision, _ = self.classify(fake_result("NON_PASS", nouls={"schedule": 0.9}))
@@ -128,10 +128,11 @@ if __name__ == "__main__":
 
 
 class V2PlanCourseDescriptionTest(unittest.TestCase):
-    def test_v2_copy_drops_map_card_promise_without_mutating_v1(self):
+    def test_v2_description_includes_current_course_map_and_card_updates(self):
         from llm.tools.assistant import build_specialized_tools
         from llm.v2.agent import chain
-        self.assertNotIn("지도", chain.V2_PLAN_COURSE_DESCRIPTION)
-        self.assertNotIn("카드", chain.V2_PLAN_COURSE_DESCRIPTION)
+        self.assertIn("지도", chain.V2_PLAN_COURSE_DESCRIPTION)
+        self.assertIn("카드", chain.V2_PLAN_COURSE_DESCRIPTION)
+        self.assertIn("수정하지 않은 장소는 유지", chain.V2_PLAN_COURSE_DESCRIPTION)
         v1 = next(t for t in build_specialized_tools() if t.name == "plan_course")
         self.assertIn("지도", v1.description)

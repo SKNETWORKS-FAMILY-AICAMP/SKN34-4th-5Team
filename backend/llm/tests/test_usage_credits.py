@@ -701,7 +701,7 @@ class JevUsageTest(TestCase):
 
     def _result(self, i, o):
         from types import SimpleNamespace as N
-        return N(usage=N(input_tokens=i, output_tokens=o), choices={"guard": N(choice="PASS")},
+        return N(usage=N(input_tokens=i, output_tokens=o), choices={"guard": N(choice="PASS"), "course_request": N(choice="NONE")},
                  nouls={name: N(noul=0.0) for name in __import__("llm.v2.middleware.jev_guidelines", fromlist=["x"]).CAPABILITIES})
 
     def test_classifier_usage_is_metered_and_missing_is_unknown(self):

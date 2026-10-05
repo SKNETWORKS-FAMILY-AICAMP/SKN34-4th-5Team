@@ -31,7 +31,7 @@ def public_ui(value):
 
 @tool(response_format="content_and_artifact")
 def present_planning_questions(offer_writer: bool, questions: list[PlanningQuestion]):
-    """Offer the route writer for a new outing plan and/or ask 1-4 missing questions, with 2-4 choices each. Never ask known information."""
+    """Ask 1-4 essential questions only when the stadium is unknown or the user requests choices. With a known stadium, do not require a date, game or time: call plan_course first. Never ask known information."""
     payload = public_ui({"offer_writer": offer_writer, "questions": [q.model_dump() for q in questions]})
     if payload is None:
         raise ValueError("Invalid public planning questions")

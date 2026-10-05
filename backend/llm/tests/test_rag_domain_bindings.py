@@ -1,4 +1,6 @@
 import json
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from unittest.mock import Mock, patch
 
 from django.test import SimpleTestCase
@@ -18,7 +20,7 @@ from ..tools import DOMAIN_TOOL_NAMES
 
 EXPECTED = set(DOMAIN_TOOL_NAMES) | {
     "get_baseball_schema", "execute_baseball_select", "get_ticket_policy", "search_kbo_documents",
-    "search_nearby_places", "plan_course", "search_documents_tool",
+    "search_nearby_places", "plan_course", "search_documents_tool", "search_place_knowledge",
 }
 
 
@@ -211,9 +213,12 @@ class DomainAllowlistTest(SimpleTestCase):
 
         def invoke(_domain, name, arguments):
             calls.append((name, arguments))
+            if name == "get_stadium":
+                return {"item": {"id": 1, "stadium_code": "JAMSIL", "stadium_name_ko": "잠실야구장",
+                                 "latitude": "37.516", "longitude": "127.075", "address": "서울"}}
             if name == "get_games":
                 return {"items": [{
-                    "game_date": "2026-09-20", "game_time": "18:30", "stadium__stadium_name_ko": "잠실야구장",
+                    "game_date": "2026-09-20", "game_time": "18:30", "stadium__stadium_name_ko": "잠실야구장", "stadium_id": 1,
                     "home_team__team_name_ko": "LG 트윈스", "away_team__team_name_ko": "두산 베어스", "status_code": "scheduled",
                 }]}
             if name == "search_places":
@@ -229,9 +234,6 @@ class DomainAllowlistTest(SimpleTestCase):
                 return {"distance": 500, "seconds": 420, "legs": [{"seconds": 420}]}
             raise AssertionError(name)
 
-        anchor = {"key": "STADIUM", "phase": "GAME", "name": "잠실야구장", "lat": 37.516, "lng": 127.075,
-                  "category": "STADIUM", "detail": "", "placeId": None, "address": "서울", "placeUrl": "",
-                  "distance": 0, "doc_id": "stadium:JAMSIL"}
         selection = json.dumps({"intro": "최신 도구 자료 기준", "course": [
             {"place_key": "P1", "phase": "BEFORE", "reason": "식사"},
             {"place_key": "STADIUM", "phase": "GAME", "reason": "관람"},
@@ -250,20 +252,26 @@ class DomainAllowlistTest(SimpleTestCase):
             patch.object(retrieval, "embed", embed_guard),
             patch.object(retrieval, "embed_many", embed_many_guard),
             patch.object(course, "invoke_domain_tool", side_effect=invoke),
-            patch.object(course, "stadium_anchor", return_value=anchor),
             patch.object(course, "embed_many", return_value=([0.0], [0.0])),
             patch.object(course, "search_places", return_value=[]),
             patch.object(course.structured, "games", side_effect=AssertionError("old RAG schedule used")),
             patch.object(course, "call_llm", select),
+            patch.object(course, "datetime", wraps=datetime) as clock,
         ):
+            clock.now.return_value = datetime(2026, 9, 19, 19, tzinfo=ZoneInfo("Asia/Seoul"))
             result = dispatcher.answer("9월 20일 잠실 코스 짜줘", intent="route")
+            automatic = course.answer("밥 먹고 경기 보는 코스 짜줘", hint_stadium="JAMSIL")
+            self.assertIn("2026-09-20 18:30", automatic["answer"])
+            self.assertIn(course.DATE_RECOMMENDATION, automatic["answer"])
+            self.assertTrue(automatic["places"])
+            self.assertNotIn(course.DATE_RECOMMENDATION, result["answer"])
         provider_llm_guard.assert_not_called()
         embed_guard.assert_not_called()
         embed_many_guard.assert_not_called()
         self.assertIn("LG 트윈스 홈 vs 두산 베어스 원정", select.call_args.args[1])
         self.assertEqual(result["places"][0]["name"], "최신 맛집")
         self.assertIsNotNone(result["coursePayload"])
-        self.assertEqual({name for name, _ in calls}, {"get_games", "search_places", "search_tourism", "get_directions"})
+        self.assertEqual({name for name, _ in calls}, {"get_stadium", "get_games", "search_places", "search_tourism", "get_directions"})
 
     def test_course_model_binding_is_bounded_and_consumes_tool_result(self):
         model = ToolCallingModel("get_weather", {"stadium_code": "JAMSIL"})
@@ -289,7 +297,7 @@ class DomainAllowlistTest(SimpleTestCase):
         model = ToolCallingModel("get_weather", {"stadium_code": "JAMSIL"})
         weather = FakeTool("get_weather", {"label": "주변 분기에서 확인한 맑음"})
         places = [{
-            "kind": "stay", "kindLabel": "숙박", "name": "테스트 호텔", "detail": "여행 > 숙박 > 호텔",
+            "kind": "walk", "kindLabel": "산책", "name": "테스트 공원", "detail": "여행 > 공원",
             "distance": 500, "lat": 37.5, "lng": 127.0, "address": "서울", "placeId": "1",
             "placeUrl": "", "phone": "",
         }]
@@ -299,7 +307,7 @@ class DomainAllowlistTest(SimpleTestCase):
             patch.object(nearby.kakao, "enabled", return_value=True),
             patch.object(nearby.kakao, "nearby", return_value=places),
         ):
-            result = nearby.answer("잠실 숙박 추천해줘")
+            result = nearby.answer("잠실 산책 추천해줘")
         self.assertEqual(model.bound_names, ("get_weather",))
         self.assertIn("주변 분기에서 확인한 맑음", result["answer"])
         self.assertEqual(result["sources"][0]["doc_id"], "kakao:1")

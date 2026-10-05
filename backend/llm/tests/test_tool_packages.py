@@ -51,7 +51,8 @@ class ToolPackagesTest(SimpleTestCase):
         self.assertIn("search_documents_tool", names)
         self.assertIn("search_kbo_documents", names)
         registry = {tool.name: tool for tool in tools_for("venue")}
-        self.assertEqual(len(names), 29)
+        self.assertEqual(len(names), 30)
+        self.assertIn("search_place_knowledge", names)
         self.assertFalse(any(name.startswith("legacy_") for name in names))
         self.assertIn("team", registry["get_games"].args_schema.model_fields)
         self.assertNotIn("start_date", registry["get_games"].args_schema.model_fields)

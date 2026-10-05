@@ -27,6 +27,13 @@ def _validate_context(value):
     errors = {}
     cleaned = {}
 
+    if "currentCourse" in value:
+        from llm.v1.rag.course.edit_context import validate
+        try:
+            cleaned["currentCourse"] = validate(value["currentCourse"])
+        except (ValueError, TypeError, OverflowError):
+            errors["currentCourse"] = "수정할 코스의 장소·번호·좌표·이동수단을 확인해 주세요."
+
     if "stadium" in value:
         stadium = value["stadium"]
         if not isinstance(stadium, str) or not stadium or len(stadium) > 100:
@@ -65,6 +72,31 @@ def _validate_context(value):
                 errors["origin"] = origin_errors
             else:
                 cleaned["origin"] = origin_cleaned
+
+    if "routePath" in value:
+        path = value["routePath"]
+        if (not isinstance(path, dict) or not isinstance(path.get("points"), list)
+                or not 2 <= len(path["points"]) <= 128 or path.get("source") not in ("drawn", "directions")
+                or not isinstance(path.get("label"), str) or not 1 <= len(path["label"]) <= 80):
+            errors["routePath"] = "경로에는 2~128개 좌표, 이름, 출처가 필요합니다."
+        else:
+            points = []
+            for point in path["points"]:
+                try:
+                    if not isinstance(point, dict) or any(isinstance(point.get(k), bool) or not isinstance(point.get(k), (int, float)) for k in ("lat", "lng")):
+                        raise ValueError()
+                    lat, lng = float(point["lat"]), float(point["lng"])
+                    if not math.isfinite(lat) or not math.isfinite(lng) or not (-90 <= lat <= 90 and -180 <= lng <= 180):
+                        raise ValueError()
+                    points.append({"lat": lat, "lng": lng})
+                except (ValueError, TypeError, KeyError, OverflowError):
+                    errors["routePath"] = "경로 좌표를 확인해 주세요."
+                    break
+            breaks = path.get("breaks", [])
+            if not isinstance(breaks, list) or len(breaks) > 127 or any(type(i) is not int or not 1 <= i < len(points) for i in breaks):
+                errors["routePath"] = "경로 구간을 확인해 주세요."
+            if "routePath" not in errors:
+                cleaned["routePath"] = {"points": points, "source": path["source"], "label": path["label"], "breaks": sorted(set(breaks))}
 
     if errors:
         raise serializers.ValidationError(errors)
@@ -260,11 +292,19 @@ def project_history(messages, turns, detail=False):
         if answer:
             item = _history_item(answer, ChatRole.ASSISTANT.value, status, tools, steps)
             from llm.v2.agent.chat_ui import public_ui
+            from llm.v2.agent.course_output import public_course
             for message in turn_messages:
                 if isinstance(message, ToolMessage) and message.name == "present_planning_questions" and message.status != "error":
                     payload = public_ui(message.artifact)
                     if payload:
                         item["planning"] = payload
+                if isinstance(message, ToolMessage) and message.name == "plan_course" and message.status != "error" and isinstance(message.artifact, dict):
+                    from llm.v1.rag.course.memory import public as public_preferences
+                    if preferences := public_preferences(message.artifact.get("course_memory")):
+                        item["coursePreferences"] = preferences
+                    payload = public_course(message.artifact.get("course"))
+                    if payload:
+                        item["course"] = payload
             items.append(item)
     return items
 
@@ -389,7 +429,9 @@ def done_payload(messages, turns):
     if not last or last["role"] != ChatRole.ASSISTANT or last["status"] != TurnStatus.COMPLETED:
         raise ValueError("no completed assistant message")
     return {"message_id": last["id"], "assistant_message": last["content"], "tools": last["tools"], "steps": last["steps"],
-            **({"planning": last["planning"]} if "planning" in last else {})}
+            **({"planning": last["planning"]} if "planning" in last else {}),
+            **({"coursePreferences": last["coursePreferences"]} if "coursePreferences" in last else {}),
+            **({"course": last["course"]} if "course" in last else {})}
 
 
 def hide_private_tools(item):

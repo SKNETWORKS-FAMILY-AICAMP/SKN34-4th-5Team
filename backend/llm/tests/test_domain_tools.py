@@ -1,7 +1,8 @@
 import builtins
 import json
 import sys
-from datetime import date, time
+from datetime import date, datetime, time
+from zoneinfo import ZoneInfo
 from types import ModuleType
 from unittest.mock import patch
 from uuid import uuid4
@@ -31,7 +32,7 @@ EXPECTED_NAMES = (
 # test_rag_domain_bindings.EXPECTED / test_assistant 와 같은 집합이다.
 REGISTRY_EXTRA_NAMES = {
     "get_baseball_schema", "execute_baseball_select", "get_ticket_policy",
-    "search_kbo_documents", "search_nearby_places", "plan_course", "search_documents_tool",
+    "search_kbo_documents", "search_nearby_places", "plan_course", "search_documents_tool", "search_place_knowledge",
 }
 
 
@@ -83,6 +84,25 @@ class DomainToolsTest(TestCase):
 
     def setUp(self):
         self.tools = {tool.name: tool for tool in create_domain_tools()}
+
+    def test_upcoming_games_filter_before_limit_and_preserve_default_results(self):
+        from llm.tools import baseball as tools_module
+
+        for index, (hour, status) in enumerate(((14, "scheduled"), (16, "scheduled"), (17, "cancelled"),
+                                               (17, "postponed"), (17, "live"), (17, "final"), (18, "scheduled"))):
+            baseball.Game.objects.create(
+                id=991000 + index, game_code=f"TEST-NEXT-{index}", home_team=self.lg, away_team=self.ob,
+                stadium=self.stadium, game_date=self.game.game_date, game_time=time(hour),
+                status_code=status, game_type="regular", collected_at=timezone.now(),
+            )
+        args = {"start_date": "2099-09-15", "end_date": "2099-09-15", "stadium_id": self.stadium.pk, "limit": 1}
+        with patch.object(tools_module, "datetime", wraps=datetime) as clock:
+            clock.now.return_value = datetime(2099, 9, 15, 16, tzinfo=ZoneInfo("Asia/Seoul"))
+            upcoming = self.tools["get_games"].invoke({**args, "upcoming_only": True})
+            unfiltered = self.tools["get_games"].invoke(args)
+        self.assertEqual(upcoming["items"][0]["game_time"], "18:00:00")
+        self.assertEqual(upcoming["items"][0]["stadium__stadium_code"], "TEST-JAMSIL")
+        self.assertEqual(unfiltered["items"][0]["game_time"], "14:00:00")
 
     def test_registry_and_default_compatibility(self):
         self.assertEqual(DOMAIN_TOOL_NAMES, EXPECTED_NAMES)

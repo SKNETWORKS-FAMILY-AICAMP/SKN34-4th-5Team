@@ -4,6 +4,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from .place_knowledge_models import KST, REVIEW_ATTRIBUTES, PlaceKnowledgeObservation, aware
+from .knowledge_router import knowledge_alias
 
 
 def record_observation(**values):
@@ -13,7 +14,7 @@ def record_observation(**values):
     not an HTTP/LLM tool and does not blindly import model-generated JSON.
     """
     proposed = PlaceKnowledgeObservation(**values)
-    with transaction.atomic():
+    with transaction.atomic(using=knowledge_alias()):
         # Serialize writers for the same place, including empty observation sets.
         from .place_knowledge_models import PlaceKnowledge, PlaceKnowledgeSource
         PlaceKnowledge.objects.select_for_update().get(pk=proposed.place_id)
@@ -50,7 +51,7 @@ def record_review_observations(*, place, source, observations):
         experience_keys.add(experience)
     if len(experience_keys) > 1:
         raise ValidationError("서로 다른 방문 경험은 별도 후기 묶음으로 저장하세요.")
-    with transaction.atomic():
+    with transaction.atomic(using=knowledge_alias()):
         return [record_observation(place=place, source=source, **values) for values in observations]
 
 

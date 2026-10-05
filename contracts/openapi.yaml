@@ -316,68 +316,7 @@ paths:
       - {}
       responses:
         '200':
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    id:
-                      type: integer
-                    sequence_no:
-                      type: integer
-                    role:
-                      type: string
-                    content:
-                      type: string
-                    status:
-                      type: string
-                    tools:
-                      type: array
-                      items:
-                        type: object
-                    steps:
-                      type: array
-                      items:
-                        type: object
-                    created_at:
-                      type: string
-                      format: date-time
-                    updated_at:
-                      type: string
-                      format: date-time
-            text/event-stream:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    id:
-                      type: integer
-                    sequence_no:
-                      type: integer
-                    role:
-                      type: string
-                    content:
-                      type: string
-                    status:
-                      type: string
-                    tools:
-                      type: array
-                      items:
-                        type: object
-                    steps:
-                      type: array
-                      items:
-                        type: object
-                    created_at:
-                      type: string
-                      format: date-time
-                    updated_at:
-                      type: string
-                      format: date-time
-          description: ''
+          description: No response body
     post:
       operationId: chat_sessions_messages_create
       description: LLM 호출 (SSE 스트리밍). version 으로 chat_v1/chat_v2 의 실제 구현을 직접 고른다.
@@ -403,28 +342,12 @@ paths:
         required: true
       tags:
       - chat
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ChatMessageInput'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/ChatMessageInput'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/ChatMessageInput'
-        required: true
       security:
       - jwtAuth: []
       - {}
       responses:
         '200':
-          content:
-            text/event-stream:
-              schema:
-                type: string
-          description: ''
+          description: No response body
     put:
       operationId: chat_sessions_messages_update
       description: 이후 채팅목록을 수정 + LLM 호출. version 으로 chat_v1/chat_v2 의 실제 구현을 직접 고른다.
@@ -450,28 +373,12 @@ paths:
         required: true
       tags:
       - chat
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ChatMessageUpdate'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/ChatMessageUpdate'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/ChatMessageUpdate'
-        required: true
       security:
       - jwtAuth: []
       - {}
       responses:
         '200':
-          content:
-            text/event-stream:
-              schema:
-                type: string
-          description: ''
+          description: No response body
     delete:
       operationId: chat_sessions_messages_destroy
       description: 이후 채팅목록을 삭제한다.
@@ -506,7 +413,8 @@ paths:
   /api/{version}/chat/usage/:
     get:
       operationId: chat_usage_retrieve
-      description: 본인 토큰/크레딧 잔액. 조회로 차감하지 않습니다.
+      description: 'GET /api/v{1,2}/chat/usage/: 요청자 본인(회원 JWT / 비회원 guest_id 쿠키)의
+        토큰 잔액. 조회는 차감하지 않는다.'
       parameters:
       - in: path
         name: version
@@ -521,12 +429,7 @@ paths:
       - {}
       responses:
         '200':
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: {}
-          description: ''
+          description: No response body
   /api/v1/ads/admin/creatives/:
     get:
       operationId: v1_ads_admin_creatives_list
@@ -7460,6 +7363,12 @@ paths:
         schema:
           type: string
           format: date
+      - in: query
+        name: next_if_empty
+        schema:
+          type: boolean
+        description: 경기가 없으면 다음 예정 경기일의 경기를 반환합니다. date와 순위는 요청 기준일을 유지하고 경기 날짜는 games[].date에
+          표시됩니다.
       tags:
       - v1
       security:
@@ -8792,39 +8701,6 @@ components:
       description: |-
         * `free` - free
         * `teams` - teams
-    ChatMessageInput:
-      type: object
-      description: POST /messages/ 요청 바디 검증 (content + 선택 사항 context).
-      properties:
-        content:
-          type: string
-          maxLength: 2200
-        context:
-          type: object
-          additionalProperties: {}
-          nullable: true
-      required:
-      - content
-    ChatMessageUpdate:
-      type: object
-      description: PUT /messages/ 요청 바디 검증 (content + message_id + 선택 사항 context).
-      properties:
-        content:
-          type: string
-          maxLength: 2200
-        context:
-          type: object
-          additionalProperties: {}
-          nullable: true
-        message_id:
-          oneOf:
-          - type: integer
-            minimum: 1
-          - type: string
-            format: uuid
-      required:
-      - content
-      - message_id
     ChatSession:
       type: object
       properties:
@@ -9213,6 +9089,20 @@ components:
     Course:
       type: object
       properties:
+        travelMode:
+          $ref: '#/components/schemas/DirectionsModeEnum'
+        legModes:
+          type: object
+          additionalProperties:
+            enum:
+            - walk
+            - car
+            - transit
+            type: string
+            description: |-
+              * `walk` - walk
+              * `car` - car
+              * `transit` - transit
         id:
           type: string
           format: uuid
@@ -9287,6 +9177,20 @@ components:
     CourseCreateRequest:
       type: object
       properties:
+        travelMode:
+          $ref: '#/components/schemas/DirectionsModeEnum'
+        legModes:
+          type: object
+          additionalProperties:
+            enum:
+            - walk
+            - car
+            - transit
+            type: string
+            description: |-
+              * `walk` - walk
+              * `car` - car
+              * `transit` - transit
         title:
           type: string
           maxLength: 80
@@ -9334,6 +9238,20 @@ components:
     CourseCreateResult:
       type: object
       properties:
+        travelMode:
+          $ref: '#/components/schemas/DirectionsModeEnum'
+        legModes:
+          type: object
+          additionalProperties:
+            enum:
+            - walk
+            - car
+            - transit
+            type: string
+            description: |-
+              * `walk` - walk
+              * `car` - car
+              * `transit` - transit
         id:
           type: string
           format: uuid
@@ -10044,11 +9962,7 @@ components:
       type: object
       properties:
         message_id:
-          oneOf:
-          - type: integer
-            minimum: 1
-          - type: string
-            format: uuid
+          type: string
         rating:
           nullable: true
           oneOf:
@@ -10480,6 +10394,12 @@ components:
           type: string
         place_name:
           type: string
+        place_url:
+          oneOf:
+          - type: string
+            format: uri
+          - type: string
+            maxLength: 0
         road_address_name:
           type: string
         address_name:
@@ -11599,6 +11519,20 @@ components:
     PatchedCoursePatchRequest:
       type: object
       properties:
+        travelMode:
+          $ref: '#/components/schemas/DirectionsModeEnum'
+        legModes:
+          type: object
+          additionalProperties:
+            enum:
+            - walk
+            - car
+            - transit
+            type: string
+            description: |-
+              * `walk` - walk
+              * `car` - car
+              * `transit` - transit
         title:
           type: string
           maxLength: 80

@@ -72,7 +72,8 @@ get_baseball_schema, execute_baseball_select = create_baseball_tools()
 
 
 """baseball domain tools."""
-from datetime import date
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 from pydantic import Field, StrictInt, model_validator
 
 from .common import LimitInput, _json, _result, _rows, _tool, db_team_code, is_team_code, tving_team_code
@@ -85,6 +86,7 @@ class GamesInput(LimitInput):
     end_date: date
     team_code: str | None = Field(default=None, pattern="^[A-Z]{2,7}$")
     stadium_id: StrictInt | None = Field(default=None, ge=1)
+    upcoming_only: bool = Field(default=False, description="한국 현재 시각 이후 시작할 예정(scheduled) 경기만 반환한다. 가장 가까운 경기는 stadium_id와 limit=1을 함께 지정한다.")
 
     @model_validator(mode="after")
     def validate_range(self):
@@ -120,20 +122,29 @@ def create_baseball_domain_tools():
         )
         return _result(rows, requested_date=_json(snapshot_date), actual_date=_json(actual) if rows else None, **freshness)
 
-    def get_games(start_date, end_date, team_code=None, stadium_id=None, limit=20):
+    def get_games(start_date, end_date, team_code=None, stadium_id=None, limit=20, upcoming_only=False):
         """날짜 범위의 일정과 결과를 팀/구장으로 필터링한다."""
-        freshness = tving_service.get_game_range_freshness(start_date, end_date)
         query = Game.objects.filter(game_date__range=(start_date, end_date))
         if team_code:
             code = db_team_code(team_code)
             query = query.filter(Q(home_team__team_code=code) | Q(away_team__team_code=code))
         if stadium_id is not None:
             query = query.filter(stadium_id=stadium_id)
-        return _result(_rows(query.order_by("game_date", "game_time", "game_code"), (
+        if upcoming_only:
+            now = datetime.now(ZoneInfo("Asia/Seoul"))
+            query = query.filter(status_code="scheduled").filter(
+                Q(game_date__gt=now.date()) | Q(game_date=now.date(), game_time__gt=now.time())
+            )
+        query = query.order_by("game_date", "game_time", "game_code")
+        # 다음 경기 조회는 그 경기 날짜까지만 최신성을 확인하고, 최종 행은 확인 뒤 읽는다.
+        checked_end = (query.values_list("game_date", flat=True).first() or end_date) if upcoming_only else end_date
+        freshness = tving_service.get_game_range_freshness(start_date, checked_end)
+        rows = _rows(query, (
             "id", "game_code", "game_date", "game_time", "home_team__team_code", "home_team__team_name_ko",
-            "away_team__team_code", "away_team__team_name_ko", "stadium_id", "stadium__stadium_name_ko",
+            "away_team__team_code", "away_team__team_name_ko", "stadium_id", "stadium__stadium_name_ko", "stadium__stadium_code",
             "home_score", "away_score", "status_code", "game_type",
-        ), limit), **freshness)
+        ), limit)
+        return _result(rows, **freshness)
 
     def search_players(team_code=None, player_code=None, name=None, limit=20):
         """TVING 공통 DB-first 경로로 선수 명단/상세를 갱신한 뒤 공개 선수 정보를 찾는다."""

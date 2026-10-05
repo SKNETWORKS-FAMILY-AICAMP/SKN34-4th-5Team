@@ -82,6 +82,7 @@ class MigratedToolsTest(unittest.TestCase):
         place = {"placeId": "1", "name": "잠실호텔", "detail": "숙박 > 호텔", "distance": 400, "address": "송파"}
         seen = []
         with patch("llm.v1.rag.nearby.kakao.enabled", return_value=True), \
+                patch("llm.v1.rag.nearby.lodging.verify", return_value={"requirements": [], "items": [{"id": "1", "name": "잠실호텔", "status": "unknown", "sourceUrl": "", "checks": []}], "checkedCount": 0}), \
                 patch("llm.v1.rag.nearby.kakao.nearby", side_effect=lambda code, kind: seen.append(code) or [place]):
             out = self.run_graph([call("search_nearby_places", {"kind": "stay"}, "n1"), AIMessage("잠실호텔")],
                                  ["tourism"], [HumanMessage("근처 숙소")], {"stadium": "JAMSIL"})
@@ -92,7 +93,8 @@ class MigratedToolsTest(unittest.TestCase):
     def test_plan_course_gets_question_history_hint(self):
         got = []
 
-        def answer(question, history=None, hint_stadium=None):
+        def answer(question, history=None, hint_stadium=None, course_memory=None):
+            self.assertEqual(course_memory, {})
             got.append((question, history, hint_stadium))
             return {"answer": "코스 완성", "sources": []}
         with patch("llm.v1.rag.course.agent.answer", side_effect=answer):
@@ -103,6 +105,28 @@ class MigratedToolsTest(unittest.TestCase):
                                                    {"role": "assistant", "content": "네"}], "JAMSIL")])
         self.assertEqual(self.tool_msg(out, "plan_course").content, "코스 완성")
 
+    def test_unverified_course_ends_without_research_loop_or_invented_card(self):
+        from llm.v1.rag.course.agent import unverified_course
+        result = unverified_course("JAMSIL", {}, ["조용한 카페"])
+        with patch("llm.v1.rag.course.agent.answer", return_value=result):
+            out = self.run_graph([call("plan_course", {"request": "조용한 카페"}, "c1")], ["day_plan"],
+                                 [HumanMessage("조용한 카페 코스")], {"stadium": "JAMSIL"})
+        self.assertEqual(len(self.calls), 1)
+        self.assertEqual(out["messages"][-1].content, result["answer"])
+        self.assertNotIn("course", self.tool_msg(out, "plan_course").artifact)
+        self.assertIn("없다는 뜻은 아니", result["answer"])
+
+    def test_route_screen_parallel_read_does_not_restart_failed_verification(self):
+        from llm.v1.rag.course.agent import unverified_course
+        result = unverified_course("JAMSIL", {}, ["카페"])
+        calls = [call("plan_course", {"request": "코스"}, "c1").tool_calls[0],
+                 call("get_directions", {"query": "동선"}, "c2").tool_calls[0]]
+        with patch("llm.v1.rag.course.agent.answer", return_value=result):
+            out = self.run_graph([AIMessage(content="", tool_calls=calls)], ["day_plan"], [HumanMessage("카페 코스")],
+                                 {"stadium": "JAMSIL", "intent": "route"})
+        self.assertEqual(len(self.calls), 1)
+        self.assertEqual(out["messages"][-1].content, result["answer"])
+
     def test_hidden_migrated_tools_rejected(self):
         with patch.object(assistant, "_run_fixed") as db, patch("llm.v1.rag.course.agent.answer") as course:
             out = self.run_graph([call("get_ticket_policy", {"team": "LG"}, "h1"),
@@ -112,14 +136,56 @@ class MigratedToolsTest(unittest.TestCase):
         course.assert_not_called()
         self.assertEqual({m.status for m in out["messages"] if isinstance(m, ToolMessage)}, {"error"})
 
+    def test_map_origin_reaches_course_planner_and_is_not_carried_into_next_request(self):
+        origin = {"lat": 35.18, "lng": 126.9}
+        with patch("llm.v1.rag.course.agent.answer", return_value={"answer": "출발지에서 이어지는 코스", "sources": []}) as answer:
+            for context in ({"stadium": "GWANGJU", "origin": origin}, {"stadium": "GWANGJU"}):
+                self.run_graph([call("plan_course", {"request": "식사와 카페 코스"}, "c"), AIMessage("완성")],
+                               ["day_plan"], [HumanMessage("식사와 카페 코스")], context)
+        self.assertEqual(answer.call_args_list[0].kwargs["origin"], origin)
+        self.assertNotIn("origin", answer.call_args_list[1].kwargs)
+
+    def test_actual_user_activities_override_extra_activities_in_model_request(self):
+        from llm.tests.test_course_requested_activities import QUESTION, REWRITTEN_REQUEST
+
+        rewritten = REWRITTEN_REQUEST.replace("넣지 말아 주세요", "넣어 주세요")
+        with patch("llm.v1.rag.course.agent.answer", return_value={"answer": "산책만", "sources": []}) as answer:
+            self.run_graph([call("plan_course", {"request": rewritten}, "c"), AIMessage("산책만")],
+                           ["day_plan"], [HumanMessage(QUESTION)], {"stadium": "JAMSIL"})
+        self.assertEqual(answer.call_args.args[0], QUESTION)
+
+    def test_course_preserves_map_artifact_and_rejects_model_carried_old_stadium(self):
+        from llm.tests.test_course_output import COURSE
+
+        with patch("llm.v1.rag.course.agent.answer", return_value={"answer": "잠실 코스", **COURSE}) as answer:
+            out = self.run_graph([call("plan_course", {"request": "창원 NC 파크에서 식사하고 커피 마시는 코스"}, "c"), AIMessage("잠실 코스")],
+                                 ["day_plan"], [HumanMessage("창원 코스"), AIMessage("창원 안내"), HumanMessage("식사하고 커피 코스 짜줘")],
+                                 {"stadium": "잠실야구장"})
+        self.assertEqual(answer.call_args.args[0], "식사하고 커피 코스 짜줘")
+        self.assertEqual(answer.call_args.kwargs["hint_stadium"], "JAMSIL")
+        self.assertEqual(self.tool_msg(out, "plan_course").artifact, {"course": COURSE})
+        self.assertEqual(out["messages"][-1].content, "잠실 코스")
+        self.assertEqual(len(self.calls), 1)  # 완성된 코스를 모델이 다시 바꿔 쓰지 않는다.
+
+    def test_new_team_overrides_screen_and_model_rewritten_old_stadium(self):
+        with patch("llm.v1.rag.course.agent.answer", return_value={"answer": "사직 코스", "sources": []}) as answer:
+            self.run_graph([call("plan_course", {"request": "잠실에서 롯데 경기를 보고 식사 카페 코스"}, "c"), AIMessage("사직 코스")],
+                           ["day_plan"], [HumanMessage("잠실 식사와 카페 코스"), AIMessage("잠실 안내"), HumanMessage("이번엔 롯데로 짜줘")],
+                           {"stadium": "잠실야구장", "origin": {"lat": 37.5, "lng": 127.0}})
+        self.assertEqual(answer.call_args.args[0], "이번엔 롯데로 짜줘")
+        self.assertEqual(answer.call_args.kwargs["hint_stadium"], "SAJIK")
+        self.assertNotIn("origin", answer.call_args.kwargs)
+
     def test_request_state_isolated_across_threads_and_restored(self):
         barrier = threading.Barrier(2)
         before = assistant._STATE.get(None)
 
         def one(code):
             from llm.tools.assistant import request_state
-            with request_state(*request_args({"messages": [HumanMessage(code)], "context": {"stadium": code}})):
+            origin = {"lat": 37.5, "lng": 127.0 if code == "JAMSIL" else 126.8}
+            with request_state(*request_args({"messages": [HumanMessage(code)], "context": {"stadium": code}}), origin=origin):
                 barrier.wait()
+                self.assertEqual(assistant.state()["origin"], origin)
                 return assistant.state()["hint"], assistant.state()["question"]
         with ThreadPoolExecutor(2) as pool:
             self.assertEqual(list(pool.map(one, ["JAMSIL", "GOCHEOK"])), [("JAMSIL", "JAMSIL"), ("GOCHEOK", "GOCHEOK")])

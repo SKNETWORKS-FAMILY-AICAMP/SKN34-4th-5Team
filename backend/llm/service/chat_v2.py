@@ -53,6 +53,8 @@ def _frames(graph_input, run):
                 yield PublicChatEvent.DELTA.value, {"text": chunk.text, **({"parent_id": parent} if ns else {})}
                 continue
             for update in data.values():
+                if not ns and isinstance(update, dict) and (update.get("decision") or {}).get("course_request") == "NEW":
+                    run["course_history_reset"] = True
                 for message in (update or {}).get("messages") or [] if isinstance(update, dict) else ():
                     if not ns and isinstance(message, AIMessage) and not message.tool_calls:
                         run["answer"] = str(message.text)
@@ -84,7 +86,11 @@ def _frames(graph_input, run):
 def _stream_turn(thread, prefix, turns, human, context, charge):
     """프레임: tool*/delta* → done | stopped | error (chat_runs.stream_turn). 저장 답변 = 마지막 도구 없는 model 호출의 답."""
     run = {"answer": "", "messages": []}
-    graph_input = {"messages": [*_model_history(prefix, turns), human]}
+    from llm.v1.rag.course.conversation_scope import scoped_messages
+    scoped = scoped_messages(prefix, turns)
+    graph_input = {"messages": [*_model_history(scoped, turns), human]}
+    from llm.v1.rag.course.memory import restore
+    graph_input["course_memory"] = restore(scoped, turns)
     if context:
         graph_input["context"] = context
     return chat_runs.stream_turn(thread, prefix, turns, human, lambda: _frames(graph_input, run), run,

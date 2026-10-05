@@ -89,9 +89,9 @@ class StepScoreTests(SimpleTestCase):
         score = lambda p: geo.step_score(p, prev, ANCHOR, relevance)
         self.assertGreater(score(near), score(far_lateral))
 
-    def test_before_steps_cannot_move_away_from_the_stadium_and_after_steps_stay_close(self):
+    def test_before_detours_can_be_compared_and_after_steps_prefer_nearby(self):
         prev = {"lat": 37.5180, "lng": 127.000}
-        self.assertFalse(geo.step_allowed(place("B", 37.5225, 127.0), prev, ANCHOR, "BEFORE", 1500))
+        self.assertTrue(geo.step_allowed(place("B", 37.5225, 127.0), prev, ANCHOR, "BEFORE", 1500))
         self.assertTrue(geo.step_allowed(place("T", 37.5135, 127.0), prev, ANCHOR, "BEFORE", 1500))
         self.assertTrue(geo.step_allowed(place("A", 37.5090, 127.0), ANCHOR, ANCHOR, "AFTER", 1500))
         self.assertFalse(geo.step_allowed(place("X", 37.5270, 127.0), ANCHOR, ANCHOR, "AFTER", 1500))
@@ -122,15 +122,15 @@ class OriginStepSearchTests(SimpleTestCase):
                  "category_name": f"음식점 > {label}"},
             ]}
 
-        sl = {"spare": "normal", "prefs": [], "ban": [], "boost": [], "exclude": set()}
-        origin = {"lat": 37.5270, "lng": 127.000}                   # 구장 북쪽 3km
+        sl = {"spare": "normal", "prefs": [], "ban": [], "boost": [], "exclude": set(), "after_kinds": ["BAR"]}
+        origin = {"lat": 37.5215, "lng": 127.000}                   # 경로에서 찾은 반경 안 진입점
         with patch.object(agent, "invoke_domain_tool", side_effect=invoke):
             steps = agent.build_origin_course(origin, ANCHOR, [], sl, evening=True)
 
         self.assertEqual([s["phase"] for s in steps], ["BEFORE", "BEFORE", "GAME", "AFTER"])
         food, cafe, _, bar = steps
         # 1번은 출발지 주변 검색, 2번은 1번 주변 검색, 경기 후는 구장 주변 검색
-        self.assertEqual(centers[0], ("FD6", 37.527, 127.0))
+        self.assertEqual(centers[0], ("FD6", 37.5215, 127.0))
         self.assertEqual(centers[1], ("CE7", round(food["place"]["lat"], 4), 127.0))
         self.assertEqual(centers[2], ("FD6", 37.5, 127.0))
         # 매 단계 구장 쪽(남쪽)을 고른다
@@ -152,6 +152,32 @@ class OriginStepSearchTests(SimpleTestCase):
 
 
 class OriginExtraStepTests(SimpleTestCase):
+    def test_walk_can_detour_inside_stadium_radius_instead_of_disappearing(self):
+        from unittest.mock import patch
+        from ..v1.rag.course import agent
+        origin = {"lat": 37.501, "lng": 127.0}
+        food = {**place("food", 37.5005, 127.0), "name": "초밥집", "detail": "초밥"}
+        park = {**place("park", 37.508, 127.0, "WALK"), "name": "산책공원", "detail": "공원"}
+        outside = {**park, "name": "반경 밖 공원", "lat": 37.55}
+        sl = agent.slots.parse("초밥 먹고 산책 하다가 구장 갈 코스 짜줘")
+        with patch.object(agent, "_kakao_step", return_value=[]):
+            steps = agent.build_origin_course(origin, ANCHOR, [food, park, outside], sl, True)
+        self.assertEqual([s["place"]["name"] for s in steps if s["place"]], ["초밥집", "산책공원"])
+        self.assertEqual(sl["detour_places"], ["산책공원"])
+
+    def test_detour_never_bypasses_conditions_or_explicit_exclusions(self):
+        from unittest.mock import patch
+        from ..v1.rag.course import agent
+        park = {**place("park", 37.508, 127.0, "WALK"), "name": "산책공원", "detail": "공원"}
+        for exclude in (set(), {park["name"]}):
+            sl = agent.slots.parse("경기 전 산책만")
+            sl["exclude"] = exclude
+            with patch.object(agent, "_kakao_step", return_value=[]):
+                result = agent.build_origin_course({"lat": 37.501, "lng": 127.0}, ANCHOR, [park], sl, True,
+                                                   candidate_filter=lambda candidates: [])
+            self.assertIsNone(result)
+            self.assertNotIn("detour_places", sl)
+
     def sl(self, **extra):
         return {"spare": "normal", "prefs": [], "ban": [], "boost": [], "exclude": set(), **extra}
 
@@ -159,8 +185,8 @@ class OriginExtraStepTests(SimpleTestCase):
         from ..v1.rag.course import agent
 
         self.assertEqual(agent.plan_steps(self.sl(extras=["walk"]), evening=False), (["FOOD", "CAFE", "WALK"], ["CAFE"]))
-        self.assertEqual(agent.plan_steps(self.sl(extras=["walk"], scope="after"), evening=True), ([], ["BAR", "WALK"]))
-        self.assertEqual(agent.plan_steps(self.sl(extras=["indoor", "stay"]), evening=True), (["FOOD", "CAFE", "INDOOR"], ["BAR", "STAY"]))
+        self.assertEqual(agent.plan_steps(self.sl(extras=["walk"], scope="after"), evening=True), ([], ["WALK"]))
+        self.assertEqual(agent.plan_steps(self.sl(extras=["indoor", "stay"]), evening=True), (["FOOD", "CAFE", "INDOOR"], ["STAY"]))
         self.assertEqual(agent.plan_steps(self.sl(scope="before"), evening=True), (["FOOD", "CAFE"], []))
 
     def test_origin_course_searches_parks_for_the_walk_step(self):
@@ -182,7 +208,7 @@ class OriginExtraStepTests(SimpleTestCase):
             return {"places": [{"id": f"{label}-{lat}", "place_name": f"{label} {lat:.4f}", "x": str(lng), "y": str(lat - 0.0027),
                                 "category_name": f"음식점 > {label}"}]}
 
-        origin = {"lat": 37.5270, "lng": 127.000}
+        origin = {"lat": 37.5215, "lng": 127.000}
         with patch.object(agent, "invoke_domain_tool", side_effect=invoke):
             steps = agent.build_origin_course(origin, ANCHOR, [], self.sl(extras=["walk"]), evening=False)
 
