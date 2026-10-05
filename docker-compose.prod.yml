@@ -17,12 +17,21 @@ services:
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY}
       CHAT_CHECKPOINT_SIGNING_KEY: ${CHAT_CHECKPOINT_SIGNING_KEY:?Set CHAT_CHECKPOINT_SIGNING_KEY}
       CHAT_TRUST_PROXY_HEADERS: "true"
+      CHAT_STREAM_IDLE_TIMEOUT_SECONDS: ${CHAT_STREAM_IDLE_TIMEOUT_SECONDS:-300}
       # 1000 tokens = 1 credit; guest lifetime 500, member monthly 999999 credits.
       USAGE_GUEST_TOKENS: ${USAGE_GUEST_TOKENS:-500000}
       USAGE_MEMBER_MONTHLY_TOKENS: ${USAGE_MEMBER_MONTHLY_TOKENS:-999999000}
       DEBUG: ${DEBUG:-false}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:?Set EMBEDDING_MODEL}
       LLM_MODEL: ${LLM_MODEL:-gpt-6-luna}
+      COURSE_WEB_VERIFICATION_ENABLED: ${COURSE_WEB_VERIFICATION_ENABLED:-false}
+      PLACE_EVIDENCE_STORAGE_POLICIES: ${PLACE_EVIDENCE_STORAGE_POLICIES:-[]}
+      RAG_DB_HOST: ${RAG_DB_HOST:-}
+      RAG_DB_PORT: ${RAG_DB_PORT:-5432}
+      RAG_DB_NAME: ${RAG_DB_NAME:-}
+      RAG_DB_USER: ${RAG_DB_USER:-}
+      RAG_DB_PASSWORD: ${RAG_DB_PASSWORD:-}
+      RAG_DB_SSLMODE: ${RAG_DB_SSLMODE:-require}
       AUTH_FRONTEND_ORIGIN: ${AUTH_FRONTEND_ORIGIN:?Set AUTH_FRONTEND_ORIGIN}
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:?Set DJANGO_ALLOWED_HOSTS}
       DB_HOST: ${DB_HOST:?Set DB_HOST}
@@ -45,7 +54,7 @@ services:
       DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-}
       EMAIL_USE_TLS: ${EMAIL_USE_TLS:?Set EMAIL_USE_TLS}
       KAKAO_REST_API_KEY: ${KAKAO_REST_API_KEY:-}
-      COLLECTED_PLACES_DIR: ${COLLECTED_PLACES_DIR:-/data/staging/stadium_places/20260927T092810Z}
+      COLLECTED_PLACES_DIR: ${COLLECTED_PLACES_DIR:-/data/staging/stadium_places/20260927T092810Z-no-sbiz}
       KMA_SERVICE_KEY: ${KMA_SERVICE_KEY:-}
       KMA_API_KEY: ${KMA_API_KEY:-}
       TOUR_API_KEY: ${TOUR_API_KEY:-}
@@ -59,7 +68,7 @@ services:
     command: >
       sh -c "python manage.py migrate &&
              python manage.py setup_chat_checkpoints &&
-             gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2 --timeout 120"
+             gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2 --worker-class gthread --threads 4 --timeout 120"
     depends_on:
       minio:
         condition: service_healthy
