@@ -16,32 +16,41 @@ class SnapshotTests(unittest.TestCase):
         self.source = Path(self.temp.name) / "source"
         self.output = Path(self.temp.name) / "snapshot"
         (self.source / "TEST").mkdir(parents=True)
-        self.place = {"source": "SBIZ", "source_id": "one", "name": "fixture", "address": "fixture",
-                      "kind": "convenience_store", "brand_status": "name_identified", "lat": 37.5, "lng": 127,
+        self.place = {"source": "PARK", "source_id": "one", "name": "fixture", "address": "fixture",
+                      "kind": "walk_candidate", "lat": 37.5, "lng": 127,
                       "distance_m": 0, "source_fields": {"category": "fixture"}}
-        self.review = {**self.place, "source_id": "review", "brand_status": "unidentified"}
         sources = {source: {"status": "ok", "completed_at": "2026-09-27T09:30:00+00:00", "selected_records": 0}
-                   for source in ("SBIZ", "PARK", "TOUR_WALK", "GOOGLE")}
-        sources["SBIZ"].update(selected_records=1, convenience_needs_review=1, reference_month="202606")
+                   for source in ("PARK", "TOUR_WALK", "GOOGLE")}
+        sources["PARK"]["selected_records"] = 1
         sources["GOOGLE"]["within_radius_ids"] = 1
-        self.summary = {"schema_version": 1, "started_at": "fixture", "radius_m": 2500,
+        self.summary = {"schema_version": 2, "started_at": "fixture", "radius_m": 2500,
                         "distance_type": "straight_line", "lodging_source": "GOOGLE_PLACES",
                         "stadiums": {"TEST": {"code": "TEST", "lat": 37.5, "lng": 127, "sources": sources}}}
         self.write(self.source / "summary.json", self.summary)
         self.write(self.source / "TEST/public_places.json", [self.place])
-        self.write(self.source / "TEST/convenience_review.json", [self.place, self.review])
         self.write(self.source / "TEST/google_lodging_ids.json", [{"source": "GOOGLE_PLACES", "place_id": "fixture-id"}])
 
     def write(self, path, value):
         path.write_text(json.dumps(value), encoding="utf-8")
 
-    def test_build_preserves_source_fields_and_separates_review_without_duplicates(self):
+    def test_build_preserves_remaining_sources_and_google_ids(self):
         manifest, records, _ = snapshot.build(self.source, self.output)
         self.assertEqual(manifest["totals"], dict.fromkeys(snapshot.FILES, 1))
         self.assertEqual(records["TEST/public_places.jsonl"], [self.place])
-        self.assertEqual(records["TEST/convenience_review.jsonl"], [self.review])
         self.assertNotIn(b"\r", (self.output / "manifest.json").read_bytes())
         with self.assertRaisesRegex(ValueError, "already exists"):
+            snapshot.build(self.source, self.output)
+
+    def test_removed_source_is_rejected_even_with_valid_file_metadata(self):
+        self.write(self.source / "TEST/public_places.json", [{**self.place, "source": "SBIZ"}])
+        with self.assertRaisesRegex(ValueError, "Unexpected public source"):
+            snapshot.build(self.source, self.output)
+        self.assertFalse(self.output.exists())
+
+    def test_old_snapshot_version_cannot_be_loaded(self):
+        self.summary["schema_version"] = 1
+        self.write(self.source / "summary.json", self.summary)
+        with self.assertRaisesRegex(ValueError, "Unsupported snapshot version"):
             snapshot.build(self.source, self.output)
 
     def test_file_tampering_is_rejected(self):
@@ -80,7 +89,7 @@ class SnapshotTests(unittest.TestCase):
             snapshot.build(self.source, self.output)
 
     def test_source_counts_are_checked_against_metadata(self):
-        self.summary["stadiums"]["TEST"]["sources"]["SBIZ"]["selected_records"] = 2
+        self.summary["stadiums"]["TEST"]["sources"]["PARK"]["selected_records"] = 2
         self.write(self.source / "summary.json", self.summary)
         with self.assertRaisesRegex(ValueError, "Source count mismatch"):
             snapshot.build(self.source, self.output)

@@ -49,25 +49,11 @@ class StadiumPlacesTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "fixture failure"):
             g.collect_lodging("fixture", (37.5, 127), search=lambda *a: (_ for _ in ()).throw(RuntimeError("fixture failure")))
 
-    def test_classification_does_not_invent_menus_and_excludes_sbiz_lodging(self):
-        def row(ident, kind, small, name="fixture", group="I2"):
-            return {"source": "SBIZ", "source_id": ident, "kind": kind, "name": name,
-                    "source_fields": {"indsLclsCd": group, "indsSclsNm": small}}
-        rows = [row("cafe", "cafe", "카페"), row("dessert", "restaurant", "빵/도넛"),
-                row("play", "cafe", "카페", "보드게임카페"),
-                row("hotel", "lodging", "호텔", group="I1"),
-                row("cu", "convenience_store", "편의점", "CU 테스트점", "G2"),
-                row("other", "convenience_store", "편의점", "정체불명점", "G2")]
-        with patch.object(c.pilot, "collect_sbiz", return_value=(rows, {})):
-            selected, audit, meta = c.public_sbiz("fixture", (37.5, 127))
-        selected = {p["source_id"]: p for p in selected}
-        self.assertNotIn("hotel", selected)
-        self.assertNotIn("other", selected)
-        self.assertEqual(len(audit), 2)
-        self.assertIsNone(selected["cafe"]["dessert_offered"])
-        self.assertEqual(selected["cafe"]["cafe_type"], "unverified")
-        self.assertEqual(selected["dessert"]["cafe_type"], "dessert_candidate")
-        self.assertEqual(selected["play"]["kind"], "play_facility")
+    def test_retired_sbiz_collector_never_calls_the_network(self):
+        self.assertNotIn("SBIZ", c.SOURCES)
+        with patch.object(c.pilot, "all_pages", side_effect=AssertionError("network")):
+            with self.assertRaisesRegex(RuntimeError, "SBIZ collection was removed"):
+                c.pilot.collect_sbiz("fixture", (37.5, 127))
 
     def test_tour_never_requests_or_accepts_lodging(self):
         calls = []

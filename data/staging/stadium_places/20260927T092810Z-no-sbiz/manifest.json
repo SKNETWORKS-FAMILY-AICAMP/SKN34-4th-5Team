@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "started_at": "20260927T092810Z",
   "radius_m": 2500,
   "distance_type": "straight_line",
@@ -60,27 +60,6 @@
           },
           "storage_policy": "place_ids_only; details retrieved live",
           "note": "Google search results, not a census or confirmation of current operation"
-        },
-        "SBIZ": {
-          "status": "ok",
-          "started_at": "2026-09-27T09:36:53.296109+00:00",
-          "completed_at": "2026-09-27T09:37:07.255569+00:00",
-          "api_rows": 23963,
-          "unique_ids": 23904,
-          "reference_month": "202606",
-          "located_in_radius": 23904,
-          "selected_records": 5438,
-          "categories": {
-            "restaurant": 3571,
-            "bar": 458,
-            "cafe": 1121,
-            "play_facility": 10,
-            "convenience_store": 278
-          },
-          "convenience_all": 378,
-          "convenience_selected": 278,
-          "convenience_needs_review": 100,
-          "lodging_excluded": 386
         },
         "PARK": {
           "status": "ok",
@@ -155,27 +134,6 @@
           "storage_policy": "place_ids_only; details retrieved live",
           "note": "Google search results, not a census or confirmation of current operation"
         },
-        "SBIZ": {
-          "status": "ok",
-          "started_at": "2026-09-27T09:37:14.511349+00:00",
-          "completed_at": "2026-09-27T09:37:26.658859+00:00",
-          "api_rows": 21476,
-          "unique_ids": 21387,
-          "reference_month": "202606",
-          "located_in_radius": 21387,
-          "selected_records": 5598,
-          "categories": {
-            "bar": 710,
-            "restaurant": 3569,
-            "cafe": 1032,
-            "play_facility": 8,
-            "convenience_store": 279
-          },
-          "convenience_all": 345,
-          "convenience_selected": 279,
-          "convenience_needs_review": 66,
-          "lodging_excluded": 270
-        },
         "PARK": {
           "status": "ok",
           "started_at": "2026-09-27T09:37:26.658859+00:00",
@@ -247,27 +205,6 @@
           "storage_policy": "place_ids_only; details retrieved live",
           "note": "Google search results, not a census or confirmation of current operation"
         },
-        "SBIZ": {
-          "status": "ok",
-          "started_at": "2026-09-27T09:37:27.466979+00:00",
-          "completed_at": "2026-09-27T09:37:34.454743+00:00",
-          "api_rows": 13674,
-          "unique_ids": 13665,
-          "reference_month": "202606",
-          "located_in_radius": 13665,
-          "selected_records": 4353,
-          "categories": {
-            "restaurant": 2815,
-            "bar": 516,
-            "cafe": 763,
-            "play_facility": 5,
-            "convenience_store": 254
-          },
-          "convenience_all": 306,
-          "convenience_selected": 254,
-          "convenience_needs_review": 52,
-          "lodging_excluded": 67
-        },
         "PARK": {
           "status": "ok",
           "started_at": "2026-09-27T09:37:34.454743+00:00",
@@ -335,27 +272,6 @@
           },
           "storage_policy": "place_ids_only; details retrieved live",
           "note": "Google search results, not a census or confirmation of current operation"
-        },
-        "SBIZ": {
-          "status": "ok",
-          "started_at": "2026-09-27T09:37:35.071650+00:00",
-          "completed_at": "2026-09-27T09:37:41.979782+00:00",
-          "api_rows": 12916,
-          "unique_ids": 12903,
-          "reference_month": "202606",
-          "located_in_radius": 12903,
-          "selected_records": 4169,
-          "categories": {
-            "cafe": 924,
-            "restaurant": 2556,
-            "bar": 468,
-            "play_facility": 6,
-            "convenience_store": 215
-          },
-          "convenience_all": 259,
-          "convenience_selected": 215,
-          "convenience_needs_review": 44,
-          "lodging_excluded": 316
         },
         "PARK": {
           "status": "ok",
@@ -428,27 +344,6 @@
           "storage_policy": "place_ids_only; details retrieved live",
           "note": "Google search results, not a census or confirmation of current operation"
         },
-        "SBIZ": {
-          "status": "ok",
-          "started_at": "2026-09-27T09:37:42.655950+00:00",
-          "completed_at": "2026-09-27T09:37:48.842339+00:00",
-          "api_rows": 12326,
-          "unique_ids": 12319,
-          "reference_month": "202606",
-          "located_in_radius": 12319,
-          "selected_records": 3669,
-          "categories": {
-            "restaurant": 2357,
-            "bar": 385,
-            "cafe": 770,
-            "play_facility": 7,
-            "convenience_store": 150
-          },
-          "convenience_all": 178,
-          "convenience_selected": 150,
-          "convenience_needs_review": 28,
-          "lodging_excluded": 268
-        },
         "PARK": {
           "status": "ok",
           "started_at": "2026-09-27T09:37:48.842339+00:00",
@@ -512,26 +407,6 @@
           },
           "storage_policy": "place_ids_only; details retrieved live",
           "note": "Google search results, not a census or confirmation of current operation"
-        },
-        "SBIZ": {
-          "status": "ok",
-          "started_at": "2026-09-27T09:37:49.408169+00:00",
-          "completed_at": "2026-09-27T09:37:50.555814+00:00",
-          "api_rows": 2195,
-          "unique_ids": 2195,
-          "reference_month": "202606",
-          "located_in_radius": 2195,
-          "selected_records": 673,
-          "categories": {
-            "cafe": 162,
-            "restaurant": 422,
-            "bar": 58,
-            "convenience_store": 31
-          },
-          "convenience_all": 40,
-          "convenience_selected": 31,
-          "convenience_needs_review": 9,
-          "lodging_excluded": 5
         },
         "PARK": {
           "status": "ok",
@@ -604,27 +479,6 @@
           "storage_policy": "place_ids_only; details retrieved live",
           "note": "Google search results, not a census or confirmation of current operation"
         },
-        "SBIZ": {
-          "status": "ok",
-          "started_at": "2026-09-27T09:37:50.962988+00:00",
-          "completed_at": "2026-09-27T09:37:58.355242+00:00",
-          "api_rows": 13636,
-          "unique_ids": 13627,
-          "reference_month": "202606",
-          "located_in_radius": 13627,
-          "selected_records": 3939,
-          "categories": {
-            "restaurant": 2351,
-            "cafe": 825,
-            "bar": 564,
-            "play_facility": 2,
-            "convenience_store": 197
-          },
-          "convenience_all": 241,
-          "convenience_selected": 197,
-          "convenience_needs_review": 44,
-          "lodging_excluded": 240
-        },
         "PARK": {
           "status": "ok",
           "started_at": "2026-09-27T09:37:58.355242+00:00",
@@ -695,27 +549,6 @@
           "storage_policy": "place_ids_only; details retrieved live",
           "note": "Google search results, not a census or confirmation of current operation"
         },
-        "SBIZ": {
-          "status": "ok",
-          "started_at": "2026-09-27T09:37:58.915400+00:00",
-          "completed_at": "2026-09-27T09:38:06.061840+00:00",
-          "api_rows": 13729,
-          "unique_ids": 13723,
-          "reference_month": "202606",
-          "located_in_radius": 13723,
-          "selected_records": 4757,
-          "categories": {
-            "cafe": 817,
-            "restaurant": 2987,
-            "bar": 761,
-            "play_facility": 3,
-            "convenience_store": 189
-          },
-          "convenience_all": 216,
-          "convenience_selected": 189,
-          "convenience_needs_review": 27,
-          "lodging_excluded": 160
-        },
         "PARK": {
           "status": "ok",
           "started_at": "2026-09-27T09:38:06.069984+00:00",
@@ -783,27 +616,6 @@
           "storage_policy": "place_ids_only; details retrieved live",
           "note": "Google search results, not a census or confirmation of current operation"
         },
-        "SBIZ": {
-          "status": "ok",
-          "started_at": "2026-09-27T09:38:06.744479+00:00",
-          "completed_at": "2026-09-27T09:38:11.702357+00:00",
-          "api_rows": 10343,
-          "unique_ids": 10333,
-          "reference_month": "202606",
-          "located_in_radius": 10333,
-          "selected_records": 3904,
-          "categories": {
-            "restaurant": 2354,
-            "cafe": 535,
-            "bar": 881,
-            "play_facility": 1,
-            "convenience_store": 133
-          },
-          "convenience_all": 150,
-          "convenience_selected": 133,
-          "convenience_needs_review": 17,
-          "lodging_excluded": 228
-        },
         "PARK": {
           "status": "ok",
           "started_at": "2026-09-27T09:38:11.705593+00:00",
@@ -827,147 +639,110 @@
       }
     }
   },
-  "snapshot_id": "20260927T092810Z",
+  "snapshot_id": "20260927T092810Z-no-sbiz",
   "files": {
-    "JAMSIL/public_places.jsonl": {
-      "sha256": "c7b478071e45f1e15e3fb0b140d7b6cf402eed2946490ceefc844f79b0671626",
-      "bytes": 7332233,
-      "rows": 5496
+    "CHANGWON/google_lodging_ids.jsonl": {
+      "sha256": "5c756956e62d84ca27d858d91cc34f7ac8711064db49fb28fcfcbcbcb7c791c7",
+      "bytes": 19244,
+      "rows": 283
     },
-    "JAMSIL/convenience_review.jsonl": {
-      "sha256": "a91b723ab6db0675420c4a23122d36fba79eb55e4a5b256e9fda1cb4c7bab72a",
-      "bytes": 147142,
-      "rows": 100
-    },
-    "JAMSIL/google_lodging_ids.jsonl": {
-      "sha256": "155145469264245345e0b809aca431496fac9ba0fec27265b7d45bb406b58f74",
-      "bytes": 65688,
-      "rows": 966
-    },
-    "GOCHEOK/public_places.jsonl": {
-      "sha256": "c6f691fb1fd0930aab3c2bd803ac13a2dcb928c2df3c359fe0c97e20b7527fcf",
-      "bytes": 7512492,
-      "rows": 5675
-    },
-    "GOCHEOK/convenience_review.jsonl": {
-      "sha256": "41438d8aa3c5e84af6db525579f5bab44e100fbd8d89991de2f336f85171784b",
-      "bytes": 95960,
-      "rows": 66
-    },
-    "GOCHEOK/google_lodging_ids.jsonl": {
-      "sha256": "8a99ce0e9ffc8e83353c0867c7079fc1d1691f42678fc900d310629f8491a1fb",
-      "bytes": 21556,
-      "rows": 317
-    },
-    "MUNHAK/public_places.jsonl": {
-      "sha256": "9b6f791a1ada3e1bf8e58f9832c8e7e2369eeb32990e17c87f7bdfddf94a457c",
-      "bytes": 5912701,
-      "rows": 4432
-    },
-    "MUNHAK/convenience_review.jsonl": {
-      "sha256": "85778b1378a30448fb63aea6977eb3f106e7cd838b3ff97b8457ab39f293a945",
-      "bytes": 76501,
-      "rows": 52
-    },
-    "MUNHAK/google_lodging_ids.jsonl": {
-      "sha256": "4644975b627998e3bc3d2eb18291f5243f02da0481760a85e257449f15216b9c",
-      "bytes": 8772,
-      "rows": 129
-    },
-    "SUWON/public_places.jsonl": {
-      "sha256": "56399234a765b55209af8b0e5e9a356355febae5f6d21657976fc2ef41364eea",
-      "bytes": 5705302,
-      "rows": 4237
-    },
-    "SUWON/convenience_review.jsonl": {
-      "sha256": "ee6cf19c0e4ac3bb3d33f51b14b9e0ad92f024c371a4caaf2b42664370834dbf",
-      "bytes": 65207,
-      "rows": 44
-    },
-    "SUWON/google_lodging_ids.jsonl": {
-      "sha256": "7a901308881e0b302e4ff697edc5be74d374b46c33dcec62d0acc6b79ec6e349",
-      "bytes": 27676,
-      "rows": 407
-    },
-    "DAEJEON/public_places.jsonl": {
-      "sha256": "b57c8fd4e3a8371a860e2f60892516ea6e5052cd52fc0790372b6a19676bd343",
-      "bytes": 4835923,
-      "rows": 3705
-    },
-    "DAEJEON/convenience_review.jsonl": {
-      "sha256": "88ef16a74a6d36431b973f8c1e9aece290c2822dbeb9e4b9fd1e557868321da6",
-      "bytes": 40098,
-      "rows": 28
-    },
-    "DAEJEON/google_lodging_ids.jsonl": {
-      "sha256": "9591b77c7ed9049dc285fd4fb6627ffe6cdcf289ee59cae61e3159d6b7964599",
-      "bytes": 28356,
-      "rows": 417
-    },
-    "DAEGU/public_places.jsonl": {
-      "sha256": "c279a2c399d9a78c7ee34cc4679f4e9722b9d74d598a8c0b7a557476739e05ff",
-      "bytes": 920989,
-      "rows": 695
-    },
-    "DAEGU/convenience_review.jsonl": {
-      "sha256": "4db0811c63781945f277ef2ac4e057a1e112301b5af412bcfbcd008610aa2117",
-      "bytes": 13317,
-      "rows": 9
+    "CHANGWON/public_places.jsonl": {
+      "sha256": "de7903623422a568e8de8e7bdc79a724eb86e623b270787b99ce7f3b4c589dd9",
+      "bytes": 52998,
+      "rows": 59
     },
     "DAEGU/google_lodging_ids.jsonl": {
       "sha256": "ffcbed7452d0df2d5a1a3cebd6f94c6aab2a82bea90d5ddcd287d8ad84afc510",
       "bytes": 1428,
       "rows": 21
     },
-    "GWANGJU/public_places.jsonl": {
-      "sha256": "93878d5c662d294a69669474ceaf1a0b6c8fb1f6a14e0f130d482dbc1a86ad07",
-      "bytes": 5474666,
-      "rows": 4021
+    "DAEGU/public_places.jsonl": {
+      "sha256": "cba7b7f7d98c0cc3c046eaf267b6249fb471dc1cb2f84f18d5257d0c88e0f875",
+      "bytes": 18933,
+      "rows": 22
     },
-    "GWANGJU/convenience_review.jsonl": {
-      "sha256": "5a21672368af45fba1ae8e50dd354d71404a1fcfc92331661d517f182d0742f5",
-      "bytes": 65520,
-      "rows": 44
+    "DAEJEON/google_lodging_ids.jsonl": {
+      "sha256": "9591b77c7ed9049dc285fd4fb6627ffe6cdcf289ee59cae61e3159d6b7964599",
+      "bytes": 28356,
+      "rows": 417
+    },
+    "DAEJEON/public_places.jsonl": {
+      "sha256": "9aef854d46f36b64c7972f7a0b47e28e7c8971d0d3d95a7660d442eaf275c541",
+      "bytes": 31107,
+      "rows": 36
+    },
+    "GOCHEOK/google_lodging_ids.jsonl": {
+      "sha256": "8a99ce0e9ffc8e83353c0867c7079fc1d1691f42678fc900d310629f8491a1fb",
+      "bytes": 21556,
+      "rows": 317
+    },
+    "GOCHEOK/public_places.jsonl": {
+      "sha256": "1cc8dbf42ea3fbbcd8a80cbc534299c54f3923e728319fb19627f6b4a30194b5",
+      "bytes": 70271,
+      "rows": 77
     },
     "GWANGJU/google_lodging_ids.jsonl": {
       "sha256": "1988500bdd3fc8b98b8fc86bb5ecb6a73d85a62a5e424cdc7574f3d8664b81e6",
       "bytes": 22916,
       "rows": 337
     },
-    "SAJIK/public_places.jsonl": {
-      "sha256": "9f9b6e89c2716653eff7db87a0d7e5d70e7e92378f318e2c75ab2e73da3d8f1f",
-      "bytes": 6397102,
-      "rows": 4803
+    "GWANGJU/public_places.jsonl": {
+      "sha256": "876f81a033cf3e34bd3e69f3a2c468c961e9cfe34b81debb252780ce9f03802b",
+      "bytes": 71990,
+      "rows": 82
     },
-    "SAJIK/convenience_review.jsonl": {
-      "sha256": "72fb36e818e67cc24c0871d27cfc3fdf92a02955e45f2f586c784146962af950",
-      "bytes": 39248,
-      "rows": 27
+    "JAMSIL/google_lodging_ids.jsonl": {
+      "sha256": "155145469264245345e0b809aca431496fac9ba0fec27265b7d45bb406b58f74",
+      "bytes": 65688,
+      "rows": 966
+    },
+    "JAMSIL/public_places.jsonl": {
+      "sha256": "6c8f38647800f8bd4c9d0ea9c19a34786765efb08807f60fbcf163f54570a878",
+      "bytes": 52083,
+      "rows": 58
+    },
+    "MUNHAK/google_lodging_ids.jsonl": {
+      "sha256": "4644975b627998e3bc3d2eb18291f5243f02da0481760a85e257449f15216b9c",
+      "bytes": 8772,
+      "rows": 129
+    },
+    "MUNHAK/public_places.jsonl": {
+      "sha256": "87de127243848951b420cc02d922cb9b417eda715d9c9e5c95fbac113d423e37",
+      "bytes": 70450,
+      "rows": 79
     },
     "SAJIK/google_lodging_ids.jsonl": {
       "sha256": "f6dd5ecf4edb4adcb93855ce7f6b9888fc55bebd54ce17fc87b96f0c6582e7d2",
       "bytes": 22576,
       "rows": 332
     },
-    "CHANGWON/public_places.jsonl": {
-      "sha256": "21f987d04d076fb9ee72cd82f425d8cf05bb1ba6672c0e6c0fd08c74eb9a42e5",
-      "bytes": 5434499,
-      "rows": 3963
+    "SAJIK/public_places.jsonl": {
+      "sha256": "433a59ed3b31a87be1904d1fdc438dd1fe70879db272b393bb8f214a3ff02772",
+      "bytes": 40904,
+      "rows": 46
     },
-    "CHANGWON/convenience_review.jsonl": {
-      "sha256": "9fe16aa4c9907ebda8f6a0263e4998f71a704c553c953a9d6834af7d835d5bfe",
-      "bytes": 25792,
-      "rows": 17
+    "SUWON/google_lodging_ids.jsonl": {
+      "sha256": "7a901308881e0b302e4ff697edc5be74d374b46c33dcec62d0acc6b79ec6e349",
+      "bytes": 27676,
+      "rows": 407
     },
-    "CHANGWON/google_lodging_ids.jsonl": {
-      "sha256": "5c756956e62d84ca27d858d91cc34f7ac8711064db49fb28fcfcbcbcb7c791c7",
-      "bytes": 19244,
-      "rows": 283
+    "SUWON/public_places.jsonl": {
+      "sha256": "87e4c1f7bcf414b2714020833e634af5423ed405b51ab6583f9da87754d6e4bb",
+      "bytes": 62663,
+      "rows": 68
     }
   },
   "totals": {
-    "public_places.jsonl": 37027,
-    "convenience_review.jsonl": 387,
-    "google_lodging_ids.jsonl": 3209
+    "google_lodging_ids.jsonl": 3209,
+    "public_places.jsonl": 527
+  },
+  "revision": {
+    "date": "2026-10-04",
+    "reason": "Remove SBIZ records; retain original PARK, TOUR and Google ID records",
+    "removed_source": "SBIZ",
+    "removed_records": {
+      "public": 36500,
+      "review": 387
+    }
   }
 }
