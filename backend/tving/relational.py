@@ -324,6 +324,25 @@ def read_daily(day):
     return {"date": day, "games": [_game_json(game) for game in games], "standings": [standing(row) for row in standings], "individualRankings": {"pitchers": [ranking(row) for row in pitchers], "hitters": [ranking(row) for row in hitters]}, "sourceUpdatedAt": None, "mode": "fixed-interval"}
 
 
+def read_next_game_day(day):
+    """수집된 일정 중 다음 예정 경기일을 찾는다. 취소 경기와 달력에서 빠진 경기는 제외한다."""
+    markers = ScheduleDay.objects.filter(date__gt=day, status="ready", game_count__gt=0).order_by("date")
+    for marker in markers.iterator():
+        rows = list(Game.objects.filter(
+            game_date=marker.date, source="tving", source_external_code__in=marker.game_codes,
+        ).select_related("home_team", "away_team", "stadium").order_by("game_time", "source_external_code"))
+        if len(rows) != marker.game_count:
+            raise RelationalDataError("incomplete next game day")
+        games = [row for row in rows if row.status_code == "scheduled"]
+        if games:
+            synced = [marker.source_fetched_at, marker.last_synced_at]
+            synced += [value for row in games for value in (row.source_fetched_at, row.last_synced_at)]
+            if any(value is None for value in synced):
+                raise RelationalDataError("missing next game sync time")
+            return [_game_json(row) for row in games], min(synced)
+    return [], None
+
+
 def read_month(month, today):
     year, number = int(month[:4]), int(month[5:])
     import calendar

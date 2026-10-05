@@ -24,7 +24,7 @@ from .parsers import (
 from .relational import (
     RelationalDataError, TEAM_MAP, athlete_sync_time, daily_sync_time, month_sync_time,
     persist_athlete, persist_daily, persist_month, persist_team, read_athlete,
-    read_daily, read_month, read_team, team_for, team_sync_time,
+    read_daily, read_month, read_next_game_day, read_team, team_for, team_sync_time,
 )
 
 
@@ -328,6 +328,18 @@ def refresh_daily(day, provider=None):
         return data
     parsed_day = datetime.fromisoformat(day).date()
     return _fresh_or_fallback(fetch, persist_daily, lambda: read_daily(day), lambda: daily_sync_time(parsed_day), daily=True)
+
+
+def with_next_games(data):
+    """메인 화면에서만 빈 경기 목록을 다음 경기일로 대체하고 순위 기준일은 유지한다."""
+    if data["games"]:
+        return data
+    games, synced_at = read_next_game_day(data["date"])
+    if not games:
+        return data
+    checked_at = min(datetime.fromisoformat(data["fetchedAt"]), synced_at)
+    return _envelope({**data, "games": games}, checked_at, checked_at,
+                     stale=data["stale"], warning=data["warning"])
 
 
 def refresh_month(month, provider=None):
