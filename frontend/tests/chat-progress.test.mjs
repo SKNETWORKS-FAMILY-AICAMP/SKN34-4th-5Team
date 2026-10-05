@@ -13,7 +13,7 @@ const frontend = dirname(dirname(fileURLToPath(import.meta.url)));
 const scratch = mkdtempSync(join(tmpdir(), "kbo-chat-progress-test-"));
 after(() => rmSync(scratch, { recursive: true, force: true }));
 symlinkSync(join(frontend, "node_modules"), join(scratch, "node_modules"), "dir");
-for (const name of ["lib/member-auth-request", "lib/chat/planning", "lib/chat/types", "lib/chat/validation", "lib/chat/course", "lib/chat/wire", "lib/chat/history", "lib/chat/client"]) {
+for (const name of ["lib/course-directions", "lib/member-auth-request", "lib/chat/planning", "lib/chat/types", "lib/chat/validation", "lib/chat/course", "lib/chat/wire", "lib/chat/history", "lib/chat/client"]) {
   const source = readFileSync(join(frontend, `${name}.ts`), "utf8");
   const { outputText } = ts.transpileModule(source, {
     fileName: `${name}.ts`, compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
@@ -58,8 +58,58 @@ const { commitChatLoad, restoreChatMessages } = require("./lib/chat/history.js")
 const { ChatClientError, fetchChatHistory, sendChatMessage } = require("./lib/chat/client.js");
 const { ChatPending } = require("./components/chat-pending.js");
 const { ChatProgress } = require("./components/chat-progress.js");
+const { ChatAnswer } = require("./components/chat-answer.js");
 const { appendTimeline, buildTimeline } = require("./lib/chat/types.js");
 const toolItems = tools => tools.length ? [{ kind: "tools", tools: tools.map(tool => ({ kind: "tool", parentId: null, ...tool })) }] : [];
+
+test("course source chips follow each matching timeline step and hide raw URLs", () => {
+  const html = renderToStaticMarkup(React.createElement(ChatAnswer, {
+    text: "11:20 식당 — 점심\n12:10 카페 — 커피\n13:15 구장 입장\n\n식당에 다시 안내",
+    places: [{ name: "식당", time: "11:20", placeUrl: "https://place.map.kakao.com/1" },
+             { name: "카페", time: "12:10", placeUrl: "https://place.map.kakao.com/2" }, { name: "구장", time: "13:15" }],
+  }));
+  assert.equal((html.match(/class="chat-place-source"/g) ?? []).length, 2);
+  assert.match(html, /점심<a[^>]+href="https:\/\/place.map.kakao.com\/1"/);
+  assert.match(html, /커피<a[^>]+href="https:\/\/place.map.kakao.com\/2"/);
+  assert.match(html, /target="_blank" rel="noopener noreferrer"/);
+  assert.doesNotMatch(html.replace(/<[^>]+>/g, ""), /https?:\/\//);
+});
+
+test("lodging condition sources render as small Yanolja chips without duplicate or raw URLs", () => {
+  const url = "https://nol.yanolja.com/stay/domestic/3012501";
+  const html = renderToStaticMarkup(React.createElement(ChatAnswer, {
+    text: `21:30 숙소 — 금연 객실 부합 [야놀자](${url})`,
+    places: [{ name: "숙소", time: "21:30", placeUrl: url }],
+  }));
+  assert.equal((html.match(/class="chat-place-source"/g) ?? []).length, 1);
+  assert.match(html, /target="_blank" rel="noopener noreferrer"/);
+  assert.match(html, /야놀자 <span/);
+  assert.doesNotMatch(html.replace(/<[^>]+>/g, ""), /https?:\/\//);
+  const unsafe = renderToStaticMarkup(React.createElement(ChatAnswer, {
+    text: "[야놀자](javascript:alert(1)) [야놀자](https://nol.yanolja.com.evil.test/stay/domestic/1)",
+  }));
+  assert.doesNotMatch(unsafe, /<a /);
+});
+
+test("menu and review evidence render beside their course step without displaying the URL", () => {
+  const html = renderToStaticMarkup(React.createElement(ChatAnswer, {
+    text: "- 11:00 식당 — 돈까스 근거 확인 [메뉴 근거](https://example.com/menu?id=1&branch=2)\n- 12:00 카페 — 조용함 근거 확인 [후기 근거](https://example.com/reviews/2)",
+    places: [{ name: "식당", time: "11:00", placeUrl: "https://place.map.kakao.com/1" }],
+  }));
+  assert.equal((html.match(/class="chat-place-source"/g) ?? []).length, 3);
+  assert.match(html, /돈까스 근거 확인 <a[^>]+href="https:\/\/example.com\/menu\?id=1&amp;branch=2"/);
+  assert.match(html, /조용함 근거 확인 <a[^>]+href="https:\/\/example.com\/reviews\/2"/);
+  assert.match(html, /메뉴 근거 확인 \(새 창\)/);
+  assert.match(html, /후기 근거 확인 \(새 창\)/);
+  assert.doesNotMatch(html.replace(/<[^>]+>/g, ""), /https?:\/\//);
+});
+
+test("condition citations cannot turn script schemes or credential URLs into links", () => {
+  const html = renderToStaticMarkup(React.createElement(ChatAnswer, {
+    text: '[메뉴 근거](javascript:alert(1)) [후기 근거](data:text/html,bad) [메뉴 근거](https://user:password@example.com/menu) [메뉴 근거](https://example.com/\"onclick=\"bad)',
+  }));
+  assert.doesNotMatch(html, /<a /);
+});
 
 const SESSION = "22222222-2222-4222-8222-222222222222";
 const USER_MSG = 1;

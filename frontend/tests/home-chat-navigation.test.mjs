@@ -32,6 +32,7 @@ test("home question form hands guest and member questions to chat only on submit
   const calls = [];
   const auth = { useMemberAuth: () => ({ status, user: null }) };
   const chat = { messages: [], conversations: [], draft: "", pending: "", failed: "",
+    queued: [], editingQueuedId: null,
     activeConversationId: "initial-chat", status: null, statusLoading: false,
     editingMessageId: null, timeline: [], openChat: (...args) => calls.push(args) };
   let question = "";
@@ -80,7 +81,8 @@ test("home question form hands guest and member questions to chat only on submit
     "./chat-answer": { ChatAnswer: "answer" }, "./chat-planning": { ChatQuestions: "questions", ChatUserContent: "content", ChatWriterOffer: "offer" },
     "./chat-feedback": { ChatFeedback: "feedback" }, "./chat-course-card": { ChatCourseCard: "course" },
     "./chat-pending": { ChatPending: "pending" }, "./chat-progress": { ChatProgress: "progress", ChatSubAgentStatus: "subagents" },
-    "./chat-usage": { ChatUsage: "usage" } });
+    "./chat-usage": { ChatUsage: "usage" }, "./chat-course-preferences": { ChatCoursePreferences: "preferences" },
+    "./chat-queue": { ChatQueue: "queue" } });
   const destination = load("../app/chat/page.tsx", { "@/components/chat-workspace": workspace });
   assert.equal(destination.default().type, workspace.ChatWorkspace);
   const rendered = workspace.ChatWorkspace();

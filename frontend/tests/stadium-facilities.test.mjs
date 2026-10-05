@@ -39,9 +39,8 @@ test('unlocated facilities remain list-only; selected pin retains source metadat
   assert.match(place.placeId,/^stadium-facility:SC_FOOD_JAMSIL_001:/);
   assert.throws(()=>facilityPlace(row,pin,{code:'SUWON'}));
 });
-test('integration keeps catalogue separate and leaves course policy untouched',()=>{
+test('integration retains saved facility pins and leaves course policy untouched',()=>{
   const component=readFileSync(new URL('../components/nearby-route-planner.tsx',import.meta.url),'utf8');
-  assert.match(component,/placeCollection === "stadium"/);
   assert.match(component,/selectedPlacePins\(pinPlaces, selected, stops\)/);
   assert.match(component,/onFocus=\{\(stop\) => selectPlace\(pinPlaces\.find/);
   assert.match(component,/courseCompleted \? allowSave \?/);

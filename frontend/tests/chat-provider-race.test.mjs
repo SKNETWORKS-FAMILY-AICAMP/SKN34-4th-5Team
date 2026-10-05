@@ -21,7 +21,7 @@ function compile(name) {
   writeFileSync(join(scratch, `${name}.js`), outputText);
 }
 
-for (const name of ["lib/chat/planning", "lib/chat/types", "lib/chat/validation", "lib/chat/history"]) compile(name);
+for (const name of ["lib/client-id", "lib/route-draft", "lib/stadiums", "lib/stadium-locations", "lib/community-rich-content", "lib/google-lodging", "lib/drawn-course", "lib/chat/current-course", "lib/chat/writer-state", "lib/course-directions", "lib/chat/planning", "lib/chat/types", "lib/chat/validation", "lib/chat/course", "lib/chat/history"]) compile(name);
 mkdirSync(join(scratch, "components"), { recursive: true });
 
 const providerSource = readFileSync(join(frontend, "components/chat-provider.tsx"), "utf8")
@@ -30,6 +30,8 @@ const providerSource = readFileSync(join(frontend, "components/chat-provider.tsx
   .replaceAll('from "@/lib/chat/types"', 'from "../lib/chat/types"')
   .replace('from "@/lib/chat/client"', 'from "../test-chat-client"')
   .replace('from "@/lib/chat/history"', 'from "../lib/chat/history"')
+  .replace('from "@/lib/chat/course"', 'from "../lib/chat/course"')
+  .replace('from "@/lib/chat/writer-state"', 'from "../lib/chat/writer-state"')
   .replace('from "@/lib/member-auth"', 'from "../test-member-auth"')
   .replace('from "@/lib/client-id"', 'from "../test-client-id"')
   .replace('from "./chat-popup"', 'from "../test-popup"');
@@ -55,12 +57,13 @@ writeFileSync(join(scratch, "test-client-id.js"), `exports.createClientId = () =
 writeFileSync(join(scratch, "components/chat-planning.js"), `exports.ChatQuestions = () => null; exports.ChatWriterOffer = () => null;`);
 writeFileSync(join(scratch, "test-popup.js"), `exports.ChatPopup = () => null;`);
 writeFileSync(join(scratch, "test-chat-client.js"), `
-class ChatClientError extends Error {}
+class ChatClientError extends Error { constructor(message, status, uncertain = false, sessionId, code) { super(message); Object.assign(this, {status, uncertain, sessionId, code}); } }
 class ChatStreamStoppedError extends ChatClientError {}
 exports.ChatClientError = ChatClientError;
 exports.ChatStreamStoppedError = ChatStreamStoppedError;
+exports.USAGE_BUSY = "usage_busy";
 exports.GUEST_STATUS = { provider: "guest", model: "guest", ready: true };
-for (const name of ["deleteChatMessages", "deleteChatSession", "editChatMessage", "fetchChatHistory", "getChatStatus", "listChatSessions", "sendChatMessage", "saveAnswerFeedback"])
+for (const name of ["deleteChatMessages", "deleteChatSession", "editChatMessage", "fetchChatHistory", "fetchChatUsage", "getChatStatus", "listChatSessions", "sendChatMessage", "saveAnswerFeedback"])
   exports[name] = (...args) => global.__chatApi[name](...args);
 `);
 
@@ -133,12 +136,105 @@ const unused = async () => { throw new Error("not used"); };
 const baseApi = {
   deleteChatMessages: unused, deleteChatSession: unused, editChatMessage: unused, sendChatMessage: unused,
   fetchChatHistory: async () => [],
+  fetchChatUsage: async () => ({ active_turn: false, can_send: true }),
   getChatStatus: async mode => ({ provider: mode === "member" ? "backend" : "guest", model: "server", ready: true }),
 };
 
+test("new course draws pins once for the current stadium and survives history reconciliation", async () => {
+  global.__memberAuth = { status: "anonymous", user: null };
+  const course = { stadiumCode: "JAMSIL", notes: [], places: [{ name: "잠실 식당", phase: "BEFORE", category: "FOOD", lat: 37.51, lng: 127.07 }] };
+  let stored = [], request, applied = 0;
+  global.__chatApi = { ...baseApi, listChatSessions: async () => [], fetchChatHistory: async () => stored,
+    sendChatMessage: async (_, body) => {
+      request = body;
+      stored = [row(1, "user", body.content), { ...row(2, "assistant", "잠실 코스"), course }];
+      return { reply: "잠실 코스", sessionId: FIRST, assistantMessageId: 2, provider: "guest", model: "test", ready: true, course };
+    } };
+  const runner = hookRunner(); let c = runner.render(); runner.flushEffects(); await tick(); c = runner.render();
+  c.onContextChange({ stadium: "CHANGWON", intent: "route" });
+  c.registerCourseTarget({ stadiumCode: "JAMSIL", stopCount: 0, apply: () => { applied++; return () => {}; } });
+  c.onDraftChange("식사와 카페 코스"); c = runner.render(); c.onSend(); await tick(); c = runner.render();
+  assert.equal(request.context.stadium, "JAMSIL");
+  assert.equal(applied, 1);
+  const answer = c.messages.find(message => message.role === "assistant");
+  assert.equal(answer.course.stadiumCode, "JAMSIL");
+  assert.ok(c.appliedCourses.get(answer.course)?.undo);
+  runner.unmount();
+});
+
+test("a new stadium or team course moves the map and retains undo", async () => {
+  for (const question of ["이번엔 롯데로 짜줘", "잠실 말고 사직으로 바꿔줘"]) {
+    global.__memberAuth = { status: "anonymous", user: null };
+    const course = { stadiumCode: "SAJIK", places: [], notes: [] };
+    let applied, undone = false;
+    global.__chatApi = { ...baseApi, listChatSessions: async () => [], sendChatMessage: async () => ({ reply: "사직 코스", provider: "guest", model: "test", ready: true, course }) };
+    const runner = hookRunner(); let c = runner.render(); runner.flushEffects(); await tick(); c = runner.render();
+    c.registerCourseTarget({ stadiumCode: "JAMSIL", stopCount: 4, apply: (value, how) => { applied = { value, how }; return () => { undone = true; }; } });
+    c.onDraftChange(question); c = runner.render(); c.onSend(); await tick(); c = runner.render(); runner.flushEffects();
+    assert.equal(applied.value.stadiumCode, "SAJIK");
+    assert.equal(applied.how, "replace");
+    assert.match(c.appliedCourses.get(course).message, /구장을 바꾸고/);
+    c.undoChatCourse(course);
+    assert.equal(undone, true);
+    runner.unmount();
+  }
+});
+
+test("a late course preserves a newer map selection, including switching back or remounting", async () => {
+  for (const change of ["other", "back", "remount", "segment"]) {
+    global.__memberAuth = { status: "anonymous", user: null };
+    const pending = deferred(); let applied = 0;
+    global.__chatApi = { ...baseApi, listChatSessions: async () => [], sendChatMessage: () => pending.promise };
+    const runner = hookRunner(); let c = runner.render(); runner.flushEffects(); await tick(); c = runner.render();
+    c.registerCourseTarget({ stadiumCode: "JAMSIL", stopCount: 0, apply: () => { applied++; return () => {}; } });
+    c.onDraftChange("코스"); c = runner.render(); c.onSend();
+    c.registerCourseTarget(change === "remount" ? null : { stadiumCode: change === "segment" ? "JAMSIL" : "GOCHEOK", selectionKey: change === "segment" ? "new segment" : undefined, stopCount: 0, apply: () => { applied++; return () => {}; } });
+    if (change === "back" || change === "remount") c.registerCourseTarget({ stadiumCode: "JAMSIL", stopCount: 0, apply: () => { applied++; return () => {}; } });
+    pending.resolve({ reply: "코스", provider: "guest", model: "test", ready: true,
+      course: { stadiumCode: "SAJIK", places: [], notes: [] } });
+    await tick(); c = runner.render();
+    assert.equal(applied, 0);
+    runner.unmount();
+  }
+});
+
+test("send reads the authoritative course immediately and late replies check its revision without waiting for registration", async () => {
+  for (const changed of [false, true]) {
+    global.__memberAuth = { status: "anonymous", user: null };
+    const pending = deferred(); let body, applied = 0, revision = 2;
+    let latest = { stadium: "SAJIK", currentCourse: { places: ["manual cafe"], writerState: { origin: null } } };
+    global.__chatApi = { ...baseApi, listChatSessions: async () => [], sendChatMessage: (_, value) => { body = value; return pending.promise; } };
+    const runner = hookRunner(); let chat = runner.render(); runner.flushEffects(); await tick(); chat = runner.render();
+    chat.onContextChange({ stadium: "JAMSIL", currentCourse: { places: ["stale"] } });
+    chat.registerCourseTarget({ stadiumCode: "JAMSIL", stopCount: 0, getContext: () => latest, getVersion: () => String(revision),
+      apply: () => { applied++; return () => true; } });
+    chat.onDraftChange("카페만 바꿔줘"); chat = runner.render(); chat.onSend();
+    assert.deepEqual(body.context, latest);
+    if (changed) { revision++; latest = { stadium: "SAJIK", currentCourse: { places: [], writerState: { origin: null } } }; }
+    pending.resolve({ reply: "카페 변경", provider: "guest", model: "test", ready: true, course: { stadiumCode: "SAJIK", places: [], notes: [] } });
+    await tick(); chat = runner.render();
+    assert.equal(applied, changed ? 0 : 1);
+    runner.unmount();
+  }
+});
+
+test("a rejected stale undo is reported as preserving the newer course", async () => {
+  global.__memberAuth = { status: "anonymous", user: null };
+  global.__chatApi = { ...baseApi, listChatSessions: async () => [] };
+  const runner = hookRunner(); let chat = runner.render(); runner.flushEffects(); await tick(); chat = runner.render();
+  const course = { stadiumCode: "JAMSIL", places: [], notes: [] };
+  chat.registerCourseTarget({ stadiumCode: "JAMSIL", stopCount: 1, apply: () => () => false });
+  chat.applyChatCourse(course, "replace"); chat = runner.render(); runner.flushEffects();
+  chat.undoChatCourse(course); chat = runner.render();
+  assert.match(chat.appliedCourses.get(course).message, /최신 내용을 유지/);
+  assert.equal(chat.appliedCourses.get(course).undo, null);
+  runner.unmount();
+});
+
 global.window = {
   location: { pathname: "/", search: "", hash: "", origin: "http://localhost" }, scrollY: 0,
-  setTimeout: () => 1, clearTimeout() {}, setInterval: callback => { global.__timer = callback; return 1; }, clearInterval() { global.__timer = null; },
+  setTimeout: (callback, delay) => { if (delay === 1200) global.__queueTimer = callback; return 1; }, clearTimeout() {}, setInterval: callback => { global.__timer = callback; return 1; }, clearInterval() { global.__timer = null; },
+  addEventListener() {}, removeEventListener() {},
   scrollTo() {}, matchMedia: () => ({ matches: false }),
 };
 global.requestAnimationFrame = callback => { callback(); return 1; };
@@ -405,7 +501,7 @@ for (const [path, exportName] of [["components/chat-workspace", "ChatWorkspace"]
       .replace('from "next/image"', 'from "../test-surface-stub"')
       .replace('from "@/lib/chat/types"', 'from "../lib/chat/types"')
       .replace('from "@/lib/member-auth"', 'from "../test-member-auth"')
-      .replace(/from "\.\/(chat-provider|icons|chat-answer|chat-course-card|chat-pending|chat-progress|chat-usage|chat-feedback)"/g, 'from "../test-surface-stub"');
+      .replace(/from "\.\/(chat-provider|icons|chat-answer|chat-course-card|chat-course-preferences|chat-queue|chat-pending|chat-progress|chat-usage|chat-feedback)"/g, 'from "../test-surface-stub"');
     writeFileSync(join(scratch, `${path}.js`), ts.transpileModule(source, {
       fileName: `${path}.tsx`, compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
     }).outputText);
@@ -417,6 +513,7 @@ for (const [path, exportName] of [["components/chat-workspace", "ChatWorkspace"]
       messages: [], conversations: [{ id: "initial-chat", title: "새 대화" }], activeConversationId: "initial-chat",
       draft: "잠실 맛집 알려 주세요", pending: "잠실 맛집 알려 주세요", streaming: "", timeline: [], failed: "", error: "", notice: "",
       editingMessageId: null, status: { provider: "guest", model: "m", ready: true }, statusLoading: false, statusError: "",
+      queued: [], editingQueuedId: null,
       onCancel: () => { cancelled += 1; },
     }, { get: (target, key) => key in target ? target[key] : () => {} });
     const require = createRequire(join(scratch, "entry.cjs"));
@@ -652,4 +749,239 @@ test("edit and delete start cancel writer countdown including delete failure and
   if(action==="edit")c.onEditMessage(1);else c.onDeleteMessage(1);await tick();c=runner.render();runner.flushEffects();assert.equal(c.writerSeconds,null);assert.deepEqual(global.__pushes,[]);if(action==="delete")assert.equal(c.error,"delete offline");runner.unmount();
  }
  global.__path="/";
+});
+
+const queueReply = text => ({ reply: text, ready: true, model: "test", provider: "guest" });
+async function renderEffects(runner) {
+  global.__path = "/chat";
+  let chat;
+  for (let i = 0; i < 3; i++) { chat = runner.render(); runner.flushEffects(); await tick(); }
+  return runner.render();
+}
+function typeAndSend(runner, text) {
+  runner.render().onDraftChange(text);
+  runner.render().onSend();
+  return runner.render();
+}
+
+test("queues at most two follow-ups, keeps the active answer, and sends each exactly once in order", async () => {
+  global.__memberAuth = { status: "anonymous", user: null };
+  const waiting = [deferred(), deferred(), deferred()], sent = [], signals = [];
+  global.__chatApi = { ...baseApi, listChatSessions: async () => [], sendChatMessage: (_, body, signal, cb) => {
+    const index = sent.length; sent.push(body.content); signals.push(signal); cb.onDelta("답변 중", null); return waiting[index].promise;
+  } };
+  const runner = hookRunner(); await renderEffects(runner);
+  typeAndSend(runner, "첫 질문"); typeAndSend(runner, "두 번째"); typeAndSend(runner, "세 번째");
+  let chat = typeAndSend(runner, "한도 밖 질문");
+  assert.deepEqual(chat.queued.map(q => q.content), ["두 번째", "세 번째"]);
+  assert.equal(chat.draft, "한도 밖 질문"); assert.match(chat.notice, /최대 2개/); assert.equal(signals[0].aborted, false);
+  waiting[0].resolve(queueReply("첫 답변 유지")); chat = await renderEffects(runner);
+  assert.deepEqual(sent, ["첫 질문", "두 번째"]); assert.equal(chat.messages[1].content, "첫 답변 유지");
+  assert.equal(chat.draft, "한도 밖 질문"); assert.equal(chat.queued.length, 1);
+  waiting[1].resolve(queueReply("둘째 답변")); await renderEffects(runner);
+  assert.deepEqual(sent, ["첫 질문", "두 번째", "세 번째"]);
+  waiting[2].resolve(queueReply("셋째 답변")); chat = await renderEffects(runner);
+  assert.equal(chat.queued.length, 0); assert.equal(chat.messages.length, 6); runner.unmount();
+});
+
+test("editing a queued question holds dispatch, preserves its position and restores unrelated composer text", async () => {
+  global.__memberAuth = { status: "anonymous", user: null };
+  const first = deferred(), sent = [];
+  global.__chatApi = { ...baseApi, listChatSessions: async () => [], sendChatMessage: (_, body) => {
+    sent.push(body.content); return sent.length === 1 ? first.promise : Promise.resolve(queueReply("수정 반영"));
+  } };
+  const runner = hookRunner(); await renderEffects(runner);
+  typeAndSend(runner, "현재 질문"); typeAndSend(runner, "취소할 질문"); let chat = typeAndSend(runner, "고칠 질문");
+  const [cancelled, edited] = chat.queued; chat.onDraftChange("작성 중인 초안"); chat = runner.render(); chat.onEditQueued(edited.id);
+  first.resolve(queueReply("원래 답변")); chat = await renderEffects(runner);
+  assert.deepEqual(sent, ["현재 질문"]); assert.equal(chat.draft, "고칠 질문");
+  chat.onRemoveQueued(cancelled.id); chat.onDraftChange("고친 예약 질문"); runner.render().onSend();
+  chat = await renderEffects(runner);
+  assert.deepEqual(sent, ["현재 질문", "고친 예약 질문"]); assert.equal(chat.draft, "작성 중인 초안");
+  assert.equal(chat.editingQueuedId, null); runner.unmount();
+});
+
+test("cancel queued edit leaves original text; cancelling the queued item never aborts the active answer", async () => {
+  global.__memberAuth = { status: "anonymous", user: null };
+  const first = deferred(); let signal;
+  global.__chatApi = { ...baseApi, listChatSessions: async () => [], sendChatMessage: (_, body, value) => { signal = value; return first.promise; } };
+  const runner = hookRunner(); await renderEffects(runner);
+  typeAndSend(runner, "현재"); let chat = typeAndSend(runner, "원래 예약"); const id = chat.queued[0].id;
+  chat.onEditQueued(id); runner.render().onDraftChange("저장 안 한 수정"); runner.render().onCancelQueuedEdit(); chat = runner.render();
+  assert.equal(chat.queued[0].content, "원래 예약"); chat.onRemoveQueued(id); assert.equal(signal.aborted, false);
+  first.resolve(queueReply("완료")); chat = await renderEffects(runner); assert.equal(chat.queued.length, 0); runner.unmount();
+});
+
+test("server busy keeps an unsent request queued and waits for usage release instead of displaying an error", async () => {
+  global.__memberAuth = { status: "anonymous", user: null };
+  const { ChatClientError } = createRequire(join(scratch, "entry.cjs"))("./test-chat-client.js");
+  let attempts = 0, active = true;
+  global.__chatApi = { ...baseApi, listChatSessions: async () => [], fetchChatUsage: async () => ({ active_turn: active, can_send: !active }),
+    sendChatMessage: async () => { if (++attempts === 1) throw new ChatClientError("busy", 409, false, FIRST, "usage_busy"); return queueReply("자동 재전송 완료"); } };
+  const runner = hookRunner(); await renderEffects(runner); typeAndSend(runner, "다른 답변 뒤에 보내줘"); let chat = await renderEffects(runner);
+  assert.equal(chat.queued.length, 1); assert.equal(chat.error, ""); assert.equal(chat.failed, ""); assert.equal(attempts, 1);
+  assert.equal(chat.messages.length, 0); assert.equal(chat.queueWaitingForServer, true);
+  active = false; global.__queueTimer(); chat = await renderEffects(runner);
+  assert.equal(chat.queueWaitingForServer, false);
+  assert.equal(attempts, 2); assert.equal(chat.queued.length, 0); assert.equal(chat.messages.at(-1).content, "자동 재전송 완료"); runner.unmount();
+});
+
+test("retry of a stored failed question queues the same PUT and does not duplicate questions or confirmations", async () => {
+  global.__memberAuth = { status: "anonymous", user: null };
+  const { ChatClientError } = createRequire(join(scratch, "entry.cjs"))("./test-chat-client.js");
+  let stored = [], sends = 0, edits = 0, confirms = 0, active = true;
+  global.window.confirm = () => { confirms++; return true; };
+  global.__chatApi = { ...baseApi, listChatSessions: async () => [], fetchChatHistory: async () => stored,
+    fetchChatUsage: async () => ({ active_turn: active, can_send: !active }),
+    sendChatMessage: async (_, body) => {
+      sends++; stored = [row(1, "user", body.content, "failed")];
+      throw new ChatClientError("offline", 503, false, FIRST);
+    },
+    editChatMessage: async (_, body) => {
+      assert.equal(body.messageId, 1); assert.equal(body.sessionId, FIRST);
+      if (++edits === 1) throw new ChatClientError("busy", 409, false, FIRST, "usage_busy");
+      stored = [row(1, "user", body.content), row(2, "assistant", "코스 완료")];
+      return { ...queueReply("코스 완료"), sessionId: FIRST, assistantMessageId: 2 };
+    } };
+  const runner = hookRunner(); await renderEffects(runner);
+  typeAndSend(runner, "스테이크 카페 경기 호텔 코스"); let chat = await renderEffects(runner);
+  assert.equal(chat.messages[0].status, "failed"); chat.onRetry(); chat = await renderEffects(runner);
+  assert.equal(chat.error, ""); assert.equal(chat.failed, ""); assert.equal(chat.queued[0].edit.messageId, 1);
+  assert.equal(chat.messages.length, 1); assert.equal(edits, 1);
+  active = false; global.__queueTimer(); chat = await renderEffects(runner);
+  assert.deepEqual([sends, edits, confirms], [1, 2, 1]); assert.equal(chat.queued.length, 0);
+  assert.equal(chat.messages.filter(message => message.role === "user").length, 1);
+  assert.equal(chat.messages.at(-1).content, "코스 완료"); runner.unmount();
+});
+
+test("busy queued edits preserve their target when changed and leave history intact when cancelled", async () => {
+  for (const cancel of [false, true]) {
+    global.__memberAuth = { status: "anonymous", user: null }; global.window.confirm = () => true;
+    const { ChatClientError } = createRequire(join(scratch, "entry.cjs"))("./test-chat-client.js");
+    const original = [row(1, "user", "기존 질문"), row(2, "assistant", "기존 답변")];
+    let stored = original, active = true; const edits = [];
+    global.__chatApi = { ...baseApi, listChatSessions: async () => [rooms[0]], fetchChatHistory: async () => stored,
+      fetchChatUsage: async () => ({ active_turn: active, can_send: !active }),
+      editChatMessage: async (_, body) => {
+        edits.push(body);
+        if (edits.length === 1) throw new ChatClientError("busy", 409, false, FIRST, "usage_busy");
+        stored = [row(1, "user", body.content), row(2, "assistant", "수정 답변")];
+        return { ...queueReply("수정 답변"), sessionId: FIRST };
+      } };
+    const runner = hookRunner(); let chat = await renderEffects(runner);
+    chat.onEditMessage(1); typeAndSend(runner, "수정 질문"); chat = await renderEffects(runner);
+    assert.deepEqual(chat.messages.map(message => message.content), ["기존 질문", "기존 답변"]);
+    const id = chat.queued[0].id; chat.onEditQueued(id); chat = await renderEffects(runner);
+    chat.onDraftChange("예약에서 고친 질문"); runner.render().onSend();
+    chat = await renderEffects(runner); assert.equal(chat.queued[0].edit.messageId, 1);
+    if (cancel) chat.onRemoveQueued(id);
+    active = false; global.__queueTimer(); chat = await renderEffects(runner);
+    assert.equal(edits.length, cancel ? 1 : 2); assert.equal(chat.queued.length, 0);
+    if (cancel) assert.deepEqual(stored, original);
+    else { assert.equal(edits[1].messageId, 1); assert.equal(edits[1].content, "예약에서 고친 질문"); }
+    runner.unmount();
+  }
+});
+
+test("queued edits pause for changed or deleted history and never replace newly arrived answers without consent", async () => {
+  for (const removed of [false, true]) {
+    global.__memberAuth = { status: "anonymous", user: null }; global.window.confirm = () => true;
+    const { ChatClientError } = createRequire(join(scratch, "entry.cjs"))("./test-chat-client.js");
+    let stored = [row(1, "user", "기존 질문", "failed")], active = true, edits = 0;
+    global.__chatApi = { ...baseApi, listChatSessions: async () => [rooms[0]], fetchChatHistory: async () => stored,
+      fetchChatUsage: async () => ({ active_turn: active, can_send: !active }),
+      editChatMessage: async (_, body) => {
+        if (++edits === 1) throw new ChatClientError("busy", 409, false, FIRST, "usage_busy");
+        assert.equal(body.messageId, 1);
+        stored = [row(1, "user", body.content), row(2, "assistant", "다시 받은 답변")];
+        return { ...queueReply("다시 받은 답변"), sessionId: FIRST };
+      } };
+    const runner = hookRunner(); let chat = await renderEffects(runner);
+    chat.onEditMessage(1); typeAndSend(runner, "수정 질문"); chat = await renderEffects(runner);
+    stored = removed ? [] : [row(1, "user", "기존 질문"), row(2, "assistant", "다른 탭에서 받은 답변")];
+    active = false; global.__queueTimer(); chat = await renderEffects(runner);
+    assert.equal(chat.queuePaused, true); assert.equal(edits, 1); assert.equal(chat.queued.length, 1);
+    global.window.confirm = () => false; chat.onResumeQueue(); chat = await renderEffects(runner);
+    assert.equal(chat.queuePaused, true); assert.equal(edits, 1);
+    if (removed) {
+      assert.match(chat.notice, /질문이 없어졌어요/); chat.onRemoveQueued(chat.queued[0].id);
+    } else {
+      assert.equal(chat.messages.at(-1).content, "다른 탭에서 받은 답변");
+      global.window.confirm = () => true; chat.onResumeQueue(); chat = await renderEffects(runner);
+      assert.equal(edits, 2); assert.equal(chat.queued.length, 0);
+    }
+    runner.unmount();
+  }
+});
+
+test("failed or stopped answers pause the remaining queue without silently submitting dependent follow-ups", async () => {
+  for (const stop of [false, true]) {
+    global.__memberAuth = { status: "anonymous", user: null };
+    let reject, calls = 0;
+    global.__chatApi = { ...baseApi, listChatSessions: async () => [], sendChatMessage: (_, body, signal) => {
+      if (++calls > 1) return Promise.resolve(queueReply("재개 완료"));
+      return new Promise((resolve, fail) => { reject = fail; signal.addEventListener("abort", () => fail(new Error("stopped")), { once: true }); });
+    } };
+    const runner = hookRunner(); await renderEffects(runner); typeAndSend(runner, "첫 질문"); let chat = typeAndSend(runner, "대기 질문");
+    if (stop) chat.onCancel(); else reject(new Error("offline")); chat = await renderEffects(runner);
+    assert.equal(chat.queuePaused, true); assert.equal(chat.queued.length, 1); assert.equal(calls, 1);
+    chat.onResumeQueue(); chat = await renderEffects(runner); assert.equal(calls, 2); assert.equal(chat.queued.length, 0); runner.unmount();
+  }
+});
+
+test("queued follow-up uses the map updated by the prior answer, never the old course captured on enqueue", async () => {
+  global.__memberAuth = { status: "anonymous", user: null };
+  const first = deferred(), requests = [];
+  global.__chatApi = { ...baseApi, listChatSessions: async () => [], sendChatMessage: (_, body) => {
+    requests.push(body); return requests.length === 1 ? first.promise : Promise.resolve(queueReply("후속 답변"));
+  } };
+  const runner = hookRunner(); let chat = await renderEffects(runner);
+  chat.onContextChange({ stadium: "JAMSIL", currentCourse: { places: ["old"] } });
+  chat.registerCourseTarget({ stadiumCode: "JAMSIL", stopCount: 1, apply: () => null });
+  typeAndSend(runner, "코스 생성"); typeAndSend(runner, "카페만 바꿔줘");
+  runner.render().onContextChange({ stadium: "JAMSIL", currentCourse: { places: ["latest"] } });
+  first.resolve(queueReply("새 코스")); await renderEffects(runner);
+  assert.deepEqual(requests[1].context.currentCourse.places, ["latest"]); runner.unmount();
+});
+
+test("identity change drops queued requests and late completion cannot submit them for the next account", async () => {
+  global.__memberAuth = { status: "authenticated", user: { id: 100 } };
+  const first = deferred(); let calls = 0;
+  global.__chatApi = { ...baseApi, listChatSessions: async () => [], sendChatMessage: () => { calls++; return first.promise; } };
+  const runner = hookRunner(); await renderEffects(runner); typeAndSend(runner, "첫 계정"); typeAndSend(runner, "예약");
+  global.__memberAuth = { status: "authenticated", user: { id: 200 } }; let chat = await renderEffects(runner);
+  assert.equal(chat.queued.length, 0); first.resolve(queueReply("늦은 답변")); chat = await renderEffects(runner);
+  assert.equal(calls, 1); assert.equal(chat.messages.length, 0); runner.unmount();
+});
+
+test("cancelling the queue while the usage check is pending never sends the cancelled item", async () => {
+  global.__memberAuth = { status: "anonymous", user: null };
+  const first = deferred(), usage = deferred(); let calls = 0;
+  global.__chatApi = { ...baseApi, listChatSessions: async () => [], fetchChatUsage: () => usage.promise,
+    sendChatMessage: () => { calls++; return first.promise; } };
+  const runner = hookRunner(); await renderEffects(runner); typeAndSend(runner, "현재"); typeAndSend(runner, "취소할 예약");
+  first.resolve(queueReply("완료")); let chat = await renderEffects(runner); chat.onRemoveQueued(chat.queued[0].id);
+  usage.resolve({ active_turn: false, can_send: true }); chat = await renderEffects(runner);
+  assert.equal(chat.queued.length, 0); assert.equal(calls, 1); runner.unmount();
+});
+
+test("a paused queue stays with its conversation and cannot leak into another room", async () => {
+  global.__memberAuth = { status: "anonymous", user: null };
+  let reject, calls = 0;
+  global.__chatApi = { ...baseApi, listChatSessions: async () => [], sendChatMessage: () => { calls++; return new Promise((resolve, fail) => { reject = fail; }); } };
+  const runner = hookRunner(); await renderEffects(runner); typeAndSend(runner, "기존 대화"); typeAndSend(runner, "기존 예약");
+  reject(new Error("offline")); let chat = await renderEffects(runner); const room = chat.activeConversationId;
+  chat.onReset(); chat = await renderEffects(runner); assert.equal(chat.queued.length, 0);
+  chat.onSelectConversation(room); chat = await renderEffects(runner);
+  assert.equal(chat.queued[0].content, "기존 예약"); assert.equal(chat.queuePaused, true); assert.equal(calls, 1); runner.unmount();
+});
+
+test("exhausted usage preserves queued text and pauses instead of repeatedly posting", async () => {
+  global.__memberAuth = { status: "anonymous", user: null };
+  const first = deferred(); let calls = 0;
+  global.__chatApi = { ...baseApi, listChatSessions: async () => [], fetchChatUsage: async () => ({ active_turn: false, can_send: false }),
+    sendChatMessage: () => { calls++; return first.promise; } };
+  const runner = hookRunner(); await renderEffects(runner); typeAndSend(runner, "현재"); typeAndSend(runner, "남길 예약");
+  first.resolve(queueReply("완료")); const chat = await renderEffects(runner);
+  assert.equal(chat.queuePaused, true); assert.equal(chat.queued[0].content, "남길 예약"); assert.equal(calls, 1); runner.unmount();
 });
