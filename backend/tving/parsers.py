@@ -248,6 +248,29 @@ def _roster(payload):
     return athletes
 
 
+def _roster(payload):
+    """Parse the /roaster response band described by the crawler contract."""
+    data = success_data(payload)
+    bands = array(data.get("bands"), "bands", 30)
+    roster_bands = [
+        item for item in bands
+        if isinstance(item, dict)
+        and (item.get("bandType") == "KBO_TEAM_ROASTER" or item.get("bandName") == "KBO_TEAM_ROASTER")
+    ]
+    if len(roster_bands) != 1:
+        fail("KBO_TEAM_ROASTER band")
+    items = array(roster_bands[0].get("items"), "roster items", 100)
+    athletes = [{
+        "code": text(obj(raw, "player").get("code"), "player code", 40),
+        "name": text(obj(raw, "player").get("name"), "player name", 80),
+        "imageUrl": image_url(obj(raw, "player").get("imageUrl"), "player image"),
+        "backNumber": optional_text(obj(raw, "player").get("backNumber"), "back number", 20),
+    } for raw in items]
+    if len({item["code"] for item in athletes}) != len(athletes):
+        fail("duplicate player code")
+    return athletes
+
+
 def parse_team_detail(code, payload, rankings, rosters):
     if code not in TEAM_CODES:
         fail("구단 코드")
