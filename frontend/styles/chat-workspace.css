@@ -73,7 +73,7 @@
 .workspace-icon-button { display: grid; place-items: center; flex-shrink: 0; width: 38px; height: 38px; padding: 0; border: 0; border-radius: 10px; color: #7385a0; background: transparent; }
 .workspace-icon-button:hover { background: #e8f0fc; }
 .workspace-menu-button { display: none; }
-.workspace-transcript { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 23px 34px 35px; scrollbar-gutter: stable both-edges; scrollbar-width: thin; scrollbar-color: #dfe6f0 transparent; }
+.workspace-transcript { position: relative; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 23px 34px 35px; scrollbar-gutter: stable both-edges; scrollbar-width: thin; scrollbar-color: #dfe6f0 transparent; }
 .workspace-reading-column { width: 100%; max-width: 760px; margin-inline: auto; }
 .workspace-transcript.is-empty { display: flex; align-items: safe center; }
 .workspace-welcome { padding: 15px 0 40px; text-align: center; }

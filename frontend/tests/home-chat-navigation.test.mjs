@@ -27,6 +27,15 @@ function elements(node) {
   return [node, ...elements(node.props.children)];
 }
 
+test("workspace transcript contains absolute accessibility content and keeps inner scrolling", () => {
+  const css = readFileSync(new URL("../styles/chat-workspace.css", import.meta.url), "utf8");
+  const transcript = css.match(/\.workspace-transcript\s*\{([^}]+)\}/)?.[1];
+  assert.ok(transcript);
+  assert.match(transcript, /position:\s*relative\s*;/);
+  assert.match(transcript, /overflow-y:\s*auto\s*;/);
+  assert.match(transcript, /min-height:\s*0\s*;/);
+});
+
 test("home question form hands guest and member questions to chat only on submit", () => {
   let status = "anonymous";
   const calls = [];
