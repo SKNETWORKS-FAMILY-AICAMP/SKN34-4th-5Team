@@ -1431,7 +1431,8 @@ export interface paths {
         put?: never;
         /**
          * @description 신고 처리.
-         *     hold: 보류(글 유지) / hide: 글 숨김(같은 글의 신고도 숨김 처리) /
+         *     hold: 보류(글 유지) / unhold: 보류 취소(처리 대기로 복귀) /
+         *     hide: 글 숨김(같은 글의 신고도 숨김 처리) /
          *     delete: 글 삭제(신고도 함께 삭제). 화면에서 고른 처분(sanction)은 기록용으로만 받고 계정에는 적용하지 않는다.
          */
         post: operations["v1_community_admin_reports_action_create"];
@@ -2287,11 +2288,12 @@ export interface components {
         };
         /**
          * @description * `hold` - hold
+         *     * `unhold` - unhold
          *     * `hide` - hide
          *     * `delete` - delete
          * @enum {string}
          */
-        AdminReportActionActionEnum: "hold" | "hide" | "delete";
+        AdminReportActionActionEnum: "hold" | "unhold" | "hide" | "delete";
         AdminReportActionResult: {
             action: string;
             sanction: string;
