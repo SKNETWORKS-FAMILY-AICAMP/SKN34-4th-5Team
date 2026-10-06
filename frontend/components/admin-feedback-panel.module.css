@@ -25,7 +25,8 @@
 .selectionHint p { margin-bottom: 0; color: #52647b; word-break: keep-all; }
 .detail { min-width: 0; }
 .detailHeader { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-.detailHeader h2 { margin: 0; }
+.detailHeader h2 { margin: 0; scroll-margin-top: 24px; }
+.detailHeader h2:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
 .detail dt { font-weight: 650; color: #52647b; font-size: 13px; margin-top: 20px; }
 .detail dd { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .snapshot { padding: 20px 24px; background: var(--soft); border-radius: 12px; line-height: 1.9; max-width: 75ch; }

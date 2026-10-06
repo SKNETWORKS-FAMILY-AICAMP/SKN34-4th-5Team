@@ -99,8 +99,8 @@ export function AdminMembersPanel() {
       <div className={styles.tableScroll} role="region" aria-label="회원 목록 가로 스크롤" aria-describedby="members-scroll-hint" tabIndex={0}><table><caption className="sr-only">회원 목록과 관리자 권한</caption>
         <thead><tr>{["회원 번호", "아이디", "권한", "상태", "가입일", "권한 관리"].map(label => <th key={label}>{label}</th>)}</tr></thead>
         <tbody>{data.results.map(member => <tr key={member.id}>
-          <td>{member.id}</td><td>{member.username}</td><td>{memberRoleLabel(member)}</td><td>{member.is_active ? "활성" : "비활성"}</td><td>{member.date_joined.slice(0, 10)}</td>
-          <td>{me?.is_superuser && member.id !== me.id && !member.is_superuser && member.is_active
+          <td className={styles.nowrap}>{member.id}</td><td className={styles.longText}>{member.username}</td><td className={styles.nowrap}>{memberRoleLabel(member)}</td><td className={styles.nowrap}>{member.is_active ? "활성" : "비활성"}</td><td className={styles.nowrap}>{member.date_joined.slice(0, 10)}</td>
+          <td className={styles.nowrap}>{me?.is_superuser && member.id !== me.id && !member.is_superuser && member.is_active
             ? <button type="button" disabled={busy} onClick={() => void changeRole(member)}>{member.is_staff ? "운영 관리자 회수" : "운영 관리자 부여"}</button>
             : <span className={styles.muted}>변경 불가</span>}</td>
         </tr>)}
@@ -141,11 +141,11 @@ export function AdminPostsPanel() {
       <div className={styles.tableScroll} role="region" aria-label="게시글 목록 가로 스크롤" aria-describedby="posts-scroll-hint" tabIndex={0}><table><caption className="sr-only">커뮤니티 게시글 목록</caption>
         <thead><tr>{["글 번호", "게시판", "제목", "작성자", "작성일", "조회", "댓글", "신고", "관리"].map(label => <th key={label}>{label}</th>)}</tr></thead>
         <tbody>{data.results.map(post => <tr key={post.source_id}>
-          <td>{post.post_number}</td><td>{boardLabel(post)}</td>
+          <td className={styles.nowrap}>{post.post_number}</td><td className={styles.nowrap}>{boardLabel(post)}</td>
           <td><Link href={postHref(post)} target="_blank">{post.title}</Link>{post.is_sample && <span className={styles.muted}> (예시)</span>}{post.is_hidden && <span className={styles.hiddenTag}>숨김</span>}</td>
-          <td>{post.author}</td><td>{dateText(post.created_at)}</td><td>{post.views}</td><td>{post.comment_count}</td>
-          <td><span className={`${styles.count}${post.report_count ? ` ${styles.hot}` : ""}`}>{post.report_count}</span></td>
-          <td><button type="button" className={styles.delete} disabled={busy} onClick={() => void remove(post)}>삭제</button></td>
+          <td className={styles.longText}>{post.author}</td><td className={styles.nowrap}>{dateText(post.created_at)}</td><td className={styles.nowrap}>{post.views}</td><td className={styles.nowrap}>{post.comment_count}</td>
+          <td className={styles.nowrap}><span className={`${styles.count}${post.report_count ? ` ${styles.hot}` : ""}`}>{post.report_count}</span></td>
+          <td className={styles.nowrap}><button type="button" className={styles.delete} disabled={busy} onClick={() => void remove(post)}>삭제</button></td>
         </tr>)}
         {!data.results.length && <tr><td colSpan={9}>게시글이 없어요.</td></tr>}</tbody>
       </table></div>
@@ -229,13 +229,13 @@ export function AdminReportsPanel() {
       <div className={styles.tableScroll} role="region" aria-label="신고 목록 가로 스크롤" aria-describedby="reports-scroll-hint" tabIndex={0}><table><caption className="sr-only">게시글 신고 목록</caption>
         <thead><tr>{["신고일", "게시글", "작성자", "신고자", "사유", "상세 내용", "상태", "처리"].map(label => <th key={label}>{label}</th>)}</tr></thead>
         <tbody>{data.results.map(report => <tr key={report.id}>
-          <td>{dateText(report.created_at)}</td>
+          <td className={styles.nowrap}>{dateText(report.created_at)}</td>
           <td><Link href={postHref(report.post)} target="_blank">#{report.post.post_number} {report.post.title}</Link></td>
-          <td>{report.post.author}{report.post.owner && <span className={styles.muted}> ({report.post.owner.username})</span>}</td>
-          <td>{report.reporter}</td><td>{reportReasonLabel[report.reason] ?? report.reason}</td>
+          <td className={styles.longText}>{report.post.author}{report.post.owner && <span className={styles.muted}> ({report.post.owner.username})</span>}</td>
+          <td className={styles.longText}>{report.reporter}</td><td className={styles.nowrap}>{reportReasonLabel[report.reason] ?? report.reason}</td>
           <td className={styles.longText}>{report.detail || <span className={styles.muted}>없음</span>}</td>
-          <td><span className={`${styles.status} ${styles[`status_${report.status}`] ?? ""}`}>{reportStatusLabel[report.status] ?? report.status}</span></td>
-          <td><div className={styles.actions}>
+          <td className={styles.nowrap}><span className={`${styles.status} ${styles[`status_${report.status}`] ?? ""}`}>{reportStatusLabel[report.status] ?? report.status}</span></td>
+          <td className={styles.nowrap}><div className={styles.actions}>
             <button type="button" className={styles.hold} disabled={busy || report.post.is_hidden || report.status === "hidden"} onClick={() => void run(report, report.status === "held" ? "unhold" : "hold")}>{report.status === "held" ? "보류 취소" : "보류"}</button>
             <button type="button" className={styles.hide} disabled={busy || report.post.is_hidden} onClick={() => void run(report, "hide")}>숨김</button>
             <button type="button" className={styles.delete} disabled={busy} onClick={() => { setActionError(""); setDeleting(report); }}>삭제</button>

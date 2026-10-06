@@ -17,7 +17,8 @@
 .tableScroll table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 13px; }
 .tableScroll th, .tableScroll td { padding: 14px 12px; border-bottom: 1px solid #e2e8f0; text-align: left; vertical-align: middle; }
 .tableScroll th { background: #f7f9fc; color: #52647b; white-space: nowrap; }
-.tableScroll td { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tableScroll td { font-variant-numeric: tabular-nums; }
+.tableScroll td.nowrap { white-space: nowrap; }
 .tableScroll td:has(a), .tableScroll td.longText { min-width: 200px; max-width: 320px; white-space: normal; overflow-wrap: anywhere; }
 .tableScroll tbody tr:hover { background: var(--soft); }
 .tableScroll tbody tr:last-child td { border-bottom: 0; }
