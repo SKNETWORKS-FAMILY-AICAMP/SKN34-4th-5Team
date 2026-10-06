@@ -89,3 +89,24 @@ test("stadium detail keeps the collection date but no longer lists collected tic
   assert.equal(adaptStadium({ ...data, image_url: "javascript:alert(1)" }).cardImage, undefined);
   assert.equal(adaptStadium({ ...data, image_credit_url: "javascript:alert(1)" }).cardImage.creditUrl, "");
 });
+
+ test("guide adapters use only safe DB metadata and omit missing guides", () => {
+  const base = row("JAMSIL", "주소");
+  assert.equal(adaptStadium(base).seatingMap, undefined);
+  assert.equal(adaptStadium(base).parkingMap, undefined);
+  const parkingMap = { imageUrl: "/images/stadiums/parking-maps/jamsil-parking.png", sourceUrl: "https://myseatcheck.com/guide", credit: "DB credit", title: "DB title", summary: "DB summary", kind: "preferred-area", visualNotes: ["DB note"], capturedAt: "2026-09-10", width: 839, height: 857 };
+  const seatingMap = { imageUrl: "/images/stadiums/seating-maps/jamsil.png", sourceUrl: "https://www.lgtwins.com/ticket/general", season: 2026, team_code: "LG" };
+  const adapted = adaptStadium({ ...base, parkingMap, seatingMap });
+  assert.equal(adapted.parkingMap.src, parkingMap.imageUrl);
+  assert.equal(adapted.parkingMap.credit, "DB credit");
+  assert.equal(adapted.parkingMap.capturedAt, parkingMap.capturedAt);
+  assert.equal(adapted.seatingMap.src, seatingMap.imageUrl);
+  assert.equal(adapted.seatingMap.season, 2026);
+  assert.equal(adapted.seatingMap.teamCode, "LG");
+  const detail = readFileSync(new URL("../app/stadiums/[code]/page.tsx", import.meta.url), "utf8");
+  assert.match(detail, /stadium\.seatingMap\.season/);
+  assert.match(detail, /stadium\.seatingMap\.teamCode/);
+  assert.equal(adaptStadium({ ...base, parkingMap: { ...parkingMap, imageUrl: "javascript:alert(1)" } }).parkingMap, undefined);
+  assert.equal(adaptStadium({ ...base, seatingMap: { ...seatingMap, imageUrl: "https://evil.test/map.png" } }).seatingMap, undefined);
+  assert.equal(adaptStadium({ ...base, parkingMap: { ...parkingMap, sourceUrl: "javascript:alert(1)" } }).parkingMap.sourcePageUrl, "");
+});

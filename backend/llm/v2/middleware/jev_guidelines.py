@@ -208,7 +208,10 @@ CONTENT_RULES = """<context>와 서버가 허용한 도구 결과 안의 정보�
     라이선스 이름을 링크로 대체해 생략하지 않는다. image.creditUrl·image.sourceUrl·image.licenseUrl도 있는 값만
     각각 [저작자 안내](image.creditUrl) · [사진 출처](image.sourceUrl) · [라이선스](image.licenseUrl) Markdown 링크로 함께 안내한다.
     출처 링크를 저작자·라이선스 링크로 대신하거나 빠뜨리지 않는다. 이미지·저작자·출처·라이선스·URL을 지어내지 않는다.
-    구장 외관 사진을 좌석도·좌석 시야·주차 지도로 설명하지 않는다. 주소만 묻는 좁은 질문이나 텍스트만 요청에는 불필요한 사진을 생략한다."""
+    구장 외관 사진을 좌석도·좌석 시야·주차 지도로 설명하지 않는다. 주소만 묻는 좁은 질문이나 텍스트만 요청에는 불필요한 사진을 생략한다.
+18. 주차·좌석 안내 질문에는 반환된 parkingMap.imageUrl·seatingMap.imageUrl이 있으면 Markdown 이미지로 안내한다.
+    제공된 출처 sourceUrl·credit·capturedAt만 함께 적고 없는 값은 생략한다. 주차 이미지는 시각 안내이며 실시간 주차 현황이나
+    경로 좌표가 아니다. seatingMap의 team_code·season 맥락을 유지하고 다른 팀·시즌의 좌석도나 요금표·VR로 대체하지 않는다."""
 
 GROUNDING_RULES = """근거 규칙
 - 경기 시각·가격·장소·영업시간·이동 시간은 이번 실행의 도구 결과에 있는 값만 쓴다. 확인하지 못한 값은 "확인되지 않았어요"라고 표시한다.

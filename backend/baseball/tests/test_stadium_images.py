@@ -12,9 +12,12 @@ class StadiumImageMigrationTests(TransactionTestCase):
     def test_existing_rows_and_repeat_loader_preserve_nonmedia(self):
         before_target = [("baseball", "0007_reviewed_stadium_locations")]
         target = [("baseball", "0008_stadium_images")]
+        self.addCleanup(lambda: MigrationExecutor(connection).migrate(MigrationExecutor(connection).loader.graph.leaf_nodes()))
         executor = MigrationExecutor(connection)
         executor.migrate(before_target)
         historical = executor.loader.project_state(before_target).apps
+        root = Path("/data") if Path("/data").is_dir() else Path(__file__).resolve().parents[3] / "data"
+        BaseballDataLoaderV1(historical, root).load()
         Stadium = historical.get_model("baseball", "Stadium")
         self.assertEqual(Stadium.objects.count(), 9)
         Stadium.objects.filter(stadium_code="JAMSIL").update(address="관리자 주소", longitude="127.12345678")

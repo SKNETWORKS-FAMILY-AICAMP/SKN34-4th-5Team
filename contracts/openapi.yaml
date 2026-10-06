@@ -13011,6 +13011,69 @@ components:
       - scope_code
       - scope_name
       - seat_views
+    ParkingMap:
+      type: object
+      properties:
+        imageUrl:
+          type: string
+        sourceUrl:
+          type: string
+          format: uri
+        credit:
+          type: string
+        title:
+          type: string
+        summary:
+          type: string
+        kind:
+          $ref: '#/components/schemas/ParkingMapKindEnum'
+        visualNotes:
+          type: array
+          items:
+            type: string
+        capturedAt:
+          type: string
+          format: date
+        width:
+          type: integer
+        height:
+          type: integer
+      required:
+      - imageUrl
+    ParkingMapKindEnum:
+      enum:
+      - entrance
+      - preferred-area
+      - nearby-alternatives
+      - access-gates
+      type: string
+      description: |-
+        * `entrance` - entrance
+        * `preferred-area` - preferred-area
+        * `nearby-alternatives` - nearby-alternatives
+        * `access-gates` - access-gates
+    SeatingMap:
+      type: object
+      properties:
+        imageUrl:
+          type: string
+        sourceUrl:
+          type: string
+          format: uri
+        title:
+          type: string
+        home_context_id:
+          type: integer
+        season:
+          type: integer
+        team_code:
+          type: string
+      required:
+      - home_context_id
+      - imageUrl
+      - season
+      - team_code
+      - title
     PublicStadium:
       type: object
       properties:
@@ -13089,6 +13152,16 @@ components:
           items:
             $ref: '#/components/schemas/PublicHomeTeam'
           readOnly: true
+        parkingMap:
+          allOf:
+          - $ref: '#/components/schemas/ParkingMap'
+          nullable: true
+          readOnly: true
+        seatingMap:
+          allOf:
+          - $ref: '#/components/schemas/SeatingMap'
+          nullable: true
+          readOnly: true
       required:
       - address
       - collected_at
@@ -13097,6 +13170,8 @@ components:
       - id
       - latitude
       - longitude
+      - parkingMap
+      - seatingMap
       - stadium_code
       - stadium_name_ko
     PublicTeam:
@@ -13266,6 +13341,14 @@ components:
           type: string
         asset_role:
           type: string
+        source_url:
+          nullable: true
+          oneOf:
+          - type: string
+            format: uri
+            maxLength: 500
+          - type: string
+            maxLength: 0
       required:
       - asset_no
       - asset_role
@@ -13291,6 +13374,14 @@ components:
           type: string
         asset_role:
           type: string
+        source_url:
+          nullable: true
+          oneOf:
+          - type: string
+            format: uri
+            maxLength: 500
+          - type: string
+            maxLength: 0
         _etag:
           type: string
           readOnly: true

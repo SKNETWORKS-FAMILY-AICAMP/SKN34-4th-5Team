@@ -4,6 +4,8 @@ from pydantic import Field, StrictBool, StrictInt, model_validator
 from django.db.models import Q
 from baseball.models import Facility, FoodStore, HomeContext, SeatMap, SeatScope, SeatZone, Stadium, StadiumContent, TicketPolicy, TicketPrice, Transport
 
+from baseball.stadium_guides import GUIDE_PREFETCH, parking_map, seating_map
+
 from .common import LimitInput, ToolInput, _json, _result, _rows, _tool, db_team_code, is_team_code
 
 IMAGE_FIELDS = ("image_url", "image_source_url", "image_credit", "image_credit_url", "image_license_url")
@@ -81,6 +83,9 @@ def create_stadium_tools():
         if item:
             item[0]["detailPath"] = f"/stadiums/{item[0]['stadium_code']}"
             item[0]["image"] = _stadium_image(item[0])
+            stadium = query.prefetch_related(*GUIDE_PREFETCH).get()
+            item[0]["parkingMap"] = parking_map(stadium)
+            item[0]["seatingMap"] = seating_map(stadium)
         return {"item": item[0] if item else None}
 
     def get_seat_zones(season, team_code, stadium_id=None, limit=20):
@@ -112,7 +117,7 @@ def create_stadium_tools():
 
     def get_transport(stadium_id, limit=20):
         """구장의 교통·주차 정보를 조회한다."""
-        return _result(_rows(Transport.objects.filter(stadium_id=stadium_id).order_by("mode", "access_code"), ("access_code", "mode", "title", "details", "parking_spaces", "reservation_required", "collected_at"), limit))
+        return _result(_rows(Transport.objects.filter(stadium_id=stadium_id).order_by("mode", "access_code"), ("access_code", "mode", "title", "details", "parking_spaces", "reservation_required", "collected_at"), limit), parkingMap=parking_map(Stadium.objects.filter(pk=stadium_id).first()))
 
     def get_food_stores(stadium_id, limit=20):
         """구장 공식 매점과 위치·메뉴 분류를 조회한다."""
@@ -158,7 +163,7 @@ def create_stadium_tools():
         """팀·시즌 홈 컨텍스트의 공식 좌석도와 자산을 조회한다."""
         items = []
         for seat_map in SeatMap.objects.filter(home_context__in=_context(season, team_code, stadium_id)).select_related("home_context__stadium").prefetch_related("assets").order_by("home_context__stadium_id", "id")[:limit]:
-            items.append({"home_context_id": seat_map.home_context_id, "stadium_id": seat_map.home_context.stadium_id, "map_title": seat_map.map_title, "page_url": seat_map.page_url, "sourceUrl": seat_map.page_url, "collected_at": None, "detailPath": f"/stadiums/{seat_map.home_context.stadium.stadium_code}", "assets": list(seat_map.assets.order_by("asset_no").values("asset_no", "asset_url", "asset_role"))})
+            items.append({"home_context_id": seat_map.home_context_id, "stadium_id": seat_map.home_context.stadium_id, "map_title": seat_map.map_title, "page_url": seat_map.page_url, "sourceUrl": seat_map.page_url, "collected_at": None, "detailPath": f"/stadiums/{seat_map.home_context.stadium.stadium_code}", "assets": list(seat_map.assets.order_by("asset_no").values("asset_no", "asset_url", "asset_role", "source_url"))})
         return _result(items)
 
     specs = (
@@ -168,7 +173,7 @@ def create_stadium_tools():
         (get_seat_views, 'get_seat_views', '팀·시즌·선택 구장의 좌석 시야를 조회한다.', ContextInput),
         (get_ticket_prices, 'get_ticket_prices', '팀·시즌 좌석 가격을 선택 유효일 기준으로 조회한다.', TicketPricesInput),
         (get_ticket_policies, 'get_ticket_policies', '팀과 선택 경기의 예매 정책을 조회한다.', TicketPoliciesInput),
-        (get_transport, 'get_transport', '구장의 교통·주차 정보를 조회한다.', StadiumListInput),
+        (get_transport, 'get_transport', '구장의 교통·주차 items와 선택적 parkingMap 안내 이미지를 조회한다. parkingMap.imageUrl·sourceUrl·credit은 제공된 값만 안내하며 실시간 주차 현황이나 지도 좌표가 아니다.', StadiumListInput),
         (get_food_stores, 'get_food_stores', '구장 공식 매점, 위치와 메뉴를 조회한다.', StadiumListInput),
         (get_facilities, 'get_facilities', '구장 편의시설을 조회한다.', FacilityInput),
         (get_stadium_contents, 'get_stadium_contents', '구장 부가 콘텐츠를 조회한다.', ContentInput),
