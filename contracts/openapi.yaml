@@ -9543,9 +9543,11 @@ components:
         fetchedAt:
           type: string
           format: date-time
+          nullable: true
         providerFetchedAt:
           type: string
           format: date-time
+          nullable: true
         updatedAt:
           type: string
           format: date-time
@@ -9569,6 +9571,12 @@ components:
           items:
             type: object
             additionalProperties: {}
+        scheduleStatus:
+          $ref: '#/components/schemas/ScheduleStatusEnum'
+        standingsMeta:
+          $ref: '#/components/schemas/StandingsMetadata'
+        individualRankingsStatus:
+          $ref: '#/components/schemas/RankingStatus'
         standings:
           type: array
           items:
@@ -9583,6 +9591,7 @@ components:
         nextCheckAt:
           type: string
           format: date-time
+          nullable: true
         mode:
           $ref: '#/components/schemas/DailyDataModeEnum'
       required:
@@ -9590,14 +9599,17 @@ components:
       - fetchedAt
       - games
       - individualRankings
+      - individualRankingsStatus
       - lastSyncedAt
       - mode
       - nextCheckAt
       - providerFetchedAt
+      - scheduleStatus
       - source
       - sourceUpdatedAt
       - stale
       - standings
+      - standingsMeta
       - updatedAt
       - warning
     DailyDataModeEnum:
@@ -10365,6 +10377,14 @@ components:
       description: |-
         * `M` - 남성
         * `F` - 여성
+    HittersEnum:
+      enum:
+      - ready
+      - pending
+      type: string
+      description: |-
+        * `ready` - ready
+        * `pending` - pending
     HomeContext:
       type: object
       properties:
@@ -10673,8 +10693,7 @@ components:
         days:
           type: array
           items:
-            type: object
-            additionalProperties: {}
+            $ref: '#/components/schemas/ScheduleDay'
         loading:
           type: boolean
       required:
@@ -13107,6 +13126,16 @@ components:
       - seat_zone_code
       - seat_zone_id
       - seat_zone_name
+    RankingStatus:
+      type: object
+      properties:
+        pitchers:
+          $ref: '#/components/schemas/HittersEnum'
+        hitters:
+          $ref: '#/components/schemas/HittersEnum'
+      required:
+      - hitters
+      - pitchers
     Rating224Enum:
       enum:
       - up
@@ -13163,6 +13192,33 @@ components:
         * `7d` - 7d
         * `30d` - 30d
         * `permanent` - permanent
+    ScheduleDay:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        status:
+          $ref: '#/components/schemas/Status9e2Enum'
+        gameCount:
+          type: integer
+          minimum: 0
+      required:
+      - date
+      - gameCount
+      - status
+    ScheduleStatusEnum:
+      enum:
+      - ready
+      - empty
+      - pending
+      - error
+      type: string
+      description: |-
+        * `ready` - ready
+        * `empty` - empty
+        * `pending` - pending
+        * `error` - error
     SeatMap:
       type: object
       properties:
@@ -13918,6 +13974,26 @@ components:
       - snapshot_date
       - team_id
       - wins
+    StandingsMetadata:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/HittersEnum'
+        date:
+          type: string
+          format: date
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        isFallback:
+          type: boolean
+      required:
+      - date
+      - isFallback
+      - status
+      - updatedAt
     StateEnum:
       enum:
       - idle
@@ -13926,6 +14002,18 @@ components:
       description: |-
         * `idle` - idle
         * `partial` - partial
+    Status9e2Enum:
+      enum:
+      - ready
+      - empty
+      - pending
+      - error
+      type: string
+      description: |-
+        * `ready` - ready
+        * `empty` - empty
+        * `pending` - pending
+        * `error` - error
     StatusResponse:
       type: object
       properties:
@@ -13967,9 +14055,11 @@ components:
         fetchedAt:
           type: string
           format: date-time
+          nullable: true
         providerFetchedAt:
           type: string
           format: date-time
+          nullable: true
         updatedAt:
           type: string
           format: date-time

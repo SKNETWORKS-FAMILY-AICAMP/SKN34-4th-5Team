@@ -306,7 +306,7 @@ def _fresh_or_fallback(fetcher, persister, reader, sync_time, *, daily=False, so
     if previous is None:
         raise TvingUpstreamError("데이터 호출 오류!")
     if daily:
-        previous["nextCheckAt"] = _iso(last_synced_at + timedelta(seconds=settings.EXTERNAL_DATA_SYNC_INTERVAL_SECONDS))
+        previous["nextCheckAt"] = _iso(last_synced_at + timedelta(seconds=settings.EXTERNAL_DATA_SYNC_INTERVAL_SECONDS)) if last_synced_at else None
     return _envelope(previous, last_synced_at, last_synced_at, source_url=source_url)
 
 def refresh_daily(day, provider=None):

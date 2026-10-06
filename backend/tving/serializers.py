@@ -23,22 +23,47 @@ class IndividualRankingsSerializer(serializers.Serializer):
     hitters = serializers.ListField(child=serializers.DictField())
 
 
+class StandingsMetadataSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=("ready", "pending"))
+    date = serializers.DateField(allow_null=True)
+    updatedAt = serializers.DateTimeField(allow_null=True)
+    isFallback = serializers.BooleanField()
+
+
+class RankingStatusSerializer(serializers.Serializer):
+    pitchers = serializers.ChoiceField(choices=("ready", "pending"))
+    hitters = serializers.ChoiceField(choices=("ready", "pending"))
+
+
+class ScheduleDaySerializer(serializers.Serializer):
+    date = serializers.DateField()
+    status = serializers.ChoiceField(choices=("ready", "empty", "pending", "error"))
+    gameCount = serializers.IntegerField(min_value=0)
+
+
 class DailyDataSerializer(ResourceMetadataSerializer):
+    fetchedAt = serializers.DateTimeField(allow_null=True)
+    providerFetchedAt = serializers.DateTimeField(allow_null=True)
     date = serializers.DateField()
     games = serializers.ListField(child=serializers.DictField())
+    scheduleStatus = serializers.ChoiceField(choices=("ready", "empty", "pending", "error"))
+    standingsMeta = StandingsMetadataSerializer()
+    individualRankingsStatus = RankingStatusSerializer()
     standings = serializers.ListField(child=serializers.DictField())
     individualRankings = IndividualRankingsSerializer()
     sourceUpdatedAt = serializers.DateTimeField(allow_null=True)
-    nextCheckAt = serializers.DateTimeField()
+    nextCheckAt = serializers.DateTimeField(allow_null=True)
     mode = serializers.ChoiceField(choices=("fixed-interval",))
 
 
 class MonthDataSerializer(ResourceMetadataSerializer):
+    fetchedAt = serializers.DateTimeField(allow_null=True)
+    providerFetchedAt = serializers.DateTimeField(allow_null=True)
     year = serializers.IntegerField()
     month = serializers.RegexField(r"^\d{4}-\d{2}$")
     today = serializers.DateField()
     games = serializers.ListField(child=serializers.DictField())
-    days = serializers.ListField(child=serializers.DictField())
+    days = ScheduleDaySerializer(many=True)
     loading = serializers.BooleanField()
 
 

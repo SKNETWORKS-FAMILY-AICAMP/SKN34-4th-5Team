@@ -1,4 +1,5 @@
 "use client";
+import { KboStandingsNote } from "./kbo-standings-note";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -105,14 +106,11 @@ function IndividualRanking({ data, athleteType, setAthleteType, page, setPage, s
   data: KboSnapshot; athleteType: AthleteType; setAthleteType: (type: AthleteType) => void;
   page: number; setPage: (page: number) => void; season: string;
 }) {
-  const ranking = data.individualRankings;
-  if (!ranking?.pitchers.length || !ranking.hitters.length) {
-    return <KboDetailEmpty title="개인 순위를 준비하고 있어요." description="새 수집이 끝나면 투수와 타자 기록을 함께 보여드릴게요." />;
-  }
+  const ranking = data.individualRankings ?? { pitchers: [], hitters: [] };
   const isPitcher = athleteType === "pitcher";
   const allRows = isPitcher ? ranking.pitchers : ranking.hitters;
   const columns = isPitcher ? pitcherColumns : hitterColumns;
-  const pages = Math.ceil(allRows.length / PAGE_SIZE);
+  const pages = Math.max(1, Math.ceil(allRows.length / PAGE_SIZE));
   const safePage = Math.min(page, pages);
   const rows = allRows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
   const selectType = (type: AthleteType) => { setAthleteType(type); setPage(1); };
@@ -126,6 +124,7 @@ function IndividualRanking({ data, athleteType, setAthleteType, page, setPage, s
       <p><strong>{isPitcher ? "평균자책" : "타율"} 기준</strong> · 규정 {isPitcher ? "이닝" : "타석"} 충족 선수</p>
     </div>
     <p className="kbo-record-scroll-note">옆으로 밀어 선수의 전체 기록을 확인하세요. <span aria-hidden="true">→</span></p>
+    {!allRows.length && <KboDetailEmpty title={`${isPitcher ? "투수" : "타자"} 순위를 준비하고 있어요.`} description="다른 탭의 기록은 계속 조회할 수 있습니다." />}
     <div className="kbo-record-scroll" role="region" aria-label={`${isPitcher ? "투수" : "타자"} 개인 순위와 전체 기록, 좌우 스크롤 가능`} tabIndex={0}>
       <table className="kbo-record-table kbo-athlete-table"><caption className="sr-only">{season} KBO 정규리그 {isPitcher ? "투수" : "타자"} 개인 순위</caption>
         <thead><tr><th scope="col">순위</th><th scope="col">선수</th>{columns.map(column => <th scope="col" key={String(column.key)}>{column.label}</th>)}</tr></thead>
@@ -163,7 +162,8 @@ export function KboStandingsPage() {
           ? <TeamRanking standings={data.standings} sort={sort} setSort={setSort} season={season} />
           : <KboDetailEmpty title="아직 확인할 수 있는 팀 순위가 없어요." description="정규리그 순위가 제공되면 표시해 드릴게요." retry={refresh} pending={refreshing} />)
         : <IndividualRanking data={data} athleteType={athleteType} setAthleteType={setAthleteType} page={page} setPage={setPage} season={season} />}
-      {data && <KboDetailSource source={{ ...data.source, url: "https://www.tving.com/sports/kbo/history" }} fetchedAt={data.fetchedAt} sourceUpdatedAt={data.sourceUpdatedAt} />}
+      {data && mode === "team" && <KboStandingsNote data={data} />}
+      {data?.fetchedAt && <KboDetailSource source={{ ...data.source, url: "https://www.tving.com/sports/kbo/history" }} fetchedAt={data.fetchedAt} sourceUpdatedAt={data.sourceUpdatedAt} />}
       <div className="kbo-record-glossary"><h3>기록, 이렇게 읽어보세요</h3><dl>
         {mode === "team" ? <>
           <div><dt>승률</dt><dd>무승부를 제외한 경기 중 승리한 비율</dd></div>

@@ -1,3 +1,5 @@
+import type { components } from "@/lib/api/schema";
+
 export type KboGameStatus = "scheduled" | "live" | "final" | "cancelled" | "postponed" | "suspended" | "unknown";
 
 export type KboGame = {
@@ -95,9 +97,12 @@ export type KboSourceData = {
 };
 
 export type KboSnapshot = KboSourceData & {
-  fetchedAt: string;
-  updatedAt: string;
-  nextCheckAt: string;
+  scheduleStatus?: components["schemas"]["DailyData"]["scheduleStatus"];
+  standingsMeta?: components["schemas"]["StandingsMetadata"];
+  individualRankingsStatus?: components["schemas"]["RankingStatus"];
+  fetchedAt: string | null;
+  updatedAt: string | null;
+  nextCheckAt: string | null;
   mode: "hourly" | "five-minute" | "final-check" | "fixed-interval";
   source: { name: string; url: string };
   stale: boolean;

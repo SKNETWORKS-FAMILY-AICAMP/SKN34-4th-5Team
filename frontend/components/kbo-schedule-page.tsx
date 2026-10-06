@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { KboGame, KboScheduleMonth } from "@/lib/kbo/types";
 import { Icon } from "./icons";
+import { nextCalendarDate, supportedScheduleDate } from "@/lib/kbo/fallback";
 import {
   DetailTeamMark, KboDetailEmpty, KboDetailHeading, KboDetailLoading,
   KboDetailSource, KboDetailWarning, detailDate, kboTeams, koreaToday, useKboResource,
@@ -43,12 +44,13 @@ function GameRow({ game }: { game: KboGame }) {
   </li>;
 }
 
-export function KboSchedulePage() {
+export function KboSchedulePage({ initialDate, invalidDate = false }: { initialDate?: string; invalidDate?: boolean }) {
   // Resolve the current Korean date after hydration, without a server/client midnight mismatch.
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  useEffect(() => { const frame = requestAnimationFrame(() => setSelectedDate(boundedDate(koreaToday()))); return () => cancelAnimationFrame(frame); }, []);
+  const [selectedDate, setSelectedDate] = useState<string | null>(initialDate ?? null);
+  useEffect(() => { const frame = requestAnimationFrame(() => setSelectedDate(initialDate ?? boundedDate(koreaToday()))); return () => cancelAnimationFrame(frame); }, [initialDate]);
   return <main className="container kbo-detail-page">
     <KboDetailHeading active="schedule" />
+    {invalidDate && <p role="status">잘못된 날짜입니다. 2026년의 실제 날짜를 선택해 주세요.</p>}
     {selectedDate ? <ScheduleBrowser selectedDate={selectedDate} onDateChange={setSelectedDate} /> : <div className="kbo-detail-body"><KboDetailLoading label="경기 일정을 준비하고 있어요." /></div>}
   </main>;
 }
@@ -57,7 +59,8 @@ function ScheduleBrowser({ selectedDate, onDateChange }: { selectedDate: string;
   const month = selectedDate.slice(0, 7);
   const [team, setTeam] = useState("all");
   const { data, error, loading, refreshing, refresh } = useKboResource<KboScheduleMonth>(`/api/v1/tving/schedule/?month=${month}`, monthPoll);
-  const today = data?.today ?? koreaToday();
+  const today = koreaToday();
+  const tomorrow = nextCalendarDate(today);
   const stripRef = useRef<HTMLDivElement>(null);
   const daysCount = new Date(Date.UTC(2026, Number(month.slice(5)), 0)).getUTCDate();
   const dates = Array.from({ length: daysCount }, (_, index) => `${month}-${String(index + 1).padStart(2, "0")}`);
@@ -119,12 +122,16 @@ function ScheduleBrowser({ selectedDate, onDateChange }: { selectedDate: string;
       <p role="status">{day?.status === "ready" ? `${teamName ? `${teamName} · ` : ""}총 ${filtered.length}경기` : "2026 경기 일정"}</p></div>
       <div className="kbo-day-controls"><button type="button" className="kbo-detail-icon-button" aria-label="이전 날 경기" disabled={selectedDate === MIN_DATE} onClick={() => onDateChange(dateWithOffset(selectedDate, -1))}><Icon name="chevron" className="kbo-chevron-back" size={15} /></button><button type="button" className="kbo-detail-icon-button" aria-label="다음 날 경기" disabled={selectedDate === MAX_DATE} onClick={() => onDateChange(dateWithOffset(selectedDate, 1))}><Icon name="chevron" size={15} /></button></div>
     </div>
-    {loading ? <KboDetailLoading label="선택한 달의 경기 일정을 불러오고 있어요." /> : !data ? <KboDetailEmpty title="경기 일정을 불러오지 못했어요." description="잠시 후 다시 확인해 주세요." retry={refresh} pending={refreshing} />
-      : day?.status === "error" || (!day && !data.loading) ? <KboDetailEmpty title="이 날짜의 경기를 확인하지 못했어요." description="다른 날짜를 먼저 둘러보거나 잠시 후 다시 확인해 주세요." retry={refresh} pending={refreshing} />
-        : day?.status === "pending" || (!day && data.loading) ? <KboDetailLoading label="이 날짜의 경기 정보를 확인하고 있어요." />
+    {loading ? <KboDetailLoading label="선택한 달의 경기 일정을 불러오고 있어요." /> : error || !data || day?.status === "error" ? <KboDetailEmpty title={selectedDate === tomorrow ? "내일 경기 정보를 불러오지 못했어요." : "경기 일정을 불러오지 못했어요."} description="조회 중 오류가 발생했습니다. 다시 확인하거나 위에서 다른 날짜를 선택해 주세요." retry={refresh} pending={refreshing} />
+        : day?.status === "pending" || !day ? <KboDetailEmpty title={selectedDate === today ? "오늘 경기 정보가 아직 업데이트되지 않았습니다." : selectedDate === tomorrow ? "내일 경기 정보가 아직 업데이트되지 않았습니다." : "선택한 날짜의 경기 정보가 아직 업데이트되지 않았습니다."} description={selectedDate === today ? "내일 경기를 조회할까요?" : "위에서 다른 날짜를 선택하거나 다시 확인해 주세요."} retry={refresh} pending={refreshing} />
           : filtered.length ? <ul className="kbo-fixtures-list" aria-label={`${detailDate(selectedDate)} 경기 목록`}>{filtered.map(game => <GameRow key={game.id} game={game} />)}</ul>
             : day?.status === "ready" && team !== "all" && games.length > 0 ? <KboDetailEmpty title={`${teamName}의 경기가 없어요.`} description="다른 날짜나 전체 구단을 선택해 보세요." />
-              : <KboDetailEmpty title="등록된 경기가 없어요." description="선택한 날짜에 제공되는 경기 일정이 없어요. 다른 날짜를 확인해 보세요." />}
+              : <KboDetailEmpty title={selectedDate === tomorrow ? "내일은 예정된 경기가 없습니다." : selectedDate === today ? "오늘은 예정된 경기가 없습니다." : "선택한 날짜에는 예정된 경기가 없습니다."} description="수집된 일정에서 경기가 없는 것으로 확인되었습니다." />}
+    {!loading && selectedDate === today && (error || !day || day.status === "pending" || day.status === "error") && (
+      supportedScheduleDate(tomorrow)
+        ? <button type="button" className="button button-secondary" onClick={() => { setTeam("all"); onDateChange(tomorrow); }}>내일 경기 조회</button>
+        : <p role="status">내일은 현재 지원하는 2026 시즌 범위를 벗어납니다. 위에서 다른 날짜를 선택해 주세요.</p>
+    )}
     {data?.loading && !loading && <p className="kbo-month-loading-note" role="status"><span className="ui-spinner" aria-hidden="true" />이 달의 경기 정보를 확인하고 있어요.</p>}
     {data?.fetchedAt && <KboDetailSource source={data.source} fetchedAt={data.fetchedAt} />}
     <p className="kbo-detail-footnote">경기 시각은 한국시간 기준입니다. 선발 투수와 경기 일정은 변경될 수 있어요.</p>

@@ -1,4 +1,5 @@
 import os
+import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -70,7 +71,11 @@ class RefreshView(APIView):
         try:
             # 일정·순위 데이터 요청 전에 로컬 크롤러를 하루 한 번만 실행한다.
             if self.argument in {"date", "month"}:
-                _run_local_crawler_if_needed()
+                try:
+                    _run_local_crawler_if_needed()
+                except Exception:
+                    # A collector outage must not hide valid persisted snapshots.
+                    logging.getLogger(__name__).exception("Local KBO collection failed; reading stored data")
             return Response({"data": self.refresh(argument), "error": None}, headers={"Cache-Control": "no-store"})
         except TvingError as error:
             return _error(error)

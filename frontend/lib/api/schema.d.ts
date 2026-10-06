@@ -2641,9 +2641,9 @@ export interface components {
         CuisineEnum: "기타";
         DailyData: {
             /** Format: date-time */
-            fetchedAt: string;
+            fetchedAt: string | null;
             /** Format: date-time */
-            providerFetchedAt: string;
+            providerFetchedAt: string | null;
             /** Format: date-time */
             updatedAt: string | null;
             /** Format: date-time */
@@ -2656,6 +2656,9 @@ export interface components {
             games: {
                 [key: string]: unknown;
             }[];
+            scheduleStatus: components["schemas"]["ScheduleStatusEnum"];
+            standingsMeta: components["schemas"]["StandingsMetadata"];
+            individualRankingsStatus: components["schemas"]["RankingStatus"];
             standings: {
                 [key: string]: unknown;
             }[];
@@ -2663,7 +2666,7 @@ export interface components {
             /** Format: date-time */
             sourceUpdatedAt: string | null;
             /** Format: date-time */
-            nextCheckAt: string;
+            nextCheckAt: string | null;
             mode: components["schemas"]["DailyDataModeEnum"];
         };
         /**
@@ -2954,6 +2957,12 @@ export interface components {
          * @enum {string}
          */
         GenderEnum: "M" | "F";
+        /**
+         * @description * `ready` - ready
+         *     * `pending` - pending
+         * @enum {string}
+         */
+        HittersEnum: "ready" | "pending";
         HomeContext: {
             id: number;
             season: number;
@@ -3079,9 +3088,7 @@ export interface components {
             games: {
                 [key: string]: unknown;
             }[];
-            days: {
-                [key: string]: unknown;
-            }[];
+            days: components["schemas"]["ScheduleDay"][];
             loading: boolean;
         };
         MonthResponse: {
@@ -4208,6 +4215,10 @@ export interface components {
             readonly seat_zone_code: string;
             readonly seat_zone_name: string;
         };
+        RankingStatus: {
+            pitchers: components["schemas"]["HittersEnum"];
+            hitters: components["schemas"]["HittersEnum"];
+        };
         /**
          * @description * `up` - up
          *     * `down` - down
@@ -4246,6 +4257,20 @@ export interface components {
          * @enum {string}
          */
         SanctionEnum: "none" | "7d" | "30d" | "permanent";
+        ScheduleDay: {
+            /** Format: date */
+            date: string;
+            status: components["schemas"]["Status9e2Enum"];
+            gameCount: number;
+        };
+        /**
+         * @description * `ready` - ready
+         *     * `empty` - empty
+         *     * `pending` - pending
+         *     * `error` - error
+         * @enum {string}
+         */
+        ScheduleStatusEnum: "ready" | "empty" | "pending" | "error";
         SeatMap: {
             id: number;
             home_context_id: number;
@@ -4503,12 +4528,28 @@ export interface components {
             /** etag */
             readonly _etag: string;
         };
+        StandingsMetadata: {
+            status: components["schemas"]["HittersEnum"];
+            /** Format: date */
+            date: string | null;
+            /** Format: date-time */
+            updatedAt: string | null;
+            isFallback: boolean;
+        };
         /**
          * @description * `idle` - idle
          *     * `partial` - partial
          * @enum {string}
          */
         StateEnum: "idle" | "partial";
+        /**
+         * @description * `ready` - ready
+         *     * `empty` - empty
+         *     * `pending` - pending
+         *     * `error` - error
+         * @enum {string}
+         */
+        Status9e2Enum: "ready" | "empty" | "pending" | "error";
         StatusResponse: {
             data: components["schemas"]["DetailProgress"] | null;
             error: string | null;
@@ -4526,9 +4567,9 @@ export interface components {
         };
         TeamData: {
             /** Format: date-time */
-            fetchedAt: string;
+            fetchedAt: string | null;
             /** Format: date-time */
-            providerFetchedAt: string;
+            providerFetchedAt: string | null;
             /** Format: date-time */
             updatedAt: string | null;
             /** Format: date-time */

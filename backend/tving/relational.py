@@ -306,36 +306,111 @@ def athlete_sync_time(player):
     return min((synced for fetched, synced in values if fetched and synced), default=None) if all(fetched and synced for fetched, synced in values) else None
 
 
+def _schedule_day(marker, games):
+    """Only a complete, explicitly collected day can mean 'no games'."""
+    if marker is None:
+        return "pending", []
+    if marker.status in ("pending", "error"):
+        return marker.status, []
+    codes = marker.game_codes
+    actual = [game.source_external_code for game in games]
+    if (not isinstance(codes, list) or len(codes) != len(set(codes))
+            or len(codes) != marker.game_count or set(actual) != set(codes)
+            or len(actual) != marker.game_count
+            or (marker.status == "empty") != (marker.game_count == 0)):
+        return "pending", []
+    try:
+        return marker.status, [_game_json(game) for game in games]
+    except (AttributeError, KeyError, TypeError, ValueError):
+        return "error", []
+
+
+def _standings_snapshot(date):
+    rows = StandingHistory.objects.filter(
+        source="tving", snapshot_date__year=date.year, snapshot_date__lte=date,
+    ).select_related("team").order_by("-snapshot_date", "rank")
+    grouped = {}
+    for row in rows:
+        grouped.setdefault(row.snapshot_date, []).append(row)
+    for snapshot_date, snapshot in grouped.items():
+        if (len(snapshot) == 10
+                and {row.team.team_code for row in snapshot} == set(TEAM_MAP.values())
+                and all(row.played is not None and 1 <= row.rank <= 10
+                        and min(row.wins, row.draws, row.losses) >= 0
+                        and row.played == row.wins + row.draws + row.losses
+                        and row.win_rate for row in snapshot)):
+            return snapshot_date, snapshot
+    return None, []
+
+
 def read_daily(day):
     date = Date.fromisoformat(day)
     marker = ScheduleDay.objects.filter(date=date).first()
-    standings = list(StandingHistory.objects.filter(snapshot_date=date, source="tving").select_related("team").order_by("rank"))
+    games = list(Game.objects.filter(
+        game_date=date, source="tving",
+        source_external_code__in=marker.game_codes if marker else [],
+    ).select_related("home_team", "away_team", "stadium").order_by("game_time", "source_external_code"))
+    schedule_status, game_data = _schedule_day(marker, games)
+    snapshot_date, standings = _standings_snapshot(date)
     pitchers = list(PlayerSeasonRecord.objects.filter(season=date.year, record_kind="pitcher").select_related("player__team").order_by("rank"))
     hitters = list(PlayerSeasonRecord.objects.filter(season=date.year, record_kind="hitter").select_related("player__team").order_by("rank"))
-    games = list(Game.objects.filter(game_date=date, source="tving", source_external_code__in=marker.game_codes if marker else []).select_related("home_team", "away_team", "stadium").order_by("game_time", "source_external_code"))
-    if not marker or len(standings) != 10 or not pitchers or not hitters or len(games) != marker.game_count:
-        return None
+    reverse_codes = {value: key for key, value in TEAM_MAP.items()}
+
     def standing(row):
-        code = next(key for key, value in TEAM_MAP.items() if value == row.team.team_code)
-        return {"rank": row.rank, "teamCode": code, "team": row.team.team_name_ko.split()[0], "played": row.played, "wins": row.wins, "draws": row.draws, "losses": row.losses, "winRate": row.win_rate, "gamesBehind": str(row.games_behind), "streak": row.winning_streak, "battingAverage": row.batting_average, "era": row.era, "lastTen": row.last_ten}
+        return {"rank": row.rank, "teamCode": reverse_codes[row.team.team_code],
+                "team": row.team.team_name_ko.split()[0], "played": row.played,
+                "wins": row.wins, "draws": row.draws, "losses": row.losses,
+                "winRate": row.win_rate, "gamesBehind": str(row.games_behind),
+                "streak": row.winning_streak, "battingAverage": row.batting_average,
+                "era": row.era, "lastTen": row.last_ten}
+
     def ranking(row):
-        code = next(key for key, value in TEAM_MAP.items() if value == row.player.team.team_code)
-        return {"rank": row.rank, "playerCode": row.player_id, "player": row.player.name, "teamCode": code, "team": row.player.team.team_name_ko.split()[0], **row.metrics}
-    return {"date": day, "games": [_game_json(game) for game in games], "standings": [standing(row) for row in standings], "individualRankings": {"pitchers": [ranking(row) for row in pitchers], "hitters": [ranking(row) for row in hitters]}, "sourceUpdatedAt": None, "mode": "fixed-interval"}
+        return {"rank": row.rank, "playerCode": row.player_id, "player": row.player.name,
+                "teamCode": reverse_codes[row.player.team.team_code],
+                "team": row.player.team.team_name_ko.split()[0], **row.metrics}
+
+    def rankings(rows):
+        return [ranking(row) for row in rows if row.player.team_id and row.player.team.team_code in reverse_codes]
+
+    pitcher_data, hitter_data = rankings(pitchers), rankings(hitters)
+    # Use actual persisted timestamps, never the request time as the update time.
+    timestamps = [row.last_synced_at or row.source_fetched_at or row.collected_at for row in standings]
+    updated = max(timestamps) if timestamps and all(timestamps) else None
+    return {
+        "date": day, "games": game_data, "scheduleStatus": schedule_status,
+        "standings": [standing(row) for row in standings],
+        "standingsMeta": {
+            "status": "ready" if standings else "pending",
+            "date": snapshot_date.isoformat() if snapshot_date else None,
+            "updatedAt": updated.isoformat() if updated else None,
+            "isFallback": bool(snapshot_date and snapshot_date < date),
+        },
+        "individualRankings": {"pitchers": pitcher_data, "hitters": hitter_data},
+        "individualRankingsStatus": {"pitchers": "ready" if pitcher_data else "pending",
+                                    "hitters": "ready" if hitter_data else "pending"},
+        "sourceUpdatedAt": None, "mode": "fixed-interval",
+    }
 
 
 def read_month(month, today):
-    year, number = int(month[:4]), int(month[5:])
     import calendar
-    expected = calendar.monthrange(year, number)[1]
-    days = list(ScheduleDay.objects.filter(date__year=year, date__month=number).order_by("date"))
-    if len(days) != expected:
-        return None
-    active_codes = [code for day in days for code in day.game_codes]
-    games = list(Game.objects.filter(game_date__year=year, game_date__month=number, source="tving", source_external_code__in=active_codes).select_related("home_team", "away_team", "stadium").order_by("game_date", "game_time", "source_external_code"))
-    if len(games) != sum(day.game_count for day in days):
-        return None
-    return {"year": year, "month": month, "today": today, "games": [_game_json(game) for game in games], "days": [{"date": day.date.isoformat(), "status": day.status, "gameCount": day.game_count} for day in days], "loading": False}
+    year, number = int(month[:4]), int(month[5:])
+    markers = {row.date: row for row in ScheduleDay.objects.filter(date__year=year, date__month=number)}
+    rows = Game.objects.filter(
+        game_date__year=year, game_date__month=number, source="tving",
+    ).select_related("home_team", "away_team", "stadium").order_by("game_date", "game_time", "source_external_code")
+    by_date = {}
+    for game in rows:
+        marker = markers.get(game.game_date)
+        if marker and game.source_external_code in marker.game_codes:
+            by_date.setdefault(game.game_date, []).append(game)
+    games, days = [], []
+    for number_in_month in range(1, calendar.monthrange(year, number)[1] + 1):
+        date = Date(year, number, number_in_month)
+        status, day_games = _schedule_day(markers.get(date), by_date.get(date, []))
+        games.extend(day_games)
+        days.append({"date": date.isoformat(), "status": status, "gameCount": len(day_games)})
+    return {"year": year, "month": month, "today": today, "games": games, "days": days, "loading": False}
 
 
 def read_team(code):

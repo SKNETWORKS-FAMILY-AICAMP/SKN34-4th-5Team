@@ -9,6 +9,9 @@ import { Icon } from "./icons";
 import { TeamLogo } from "./team-logo";
 import { HomeTeamBoards } from "./home-team-boards";
 import { KboHighlightSection } from "./kbo-highlight";
+import { koreaToday } from "./kbo-detail-shared";
+import { nextCalendarDate, supportedScheduleDate } from "@/lib/kbo/fallback";
+import { KboStandingsNote } from "./kbo-standings-note";
 
 function formatDay(date: string, full = false) {
   const value = new Date(`${date}T12:00:00+09:00`);
@@ -232,7 +235,7 @@ function SourceMeta({ data }: { data: KboSnapshot }) {
   return (
     <div className="kbo-source-meta">
       <a href={data.source.url} target="_blank" rel="noreferrer">출처 {data.source.name}<Icon name="arrow" size={12} /></a>
-      <span>마지막 확인 <time dateTime={data.fetchedAt}>{formatCheckedAt(data.fetchedAt)}</time> · 한국시간</span>
+      {data.fetchedAt && <span>마지막 확인 <time dateTime={data.fetchedAt}>{formatCheckedAt(data.fetchedAt)}</time> · 한국시간</span>}
     </div>
   );
 }
@@ -278,13 +281,24 @@ export function GameSchedule({ afterSchedule, beforeTeamBoards }: { afterSchedul
   const { data, error, checking, retry } = useKboSnapshot();
   const loading = !data && !error;
   const stale = Boolean(data && (data.stale || error));
+  const today = koreaToday();
+  const tomorrow = nextCalendarDate(today);
+  const scheduleStatus = data?.date === today ? data.scheduleStatus ?? "pending" : "pending";
+  const scheduleError = Boolean(error) || scheduleStatus === "error";
+  const scheduleActions = <div>
+    {supportedScheduleDate(tomorrow)
+      ? <Link className="button button-secondary" href={`/schedule?date=${tomorrow}`}>내일 경기 조회</Link>
+      : <p>내일은 현재 지원하는 2026 시즌 범위를 벗어납니다.</p>}
+    <Link className="button button-secondary" href="/schedule">날짜 선택</Link>
+    <button type="button" className="button button-secondary" onClick={retry} disabled={checking}>다시 확인</button>
+  </div>;
 
   return (
     <>
       <section className="container home-schedule" aria-labelledby="schedule-heading">
         <div className="section-heading">
           <div><span className="eyebrow">GAME SCHEDULE</span><h2 id="schedule-heading">경기 일정</h2>
-            <p>{data ? `${formatDay(data.date, true)} · ${data.games.length ? `총 ${data.games.length}경기` : "오늘의 경기"}` : "오늘의 KBO 경기를 만나보세요."}</p>
+            <p>{data ? `${formatDay(today, true)} · ${scheduleStatus === "ready" ? `총 ${data.games.length}경기` : "오늘의 경기"}` : "오늘의 KBO 경기를 만나보세요."}</p>
           </div>
           <Link href="/schedule" className="text-link">세부 일정 <Icon name="chevron" size={17} /></Link>
         </div>
@@ -294,11 +308,13 @@ export function GameSchedule({ afterSchedule, beforeTeamBoards }: { afterSchedul
             <button type="button" onClick={retry} disabled={checking}>{checking ? "확인 중…" : "다시 확인"}</button>
           </div>
         )}
-        {loading ? <ScheduleSkeleton /> : !data ? (
+        {loading ? <ScheduleSkeleton /> : scheduleError || !data ? (
           <div className="kbo-empty-state" role="status"><Icon name="stadium" size={32} /><strong>경기 정보를 불러오지 못했어요.</strong>
-            <p>잠시 후 다시 확인해 주세요.</p><button type="button" className="button button-secondary" onClick={retry} disabled={checking}>다시 불러오기</button>
+            <p>연결 상태를 확인하거나 다른 날짜를 조회해 주세요.</p>{scheduleActions}
           </div>
-        ) : data.games.length ? <GameCarousel games={data.games} /> : (
+        ) : scheduleStatus === "pending" ? (
+          <div className="kbo-empty-state" role="status"><strong>오늘 경기 정보가 아직 업데이트되지 않았습니다.</strong><p>내일 경기를 조회할까요?</p>{scheduleActions}</div>
+        ) : scheduleStatus === "ready" && data.games.length ? <GameCarousel games={data.games} /> : (
           <div className="kbo-empty-state"><Icon name="stadium" size={32} /><strong>오늘은 예정된 경기가 없어요.</strong><p>다음 경기를 기다리며 직관 코스를 준비해 보세요.</p></div>
         )}
         {data && <><SourceMeta data={data} /><p className="game-weather-source">날씨: <a href="https://www.data.go.kr/data/15084084/openapi.do" target="_blank" rel="noreferrer">기상청 단기예보</a> · 경기 시작에 가까운 정시 예보 · 고척은 구장 외부 기준</p></>}
@@ -319,7 +335,7 @@ export function GameSchedule({ afterSchedule, beforeTeamBoards }: { afterSchedul
             {!checking && <button type="button" className="button button-secondary" onClick={retry}>순위 다시 확인</button>}
           </div>
         )}
-        {data && <div className="standings-footnote"><p>{stale ? "마지막으로 수집한 순위입니다. " : ""}경기 결과와 순위가 반영되는 시점은 다를 수 있어요.</p>
+        {data && <div className="standings-footnote"><KboStandingsNote data={data} />
           {data.sourceUpdatedAt && <p>출처에 표시된 갱신 시각: {data.sourceUpdatedAt}</p>}
           <SourceMeta data={data} />
         </div>}
