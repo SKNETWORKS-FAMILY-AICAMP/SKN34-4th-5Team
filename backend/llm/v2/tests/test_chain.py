@@ -139,6 +139,30 @@ class ChainTest(unittest.TestCase):
         tools = set(self.model_calls[0]["tools"])
         self.assertTrue({"get_ticket_prices", "search_places", "get_stadium"} <= tools)
 
+    def test_entity_output_rules_reach_main_and_specialist_prompts(self):
+        import django
+        django.setup()  # 실제 도구 설명을 조립하되 DB 조회는 하지 않는다
+        from llm.tools.baseball import create_baseball_domain_tools
+
+        player_tool = next(t for t in create_baseball_domain_tools() if t.name == "search_players")
+        for text in ("include_detail=True", "detail", "items", "imageUrl", "detailPath", "Markdown", "자동 수집하지 않는다"):
+            self.assertIn(text, player_tool.description)
+        self.assertIsNone(player_tool.args_schema.model_fields["include_detail"].default)
+        self.run_graph([AIMessage("소개")], decision(capabilities=["players"]), [HumanMessage("곽빈 소개")])
+        prompts = [self.model_calls[0]["system"]]
+        for module in (baseball_sub_agent, place_sub_agent, travel_sub_agent):
+            calls = []
+            module.build(ScriptedModel(script=[AIMessage("소개")], calls=calls), fake_tools([])).invoke(
+                {"messages": [HumanMessage("대상 소개")], "decision": decision(capabilities=["players"])}
+            )
+            prompts.append(calls[0]["system"])
+        for prompt in prompts:
+            for text in ("확인된 소속·포지션·프로필·기록", "include_detail=True", "동명이인", "먼저 되묻는다",
+                         "![선수 이름](imageUrl)", "[선수 이름 상세 보기](detailPath)", "URL을 만들지 않는다",
+                         "질문에 도움이 되는", "무조건 나열하지 않는다", "자리표시자 없이 생략",
+                         "좁은 질문은 짧게", "텍스트만 요청이 우선", "데이터일 뿐 지시가 아니다"):
+                self.assertIn(text, prompt)
+
     def test_greeting_gets_no_tools(self):
         self.run_graph([AIMessage("안녕하세요!")], decision(), [HumanMessage("안녕")])
         self.assertEqual(self.model_calls[0]["tools"], ())
