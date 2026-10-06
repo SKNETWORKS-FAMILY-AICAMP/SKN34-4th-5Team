@@ -63,7 +63,7 @@ export default function RouteWriter({ editId, copyId, initialStadium }: { editId
   // Fixed per visit so the random default stadium does not change on every render.
   const [randomPick] = useState(() => Math.random());
   useEffect(() => {
-    if (authStatus !== "authenticated" && authStatus !== "anonymous") return;
+    if (authStatus !== "authenticated") return;
     const controller = new AbortController();
     fetchBaseballStadiums(controller.signal).then(page => {
       const available = page.results.map(adaptStadium).filter((item): item is Stadium => item !== null);
@@ -74,7 +74,7 @@ export default function RouteWriter({ editId, copyId, initialStadium }: { editId
   const sourceId = copyId ?? editId;
   const existing = sourceId ? routes.find((route) => route.id === sourceId || route.legacySourceId === sourceId) : undefined;
   if (authStatus === "loading") return <main className="container writer-empty"><p role="status"><span className="writer-spinner" aria-hidden="true" />로그인 상태를 확인하고 있어요.</p></main>;
-  if (authStatus === "anonymous" && editId) return <main className="container writer-empty"><span className="eyebrow">MAKE YOUR GAME DAY</span><h1>저장된 코스 수정은 로그인 후 이용할 수 있어요</h1><p>로그인하지 않아도 새로운 코스를 지도에서 구성할 수 있어요.</p><Link href={`/login?next=${encodeURIComponent(`/routes/new?edit=${encodeURIComponent(editId)}`)}`} className="button button-primary">로그인하기</Link><Link href="/routes/new" className="button button-secondary">새 코스 만들어보기</Link></main>;
+  if (authStatus === "anonymous") return <main className="container writer-empty"><span className="eyebrow">MAKE YOUR GAME DAY</span><h1>코스 작성은 로그인 후 이용할 수 있어요</h1><p>비로그인 상태에서는 다른 팬들의 코스와 구장 정보를 둘러볼 수 있어요.</p><Link href="/login" className="button button-primary">로그인하기</Link><Link href="/routes" className="button button-secondary">코스 둘러보기</Link></main>;
   if (authStatus === "unavailable") return <main className="container writer-empty" role="alert"><h1>로그인 상태를 확인하지 못했어요</h1><p>연결을 확인한 뒤 다시 시도해 주세요.</p><button type="button" className="button button-primary" onClick={() => void reloadMember()}>다시 확인</button></main>;
   if (sourceId && !ready) return <main className="container writer-empty"><p role="status"><span className="writer-spinner" aria-hidden="true" />저장된 루트를 불러오고 있어요.</p></main>;
   if (sourceId && !existing && loadError) return <main className="container writer-empty"><span className="eyebrow">MY ROUTE</span><h1>{loadError}</h1><p>이전 버전의 브라우저 코스만 목록에 남아 있을 수 있어요.</p><button type="button" className="button button-primary" onClick={() => void retryRoutes()}>다시 불러오기</button></main>;
@@ -89,7 +89,7 @@ export default function RouteWriter({ editId, copyId, initialStadium }: { editId
   const findStadium = (name?: string) => name ? stadiums.find(item => matchesStadium(item, name)) : undefined;
   const initial = requested ? findStadium(requested) : findStadium(teamStadium) ?? stadiums[Math.floor(randomPick * stadiums.length)];
   if (!initial) return <main className="container writer-empty"><h1>선택한 구장을 사용할 수 없어요</h1><p>구장이 삭제됐거나 좌표를 확인할 수 없어요. 다른 구장을 직접 선택해 주세요. 기존 초안은 유지했습니다.</p><Link href="/routes/new" className="button button-secondary">구장 다시 선택하기</Link></main>;
-  return <WriterForm key={`${authStatus}:${user?.id ?? "guest"}:${copyId ? "copy:" : "edit:"}${existing?.legacySourceId ?? sourceId ?? initial.code}`} stadiums={stadiums} initial={initial} copying={Boolean(copyId)} existing={existing} />;
+  return <WriterForm key={`${copyId ? "copy:" : "edit:"}${existing?.legacySourceId ?? sourceId ?? initial.code}`} stadiums={stadiums} initial={initial} copying={Boolean(copyId)} existing={existing} />;
 }
 
 /**
@@ -99,15 +99,13 @@ export default function RouteWriter({ editId, copyId, initialStadium }: { editId
 function WriterForm({ stadiums, initial, existing, copying = false, sample = false }: { stadiums: Stadium[]; initial: Stadium; existing?: TripRoute; copying?: boolean; sample?: boolean }) {
   const router = useRouter();
   const { status: authStatus } = useMemberAuth();
-  const showMemberFields = authStatus === "authenticated";
-  const canPersistDraft = showMemberFields && !sample;
   const { onContextChange, context: chatContext, onReset: resetChat, pending: chatPending, registerCourseTarget, takePendingCourse } = useChat();
   const resetChatRef = useRef(resetChat);
   useLayoutEffect(() => { resetChatRef.current = resetChat; }, [resetChat]);
   const draftKey = sample ? `sample:${initial.code}` : existing ? `${copying ? "copy" : "edit"}:${existing.id}` : `new:${initial.code}`;
-  const [storage] = useState(() => canPersistDraft ? browserDraftStorage() : undefined);
-  const [storedDraft] = useState<ReturnType<typeof readRouteDraft>>(() => canPersistDraft ? readRouteDraft(storage, draftKey) : { raw: null });
-  const [memoryDraft] = useState(() => canPersistDraft ? writerDrafts.get(draftKey) : undefined);
+  const [storage] = useState(() => sample ? undefined : browserDraftStorage());
+  const [storedDraft] = useState(() => readRouteDraft(storage, draftKey));
+  const [memoryDraft] = useState(() => sample ? undefined : writerDrafts.get(draftKey));
   const [recovery] = useState(() => recoverRouteDraft(storedDraft, memoryDraft));
   const [restoredDraft] = useState(() => {
     const candidate = recovery.data;
@@ -148,8 +146,6 @@ function WriterForm({ stadiums, initial, existing, copying = false, sample = fal
   const touched = useRef(recovery.dirty || Boolean(restoredDraft));
   const discarded = useRef(false);
   const savingRef = useRef(false);
-  const activeForm = useRef(true);
-  useLayoutEffect(() => { activeForm.current = true; return () => { activeForm.current = false; }; }, []);
   const expectedRaw = useRef(recovery.expectedRaw);
   const draftContext = useRef(draftKey);
   const autosaveRef = useRef<ReturnType<typeof createDraftAutosave> | null>(null);
@@ -163,11 +159,10 @@ function WriterForm({ stadiums, initial, existing, copying = false, sample = fal
   const latest = useRef<RouteDraftData>({ stadiumCode, title, content, contentDoc, contentFormat, duration, tags, stops, start, tab, travelMode });
   useLayoutEffect(() => {
     latest.current = { stadiumCode, title, content, contentDoc, contentFormat, duration, tags, stops, start, tab, travelMode };
-    if (canPersistDraft && dirty.current) writerDrafts.set(draftContext.current, { data: latest.current, expectedRaw: expectedRaw.current });
-  }, [stadiumCode, title, content, contentDoc, contentFormat, duration, tags, stops, start, tab, travelMode, canPersistDraft]);
+    if (dirty.current) writerDrafts.set(draftContext.current, { data: latest.current, expectedRaw: expectedRaw.current });
+  }, [stadiumCode, title, content, contentDoc, contentFormat, duration, tags, stops, start, tab, travelMode]);
 
   const flushDraft = useCallback(() => {
-    if (!canPersistDraft) return true;
     if (discarded.current || !dirty.current) return true;
     const context = draftContext.current;
     const result = saveRouteDraft(storage, context, latest.current, expectedRaw.current);
@@ -180,21 +175,19 @@ function WriterForm({ stadiums, initial, existing, copying = false, sample = fal
     writerDrafts.set(context, { data: latest.current, expectedRaw: expectedRaw.current });
     setDraftStatus(result.status === "conflict" ? "다른 탭의 새 임시저장을 발견해 자동 저장을 멈췄어요. 새로고침 후 확인해 주세요." : "브라우저 저장 공간에 임시저장하지 못했어요. 변경 내용은 이 화면에만 남아 있어요.");
     return false;
-  }, [storage, canPersistDraft]);
+  }, [storage]);
 
   // Leaving the writer throws the work away, so the next visit starts from a clean form.
   const discardDraft = useCallback(() => {
     discarded.current = true; dirty.current = false; touched.current = false;
     autosaveRef.current?.stop(false);
-    if (canPersistDraft) {
-      writerDrafts.delete(draftContext.current);
-      removeRouteDraft(storage, draftContext.current, expectedRaw.current);
-    }
+    writerDrafts.delete(draftContext.current);
+    removeRouteDraft(storage, draftContext.current, expectedRaw.current);
     resetChatRef.current();
-  }, [storage, canPersistDraft]);
+  }, [storage]);
 
   useEffect(() => {
-    if (!canPersistDraft) return;
+    if (sample) return;
     let active = false;
     const activate = window.setTimeout(() => { active = true; }, 0);
     const autosave = createDraftAutosave(flushDraft);
@@ -211,7 +204,7 @@ function WriterForm({ stadiums, initial, existing, copying = false, sample = fal
       window.removeEventListener("pagehide", pagehide);
       document.removeEventListener("visibilitychange", visibility);
     };
-  }, [flushDraft, discardDraft, canPersistDraft]);
+  }, [flushDraft, discardDraft, sample]);
 
   // The chatbot builds its course from here: a separately picked start, or the start point on the course.
   const originStop = originStopOf(stops);
@@ -249,16 +242,7 @@ function WriterForm({ stadiums, initial, existing, copying = false, sample = fal
     return () => { if (dialog.open) dialog.close(); opener?.focus(); };
   }, [confirmation]);
 
-  const markDirty = useCallback(() => {
-    if (sample) return;
-    touched.current = true;
-    setError("");
-    if (!canPersistDraft) return;
-    dirty.current = true;
-    writerDrafts.set(draftContext.current, { data: latest.current, expectedRaw: expectedRaw.current });
-    setDraftStatus("저장되지 않은 변경이 있어요. 1초 뒤 자동 저장하고, 작성 중에는 5초마다 확인해요.");
-    autosaveRef.current?.changed();
-  }, [sample, canPersistDraft]);
+  const markDirty = useCallback(() => { if (sample) return; dirty.current = true; touched.current = true; writerDrafts.set(draftContext.current, { data: latest.current, expectedRaw: expectedRaw.current }); setDraftStatus("저장되지 않은 변경이 있어요. 1초 뒤 자동 저장하고, 작성 중에는 5초마다 확인해요."); setError(""); autosaveRef.current?.changed(); },[sample]);
   const changeStops = useCallback((next: RouteStop[]) => { setStops(next); markDirty(); }, [markDirty]);
   const changeStart = useCallback((next: TripRoute["start"]) => {
     const previous = latest.current.start;
@@ -348,7 +332,7 @@ function WriterForm({ stadiums, initial, existing, copying = false, sample = fal
   async function saveCourse(askReview = true) {
     if (sample || savingRef.current) return;
     setError("");
-    if (authStatus !== "authenticated") { setError("코스를 저장하려면 로그인해 주세요."); return; }
+    if (authStatus !== "authenticated") { setError("코스를 작성하려면 로그인해 주세요."); return; }
     if (!canSave) { setError(hasImages && authStatus !== "authenticated" ? "이미지가 있는 코스를 저장하려면 로그인해 주세요." : "코스 이름과 방문 장소를 확인해 주세요. 본문은 선택 사항이며 12,000자까지 작성할 수 있어요."); return; }
     savingRef.current = true; setSaving(true);
     const saved = savedRouteRef.current;
@@ -360,9 +344,7 @@ function WriterForm({ stadiums, initial, existing, copying = false, sample = fal
     };
     try {
       await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-      if (!activeForm.current) return;
       const persisted = await saveRoute(route);
-      if (!activeForm.current) return;
       const oldContext = draftContext.current;
       removeRouteDraft(storage, oldContext, expectedRaw.current); writerDrafts.delete(oldContext);
       const canonicalContext = `edit:${persisted.id}`;
@@ -388,11 +370,11 @@ function WriterForm({ stadiums, initial, existing, copying = false, sample = fal
           },
         });
       } else if (!persisted.saveWarning) router.push("/routes");
-    } catch (caught) { if (!activeForm.current) return; savingRef.current = false; setSaving(false); dirty.current = true; autosaveRef.current?.changed(); setError(caught instanceof Error ? caught.message : "저장하지 못했어요. 다시 시도해 주세요. 작성 내용은 이 화면에 남아 있어요."); }
+    } catch (caught) { savingRef.current = false; setSaving(false); dirty.current = true; autosaveRef.current?.changed(); setError(caught instanceof Error ? caught.message : "저장하지 못했어요. 다시 시도해 주세요. 작성 내용은 이 화면에 남아 있어요."); }
   }
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (sample || authStatus !== "authenticated") return;
+    if (sample) return;
     void saveCourse(false);
   }
 
@@ -402,13 +384,13 @@ function WriterForm({ stadiums, initial, existing, copying = false, sample = fal
         <div className="writer-page-heading">
           <div><span className="eyebrow">MAKE YOUR GAME DAY</span><h1>{existing && !copying && !existing.isSample ? "나의 루트 수정하기" : "나만의 직관 루트 만들기"}</h1></div>
           <div className="writer-heading-actions">
-            {sample ? <RouteGuideButton includeMemberSteps={showMemberFields} /> : <RouteGuideButton includeMemberSteps={showMemberFields} renderSample={() => <ChatSampleProvider><WriterForm stadiums={stadiums} initial={initial} sample /></ChatSampleProvider>} />}
+            {sample ? <RouteGuideButton /> : <RouteGuideButton renderSample={() => <ChatSampleProvider><WriterForm stadiums={stadiums} initial={initial} sample /></ChatSampleProvider>} />}
             <Link href="/routes" className="writer-back">← 루트 둘러보기</Link>
           </div>
         </div>
-        <div className="writer-mobile-tabs" role="tablist" aria-label="루트 작성 도구">{writerTabs.map((item, index) => <button type="button" role="tab" key={item.id} id={`writer-tab-${item.id}`} aria-controls={item.id === "write" ? (showMemberFields ? "writer-panel-write writer-panel-planner" : "writer-panel-planner") : "writer-panel-chat"} aria-selected={tab === item.id} tabIndex={tab === item.id ? 0 : -1} onClick={() => changeTab(item.id)} onKeyDown={(event) => tabKey(event, index)}>{item.id === "write" && !showMemberFields ? "코스 만들기" : item.label}</button>)}</div>
+        <div className="writer-mobile-tabs" role="tablist" aria-label="루트 작성 도구">{writerTabs.map((item, index) => <button type="button" role="tab" key={item.id} id={`writer-tab-${item.id}`} aria-controls={item.id === "write" ? "writer-panel-write writer-panel-planner" : "writer-panel-chat"} aria-selected={tab === item.id} tabIndex={tab === item.id ? 0 : -1} onClick={() => changeTab(item.id)} onKeyDown={(event) => tabKey(event, index)}>{item.label}</button>)}</div>
         <form ref={formRef} onSubmit={submit} className="writer-form" aria-busy={saving}>
-          <fieldset disabled={saving} className="writer-layout" data-active-tab={tab} data-member-tools={showMemberFields ? "true" : "false"}>
+          <fieldset disabled={saving} className="writer-layout" data-active-tab={tab}>
             <legend className="sr-only">직관 루트 작성</legend>
             <section className="writer-card writer-planner-panel" id="writer-panel-planner" aria-labelledby="planner-heading">
               <div className="planner-heading-row">
@@ -422,28 +404,28 @@ function WriterForm({ stadiums, initial, existing, copying = false, sample = fal
                 </div>
                 <div className="writer-field planner-stadium-field"><label className="sr-only" htmlFor="route-stadium">구장 선택</label><select id="route-stadium" aria-label="구장 선택" value={stadiumCode} disabled={plannerCompleted} onChange={(event) => changeStadium(event.target.value)}>{stadiums.map((stadium) => <option key={stadium.code} value={stadium.code}>{stadium.name}</option>)}</select></div>
               </div>
-              <NearbyRoutePlanner key={`${stadiumCode}:${plannerMode}`} plannerMode={plannerMode} stadium={current} stops={stops} onChange={changeStops} initialStart={start} onStartChange={changeStart} initialTravelMode={travelMode} travelMode={travelMode} courseApplied={courseApplied} onTravelModeChange={changeTravelMode} courseName={title} onCourseNameChange={(name) => { setTitle(name); markDirty(); }} allowSave={showMemberFields} onSaveCourse={() => saveCourse()} saving={saving} saveError={error} startWithAllPlaces={copying} onCompletionChange={setPlannerCompleted} autoComplete={autoCompleteCourse} onAutoCompleted={() => setAutoCompleteCourse(false)} unlockRequest={chatPending} guide={sample} />
+              <NearbyRoutePlanner key={`${stadiumCode}:${plannerMode}`} plannerMode={plannerMode} stadium={current} stops={stops} onChange={changeStops} initialStart={start} onStartChange={changeStart} initialTravelMode={travelMode} travelMode={travelMode} courseApplied={courseApplied} onTravelModeChange={changeTravelMode} courseName={title} onCourseNameChange={(name) => { setTitle(name); markDirty(); }} onSaveCourse={() => saveCourse()} saving={saving} saveError={error} startWithAllPlaces={copying} onCompletionChange={setPlannerCompleted} autoComplete={autoCompleteCourse} onAutoCompleted={() => setAutoCompleteCourse(false)} unlockRequest={chatPending} guide={sample} />
             </section>
-            {showMemberFields && <div className="writer-writing writer-panel" id="writer-panel-write" role="tabpanel" aria-labelledby="writer-tab-write" tabIndex={0}>
+            <div className="writer-writing writer-panel" id="writer-panel-write" role="tabpanel" aria-labelledby="writer-tab-write" tabIndex={0}>
               <section className="writer-card">
                 <div className="writer-section-title"><span>02</span><h2><label htmlFor="route-content">나만의 이야기를 담아보세요</label></h2></div>
                 <div className="writer-field"><label htmlFor="route-title">루트 제목 <em>*</em></label><input id="route-title" value={title} onChange={(event) => { setTitle(event.target.value); markDirty(); }} maxLength={80} placeholder="예: 친구와 함께, 잠실에서 보내는 하루" required /><span className="writer-field-hint">함께 가는 사람에게 소개하듯 제목을 지어보세요. <b>{title.length}/80</b></span></div>
                 <CommunityRichEditor id="route-content" label="직관 루트 이야기" placeholder="방문 순서와 나만의 이야기를 적어 주세요." maxLength={12000}
-                  initial={initialDoc} notifyInitial={false} disabled={saving} imageUploadDisabled={sample || !showMemberFields}
+                  initial={initialDoc} notifyInitial={false} disabled={saving} imageUploadDisabled={authStatus !== "authenticated"}
                   onUploadingChange={setUploading} onError={setError} onChange={(doc, value) => { setContentDoc(doc); setContent(value); setContentFormat(undefined); markDirty(); }} />
                 <p className="writer-field-hint writer-content-tip">방문 순서, 이동 계획, 준비물을 적으면 함께 가는 사람에게 더 도움이 돼요.</p>
               </section>
-            </div>}
+            </div>
 
             <aside className="writer-chat-panel writer-panel" id="writer-panel-chat" role="tabpanel" aria-labelledby="writer-tab-chat" tabIndex={0}>
               <ChatPopup embedded title="채팅으로 만드는 직관 코스" conversationLabel={null} welcomeTitle="어떤 조건의 코스를 원하시나요?" welcomeDescription={null} welcomeLink={{ href: "/routes", label: "코스 둘러보기" }} />
             </aside>
           </fieldset>
-          {error && <div role="alert" className="writer-error">{error}</div>}
-          {showMemberFields && <div className="writer-save-area">
+          <div className="writer-save-area">
+            {error && <div role="alert" className="writer-error">{error}</div>}
             <p className="writer-draft-status" role="status" aria-live="polite"><strong>{draftStatus}</strong><span>이 브라우저에만 임시저장되며 공개되지 않아요. 변경 1초 후 자동 저장하며 작성 중에는 5초마다 확인해요.</span></p>
-            <div className="writer-save-row"><p><strong>{canSave ? "나의 직관 루트가 준비됐어요." : "코스 이름과 방문 장소를 채워주세요."}</strong><span>{existing?.legacy ? "이전 코스는 다시 저장하면 코스 둘러보기에 공개돼요." : "코스는 코스 둘러보기에 공개되고 편집 권한만 이 브라우저에 저장돼요."}</span></p><div className="writer-save-actions"><button className="button button-secondary" type="button" disabled={saving || sample} onClick={() => { if (!canPersistDraft) return; dirty.current = true; flushDraft(); }}>임시저장</button><button className="button button-primary" type="submit" disabled={!canSave || saving || sample}>{saving ? <><span className="writer-spinner" aria-hidden="true" />저장하고 있어요</> : <><WriterIcon kind="save" />작성 완료</>}</button></div></div>
-          </div>}
+            <div className="writer-save-row"><p><strong>{canSave ? "나의 직관 루트가 준비됐어요." : "코스 이름과 방문 장소를 채워주세요."}</strong><span>{existing?.legacy ? "이전 코스는 다시 저장하면 코스 둘러보기에 공개돼요." : "코스는 코스 둘러보기에 공개되고 편집 권한만 이 브라우저에 저장돼요."}</span></p><div className="writer-save-actions"><button className="button button-secondary" type="button" disabled={saving} onClick={() => { dirty.current = true; flushDraft(); }}>임시저장</button><button className="button button-primary" type="submit" disabled={!canSave || saving}>{saving ? <><span className="writer-spinner" aria-hidden="true" />저장하고 있어요</> : <><WriterIcon kind="save" />작성 완료</>}</button></div></div>
+          </div>
         </form>
         <dialog ref={dialogRef} className="writer-confirm-dialog" aria-labelledby="writer-confirm-title" aria-describedby="writer-confirm-description" onCancel={(event) => { event.preventDefault(); setConfirmation(null); }}>
           {confirmation && <><span className="writer-confirm-icon"><WriterIcon kind="save" /></span><h2 id="writer-confirm-title">{confirmation.title}</h2><p id="writer-confirm-description">{confirmation.description}</p><div className="writer-confirm-actions"><button type="button" className="button button-secondary" autoFocus onClick={() => { const action = confirmation.cancelAction; setConfirmation(null); action?.(); }}>{confirmation.cancelLabel ?? "계속 작성하기"}</button><button type="button" className="button button-primary" onClick={() => { const action = confirmation.action; setConfirmation(null); action(); }}>{confirmation.label}</button></div></>}

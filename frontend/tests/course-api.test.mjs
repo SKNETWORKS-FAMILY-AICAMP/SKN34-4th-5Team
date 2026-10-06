@@ -5,9 +5,6 @@ import ts from "typescript";
 
 const source = readFileSync(new URL("../lib/course-api.ts", import.meta.url), "utf8");
 const { outputText } = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } });
-const lodgingCode = ts.transpileModule(readFileSync(new URL("../lib/google-lodging.ts", import.meta.url), "utf8"), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
-const lodgingModule = { exports: {} };
-new Function("module", "exports", lodgingCode)(lodgingModule, lodgingModule.exports);
 
 function harness(memberFetch = async () => { throw new Error("unexpected authenticated request"); }) {
   const storage = new Map();
@@ -30,7 +27,7 @@ function harness(memberFetch = async () => { throw new Error("unexpected authent
     ? { ApiError, apiRequest }
     : name === "./member-auth-request"
       ? { memberFetch: (...args) => memberHandler(...args) }
-      : name === "./google-lodging" ? lodgingModule.exports : (() => { throw new Error(`unexpected import: ${name}`); })();
+      : (() => { throw new Error(`unexpected import: ${name}`); })();
   const testModule = { exports: {} };
   new Function("module", "exports", "window", "require", outputText)(testModule, testModule.exports, window, requireDependency);
   return { ...testModule.exports, storage, block: () => { blocked = true; }, member: handler => { memberHandler = handler; } };
@@ -44,7 +41,7 @@ test("default course writes use the member JWT request path while reads stay pub
   });
   await api.fetchCourses(async () => Response.json([]));
   await api.persistCourse(route());
-  assert.deepEqual(requests, [["/api/v1/courses/", "POST"]]);
+  assert.deepEqual(requests, [["/api/courses/", "POST"]]);
 });
 
 const apiCourse = changes => ({
@@ -63,7 +60,7 @@ const route = changes => ({
 test("create sends ordered stops and stores only the returned edit token", async () => {
   const api = harness();
   const saved = await api.persistCourse(route(), async (url, init) => {
-    assert.equal(url, "/api/v1/courses/");
+    assert.equal(url, "/api/courses/");
     assert.equal(init.method, "POST");
     assert.equal(init.redirect, "error");
     assert.ok(init.signal instanceof AbortSignal);
@@ -78,18 +75,6 @@ test("create sends ordered stops and stores only the returned edit token", async
   assert.deepEqual([...api.storage], [[`kbo-course-edit-token:${saved.id}`, "edit-secret"]]);
 });
 
-test("Google lodging writes ID-only references and reads unresolved coordinates", async () => {
-  const api = harness();
-  const stop = { name: "Do not store Google content", address: "Do not store", category: "호텔", lat: 37.4, lng: 126.7, placeId: "google-ui-kit:fixture_1", visitId: "v1", tourContentId: "bad", isMapPoint: true };
-  const result = await api.persistCourse(route({ stops: [stop] }), async (_url, init) => {
-    const saved = JSON.parse(init.body).stops[0];
-    assert.deepEqual(saved, { name: "선택한 숙소", category: "숙박", lat: null, lng: null, placeId: stop.placeId, visitId: "v1", position: 0 });
-    return Response.json(apiCourse({ editToken: "test-token", stops: [saved] }), { status: 201 });
-  });
-  assert.ok(Number.isNaN(result.stops[0].lat));
-  assert.equal(result.stops[0].address, undefined);
-});
-
 test("list ownership, update, and delete all use the per-course token", async () => {
   const api = harness();
   const id = apiCourse({}).id;
@@ -97,13 +82,13 @@ test("list ownership, update, and delete all use the per-course token", async ()
   const listed = await api.fetchCourses(async () => Response.json([apiCourse({})]));
   assert.equal(listed[0].owned, true);
   await api.persistCourse(route({ id }), async (url, init) => {
-    assert.equal(url, `/api/v1/courses/${id}/`);
+    assert.equal(url, `/api/courses/${id}/`);
     assert.equal(init.method, "PATCH");
     assert.equal(init.headers["X-Course-Edit-Token"], "edit-secret");
     return Response.json(apiCourse({}));
   });
   await api.removeCourse(id, async (url, init) => {
-    assert.equal(url, `/api/v1/courses/${id}/`);
+    assert.equal(url, `/api/courses/${id}/`);
     assert.equal(init.headers["X-Course-Edit-Token"], "edit-secret");
     return new Response(null, { status: 204 });
   });
@@ -125,7 +110,7 @@ test("token storage failure keeps session edit access and never retries POST", a
   assert.match(created.saveWarning, /새로고침하면 읽기 전용/);
   assert.equal(api.storage.size, 0);
   await api.persistCourse({ ...created, title: "변경" }, async (url, init) => {
-    assert.equal(url, `/api/v1/courses/${created.id}/`);
+    assert.equal(url, `/api/courses/${created.id}/`);
     assert.equal(init.method, "PATCH");
     assert.equal(init.headers["X-Course-Edit-Token"], "edit-secret");
     return Response.json(apiCourse({ title: "변경" }));
@@ -186,13 +171,13 @@ test("member reactions use JWT fetch and anonymous views use an explicit token h
   assert.deepEqual(await api.fetchCourseReaction(id), { liked: true, likes: 8 });
   assert.deepEqual(await api.setCourseReaction(id, true), { liked: true, likes: 8 });
   const view = await api.recordCourseView(id, "11111111-1111-4111-8111-111111111111", async (url, init) => {
-    assert.equal(url, `/api/v1/courses/${id}/view/`);
+    assert.equal(url, `/api/courses/${id}/view/`);
     assert.equal(new Headers(init.headers).get("X-Course-View-Token"), "11111111-1111-4111-8111-111111111111");
     assert.equal(new Headers(init.headers).has("Cookie"), false);
     return Response.json({ views: 10 });
   });
   assert.deepEqual(view, { views: 10 });
   assert.deepEqual(memberCalls.map(([url, init]) => [url, init.method ?? "GET"]), [
-    [`/api/v1/courses/${id}/reaction/`, "GET"], [`/api/v1/courses/${id}/reaction/`, "POST"],
+    [`/api/courses/${id}/reaction/`, "GET"], [`/api/courses/${id}/reaction/`, "POST"],
   ]);
 });

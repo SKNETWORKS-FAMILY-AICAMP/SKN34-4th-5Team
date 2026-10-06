@@ -32,7 +32,7 @@ const { CHAT_INSTRUCTIONS } = requireTestModule("./prompt.js");
 const question = { messages: [{ role: "user", content: "잠실 직관 코스를 추천해줘" }] };
 // Deliberately synthetic: tests never load a real .env or contact a provider.
 const secret = "unit-test-synthetic-key-not-a-real-credential";
-const openaiEnv = { CHAT_PROVIDER: "openai", OPENAI_API_KEY: secret, OPENAI_MODEL: "gpt-6-luna" };
+const openaiEnv = { CHAT_PROVIDER: "openai", OPENAI_API_KEY: secret, OPENAI_MODEL: "gpt-5.6-luna" };
 const completed = (text = "식사, 경기 관람, 산책 순서로 하루를 구성해 보세요.") => ({
   status: "completed",
   output: [{ type: "message", role: "assistant", content: [{ type: "output_text", text }] }],
@@ -87,7 +87,7 @@ test("valid history and message length boundaries remain accepted", () => {
 });
 
 test("default configuration is explicitly demo and never calls fetch", async () => {
-  assert.deepEqual(getChatStatus({}), { provider: "demo", model: "gpt-6-luna", ready: true });
+  assert.deepEqual(getChatStatus({}), { provider: "demo", model: "gpt-5.6-luna", ready: true });
   const result = await createChatReply(question, { env: {}, fetcher: unexpectedFetch });
   assert.equal(result.provider, "demo");
   assert.match(result.reply, /예시/);
@@ -133,7 +133,7 @@ test("OpenAI request uses configured model, server instructions and private resp
       assert.equal(init.cache, "no-store");
       assert.ok(init.signal instanceof AbortSignal);
       const body = JSON.parse(init.body);
-      assert.equal(body.model, "gpt-6-luna");
+      assert.equal(body.model, "gpt-5.6-luna");
       assert.equal(body.store, false);
       assert.equal(body.instructions, CHAT_INSTRUCTIONS);
       assert.deepEqual(body.input.slice(1), question.messages);
@@ -147,7 +147,7 @@ test("OpenAI request uses configured model, server instructions and private resp
     },
   });
   assert.equal(calls, 1);
-  assert.deepEqual(result, { provider: "openai", model: "gpt-6-luna", ready: true, reply: "답변입니다." });
+  assert.deepEqual(result, { provider: "openai", model: "gpt-5.6-luna", ready: true, reply: "답변입니다." });
   assert.ok(!JSON.stringify(result).includes(secret));
   assert.ok(!JSON.stringify(getChatStatus(openaiEnv)).includes(secret));
 });
@@ -215,15 +215,15 @@ test("invalid JSON and network exceptions expose no upstream details", async () 
 test("backend adapter forwards the same request contract without OpenAI credentials", async () => {
   const request = { ...question, context: { stadium: "고척", intent: "route" } };
   const result = await createChatReply(request, {
-    env: { ...openaiEnv, CHAT_PROVIDER: "backend", CHAT_BACKEND_URL: "http://backend:8000/api/v1/chat/" },
+    env: { ...openaiEnv, CHAT_PROVIDER: "backend", CHAT_BACKEND_URL: "http://backend:8000/api/chat/" },
     fetcher: async (url, init) => {
-      assert.equal(url, "http://backend:8000/api/v1/chat/");
+      assert.equal(url, "http://backend:8000/api/chat/");
       assert.equal(init.headers.Authorization, undefined);
       assert.deepEqual(JSON.parse(init.body), request);
       return jsonResponse({ reply: "  팀 챗봇의 답변입니다.  ", internalField: "not exposed" });
     },
   });
-  assert.deepEqual(result, { provider: "backend", model: "gpt-6-luna", ready: true, reply: "팀 챗봇의 답변입니다." });
+  assert.deepEqual(result, { provider: "backend", model: "gpt-5.6-luna", ready: true, reply: "팀 챗봇의 답변입니다." });
 });
 
 test("backend rejects missing or unsafe endpoint configurations before fetching", async () => {
@@ -237,7 +237,7 @@ test("backend rejects missing or unsafe endpoint configurations before fetching"
 test("backend rejects malformed replies", async () => {
   for (const body of [null, {}, { reply: 42 }, { reply: " " }, { reply: "x".repeat(MAX_REPLY_LENGTH + 1) }]) {
     await assert.rejects(createChatReply(question, {
-      env: { CHAT_PROVIDER: "backend", CHAT_BACKEND_URL: "http://backend:8000/api/v1/chat/" },
+      env: { CHAT_PROVIDER: "backend", CHAT_BACKEND_URL: "http://backend:8000/api/chat/" },
       fetcher: async () => jsonResponse(body),
     }), chatError(502));
   }
