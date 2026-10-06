@@ -1,7 +1,6 @@
 "use client";
 
 import "driver.js/dist/driver.css";
-import type { DriveStep } from "driver.js";
 import { useEffect, useRef, useState, type ReactNode, type SyntheticEvent } from "react";
 import { createPortal } from "react-dom";
 import { GUIDE_COURSE, GUIDE_ORIGIN_SET, GUIDE_ORIGIN_TARGET, type GuideCourseStop, type GuidePoint } from "@/lib/route-guide-events";
@@ -234,7 +233,7 @@ function waitForSample(host: HTMLElement, timeoutMs = 20000) {
  * 스포트라이트 가이드. 실제 작성 화면을 건드리지 않도록, 같은 화면을 샘플 모드로 전체 화면에 띄워 그 위에서 진행한다.
  * host: 샘플 화면의 내용 영역, scroller: 샘플 화면의 스크롤 영역. 반환값은 가이드를 멈추는 함수.
  */
-async function runGuide(host: HTMLElement, scroller: HTMLElement, onClose: () => void, includeMemberSteps: boolean): Promise<() => void> {
+async function runGuide(host: HTMLElement, scroller: HTMLElement, onClose: () => void): Promise<() => void> {
   const { driver } = await import("driver.js");
   const find = (selector: string) => host.querySelector(selector);
   // driver.js는 문자열 선택자를 문서 전체에서 찾으므로, 항상 샘플 화면 안의 요소를 직접 넘긴다
@@ -244,10 +243,6 @@ async function runGuide(host: HTMLElement, scroller: HTMLElement, onClose: () =>
   let cleanup: (() => void) | undefined;
   const release = () => { cleanup?.(); cleanup = undefined; };
   const finishOrNext = () => { if (tour.isLastStep()) tour.destroy(); else tour.moveNext(); };
-
-  const selectSteps = (steps: DriveStep[]): DriveStep[] => includeMemberSteps
-    ? steps
-    : steps.filter(step => step.popover?.title !== "코스 저장" && step.popover?.title !== "코스 저장 완료");
 
   const tour = driver({
     popoverClass: "route-guide-popover",
@@ -265,7 +260,7 @@ async function runGuide(host: HTMLElement, scroller: HTMLElement, onClose: () =>
     nextBtnText: "다음",
     prevBtnText: "이전",
     doneBtnText: "완료",
-    steps: selectSteps([
+    steps: [
       {
         popover: {
           title: "가이드를 시작합니다",
@@ -581,7 +576,7 @@ async function runGuide(host: HTMLElement, scroller: HTMLElement, onClose: () =>
         popover: {
           popoverClass: "route-guide-popover route-guide-final",
           title: "가이드를 마쳤어요",
-          description: includeMemberSteps ? "나만의 코스를 공유하고 다른 사람들의 코스도 구경해보세요" : "지도에서 나만의 코스를 구성해보세요. 이야기 작성과 코스 저장은 로그인 후 이용할 수 있어요.",
+          description: "나만의 코스를 공유하고 다른 사람들의 코스도 구경해보세요",
           showButtons: ["next"],
           doneBtnText: "가이드 종료",
           // 캐릭터가 말풍선 오른쪽에 서서 팔을 말풍선에 걸친다
@@ -594,7 +589,7 @@ async function runGuide(host: HTMLElement, scroller: HTMLElement, onClose: () =>
           },
         },
       },
-    ]),
+    ],
     onDestroyed: () => {
       release();
       closed = true;
@@ -663,11 +658,10 @@ async function runGuide(host: HTMLElement, scroller: HTMLElement, onClose: () =>
 type RouteGuideButtonProps = {
   /** 가이드용 샘플 화면 (같은 작성 화면을 샘플 모드로). 없으면 버튼은 모양만 보인다. */
   renderSample?: () => ReactNode;
-  includeMemberSteps?: boolean;
 };
 
 // Spotlight onboarding for the route writer (/routes/new). Only starts when the user presses "가이드 시작".
-export function RouteGuideButton({ renderSample, includeMemberSteps = false }: RouteGuideButtonProps) {
+export function RouteGuideButton({ renderSample }: RouteGuideButtonProps) {
   const [open, setOpen] = useState(false);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
@@ -684,7 +678,7 @@ export function RouteGuideButton({ renderSample, includeMemberSteps = false }: R
     void waitForSample(host).then(async (ready) => {
       if (cancelled) return;
       if (!ready) { close(); return; }
-      const halt = await runGuide(host, scroller, close, includeMemberSteps);
+      const halt = await runGuide(host, scroller, close);
       if (cancelled) halt(); else stop = halt;
     });
     return () => {
@@ -692,7 +686,7 @@ export function RouteGuideButton({ renderSample, includeMemberSteps = false }: R
       stop?.();
       document.body.style.overflow = overflow;
     };
-  }, [open, includeMemberSteps]);
+  }, [open]);
 
   const stop = (event: SyntheticEvent) => event.stopPropagation();
   return <>
