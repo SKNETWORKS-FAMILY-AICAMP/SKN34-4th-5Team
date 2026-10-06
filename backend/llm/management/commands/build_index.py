@@ -128,6 +128,28 @@ def rules_to_sentences(d: dict) -> str:
     return ". ".join(out) + ("." if out else "")
 
 
+def common_carry_in_texts(common: dict) -> list[tuple[str, str]]:
+    """공통 반입 규정 → 항목별 (natural, 문장). doc_id 는 CARRY_IN_COMMON_COMMON_<항목> (2026-10-06)
+    이유: 14개 항목이 한 청크(약 1,900자)에 있으면 "드론 반입" 같은 한 품목 질문에서 임베딩이 희석돼
+    "그 밖의 물품은 공통 규정을 따릅니다" 한 줄짜리 구단 청크에 밀리고, 모델은 공통 규정에 없다고 답한다.
+    짧은 항목(가방: 45×45×20cm…)은 질문 말("가방 크기 제한")과 겹치는 단어가 적어 다른 항목에 밀리므로
+    COMMON_TOPIC 의 질문형 제목을 앞에 붙인다. 제목에는 원문에 있는 품목 이름만 쓴다."""
+    head = "[전 구장 공통] KBO 야구장 반입물품 공통 규정입니다. "
+    return [(f"COMMON_{key}", head + (f"{COMMON_TOPIC[key]}. " if key in COMMON_TOPIC else "") + text)
+            for key, value in common.items() if (text := rules_to_sentences({key: value}))]
+
+
+COMMON_TOPIC = {  # 공통 반입 항목별 검색 제목 (2026-10-06)
+    "bag": "가방 크기·개수 제한", "shopping_bag": "쇼핑백·비닐백·에코백 크기·개수 제한",
+    "bulky_items": "부피가 큰 짐과 관람 방해 물품(아이스박스·돗자리·의자·풍선·드론·킥보드·유모차) 제한",
+    "glass_bottle": "유리병·병맥주·병소주 반입", "frozen_water": "얼린 물 반입",
+    "alcohol": "술·주류·맥주·소주 반입 기준", "beverage": "음료·캔·페트병 반입 개수와 용량",
+    "food": "음식·외부 음식 반입", "hot_or_strong_smell_food": "뜨겁거나 냄새가 강한 음식 반입",
+    "whole_throwable_fruit": "과일 반입", "dangerous_items": "위험 물품·흉기·화기·막대·삼각대 반입 금지",
+    "noisy_cheering_tools": "응원도구·앰프·나팔 반입", "banner": "현수막 반입", "pet": "반려동물·강아지·고양이 동반",
+}
+
+
 TEAM_SHORT_KO = {  # 크롤러 CSV의 team 컬럼(한글 약칭) → 코드
     "LG": "LG", "두산": "DOOSAN", "키움": "KIWOOM", "SSG": "SSG", "KT": "KT",
     "한화": "HANWHA", "삼성": "SAMSUNG", "KIA": "KIA", "롯데": "LOTTE", "NC": "NC",
@@ -264,12 +286,11 @@ class Command(BaseCommand):
             r["evidence_type"] = "THIRD_PARTY_API"
             add("external_places.csv", category, sc, None, str(r["attraction_id"]), text, r)
 
-        # 1-3. docs JSON: 공통 1 + 구단별 (반입 1 + 재입장 1) × 10
+        # 1-3. docs JSON: 공통 항목별 + 구단별 (반입 1 + 재입장 1) × 10
         j = json.load(open(DOCS_DIR / "KBO_반입물품_재입장규정.json", encoding="utf-8"))
-        common = j.get("carry_in_common_rules")
-        add("KBO_반입물품_재입장규정.json", "CARRY_IN", None, None, "COMMON",
-            "[전 구장 공통] KBO 야구장 반입물품 공통 규정입니다. " + rules_to_sentences(common),
-            {"scope": "COMMON", "status": "CONFIRMED", "evidence_type": "OFFICIAL"})
+        for natural, text in common_carry_in_texts(j.get("carry_in_common_rules") or {}):
+            add("KBO_반입물품_재입장규정.json", "CARRY_IN", None, None, natural, text,
+                {"scope": "COMMON", "status": "CONFIRMED", "evidence_type": "OFFICIAL"})
         for code, t in j.get("teams", {}).items():
             name = TEAM_KO.get(code, code)
             home = TEAM_HOME.get(code)
@@ -375,7 +396,7 @@ class Command(BaseCommand):
         by_cat = Counter(c["category"] for c in chunks)
         dup = n - len({c["doc_id"] for c in chunks})
         self.stdout.write(f"\n총 청크: {n}  (기대 3,434 ± 200, 2026-09-28 규정집 387 추가·일정/순위 792 제외 기준)")
-        self.stdout.write(f"stadium_code 없음: {no_stadium}  (정상 = 반입 공통 1 + 기초규칙 11 + 규정집 청크 {sum(1 for c in chunks if c['source'] == 'kbo_rulebook_chunks.csv')})")
+        self.stdout.write(f"stadium_code 없음: {no_stadium}  (정상 = 반입 공통 {sum(1 for c in chunks if c['doc_id'].startswith('CARRY_IN_COMMON_'))} + 기초규칙 11 + 규정집 청크 {sum(1 for c in chunks if c['source'] == 'kbo_rulebook_chunks.csv')})")
         self.stdout.write(f"50자 미만: {short}")
         self.stdout.write(f"doc_id 중복: {dup}  (0 이어야 함)")
         for cat, cnt in sorted(by_cat.items(), key=lambda x: -x[1]):

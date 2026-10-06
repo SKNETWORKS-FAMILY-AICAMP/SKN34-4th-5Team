@@ -115,3 +115,27 @@ class ToolPackagesTest(SimpleTestCase):
         rows = knowledge.search_kbo_rows("좌석", "JAMSIL", ["SEAT"], 5, search, lambda _: [0.1])
         self.assertEqual([c.args[1] for c in search.call_args_list], [50, 50])
         self.assertEqual(len(rows), 5)
+
+    def test_kbo_retrieval_keeps_common_carry_in(self):
+        teams = [{"doc_id": f"T{i}", "category": "CARRY_IN", "stadium": "JAMSIL"} for i in range(6)]
+        common = {"doc_id": "CARRY_IN_COMMON_COMMON_bulky_items", "category": "CARRY_IN", "stadium": None}
+        rows = knowledge.search_kbo_rows("드론", None, ["CARRY_IN"], 5, Mock(return_value=[*teams, common]), lambda _: [0.1])
+        self.assertEqual([r["doc_id"] for r in rows], ["T0", "T1", "T2", "T3", "CARRY_IN_COMMON_COMMON_bulky_items"])
+
+    def test_kbo_retrieval_leaves_other_results(self):
+        common = {"doc_id": "C", "category": "CARRY_IN", "stadium": None}
+        present = [{"doc_id": "T", "category": "CARRY_IN", "stadium": "JAMSIL"}, common, {"doc_id": "X"}]
+        self.assertEqual(knowledge.search_kbo_rows("캔", None, ["CARRY_IN"], 2, Mock(return_value=present), lambda _: [0.1]),
+                         present[:2])
+        seats = [{"doc_id": f"S{i}", "category": "SEAT", "stadium": "JAMSIL"} for i in range(5)]
+        self.assertEqual(knowledge.search_kbo_rows("좌석", "JAMSIL", ["SEAT"], 5, Mock(return_value=[*seats, common]), lambda _: [0.1]),
+                         seats)
+
+    def test_common_carry_in_split_by_item(self):
+        from llm.management.commands.build_index import common_carry_in_texts
+        texts = common_carry_in_texts({"bulky_items": "풍선, 드론, 킥보드 등 관람에 방해가 될 수 있는 물품은 제한", "pet": "N", "banner": ""})
+        self.assertEqual([n for n, _ in texts], ["COMMON_bulky_items", "COMMON_pet"])
+        self.assertTrue(all(t.startswith("[전 구장 공통] KBO 야구장 반입물품 공통 규정입니다. ") for _, t in texts))
+        self.assertIn("드론·킥보드", texts[0][1])  # 검색 제목
+        self.assertIn("드론", texts[0][1])
+        self.assertIn("반려동물은 반입할 수 없습니다", texts[1][1])

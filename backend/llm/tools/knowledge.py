@@ -141,13 +141,25 @@ def search_kbo_rows(query, stadium=None, categories=None, k=DOC_K, _search=None,
     if _search is None:
         from ..v1.rag.club.retrieval import embed, keyword_rerank, search
         _embed = embed
-        _search = lambda v, kk, st, ct: keyword_rerank(query, search(v, k=kk, stadium=st, categories=ct)[0], k=k)  # noqa: E731
+        _search = lambda v, kk, st, ct: keyword_rerank(query, search(v, k=kk, stadium=st, categories=ct)[0], k=kk)  # noqa: E731
     vec = _embed(query)
     candidate_k = max(50, k)  # V1과 같은 후보 폭, 최종 반환은 k
     rows = _search(vec, candidate_k, stadium, cats)
     if not rows and cats:
         rows = _search(vec, candidate_k, stadium, None)
-    return list(rows)[:k]
+    return _keep_common_carry_in(list(rows), k)
+
+def _is_common_carry_in(row):
+    return row.get("category") == "CARRY_IN" and not row.get("stadium")
+
+def _keep_common_carry_in(rows, k):
+    """반입 결과 상위 k건에 공통 규정이 없으면 후보 중 가장 앞선 공통 규정으로 마지막 자리를 바꾼다.
+    구단 안내("그 밖의 물품은 공통 규정을 따릅니다")만 오면 모델이 공통 규정을 못 보고 정보가 없다고 답한다."""
+    top = rows[:k]
+    if not any(r.get("category") == "CARRY_IN" for r in top) or any(_is_common_carry_in(r) for r in top):
+        return top
+    common = next((r for r in rows[k:] if _is_common_carry_in(r)), None)
+    return top if common is None else [*top[:-1], common]
 
 TEAM_ALIASES: dict[str, tuple[str, str]] = {
     "SSG랜더스": ("SSG", "MUNHAK"), "인천SSG랜더스필드": ("SSG", "MUNHAK"), "SSG랜더스필드": ("SSG", "MUNHAK"),
