@@ -31,7 +31,27 @@
 .snapshot { padding: 20px 24px; background: var(--soft); border-radius: 12px; line-height: 1.9; max-width: 75ch; }
 .technical { margin-top: 24px; border-top: 1px solid var(--border); padding-top: 12px; }
 .technical summary { padding-block: 10px; min-height: 44px; cursor: pointer; color: #52647b; font-size: 13px; }
-.technical pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+.technical > summary { padding: 14px 16px; border-radius: 8px; background: var(--soft); font-weight: 650; color: #345783; }
+.technicalBody { padding: 4px 0 0; }
+.technicalBody h3 { margin: 24px 0 12px; font-size: 14px; font-weight: 650; color: var(--foreground); }
+.identifierRows, .metadataRows { margin: 0; min-width: 0; }
+.identifierRows > div, .metadataRows > div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 12px; padding-block: 12px; border-bottom: 1px solid var(--border); }
+.technical .identifierRows dt, .technical .metadataRows dt { margin: 0; font-size: 12px; overflow-wrap: anywhere; }
+.technical .identifierRows dd, .technical .metadataRows dd { margin: 0; min-width: 0; font-size: 13px; }
+.identifierRows code, .metadataRows code { font-size: 12px; overflow-wrap: anywhere; }
+.metadataRows .metadataRows > div { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+.metadataRows .metadataRows > div:first-child { padding-top: 0; }
+.metadataRows .metadataRows > div:last-child { border-bottom: 0; padding-bottom: 0; }
+.metadataValue { white-space: pre-wrap; overflow-wrap: anywhere; }
+.metadataEmpty { color: #52647b; font-size: 13px; }
+.metadataArray { margin: 0; padding-left: 20px; }
+.metadataArray > li + li { margin-top: 12px; }
+.rawDisclosure { margin-top: 16px; }
+.rawDisclosure summary { text-decoration: underline; text-underline-offset: 4px; }
+.metadataRaw { margin: 8px 0 0; padding: 16px; background: var(--soft); border-radius: 8px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.8; }
+@media (max-width: 640px) {
+  .identifierRows > div, .metadataRows > div { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+}
 .error { padding: 14px 18px; border: 1px solid #dec9ce; border-radius: 8px; background: #fbf3f5; color: #853648; }
 .note { padding-top: 20px; margin-top: 24px; border-top: 1px solid var(--border); color: #65758d; font-size: 12px; }
 @media (max-width: 900px) {

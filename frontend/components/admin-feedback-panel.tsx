@@ -5,6 +5,7 @@ import { useMemberAuth } from "@/lib/member-auth";
 import { FEEDBACK_REASONS, fetchAdminFeedback, fetchAdminFeedbackDetail, type AdminAnswerFeedback } from "@/lib/chat/client";
 import panelStyles from "./admin-panels.module.css";
 import styles from "./admin-feedback-panel.module.css";
+import { AdminFeedbackMetadata } from "./admin-feedback-metadata";
 
 export function AdminFeedbackPanel() {
   const { status, user } = useMemberAuth();
@@ -54,7 +55,7 @@ export function AdminFeedbackPanel() {
       <div className={styles.inspector}>
       {selected === null && <div className={styles.selectionHint}><h2>평가 상세</h2><p>목록에서 평가를 선택하면 질문과 답변을 확인할 수 있어요.</p></div>}
       {selected !== null && !detail && !error && <p role="status">상세 불러오는 중…</p>}
-      {detail && selected === detail.id && <section className={styles.detail} aria-label="평가 상세"><div className={styles.detailHeader}><h2>평가 #{detail.id}</h2><button type="button" onClick={() => setSelected(null)}>상세 닫기</button></div><dl><dt>평가</dt><dd>{detail.rating === "up" ? "좋아요" : "아쉬워요"}</dd><dt>사유</dt><dd>{FEEDBACK_REASONS[detail.reason as keyof typeof FEEDBACK_REASONS] ?? "없음"}</dd><dt>의견</dt><dd>{detail.comment || "없음"}</dd><dt>질문 스냅샷</dt><dd className={styles.snapshot}>{detail.question}</dd><dt>답변 스냅샷</dt><dd className={styles.snapshot}>{detail.answer}</dd></dl><details className={styles.technical}><summary>기술 정보 및 저장 메타데이터</summary><dl><dt>세션 / 실제 답변 ID / 공개 번호</dt><dd>{detail.session_id} / {detail.answer_id} / {detail.message_id}</dd><dt>실제 저장 메타데이터</dt><dd><pre>{JSON.stringify(detail.metadata, null, 2)}</pre></dd></dl></details></section>}
+      {detail && selected === detail.id && <section className={styles.detail} aria-label="평가 상세"><div className={styles.detailHeader}><h2>평가 #{detail.id}</h2><button type="button" onClick={() => setSelected(null)}>상세 닫기</button></div><dl><dt>평가</dt><dd>{detail.rating === "up" ? "좋아요" : "아쉬워요"}</dd><dt>사유</dt><dd>{FEEDBACK_REASONS[detail.reason as keyof typeof FEEDBACK_REASONS] ?? "없음"}</dd><dt>의견</dt><dd>{detail.comment || "없음"}</dd><dt>질문 스냅샷</dt><dd className={styles.snapshot}>{detail.question}</dd><dt>답변 스냅샷</dt><dd className={styles.snapshot}>{detail.answer}</dd></dl><AdminFeedbackMetadata sessionId={detail.session_id} answerId={detail.answer_id} messageId={detail.message_id} metadata={detail.metadata} /></section>}
       </div>
       </div>
       <p className={styles.note}>평가 당시 질문·답변을 검토합니다. 자동 학습·LangSmith 연동은 하지 않습니다.</p>
