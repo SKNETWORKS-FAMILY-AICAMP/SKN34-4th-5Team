@@ -5,6 +5,7 @@
 .dashboardHeader > a, .tools a { display: inline-flex; align-items: center; min-height: 44px; color: #345783; font-size: 13px; text-underline-offset: 4px; }
 .dashboardHeader > a:hover, .tools a:hover { text-decoration: underline; }
 .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.withFeedback { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .card { display: flex; flex-direction: column; justify-content: center; min-width: 0; min-height: 76px; gap: 4px; padding: 12px 16px; border-radius: 8px; border-bottom: 2px solid transparent; }
 .card strong { font-size: 16px; font-weight: 650; color: #354359; }
 .card span { color: #65758d; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
@@ -16,12 +17,13 @@
 .page > button { min-height: 44px; padding: 10px 16px; border: 1px solid #cbdcf5; border-radius: 8px; color: #345783; background: var(--soft); cursor: pointer; }
 .page :is(button, input, a):focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
 @media (max-width: 640px) {
+  .withFeedback { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .page { padding-block: 24px 40px; }
   .page h1 { font-size: 26px; }
   .dashboardHeader { gap: 8px; margin-bottom: 20px; }
   .dashboardHeader > a { min-height: 44px; }
   .card { min-height: 48px; padding: 10px 4px; align-items: center; text-align: center; }
-  .card strong { font-size: 14px; white-space: nowrap; }
+  .card strong { font-size: 14px; word-break: keep-all; overflow-wrap: anywhere; }
   .card span { display: none; }
   .tools { gap: 0 16px; margin-bottom: 20px; }
 }

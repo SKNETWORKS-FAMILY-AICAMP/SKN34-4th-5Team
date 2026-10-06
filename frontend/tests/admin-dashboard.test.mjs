@@ -91,6 +91,21 @@ test("auth failure has a working retry and guests have login entry", () => {
   assert.equal(calls, 1);
   assert.ok(nodes(dashboard({ status: "anonymous" })).some(n => n.props.href === "/login?next=admin"));
 });
+
+test("feedback entry shares the primary menu styling and is exclusive to superusers", () => {
+  for (const is_superuser of [false, true]) {
+    const tree = nodes(dashboard({ status: "authenticated", user: { ...member, is_superuser } }));
+    const menu = tree.find(n => n.type === "nav" && n.props["aria-label"] === "관리 메뉴");
+    const links = nodes(menu).filter(n => n.props.href);
+    assert.equal(links.length, is_superuser ? 4 : 3);
+    const feedback = tree.filter(n => n.props.href === "/admin/feedback");
+    assert.equal(feedback.length, is_superuser ? 1 : 0);
+    if (is_superuser) {
+      assert.equal(links.at(-1), feedback[0]);
+      assert.equal(feedback[0].props.className, links[0].props.className);
+    }
+  }
+});
 test("category menu ends with Admin only for authenticated active staff; header has no duplicate", () => {
   for (const [status, user, allowed] of [["authenticated", member, true], ["anonymous", null, false], ["loading", member, false], ["unavailable", member, false], ["authenticated", { ...member, is_staff: false }, false], ["authenticated", { ...member, is_active: false }, false]]) {
     const header = load("../components/member-header-actions.tsx", {
