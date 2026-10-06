@@ -55,13 +55,33 @@ test("auth failure has a working retry and guests have login entry", () => {
   assert.equal(calls, 1);
   assert.ok(nodes(dashboard({ status: "anonymous" })).some(n => n.props.href === "/login?next=admin"));
 });
-test("header exposes independent Admin entry only to authenticated active staff", () => {
+test("category menu ends with Admin only for authenticated active staff; header has no duplicate", () => {
   for (const [status, user, allowed] of [["authenticated", member, true], ["anonymous", null, false], ["loading", member, false], ["unavailable", member, false], ["authenticated", { ...member, is_staff: false }, false], ["authenticated", { ...member, is_active: false }, false]]) {
     const header = load("../components/member-header-actions.tsx", {
       react: { ...React, useState: value => [value, () => {}], useRef: () => ({ current: null }), useEffect() {} },
       "next/link": { __esModule: true, default: "a" }, "next/navigation": { useRouter: () => ({}) },
       "@/lib/member-auth": { useMemberAuth: () => ({ status, user }) }, "@/lib/member-auth-request": {},
     });
-    assert.equal(nodes(header.MemberHeaderActions()).some(n => n.props.href === "/admin"), allowed);
+    assert.equal(nodes(header.MemberHeaderActions()).some(n => n.props.href === "/admin"), false);
+    let closed = false;
+    const menu = load("../components/header-menu.tsx", {
+      react: { ...React, useState: () => [true, value => { closed = value === false; }], useRef: () => ({ current: null }), useEffect() {}, useId: () => "test-menu" },
+      "next/link": { __esModule: true, default: "a" },
+      "next/image": { __esModule: true, default: "img" },
+      "next/navigation": { usePathname: () => "/admin" },
+      "@/lib/member-auth": { useMemberAuth: () => ({ status, user }) },
+      "./chat-provider": { useChat: () => ({ onExpand() {} }) },
+      "./icons": { Icon: "icon", CapBot: "cap-bot" },
+    }).HeaderMenu();
+    const tree = nodes(menu.type(menu.props));
+    const admin = tree.find(n => n.props.href === "/admin");
+    assert.equal(Boolean(admin), allowed);
+    if (allowed) {
+      const actions = tree.filter(n => n.type === "a" || n.type === "button");
+      assert.equal(actions.at(-1), admin);
+      assert.equal(admin.props["aria-current"], "page");
+      admin.props.onClick();
+      assert.equal(closed, true);
+    }
   }
 });
