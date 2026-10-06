@@ -30,6 +30,12 @@ class Stadium(models.Model):
     longitude = models.DecimalField(max_digits=12, decimal_places=8)
     latitude = models.DecimalField(max_digits=12, decimal_places=8)
 
+    image_url = models.CharField(max_length=500, null=True, blank=True)
+    image_source_url = models.URLField(max_length=500, null=True, blank=True)
+    image_credit = models.CharField(max_length=300, null=True, blank=True)
+    image_credit_url = models.URLField(max_length=500, null=True, blank=True)
+    image_license_url = models.URLField(max_length=500, null=True, blank=True)
+
     geocode_source = models.TextField()
     facility_manager = models.TextField(null=True, blank=True)
     game_operator = models.TextField(null=True, blank=True)

@@ -1,4 +1,5 @@
 import { stadiums as presentation } from "@/lib/stadiums";
+import { safeChatUrl } from "@/lib/media-url";
 import type { Stadium } from "@/lib/stadiums";
 import type { BaseballStadium } from "./types";
 
@@ -11,6 +12,10 @@ export function adaptStadium(row: BaseballStadium): Stadium | null {
     lng, lat, region: visual?.region ?? "미분류",
     teams: [...new Set(row.home_teams.map((team) => team.name))], color: visual?.color ?? "blue",
     seatingMap: visual?.seatingMap ?? { src: "/images/stadium-day.jpg", sourceUrl: "" },
-    cardImage: visual?.cardImage ?? { src: "/images/stadium-day.jpg", sourceUrl: "", credit: "프로젝트 기본 이미지", creditUrl: "/images/SOURCES.md" },
+    cardImage: row.image_url && safeChatUrl(row.image_url, true) ? {
+      src: row.image_url, sourceUrl: safeChatUrl(row.image_source_url ?? "") ?? "",
+      credit: row.image_credit ?? "", creditUrl: safeChatUrl(row.image_credit_url ?? "") ?? "",
+      licenseUrl: safeChatUrl(row.image_license_url ?? ""), objectPosition: visual?.photoPosition,
+    } : undefined,
   };
 }

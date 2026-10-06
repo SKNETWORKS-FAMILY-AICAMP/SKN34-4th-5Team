@@ -157,6 +157,12 @@ class BaseballDataLoaderV1:
                     return self.fill_tving_game(existing, values)
                 self.counts[f"{model.__name__}.tving_skipped"] += 1
                 return existing
+            if model.__name__ == "Stadium":
+                media = {name: value for name, value in values.items() if name.startswith("image_")}
+                if media:
+                    manager.filter(pk=existing.pk).update(**media)
+                    for name, value in media.items():
+                        setattr(existing, name, value)
             self.counts[f"{model.__name__}.skipped"] += 1
             return existing
         occupant = manager.filter(pk=pk).first()
@@ -216,6 +222,8 @@ class BaseballDataLoaderV1:
                 facility_manager=nullable(op.get("facility_manager")), game_operator=nullable(op.get("game_operator")),
                 phone_general=nullable(op.get("phone_general")), phone_facility=nullable(op.get("phone_facility")),
                 phone_ticket=nullable(op.get("phone_ticket")), collected_at=timestamp(op["verified_at"]),
+                **{field.name: nullable(row[field.name]) for field in models.Stadium._meta.fields
+                   if field.name.startswith("image_") and field.name in row},
             )
 
         contexts = {}

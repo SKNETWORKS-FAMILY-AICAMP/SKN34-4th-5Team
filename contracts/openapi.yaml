@@ -12105,6 +12105,38 @@ components:
         phone_ticket:
           type: string
           nullable: true
+        image_url:
+          type: string
+          nullable: true
+          maxLength: 500
+        image_source_url:
+          nullable: true
+          oneOf:
+          - type: string
+            format: uri
+            maxLength: 500
+          - type: string
+            maxLength: 0
+        image_credit:
+          type: string
+          nullable: true
+          maxLength: 300
+        image_credit_url:
+          nullable: true
+          oneOf:
+          - type: string
+            format: uri
+            maxLength: 500
+          - type: string
+            maxLength: 0
+        image_license_url:
+          nullable: true
+          oneOf:
+          - type: string
+            format: uri
+            maxLength: 500
+          - type: string
+            maxLength: 0
         collected_at:
           type: string
           format: date-time
@@ -13017,6 +13049,38 @@ components:
         phone_ticket:
           type: string
           nullable: true
+        image_url:
+          type: string
+          nullable: true
+          maxLength: 500
+        image_source_url:
+          nullable: true
+          oneOf:
+          - type: string
+            format: uri
+            maxLength: 500
+          - type: string
+            maxLength: 0
+        image_credit:
+          type: string
+          nullable: true
+          maxLength: 300
+        image_credit_url:
+          nullable: true
+          oneOf:
+          - type: string
+            format: uri
+            maxLength: 500
+          - type: string
+            maxLength: 0
+        image_license_url:
+          nullable: true
+          oneOf:
+          - type: string
+            format: uri
+            maxLength: 500
+          - type: string
+            maxLength: 0
         collected_at:
           type: string
           format: date-time
@@ -13640,6 +13704,38 @@ components:
         phone_ticket:
           type: string
           nullable: true
+        image_url:
+          type: string
+          nullable: true
+          maxLength: 500
+        image_source_url:
+          nullable: true
+          oneOf:
+          - type: string
+            format: uri
+            maxLength: 500
+          - type: string
+            maxLength: 0
+        image_credit:
+          type: string
+          nullable: true
+          maxLength: 300
+        image_credit_url:
+          nullable: true
+          oneOf:
+          - type: string
+            format: uri
+            maxLength: 500
+          - type: string
+            maxLength: 0
+        image_license_url:
+          nullable: true
+          oneOf:
+          - type: string
+            format: uri
+            maxLength: 500
+          - type: string
+            maxLength: 0
         collected_at:
           type: string
           format: date-time
@@ -13773,6 +13869,38 @@ components:
         phone_ticket:
           type: string
           nullable: true
+        image_url:
+          type: string
+          nullable: true
+          maxLength: 500
+        image_source_url:
+          nullable: true
+          oneOf:
+          - type: string
+            format: uri
+            maxLength: 500
+          - type: string
+            maxLength: 0
+        image_credit:
+          type: string
+          nullable: true
+          maxLength: 300
+        image_credit_url:
+          nullable: true
+          oneOf:
+          - type: string
+            format: uri
+            maxLength: 500
+          - type: string
+            maxLength: 0
+        image_license_url:
+          nullable: true
+          oneOf:
+          - type: string
+            format: uri
+            maxLength: 500
+          - type: string
+            maxLength: 0
         collected_at:
           type: string
           format: date-time

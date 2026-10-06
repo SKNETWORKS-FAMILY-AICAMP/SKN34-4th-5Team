@@ -13,7 +13,9 @@ const frontend = dirname(dirname(fileURLToPath(import.meta.url)));
 const scratch = mkdtempSync(join(tmpdir(), "kbo-chat-answer-test-"));
 after(() => rmSync(scratch, { recursive: true, force: true }));
 symlinkSync(join(frontend, "node_modules"), join(scratch, "node_modules"), "dir");
-const source = readFileSync(join(frontend, "components/chat-answer.tsx"), "utf8").replace(/^import "@\/styles\/chat-answer\.css";$/m, "");
+const media = readFileSync(join(frontend, "lib/media-url.ts"), "utf8");
+writeFileSync(join(scratch, "media.cjs"), ts.transpileModule(media, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText);
+const source = readFileSync(join(frontend, "components/chat-answer.tsx"), "utf8").replace(/^import "@\/styles\/chat-answer\.css";$/m, "").replaceAll("@/lib/media-url", "./media.cjs");
 writeFileSync(join(scratch, "answer.cjs"), ts.transpileModule(source, {
   fileName: "chat-answer.tsx", compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
 }).outputText);

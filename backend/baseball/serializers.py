@@ -10,7 +10,7 @@ validate_http_url = URLValidator(schemes=("http", "https"))
 
 RESOURCE_FIELDS = {
     "teams": ("id", "team_code", "team_name_ko"),
-    "stadiums": ("id", "stadium_code", "stadium_name_ko", "address", "longitude", "latitude", "geocode_source", "facility_manager", "game_operator", "phone_general", "phone_facility", "phone_ticket", "collected_at"),
+    "stadiums": ("id", "stadium_code", "stadium_name_ko", "address", "longitude", "latitude", "geocode_source", "facility_manager", "game_operator", "phone_general", "phone_facility", "phone_ticket", "image_url", "image_source_url", "image_credit", "image_credit_url", "image_license_url", "collected_at"),
     "home-contexts": ("id", "season", "team_id", "stadium_id"),
     "postseason-stages": ("id", "stage_code", "stage_name", "start_date", "end_date", "matchup_description", "status_tag", "collected_at"),
     "games": ("id", "game_code", "home_team_id", "away_team_id", "stadium_id", "postseason_stage_id", "game_date", "game_time", "home_score", "away_score", "status_code", "game_type", "collected_at"),
@@ -137,7 +137,7 @@ class PublicStadiumSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = models.Stadium
-        fields = ("id", "stadium_code", "stadium_name_ko", "address", "longitude", "latitude", "geocode_source", "facility_manager", "game_operator", "phone_general", "phone_facility", "phone_ticket", "collected_at", "home_teams")
+        fields = ("id", "stadium_code", "stadium_name_ko", "address", "longitude", "latitude", "geocode_source", "facility_manager", "game_operator", "phone_general", "phone_facility", "phone_ticket", "image_url", "image_source_url", "image_credit", "image_credit_url", "image_license_url", "collected_at", "home_teams")
 
 class PublicTicketPriceSerializer(serializers.ModelSerializer):
     seat_zone_code = serializers.CharField(source="seat_zone.zone_code", read_only=True)

@@ -24,7 +24,7 @@ const presentation = [
   ["CHANGWON", "경상남도 창원시 마산회원구 삼호로 63", "대구·부산·창원"],
 ];
 const visuals = presentation.map(([code, , region]) => ({ code, region, color: "blue", seatingMap: { src: "/seat.png", sourceUrl: "https://example.test/seat" }, cardImage: { src: "/photo.jpg", sourceUrl: "https://example.test/photo", credit: "credit", creditUrl: "https://example.test/credit" } }));
-const { adaptStadium } = loadTypeScript("../lib/baseball/adapters.ts", { require: () => ({ stadiums: visuals }) });
+const { adaptStadium } = loadTypeScript("../lib/baseball/adapters.ts", { require: name => name.includes("media-url") ? loadTypeScript("../lib/media-url.ts", { URL }) : ({ stadiums: visuals }) });
 const row = (stadium_code, address, longitude = "127", latitude = "37") => ({ stadium_code, stadium_name_ko: stadium_code, address, longitude, latitude, home_teams: [] });
 
 test("all nine source addresses use code presentation regions, including Gwangju and Changwon", () => {
@@ -77,4 +77,15 @@ test("stadium detail keeps the collection date but no longer lists collected tic
   // 좌석·가격·예매 정책 목록이 있던 "수집된 구장 안내"는 화면에서 제거했다
   assert.doesNotMatch(detail, /수집된 구장 안내|예매 정책 스냅샷|seat_zone_name/);
   assert.match(detail, /collected_at\.slice/);
+});
+
+ test("stadium images and credits come only from DB, with unsafe or absent photos omitted", () => {
+  const base = row("JAMSIL", "주소");
+  assert.equal(adaptStadium(base).cardImage, undefined);
+  const data = { ...base, image_url: "/images/stadiums/exteriors/jamsil.jpg", image_source_url: "https://commons.wikimedia.org/photo", image_credit: "DB credit", image_credit_url: "https://creativecommons.org/licenses/by/4.0/", image_license_url: "https://creativecommons.org/licenses/by/4.0/" };
+  assert.equal(adaptStadium(data).cardImage.src, data.image_url);
+  assert.equal(adaptStadium(data).cardImage.credit, "DB credit");
+  assert.equal(adaptStadium(data).cardImage.creditUrl, data.image_credit_url);
+  assert.equal(adaptStadium({ ...data, image_url: "javascript:alert(1)" }).cardImage, undefined);
+  assert.equal(adaptStadium({ ...data, image_credit_url: "javascript:alert(1)" }).cardImage.creditUrl, "");
 });

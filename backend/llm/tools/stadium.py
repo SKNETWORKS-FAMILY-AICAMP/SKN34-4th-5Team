@@ -6,24 +6,14 @@ from baseball.models import Facility, FoodStore, HomeContext, SeatMap, SeatScope
 
 from .common import LimitInput, ToolInput, _json, _result, _rows, _tool, db_team_code, is_team_code
 
-# Same public exterior assets/credits as frontend/lib/stadiums.ts; no sample photos.
-STADIUM_IMAGES = {
-    "JAMSIL": ("jamsil.jpg", "https://commons.wikimedia.org/wiki/File:Jamsil_Baseball_Stadium_Seoul.jpg", "Arne Müseler · CC BY-SA 3.0"),
-    "GOCHEOK": ("gocheok.jpg", "https://culture.seoul.go.kr/night/sub/viewSpot/view.do?viewId=55", "서울문화포털"),
-    "MUNHAK": ("munhak-exterior.jpg", "https://commons.wikimedia.org/wiki/File:SSG_%EB%9E%9C%EB%8D%94%EC%8A%A4%ED%95%84%EB%93%9C_%EC%A0%84%EA%B2%BD_2024.jpg", "Narubaru7 · CC BY 4.0"),
-    "SUWON": ("suwon.jpg", "https://commons.wikimedia.org/wiki/File:Suwon_kt_wiz_Park.jpg", "Nt · CC BY 4.0"),
-    "DAEJEON": ("daejeon.jpg", "https://www.hanwhaeagles.co.kr/MN/EP/MNEPPI01.do", "한화이글스"),
-    "DAEGU": ("daegu.jpg", "https://commons.wikimedia.org/wiki/File:Daegu_Samseong_Lions_Park.jpg", "Neoalpha · CC0"),
-    "GWANGJU": ("gwangju.png", "https://commons.wikimedia.org/wiki/File:20250628_Gwangju-Kia_Champions_Field_Jjw_001.png", "Jjw · CC BY-SA 4.0"),
-    "SAJIK": ("sajik.gif", "https://www.giantsclub.com/html/?pcode=207", "롯데자이언츠"),
-    "CHANGWON": ("changwon.png", "https://www.ncdinos.com/dinos/stadium.do", "NC 다이노스"),
-}
+IMAGE_FIELDS = ("image_url", "image_source_url", "image_credit", "image_credit_url", "image_license_url")
 
-def _stadium_image(code):
-    image = STADIUM_IMAGES.get(code)
-    licenses = {"JAMSIL": "https://creativecommons.org/licenses/by-sa/3.0/de/deed.en", "MUNHAK": "https://creativecommons.org/licenses/by/4.0/", "SUWON": "https://creativecommons.org/licenses/by/4.0/", "DAEGU": "https://creativecommons.org/publicdomain/zero/1.0/", "GWANGJU": "https://creativecommons.org/licenses/by-sa/4.0/"}
-    return {"imageUrl": f"/images/stadiums/exteriors/{image[0]}", "sourceUrl": image[1], "credit": image[2],
-            "creditUrl": licenses.get(code, image[1]), "licenseUrl": licenses.get(code), "collected_at": None} if image else None
+
+def _stadium_image(item):
+    values = {name: item.pop(name) for name in IMAGE_FIELDS}
+    return {"imageUrl": values["image_url"], "sourceUrl": values["image_source_url"],
+            "credit": values["image_credit"], "creditUrl": values["image_credit_url"],
+            "licenseUrl": values["image_license_url"], "collected_at": None} if values["image_url"] else None
 
 class StadiumInput(ToolInput):
     stadium_id: StrictInt | None = Field(default=None, ge=1)
@@ -78,19 +68,19 @@ def create_stadium_tools():
 
     def get_stadiums(limit=20):
         """공개 구장 목록을 코드순으로 조회한다."""
-        items = _rows(Stadium.objects.order_by("stadium_code", "id"), ("id", "stadium_code", "stadium_name_ko", "address", "longitude", "latitude", "geocode_source", "collected_at"), limit)
+        items = _rows(Stadium.objects.order_by("stadium_code", "id"), ("id", "stadium_code", "stadium_name_ko", "address", "longitude", "latitude", "geocode_source", "collected_at", *IMAGE_FIELDS), limit)
         for item in items:
             item["detailPath"] = f"/stadiums/{item['stadium_code']}"
-            item["image"] = _stadium_image(item["stadium_code"])
+            item["image"] = _stadium_image(item)
         return _result(items)
 
     def get_stadium(stadium_id=None, stadium_code=None):
         """ID 또는 코드로 공개 구장 정보를 조회한다."""
         query = Stadium.objects.filter(id=stadium_id) if stadium_id is not None else Stadium.objects.filter(stadium_code=stadium_code)
-        item = _rows(query, ("id", "stadium_code", "stadium_name_ko", "address", "longitude", "latitude", "facility_manager", "game_operator", "phone_general", "phone_facility", "phone_ticket", "geocode_source", "collected_at"), 1)
+        item = _rows(query, ("id", "stadium_code", "stadium_name_ko", "address", "longitude", "latitude", "facility_manager", "game_operator", "phone_general", "phone_facility", "phone_ticket", "geocode_source", "collected_at", *IMAGE_FIELDS), 1)
         if item:
             item[0]["detailPath"] = f"/stadiums/{item[0]['stadium_code']}"
-            item[0]["image"] = _stadium_image(item[0]["stadium_code"])
+            item[0]["image"] = _stadium_image(item[0])
         return {"item": item[0] if item else None}
 
     def get_seat_zones(season, team_code, stadium_id=None, limit=20):

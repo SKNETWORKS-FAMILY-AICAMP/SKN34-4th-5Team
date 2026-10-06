@@ -3854,6 +3854,11 @@ export interface components {
             phone_general?: string | null;
             phone_facility?: string | null;
             phone_ticket?: string | null;
+            image_url?: string | null;
+            image_source_url?: (string) | null;
+            image_credit?: string | null;
+            image_credit_url?: (string) | null;
+            image_license_url?: (string) | null;
             /** Format: date-time */
             collected_at?: string;
         };
@@ -4181,6 +4186,11 @@ export interface components {
             phone_general?: string | null;
             phone_facility?: string | null;
             phone_ticket?: string | null;
+            image_url?: string | null;
+            image_source_url?: (string) | null;
+            image_credit?: string | null;
+            image_credit_url?: (string) | null;
+            image_license_url?: (string) | null;
             /** Format: date-time */
             collected_at: string;
             readonly home_teams: components["schemas"]["PublicHomeTeam"][];
@@ -4409,6 +4419,11 @@ export interface components {
             phone_general?: string | null;
             phone_facility?: string | null;
             phone_ticket?: string | null;
+            image_url?: string | null;
+            image_source_url?: (string) | null;
+            image_credit?: string | null;
+            image_credit_url?: (string) | null;
+            image_license_url?: (string) | null;
             /** Format: date-time */
             collected_at: string;
         };
@@ -4455,6 +4470,11 @@ export interface components {
             phone_general?: string | null;
             phone_facility?: string | null;
             phone_ticket?: string | null;
+            image_url?: string | null;
+            image_source_url?: (string) | null;
+            image_credit?: string | null;
+            image_credit_url?: (string) | null;
+            image_license_url?: (string) | null;
             /** Format: date-time */
             collected_at: string;
             /** etag */
