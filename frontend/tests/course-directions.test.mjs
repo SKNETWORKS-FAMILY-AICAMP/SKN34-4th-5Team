@@ -25,6 +25,6 @@ test("formats provider totals and validates finite coordinate bounds", () => {
 
 test("course directions use the generic Django API and no browser provider endpoint", () => {
   const source = readFileSync(join(frontend, "components", "course-travel.tsx"), "utf8");
-  assert.match(source, /fetch\("\/api\/travel\/directions\/"/);
+  assert.match(source, /fetch\("\/api\/v1\/travel\/directions\/"/);
   assert.doesNotMatch(source, /apis-navi\.kakaomobility|dapi\.kakao\.com|KAKAO_REST_API_KEY/);
 });
