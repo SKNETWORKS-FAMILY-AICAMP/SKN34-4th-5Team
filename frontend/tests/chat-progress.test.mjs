@@ -30,7 +30,7 @@ for (const name of ["lib/member-auth-request", "lib/chat/planning", "lib/chat/ty
   writeFileSync(join(scratch, "components/chat-pending.js"), outputText);
 }
 {
-  const source = readFileSync(join(frontend, "components/chat-answer.tsx"), "utf8");
+  const source = readFileSync(join(frontend, "components/chat-answer.tsx"), "utf8").replace(/^import "@\/styles\/chat-answer\.css";$/m, "");
   const { outputText } = ts.transpileModule(source, {
     fileName: "chat-answer.tsx", compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
   });
