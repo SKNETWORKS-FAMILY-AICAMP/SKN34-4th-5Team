@@ -172,8 +172,8 @@ def create_stadium_tools():
         return _result(items)
 
     specs = (
-        (get_stadiums, 'get_stadiums', '공개 구장 목록(ID·코드·이름·주소)을 조회한다.', LimitInput),
-        (get_stadium, 'get_stadium', '구장 ID 또는 코드로 공개 상세를 조회한다.', StadiumInput),
+        (get_stadiums, 'get_stadiums', '공개 구장 목록(ID·코드·이름·주소)을 조회한다. items에 detailPath와 외관 사진 image(imageUrl·sourceUrl·credit·creditUrl·licenseUrl)가 있으면 함께 반환한다. 한 구장 소개는 get_stadium으로 상세를 확인한다.', LimitInput),
+        (get_stadium, 'get_stadium', '구장 ID 또는 코드로 주소·운영·시설 관리·연락처 등 공개 상세를 조회한다. item의 detailPath와 중첩된 image.imageUrl은 소개용 Markdown 링크·사진으로 쓴다. 사진을 보여줄 때 제공된 image.credit·creditUrl·sourceUrl·licenseUrl로 저작자·출처·라이선스를 함께 안내하고 없는 값은 만들지 않는다. 외관 사진은 좌석도·주차 지도가 아니다.', StadiumInput),
         (get_seat_zones, 'get_seat_zones', '팀·시즌·선택 구장의 좌석 구역을 조회한다.', ContextInput),
         (get_seat_views, 'get_seat_views', '팀·시즌·선택 구장의 좌석 시야를 조회한다.', ContextInput),
         (get_ticket_prices, 'get_ticket_prices', '팀·시즌 좌석 가격을 선택 유효일 기준으로 조회한다.', TicketPricesInput),
