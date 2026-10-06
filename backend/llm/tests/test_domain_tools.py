@@ -200,6 +200,23 @@ class DomainToolsTest(TestCase):
             with self.subTest(tool=name):
                 self.assertEqual(self.tools[name].invoke(args), "도구 입력 형식이 올바르지 않습니다. 인자 설명을 확인하세요.")
 
+    def test_public_links_hidden_posts_and_separate_facility_catalogue(self):
+        CommunityPost.objects.create(source_id="hidden-test", post_number="900002", board="free", author="공개", title="잠실 숨김", content="hidden-secret", category="질문", is_hidden=True)
+        posts = self.tools["search_community_posts"].invoke({"query": "잠실"})
+        self.assertNotIn("hidden-secret", json.dumps(posts))
+        item = next(row for row in posts["items"] if row["source_id"] == "post-1")
+        self.assertEqual(item["detailPath"], "/community/teams?team=LG&post=post-1")
+        self.assertEqual(self.tools["get_course"].invoke({"course_id": str(self.course.pk)})["item"]["detailPath"], f"/routes/{self.course.pk}")
+        source = {"stadium": "TEST-JAMSIL", "records": [{"id": "SC_FAC_1", "kind": "facility", "pins": [{"quality": "diagram_approximate", "uncertaintyM": 50}]}, {"id": "SC_FOOD_1", "kind": "food", "pins": []}], "warning": "approximate", "checkedAt": "2099-01-01", "count": 2, "pinCount": 1}
+        with patch("travel.stadium_facilities.facility_catalogue", return_value=source):
+            result = self.tools["get_facilities"].invoke({"stadium_id": self.stadium.pk, "include_locations": True})
+        self.assertEqual(result["items"][0]["record_code"], "TEST-FAC1")
+        self.assertEqual(result["catalogue"]["records"][0]["id"], "SC_FAC_1")
+        self.assertEqual(result["catalogue"]["count"], 1)
+        maps = self.tools["get_seat_maps"].invoke({"season": 2099, "team_code": "LG"})
+        self.assertEqual(maps["items"][0]["detailPath"], "/stadiums/TEST-JAMSIL")
+        self.assertIsNone(maps["items"][0]["collected_at"])
+
     def test_database_errors_are_sanitized(self):
         with patch("llm.tools.stadium.Stadium.objects.filter", side_effect=DatabaseError("password=private")):
             result = self.tools["get_stadium"].invoke({"stadium_id": 1})
@@ -288,7 +305,7 @@ class ExternalDomainToolAdapterTest(SimpleTestCase):
         ):
             result = self.tools["search_players"].invoke({"team_code": "LG", "name": "홍길동"})
         refresh.assert_called_once_with("LG")
-        search.assert_called_once_with(kind="player", team="LG", player=None, page_size=100)
+        search.assert_called_once_with(kind="player", team="LG", player=None, name="홍길동", page_size=20, offset=0)
         self.assertEqual(result["items"], rows)
 
     def test_travel_tools_delegate_to_existing_services(self):

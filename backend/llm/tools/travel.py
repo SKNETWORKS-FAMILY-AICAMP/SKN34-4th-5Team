@@ -1,8 +1,9 @@
 """travel domain tools."""
 import math
 from uuid import UUID
+from urllib.parse import quote
 from langchain_core.tools import ToolException
-from pydantic import Field, StrictFloat, StrictInt, model_validator
+from pydantic import Field, StrictBool, StrictFloat, StrictInt, model_validator
 from django.db.models import Q
 from travel.models import Course
 
@@ -37,6 +38,7 @@ class CourseSearchInput(LimitInput):
     query: str | None = Field(default=None, min_length=1, max_length=100)
     stadium: str | None = Field(default=None, min_length=1, max_length=120)
     tag: str | None = Field(default=None, min_length=1, max_length=80)
+    include_stops: StrictBool = Field(default=False, description="공개 방문 장소 포함. 이동 상세는 저장된 content_doc에 있으며 get_directions로 별도 조회한다.")
 
     @model_validator(mode="after")
     def any_filter(self):
@@ -69,7 +71,8 @@ def _course_item(course, include_stops=False):
     item = {
         "id": str(course.pk), "route_number": course.route_number, "title": course.title,
         "stadium": course.stadium, "description": course.description, "content": course.content,
-        "content_format": course.content_format, "duration": course.duration, "cover": course.cover,
+        "content_format": course.content_format, "content_doc": course.content_doc, "duration": course.duration, "cover": course.cover,
+        "detailPath": f"/routes/{quote(course.source_id if course.source_id is not None else str(course.pk), safe='')}",
         "tags": course.tags, "start_lat": course.start_lat, "start_lng": course.start_lng,
         "author": course.author, "likes": course.likes, "views": course.views,
         "is_sample": course.is_sample, "created_at": course.created_at.isoformat(),
@@ -107,7 +110,7 @@ def create_travel_tools():
         except PlaceError as error:
             raise ToolException(error.message) from None
 
-    def search_courses(query=None, stadium=None, tag=None, limit=20):
+    def search_courses(query=None, stadium=None, tag=None, limit=20, include_stops=False):
         """공개 코스를 제목·설명·구장·태그로 검색한다."""
         courses = Course.objects.all()
         if query:
@@ -116,7 +119,9 @@ def create_travel_tools():
             courses = courses.filter(stadium__icontains=stadium)
         if tag:
             courses = courses.filter(tags__contains=[tag])
-        items = [_course_item(course) for course in courses.order_by("-created_at", "id")[:limit]]
+        if include_stops:
+            courses = courses.prefetch_related("stops")
+        items = [_course_item(course, include_stops) for course in courses.order_by("-created_at", "id")[:limit]]
         return _result(items)
 
     def get_course(course_id):

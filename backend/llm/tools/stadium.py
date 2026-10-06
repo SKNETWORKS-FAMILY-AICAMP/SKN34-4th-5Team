@@ -1,10 +1,29 @@
 """stadium domain tools."""
 from datetime import date
-from pydantic import Field, StrictInt, model_validator
+from pydantic import Field, StrictBool, StrictInt, model_validator
 from django.db.models import Q
 from baseball.models import Facility, FoodStore, HomeContext, SeatMap, SeatScope, SeatZone, Stadium, StadiumContent, TicketPolicy, TicketPrice, Transport
 
 from .common import LimitInput, ToolInput, _json, _result, _rows, _tool, db_team_code, is_team_code
+
+# Same public exterior assets/credits as frontend/lib/stadiums.ts; no sample photos.
+STADIUM_IMAGES = {
+    "JAMSIL": ("jamsil.jpg", "https://commons.wikimedia.org/wiki/File:Jamsil_Baseball_Stadium_Seoul.jpg", "Arne Müseler · CC BY-SA 3.0"),
+    "GOCHEOK": ("gocheok.jpg", "https://culture.seoul.go.kr/night/sub/viewSpot/view.do?viewId=55", "서울문화포털"),
+    "MUNHAK": ("munhak-exterior.jpg", "https://commons.wikimedia.org/wiki/File:SSG_%EB%9E%9C%EB%8D%94%EC%8A%A4%ED%95%84%EB%93%9C_%EC%A0%84%EA%B2%BD_2024.jpg", "Narubaru7 · CC BY 4.0"),
+    "SUWON": ("suwon.jpg", "https://commons.wikimedia.org/wiki/File:Suwon_kt_wiz_Park.jpg", "Nt · CC BY 4.0"),
+    "DAEJEON": ("daejeon.jpg", "https://www.hanwhaeagles.co.kr/MN/EP/MNEPPI01.do", "한화이글스"),
+    "DAEGU": ("daegu.jpg", "https://commons.wikimedia.org/wiki/File:Daegu_Samseong_Lions_Park.jpg", "Neoalpha · CC0"),
+    "GWANGJU": ("gwangju.png", "https://commons.wikimedia.org/wiki/File:20250628_Gwangju-Kia_Champions_Field_Jjw_001.png", "Jjw · CC BY-SA 4.0"),
+    "SAJIK": ("sajik.gif", "https://www.giantsclub.com/html/?pcode=207", "롯데자이언츠"),
+    "CHANGWON": ("changwon.png", "https://www.ncdinos.com/dinos/stadium.do", "NC 다이노스"),
+}
+
+def _stadium_image(code):
+    image = STADIUM_IMAGES.get(code)
+    licenses = {"JAMSIL": "https://creativecommons.org/licenses/by-sa/3.0/de/deed.en", "MUNHAK": "https://creativecommons.org/licenses/by/4.0/", "SUWON": "https://creativecommons.org/licenses/by/4.0/", "DAEGU": "https://creativecommons.org/publicdomain/zero/1.0/", "GWANGJU": "https://creativecommons.org/licenses/by-sa/4.0/"}
+    return {"imageUrl": f"/images/stadiums/exteriors/{image[0]}", "sourceUrl": image[1], "credit": image[2],
+            "creditUrl": licenses.get(code, image[1]), "licenseUrl": licenses.get(code), "collected_at": None} if image else None
 
 class StadiumInput(ToolInput):
     stadium_id: StrictInt | None = Field(default=None, ge=1)
@@ -46,6 +65,7 @@ class StadiumListInput(LimitInput):
 
 class FacilityInput(StadiumListInput):
     facility_type: str | None = Field(default=None, min_length=1, max_length=80)
+    include_locations: StrictBool = Field(default=False, description="별도 catalogue의 근사 좌표·불확실성·검증 출처 포함. ORM 시설과 ID/분류를 합치지 않는다.")
 
 class ContentInput(StadiumListInput):
     content_type: str | None = Field(default=None, min_length=1, max_length=80)
@@ -58,12 +78,19 @@ def create_stadium_tools():
 
     def get_stadiums(limit=20):
         """공개 구장 목록을 코드순으로 조회한다."""
-        return _result(_rows(Stadium.objects.order_by("stadium_code", "id"), ("id", "stadium_code", "stadium_name_ko", "address"), limit))
+        items = _rows(Stadium.objects.order_by("stadium_code", "id"), ("id", "stadium_code", "stadium_name_ko", "address", "longitude", "latitude", "geocode_source", "collected_at"), limit)
+        for item in items:
+            item["detailPath"] = f"/stadiums/{item['stadium_code']}"
+            item["image"] = _stadium_image(item["stadium_code"])
+        return _result(items)
 
     def get_stadium(stadium_id=None, stadium_code=None):
         """ID 또는 코드로 공개 구장 정보를 조회한다."""
         query = Stadium.objects.filter(id=stadium_id) if stadium_id is not None else Stadium.objects.filter(stadium_code=stadium_code)
-        item = _rows(query, ("id", "stadium_code", "stadium_name_ko", "address", "longitude", "latitude", "facility_manager", "game_operator", "phone_general", "phone_facility", "phone_ticket"), 1)
+        item = _rows(query, ("id", "stadium_code", "stadium_name_ko", "address", "longitude", "latitude", "facility_manager", "game_operator", "phone_general", "phone_facility", "phone_ticket", "geocode_source", "collected_at"), 1)
+        if item:
+            item[0]["detailPath"] = f"/stadiums/{item[0]['stadium_code']}"
+            item[0]["image"] = _stadium_image(item[0]["stadium_code"])
         return {"item": item[0] if item else None}
 
     def get_seat_zones(season, team_code, stadium_id=None, limit=20):
@@ -95,34 +122,53 @@ def create_stadium_tools():
 
     def get_transport(stadium_id, limit=20):
         """구장의 교통·주차 정보를 조회한다."""
-        return _result(_rows(Transport.objects.filter(stadium_id=stadium_id).order_by("mode", "access_code"), ("access_code", "mode", "title", "details", "parking_spaces", "reservation_required"), limit))
+        return _result(_rows(Transport.objects.filter(stadium_id=stadium_id).order_by("mode", "access_code"), ("access_code", "mode", "title", "details", "parking_spaces", "reservation_required", "collected_at"), limit))
 
     def get_food_stores(stadium_id, limit=20):
         """구장 공식 매점과 위치·메뉴 분류를 조회한다."""
         items = []
-        for store in FoodStore.objects.filter(stadium_id=stadium_id).prefetch_related("locations", "menus").order_by("record_code")[:limit]:
-            items.append({"record_code": store.record_code, "store_facility": store.store_facility, "location_qty": store.location_qty, "locations": list(store.locations.order_by("location_no").values("location_no", "floor", "zone_location")), "menus": list(store.menus.order_by("menu_category_official").values_list("menu_category_official", flat=True))})
+        for store in FoodStore.objects.filter(stadium_id=stadium_id).select_related("stadium").prefetch_related("locations", "menus").order_by("record_code")[:limit]:
+            items.append({"record_code": store.record_code, "store_facility": store.store_facility, "location_qty": store.location_qty, "collected_at": _json(store.collected_at), "detailPath": f"/stadiums/{store.stadium.stadium_code}", "locations": list(store.locations.order_by("location_no").values("location_no", "floor", "zone_location")), "menus": list(store.menus.order_by("menu_category_official").values_list("menu_category_official", flat=True))})
         return _result(items)
 
-    def get_facilities(stadium_id, limit=20, facility_type=None):
+    def get_facilities(stadium_id, limit=20, facility_type=None, include_locations=False):
         """구장의 편의시설을 조회한다."""
         query = Facility.objects.filter(stadium_id=stadium_id)
         if facility_type:
             query = query.filter(facility_type=facility_type)
-        return _result(_rows(query.order_by("facility_type", "record_code"), ("record_code", "facility_type", "floor", "side", "nearby_section", "gate", "gender", "indoor_outdoor", "location_detail"), limit))
+        items = _rows(query.order_by("facility_type", "record_code"), ("record_code", "facility_type", "floor", "side", "nearby_section", "gate", "gender", "indoor_outdoor", "location_detail", "collected_at"), limit)
+        stadium = Stadium.objects.filter(pk=stadium_id).first()
+        path = f"/stadiums/{stadium.stadium_code}" if stadium else None
+        result = _result(items, detailPath=path)
+        if include_locations:
+            from travel.stadium_facilities import facility_catalogue
+            from travel.collected_places import CatalogueQueryError, CatalogueUnavailable
+            try:
+                catalogue = facility_catalogue(stadium.stadium_code) if stadium else None
+                if catalogue:
+                    records = [row for row in catalogue["records"] if row["kind"] == "facility"]
+                    result["catalogue"] = {**catalogue, "records": records[:limit], "count": min(len(records), limit),
+                                           "total_count": len(records), "has_more": len(records) > limit,
+                                           "pinCount": sum(len(row["pins"]) for row in records[:limit]),
+                                           "filter_scope": "facility_type applies only to ORM items; catalogue IDs are separate"}
+                else:
+                    result["catalogue"] = None
+            except (CatalogueQueryError, CatalogueUnavailable):
+                result.update(catalogue=None, catalogue_warning="구장 위치 catalogue가 미확보되어 ORM 시설만 반환합니다.")
+        return result
 
     def get_stadium_contents(stadium_id, limit=20, content_type=None):
         """구장의 공개 부가 콘텐츠를 조회한다."""
         query = StadiumContent.objects.filter(stadium_id=stadium_id)
         if content_type:
             query = query.filter(content_type=content_type)
-        return _result(_rows(query.order_by("content_type", "record_code"), ("record_code", "content_type", "name", "floor", "location", "official_description", "operating_condition"), limit))
+        return _result(_rows(query.order_by("content_type", "record_code"), ("record_code", "content_type", "name", "floor", "location", "official_description", "operating_condition", "collected_at"), limit))
 
     def get_seat_maps(season, team_code, stadium_id=None, limit=20):
         """팀·시즌 홈 컨텍스트의 공식 좌석도와 자산을 조회한다."""
         items = []
-        for seat_map in SeatMap.objects.filter(home_context__in=_context(season, team_code, stadium_id)).select_related("home_context").prefetch_related("assets").order_by("home_context__stadium_id", "id")[:limit]:
-            items.append({"home_context_id": seat_map.home_context_id, "stadium_id": seat_map.home_context.stadium_id, "map_title": seat_map.map_title, "page_url": seat_map.page_url, "assets": list(seat_map.assets.order_by("asset_no").values("asset_no", "asset_url", "asset_role"))})
+        for seat_map in SeatMap.objects.filter(home_context__in=_context(season, team_code, stadium_id)).select_related("home_context__stadium").prefetch_related("assets").order_by("home_context__stadium_id", "id")[:limit]:
+            items.append({"home_context_id": seat_map.home_context_id, "stadium_id": seat_map.home_context.stadium_id, "map_title": seat_map.map_title, "page_url": seat_map.page_url, "sourceUrl": seat_map.page_url, "collected_at": None, "detailPath": f"/stadiums/{seat_map.home_context.stadium.stadium_code}", "assets": list(seat_map.assets.order_by("asset_no").values("asset_no", "asset_url", "asset_role"))})
         return _result(items)
 
     specs = (
