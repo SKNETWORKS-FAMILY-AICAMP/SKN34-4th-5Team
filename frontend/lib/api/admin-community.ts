@@ -58,18 +58,18 @@ export const reportReasonLabel: Record<AdminReportReason, string> = {
   spam: "스팸·광고", abuse: "욕설·비방", inappropriate: "부적절한 내용", privacy: "개인정보 노출", other: "기타",
 };
 
-export const listAdminPosts = (query: URLSearchParams, signal?: AbortSignal) => apiRequest<Page<AdminPost>>(`/api/community/admin/posts/?${query}`, {
+export const listAdminPosts = (query: URLSearchParams, signal?: AbortSignal) => apiRequest<Page<AdminPost>>(`/api/v1/community/admin/posts/?${query}`, {
   cache: "no-store", signal,
 }, memberFetch);
 
-export const deleteAdminPost = (sourceId: string) => apiRequest<never>(`/api/community/admin/posts/${encodeURIComponent(sourceId)}/`, {
+export const deleteAdminPost = (sourceId: string) => apiRequest<never>(`/api/v1/community/admin/posts/${encodeURIComponent(sourceId)}/`, {
   method: "DELETE",
 }, memberFetch);
 
-export const listAdminReports = (query: URLSearchParams, signal?: AbortSignal) => apiRequest<Page<AdminReport>>(`/api/community/admin/reports/?${query}`, {
+export const listAdminReports = (query: URLSearchParams, signal?: AbortSignal) => apiRequest<Page<AdminReport>>(`/api/v1/community/admin/reports/?${query}`, {
   cache: "no-store", signal,
 }, memberFetch);
 
-export const actOnAdminReport = (id: number, action: AdminReportAction, sanction: AdminSanction = "none") => apiRequest<AdminReportActionResult>(`/api/community/admin/reports/${id}/action/`, {
+export const actOnAdminReport = (id: number, action: AdminReportAction, sanction: AdminSanction = "none") => apiRequest<AdminReportActionResult>(`/api/v1/community/admin/reports/${id}/action/`, {
   method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, sanction }),
 }, memberFetch);

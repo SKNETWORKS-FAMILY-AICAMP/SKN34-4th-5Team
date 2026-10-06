@@ -67,7 +67,7 @@ test("section requests keep selected home context and use visible pagination", a
   assert.equal(url.searchParams.get("page_size"), "30");
   assert.equal(url.searchParams.get("home_context"), "77");
   const policies = new URL(calls[1], "https://app.test");
-  assert.equal(policies.pathname, "/api/baseball/ticket-policies/");
+  assert.equal(policies.pathname, "/api/v1/baseball/ticket-policies/");
   assert.equal(policies.searchParams.get("team"), "88");
   assert.equal(policies.searchParams.get("page"), "3");
 });

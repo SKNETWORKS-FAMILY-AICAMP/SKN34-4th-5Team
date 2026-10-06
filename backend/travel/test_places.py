@@ -317,33 +317,33 @@ class PlaceApiTests(TestCase):
         self.client = APIClient()
 
     def test_public_reads_search_and_staff_only_mutations(self):
-        self.assertEqual(self.client.post("/places/", manual_place(), format="json").status_code, 401)
+        self.assertEqual(self.client.post("/api/v1/places/", manual_place(), format="json").status_code, 401)
         self.client.force_authenticate(self.member)
-        self.assertEqual(self.client.post("/places/", manual_place(), format="json").status_code, 403)
+        self.assertEqual(self.client.post("/api/v1/places/", manual_place(), format="json").status_code, 403)
         self.client.force_authenticate(self.staff)
-        created = self.client.post("/places/", manual_place(), format="json")
+        created = self.client.post("/api/v1/places/", manual_place(), format="json")
         self.assertEqual(created.status_code, 201, created.data)
         place_id = created.data["id"]
         self.client.force_authenticate(user=None)
-        self.assertEqual(self.client.get("/places/").status_code, 200)
-        self.assertEqual(self.client.get(f"/places/{place_id}/").status_code, 200)
+        self.assertEqual(self.client.get("/api/v1/places/").status_code, 200)
+        self.assertEqual(self.client.get(f"/api/v1/places/{place_id}/").status_code, 200)
         with patch("travel.place_service._request_kakao", return_value=payload(document())):
-            searched = self.client.post("/places/search/", query(), format="json")
+            searched = self.client.post("/api/v1/places/search/", query(), format="json")
         self.assertEqual(searched.status_code, 200, searched.data)
         self.assertEqual(set(searched.data), {"places", "hasNextPage", "syncedAt"})
 
     def test_api_rejects_unknown_read_fields_immutable_patch_and_large_or_non_json_bodies(self):
-        self.assertEqual(self.client.get("/places/?unknown=x").status_code, 400)
-        self.assertEqual(self.client.generic("POST", "/places/search/", b"{}", content_type="text/plain").status_code, 415)
-        self.assertEqual(self.client.generic("POST", "/places/search/", b"x" * 12001, content_type="application/json").status_code, 413)
+        self.assertEqual(self.client.get("/api/v1/places/?unknown=x").status_code, 400)
+        self.assertEqual(self.client.generic("POST", "/api/v1/places/search/", b"{}", content_type="text/plain").status_code, 415)
+        self.assertEqual(self.client.generic("POST", "/api/v1/places/search/", b"x" * 12001, content_type="application/json").status_code, 413)
         self.client.force_authenticate(self.staff)
-        created = self.client.post("/places/", manual_place(), format="json")
-        response = self.client.patch(f"/places/{created.data['id']}/", {"id": 9}, format="json")
+        created = self.client.post("/api/v1/places/", manual_place(), format="json")
+        response = self.client.patch(f"/api/v1/places/{created.data['id']}/", {"id": 9}, format="json")
         self.assertEqual((response.status_code, response.data), (400, {"error": "입력값을 확인해 주세요."}))
 
     def test_database_error_is_safe_json_and_search_rolls_back(self):
         with patch.object(Place.objects, "all", side_effect=OperationalError("SELECT secret")):
-            response = self.client.get("/places/")
+            response = self.client.get("/api/v1/places/")
         self.assertEqual((response.status_code, response.data), (503, {"error": "장소 저장소를 사용할 수 없습니다."}))
         self.assertNotIn(b"secret", response.content)
 
@@ -359,27 +359,27 @@ class PlaceApiTests(TestCase):
             return real(*args, **kwargs)
 
         with patch("travel.place_service._request_kakao", return_value=payload(document("1"), document("2"))), patch.object(Place.objects, "select_for_update", return_value=locked), patch.object(locked, "get_or_create", side_effect=fail_second):
-            response = self.client.post("/places/search/", query(), format="json")
+            response = self.client.post("/api/v1/places/search/", query(), format="json")
         self.assertEqual((response.status_code, response.data), (503, {"error": "장소 저장소를 사용할 수 없습니다."}))
         self.assertEqual(Place.objects.count(), 0)
 
     @override_settings(KAKAO_REST_API_KEY="")
     def test_api_distinguishes_limits_upstream_configuration_conflict_and_missing_ids(self):
         with patch("travel.place_service._enter_search", side_effect=PlaceRateLimitError):
-            limited = self.client.post("/places/search/", query(), format="json")
+            limited = self.client.post("/api/v1/places/search/", query(), format="json")
         with patch("travel.place_service._request_kakao", side_effect=PlaceUpstreamError):
-            upstream = self.client.post("/places/search/", query(), format="json")
-        unconfigured = self.client.post("/places/search/", query(), format="json")
+            upstream = self.client.post("/api/v1/places/search/", query(), format="json")
+        unconfigured = self.client.post("/api/v1/places/search/", query(), format="json")
         self.assertEqual((limited.status_code, upstream.status_code, unconfigured.status_code), (429, 502, 503))
         self.assertEqual(limited.data, {"error": "장소 검색 요청이 많아요. 잠시 후 다시 시도해 주세요."})
         self.assertEqual(upstream.data, {"error": "일부 장소를 불러오지 못했어요."})
 
         self.client.force_authenticate(self.staff)
-        first = self.client.post("/places/", manual_place(kakao_place_id="duplicate-api"), format="json")
-        conflict = self.client.post("/places/", manual_place(kakao_place_id="duplicate-api"), format="json")
+        first = self.client.post("/api/v1/places/", manual_place(kakao_place_id="duplicate-api"), format="json")
+        conflict = self.client.post("/api/v1/places/", manual_place(kakao_place_id="duplicate-api"), format="json")
         self.assertEqual((first.status_code, conflict.status_code), (201, 409))
         self.client.force_authenticate(user=None)
-        self.assertEqual(self.client.get("/places/999999/").status_code, 404)
+        self.assertEqual(self.client.get("/api/v1/places/999999/").status_code, 404)
 
 
 class PlaceConcurrencyTests(TransactionTestCase):

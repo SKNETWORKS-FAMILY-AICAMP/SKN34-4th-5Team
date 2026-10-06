@@ -16,22 +16,22 @@ class CommunityAdminApiTests(APITestCase):
 
     def act(self, **body):
         self.client.force_authenticate(self.staff)
-        return self.client.post(f"/community/admin/reports/{self.report.id}/action/", body, format="json")
+        return self.client.post(f"/api/v1/community/admin/reports/{self.report.id}/action/", body, format="json")
 
     def test_members_cannot_use_admin_endpoints(self):
-        for url in ("/community/admin/posts/", "/community/admin/reports/"):
+        for url in ("/api/v1/community/admin/posts/", "/api/v1/community/admin/reports/"):
             self.assertEqual(self.client.get(url).status_code, 401)
             self.client.force_authenticate(self.member)
             self.assertEqual(self.client.get(url).status_code, 403)
             self.client.force_authenticate(None)
         self.client.force_authenticate(self.member)
-        self.assertEqual(self.client.delete(f"/community/admin/posts/{self.post.source_id}/").status_code, 403)
-        self.assertEqual(self.client.post(f"/community/admin/reports/{self.report.id}/action/", {"action": "delete"}, format="json").status_code, 403)
+        self.assertEqual(self.client.delete(f"/api/v1/community/admin/posts/{self.post.source_id}/").status_code, 403)
+        self.assertEqual(self.client.post(f"/api/v1/community/admin/reports/{self.report.id}/action/", {"action": "delete"}, format="json").status_code, 403)
         self.assertTrue(CommunityPost.objects.filter(pk=self.post.pk).exists())
 
     def test_staff_lists_and_searches_posts_with_report_counts(self):
         self.client.force_authenticate(self.staff)
-        response = self.client.get("/community/admin/posts/", {"q": "관리 대상"})
+        response = self.client.get("/api/v1/community/admin/posts/", {"q": "관리 대상"})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["count"], 1)
         row = response.data["results"][0]
@@ -39,7 +39,7 @@ class CommunityAdminApiTests(APITestCase):
 
     def test_staff_lists_reports_with_post_owner_and_status(self):
         self.client.force_authenticate(self.staff)
-        response = self.client.get("/community/admin/reports/")
+        response = self.client.get("/api/v1/community/admin/reports/")
         self.assertEqual(response.status_code, 200)
         # 마이그레이션이 넣은 샘플 신고도 함께 있으므로 이 테스트의 신고를 id 로 찾는다
         row = next(item for item in response.data["results"] if item["id"] == self.report.id)
@@ -53,7 +53,7 @@ class CommunityAdminApiTests(APITestCase):
         self.report.refresh_from_db()
         self.assertEqual((self.report.status, self.report.handled_by), ("held", self.staff))
         self.client.force_authenticate(None)
-        self.assertEqual(self.client.get(f"/community/posts/{self.post.source_id}/").status_code, 200)
+        self.assertEqual(self.client.get(f"/api/v1/community/posts/{self.post.source_id}/").status_code, 200)
 
     def test_hide_removes_post_from_public_views(self):
         self.assertEqual(self.act(action="hide").status_code, 200)
@@ -62,12 +62,12 @@ class CommunityAdminApiTests(APITestCase):
         self.assertTrue(self.post.is_hidden)
         self.assertEqual(self.report.status, "hidden")
         self.client.force_authenticate(None)
-        self.assertEqual(self.client.get(f"/community/posts/{self.post.source_id}/").status_code, 404)
-        listed = self.client.get("/community/posts/", {"q": "관리 대상"}).data
+        self.assertEqual(self.client.get(f"/api/v1/community/posts/{self.post.source_id}/").status_code, 404)
+        listed = self.client.get("/api/v1/community/posts/", {"q": "관리 대상"}).data
         rows = listed["results"] if isinstance(listed, dict) else listed
         self.assertFalse(any(row["id"] == self.post.source_id for row in rows))
         self.client.force_authenticate(self.staff)
-        self.assertEqual(self.client.get(f"/community/posts/{self.post.source_id}/").status_code, 200)
+        self.assertEqual(self.client.get(f"/api/v1/community/posts/{self.post.source_id}/").status_code, 200)
 
     def test_sanction_only_with_delete(self):
         self.assertEqual(self.act(action="hold", sanction="7d").status_code, 400)
@@ -85,11 +85,11 @@ class CommunityAdminApiTests(APITestCase):
             post = CommunityPost.objects.create(board="free", author="회원", title=f"삭제 {sanction}", content="본문", category="잡담", owner=self.member)
             report = CommunityReport.objects.create(post=post, reporter=self.reporter, reason="abuse")
             self.client.force_authenticate(self.staff)
-            response = self.client.post(f"/community/admin/reports/{report.id}/action/", {"action": "delete", "sanction": sanction}, format="json")
+            response = self.client.post(f"/api/v1/community/admin/reports/{report.id}/action/", {"action": "delete", "sanction": sanction}, format="json")
             self.assertEqual(response.status_code, 200)
             self.assertFalse(CommunityPost.objects.filter(pk=post.pk).exists())
         # 계정에는 아무 제재도 없어서 그대로 로그인할 수 있다
-        signin = APIClient().post("/auth/signin", {"username": "member", "password": "pass-1234!"}, format="json")
+        signin = APIClient().post("/api/v1/auth/signin", {"username": "member", "password": "pass-1234!"}, format="json")
         self.assertEqual(signin.status_code, 200)
 
     def test_ownerless_and_admin_posts_can_be_deleted(self):
