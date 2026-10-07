@@ -163,7 +163,7 @@ _TOOL_RESULT_STATUS = {"success": PublicToolStatus.COMPLETED.value, "error": Pub
 
 
 # 하위 Agent 도구 이름 (llm.v2.agent.sub_agents.SPECIALISTS 와 같다. 무거운 agent import 를 피하려고 여기 둔다).
-SUB_AGENT_TOOLS = ("ask_baseball", "ask_travel_research", "ask_place_data")
+SUB_AGENT_TOOLS = ("ask_baseball", "ask_travel_research", "ask_place_data", "ask_course")
 TITLE_LIMIT = 80
 SUMMARY_LIMIT = 40
 
@@ -298,11 +298,12 @@ def project_history(messages, turns, detail=False):
                     payload = public_ui(message.artifact)
                     if payload:
                         item["planning"] = payload
-                if isinstance(message, ToolMessage) and message.name == "plan_course" and message.status != "error" and isinstance(message.artifact, dict):
+                from llm.v2.agent.course_output import course_artifacts
+                for artifact in course_artifacts([message]) if status == TurnStatus.COMPLETED else ():
                     from llm.v1.rag.course.memory import public as public_preferences
-                    if preferences := public_preferences(message.artifact.get("course_memory")):
+                    if preferences := public_preferences(artifact.get("course_memory")):
                         item["coursePreferences"] = preferences
-                    payload = public_course(message.artifact.get("course"))
+                    payload = public_course(artifact.get("course"))
                     if payload:
                         item["course"] = payload
             items.append(item)

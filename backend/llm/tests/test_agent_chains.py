@@ -58,7 +58,7 @@ class ChainToolNamesTest(unittest.TestCase):
         self.assertEqual(set(classifier.CAPABILITIES), set(classifier.CAPABILITY_INSTRUCTIONS))
         for cap, names in CAPABILITY_TOOLS.items():
             with self.subTest(capability=cap):
-                self.assertEqual(set(names) - ALL_TOOL_NAMES - {"ask_baseball", "ask_travel_research", "ask_place_data"}, set())
+                self.assertEqual(set(names) - ALL_TOOL_NAMES - {"ask_baseball", "ask_travel_research", "ask_place_data", "ask_course"}, set())
 
     def test_serializer_sub_agent_names_match_specialists(self):
         from llm.serializer.message import SUB_AGENT_TOOLS

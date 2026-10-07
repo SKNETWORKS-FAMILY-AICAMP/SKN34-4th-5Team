@@ -14,7 +14,7 @@ def request_args(state):
     last = next((i for i in range(len(turns) - 1, -1, -1) if isinstance(turns[i], HumanMessage)), None)
     question = turns[last].text if last is not None else ""
     history = [{"role": "user" if isinstance(m, HumanMessage) else "assistant", "content": m.text}
-               for m in turns[:last or 0]]
+               for m in turns[:last or 0][-20:]]
     stadium = (state.get("context") or {}).get("stadium")
     return (to_stadium_code(stadium) if stadium else None), question, history
 
@@ -37,7 +37,7 @@ CAPABILITY_TOOLS = {
     "directions": ("get_stadium", "get_directions"),
     "courses": ("search_courses", "get_course"),
     "weather": ("get_games", "get_stadium", "get_weather"),
-    "day_plan": ("ask_baseball", "ask_travel_research", "ask_place_data", "get_directions", "plan_course"),
+    "day_plan": ("ask_baseball", "ask_travel_research", "ask_place_data", "get_directions", "ask_course"),
 }
 
 
@@ -54,29 +54,24 @@ class DynamicToolMiddleware(AgentMiddleware):
         return self.role_tools & {n for c in capabilities for n in self.capability_tools.get(c, ())}
 
     def wrap_model_call(self, request, handler):
-        messages = request.state.get("messages") or []
-        # 완성된 코스를 다시 서술하게 하면 본문과 지도/카드가 달라질 수 있다.
-        # 현재 턴에서 코스 하나만 생성한 경우 계산된 시간표를 그대로 최종 답변으로 사용한다.
-        completed = []
-        for message in reversed(messages):
-            if not isinstance(message, ToolMessage):
-                break
-            completed.append(message)
-        if completed and len(messages) > len(completed):
-            call = messages[-len(completed) - 1]
-            for result in completed:
-                if (result.name == "plan_course" and result.status != "error"
-                        and ((result.artifact or {}).get("course") or (result.artifact or {}).get("course_edit_handled")
-                             or (result.artifact or {}).get("course_evidence_handled")) and isinstance(call, AIMessage)
-                        and any(c["id"] == result.tool_call_id for c in call.tool_calls)
-                        and (len(call.tool_calls) == 1 or (request.state.get("context") or {}).get("intent") == "route")):
-                    return AIMessage(content=result.content)
         allowed = self.allowed(request.state)
+        if self.course_called(request.state):
+            allowed = allowed - {"ask_course", "ask_travel_research", "search_documents_tool"}
         return handler(request.override(tools=[t for t in request.tools if getattr(t, "name", None) in allowed]))
+
+    @staticmethod
+    def course_called(state):
+        for message in reversed(state.get("messages") or []):
+            if isinstance(message, HumanMessage):
+                break
+            # limiter가 실행 전에 넣은 중복 거절은 실제 전문 위임 결과가 아니다.
+            if isinstance(message, ToolMessage) and message.name == "ask_course" and (message.status != "error" or isinstance(message.artifact, list)):
+                return True
+        return False
 
     def wrap_tool_call(self, request, handler):
         name = request.tool_call["name"]
-        if name not in self.allowed(request.state):
+        if name not in self.allowed(request.state) or (self.course_called(request.state) and name in {"ask_course", "ask_travel_research", "search_documents_tool"}):
             return ToolMessage(
                 content=f"허용되지 않은 도구입니다: {name}", tool_call_id=request.tool_call["id"], name=name, status="error",
             )

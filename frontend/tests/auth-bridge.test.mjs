@@ -46,11 +46,10 @@ test("member admin uses direct Bearer APIs and generated DTOs", () => {
 test("current roles and staff navigation come from authoritative identity", () => {
   assert.match(readFileSync(join(root, "app/mypage/page.tsx"), "utf8"), /memberRoleLabel\(user\)/);
   const menu = readFileSync(join(root, "components/member-header-actions.tsx"), "utf8");
-  assert.match(menu, /\(user\.is_staff \|\| user\.is_superuser\) && </);
+  assert.match(menu, /user\.is_active && user\.is_staff && </);
   assert.match(menu, /href="\/mypage\?tab=profile"/);
-  assert.match(menu, /href="\/mypage\?tab=members"/);
-  assert.match(menu, /href="\/mypage\?tab=manage-posts"/);
-  assert.match(menu, /href="\/mypage\?tab=reports"/);
+  assert.match(menu, /href="\/admin"/);
+  assert.doesNotMatch(menu, /href="\/mypage\?tab=(members|manage-posts|reports)"/);
 });
 
 test("nginx sends every API path directly to Django", () => {

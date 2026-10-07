@@ -1431,7 +1431,8 @@ export interface paths {
         put?: never;
         /**
          * @description 신고 처리.
-         *     hold: 보류(글 유지) / hide: 글 숨김(같은 글의 신고도 숨김 처리) /
+         *     hold: 보류(글 유지) / unhold: 보류 취소(처리 대기로 복귀) /
+         *     hide: 글 숨김(같은 글의 신고도 숨김 처리) /
          *     delete: 글 삭제(신고도 함께 삭제). 화면에서 고른 처분(sanction)은 기록용으로만 받고 계정에는 적용하지 않는다.
          */
         post: operations["v1_community_admin_reports_action_create"];
@@ -2287,11 +2288,12 @@ export interface components {
         };
         /**
          * @description * `hold` - hold
+         *     * `unhold` - unhold
          *     * `hide` - hide
          *     * `delete` - delete
          * @enum {string}
          */
-        AdminReportActionActionEnum: "hold" | "hide" | "delete";
+        AdminReportActionActionEnum: "hold" | "unhold" | "hide" | "delete";
         AdminReportActionResult: {
             action: string;
             sanction: string;
@@ -3856,6 +3858,11 @@ export interface components {
             phone_general?: string | null;
             phone_facility?: string | null;
             phone_ticket?: string | null;
+            image_url?: string | null;
+            image_source_url?: (string) | null;
+            image_credit?: string | null;
+            image_credit_url?: (string) | null;
+            image_license_url?: (string) | null;
             /** Format: date-time */
             collected_at?: string;
         };
@@ -4168,6 +4175,38 @@ export interface components {
             scope_name: string;
             readonly seat_views: components["schemas"]["SeatView"][];
         };
+        ParkingMap: {
+            imageUrl: string;
+            /** Format: uri */
+            sourceUrl?: string;
+            credit?: string;
+            title?: string;
+            summary?: string;
+            kind?: components["schemas"]["ParkingMapKindEnum"];
+            visualNotes?: string[];
+            /** Format: date */
+            capturedAt?: string;
+            width?: number;
+            height?: number;
+        };
+        /**
+         * @description * `entrance` - entrance
+         *     * `preferred-area` - preferred-area
+         *     * `nearby-alternatives` - nearby-alternatives
+         *     * `access-gates` - access-gates
+         * @enum {string}
+         */
+        ParkingMapKindEnum: "entrance" | "preferred-area" | "nearby-alternatives" | "access-gates";
+        SeatingMap: {
+            imageUrl: string;
+            /** Format: uri */
+            sourceUrl?: string;
+            title: string;
+            home_context_id: number;
+            season: number;
+            team_code: string;
+        };
+        /** @description 이메일을 검증합니다. */
         PublicStadium: {
             id: number;
             stadium_code: string;
@@ -4183,9 +4222,16 @@ export interface components {
             phone_general?: string | null;
             phone_facility?: string | null;
             phone_ticket?: string | null;
+            image_url?: string | null;
+            image_source_url?: (string) | null;
+            image_credit?: string | null;
+            image_credit_url?: (string) | null;
+            image_license_url?: (string) | null;
             /** Format: date-time */
             collected_at: string;
             readonly home_teams: components["schemas"]["PublicHomeTeam"][];
+            readonly parkingMap: components["schemas"]["ParkingMap"] | null;
+            readonly seatingMap: components["schemas"]["SeatingMap"] | null;
         };
         PublicTeam: {
             id: number;
@@ -4260,6 +4306,7 @@ export interface components {
             asset_no: number;
             asset_url: string;
             asset_role: string;
+            source_url?: (string) | null;
         };
         SeatMapAssetDetail: {
             id: number;
@@ -4267,6 +4314,7 @@ export interface components {
             asset_no: number;
             asset_url: string;
             asset_role: string;
+            source_url?: (string) | null;
             /** etag */
             readonly _etag: string;
         };
@@ -4411,6 +4459,11 @@ export interface components {
             phone_general?: string | null;
             phone_facility?: string | null;
             phone_ticket?: string | null;
+            image_url?: string | null;
+            image_source_url?: (string) | null;
+            image_credit?: string | null;
+            image_credit_url?: (string) | null;
+            image_license_url?: (string) | null;
             /** Format: date-time */
             collected_at: string;
         };
@@ -4457,6 +4510,11 @@ export interface components {
             phone_general?: string | null;
             phone_facility?: string | null;
             phone_ticket?: string | null;
+            image_url?: string | null;
+            image_source_url?: (string) | null;
+            image_credit?: string | null;
+            image_credit_url?: (string) | null;
+            image_license_url?: (string) | null;
             /** Format: date-time */
             collected_at: string;
             /** etag */

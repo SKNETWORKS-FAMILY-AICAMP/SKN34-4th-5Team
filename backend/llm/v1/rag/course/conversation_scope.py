@@ -13,8 +13,8 @@ def scoped_messages(messages, turns):
             completed = turn.get("status") == "completed" and not turn.get("answer_deleted")
         elif completed:
             reset = (isinstance(message, AIMessage) and message.response_metadata.get("course_history_reset"))
-            if isinstance(message, ToolMessage) and message.name == "plan_course" and message.status != "error":
-                reset = reset or (message.artifact or {}).get("course_history_reset")
+            from llm.v2.agent.course_output import course_artifacts
+            reset = reset or any(a.get("course_history_reset") for a in course_artifacts([message]))
             if reset:
                 start = human_index
     return messages[start:]

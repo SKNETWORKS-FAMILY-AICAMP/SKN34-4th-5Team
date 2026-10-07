@@ -21,12 +21,14 @@ def restore(messages, turns):
         if isinstance(message, HumanMessage):
             turn = turns.get(message.id, {})
             completed = turn.get("status") == "completed" and not turn.get("answer_deleted")
-        elif (completed and isinstance(message, ToolMessage) and message.name == "plan_course"
-              and message.status != "error" and isinstance(message.artifact, dict)):
-            if isinstance(message.artifact.get("course_memory"), dict):
+        elif completed:
+            from llm.v2.agent.course_output import course_artifacts
+            for artifact in course_artifacts([message]):
+                if not isinstance(artifact.get("course_memory"), dict):
+                    continue
                 previous = result.get("current")
-                result = deepcopy(message.artifact["course_memory"])
-                course = message.artifact.get("course")
+                result = deepcopy(artifact["course_memory"])
+                course = artifact.get("course")
                 if isinstance(course, dict) and course.get("places") and result.get("current") and "writerState" not in result["current"]:
                     from .writer_state import for_result
                     same = previous if course.get("edit") and (previous or {}).get("stadiumCode") == course.get("stadiumCode") else None

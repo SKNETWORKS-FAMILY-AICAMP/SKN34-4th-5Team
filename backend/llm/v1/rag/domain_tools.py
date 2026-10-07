@@ -22,7 +22,10 @@ def _all_tools():
 
     registered = {tool.name: tool for tool in build_specialized_tools()}
     for tool in (*create_default_tools(), *create_knowledge_tools()):
-        registered.setdefault(tool.name, tool)
+        if tool.name in {"get_standings", "get_games"}:
+            registered[tool.name] = tool
+        else:
+            registered.setdefault(tool.name, tool)
     return tuple(registered.values())
 
 

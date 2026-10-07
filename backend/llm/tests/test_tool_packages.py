@@ -25,7 +25,7 @@ class ToolPackagesTest(SimpleTestCase):
                          ("get_baseball_schema", "execute_baseball_select"))
         self.assertEqual(len({tool.name for tool in default}), len(default))
         tools = {tool.name: tool for tool in default}
-        self.assertEqual(tools["get_games"].args_schema.model_fields["start_date"].annotation.__name__, "date")
+        self.assertEqual(tools["get_games"].args_schema.model_json_schema()["properties"]["start_date"]["anyOf"][0]["format"], "date")
         self.assertIn("sql", tools["execute_baseball_select"].args_schema.model_fields)
         self.assertNotIn("sql", tools["get_standings"].args_schema.model_fields)
 
@@ -55,7 +55,7 @@ class ToolPackagesTest(SimpleTestCase):
         self.assertIn("search_place_knowledge", names)
         self.assertFalse(any(name.startswith("legacy_") for name in names))
         self.assertIn("team", registry["get_games"].args_schema.model_fields)
-        self.assertNotIn("start_date", registry["get_games"].args_schema.model_fields)
+        self.assertIn("start_date", registry["get_games"].args_schema.model_fields)
         self.assertIn("start_date", {tool.name: tool for tool in create_domain_tools()}["get_games"].args_schema.model_fields)
         self.assertIn("sql", registry["execute_baseball_select"].args_schema.model_fields)
         self.assertIs(next(tool for tool in tools_for("venue") if tool.name == "search_documents_tool"),

@@ -58,7 +58,7 @@ const roles = [
   { status: "loading", user: null },
 ];
 
-test("account menu exposes feedback only to superusers between reports and profile", () => {
+test("account menu retains feedback for superusers but removes community administration", () => {
   for (const identity of roles) {
     const hooks = harness();
     const { MemberHeaderActions } = load("components/member-header-actions.tsx", {
@@ -72,7 +72,7 @@ test("account menu exposes feedback only to superusers between reports and profi
     assert.equal(links.includes("/mypage?tab=feedback"), allowed);
     if (allowed) {
       const index = links.indexOf("/mypage?tab=feedback");
-      assert.equal(links[index - 1], "/mypage?tab=reports");
+      assert.equal(links.includes("/mypage?tab=reports"), false);
       assert.equal(links[index + 1], "/mypage?tab=profile");
       assert.equal(find(tree, node => node.props?.href === "/mypage?tab=feedback").props.children, "챗봇 답변 평가");
     }
@@ -103,17 +103,19 @@ test("mypage validates feedback deep links and mounts the shared panel only for 
       tab.props.onClick();
       assert.deepEqual(pushes, [["/mypage?tab=feedback", { scroll: false }]]);
       const labels = nodes(tree).filter(node => node.type === "button").map(node => node.props.children);
-      assert.equal(labels[labels.indexOf("챗봇 답변 평가") - 1], "신고 관리");
+      assert.equal(labels.includes("신고 관리"), false);
       assert.equal(labels[labels.indexOf("챗봇 답변 평가") + 1], "회원 정보");
     } else assert.doesNotMatch(text(tree), /평가 상세|질문 스냅샷/);
   }
 });
 
-function panel(identity, fetchList, fetchDetail = async () => ({})) {
+function panel(identity, fetchList, fetchDetail = async () => ({}), mobile = false) {
   const hooks = harness();
   const { AdminFeedbackPanel } = load("components/admin-feedback-panel.tsx", {
     ...hooks, useMemberAuth: () => identity, FEEDBACK_REASONS: { inaccurate: "부정확해요" },
     fetchAdminFeedback: fetchList, fetchAdminFeedbackDetail: fetchDetail, styles, panelStyles: styles,
+    AdminFeedbackMetadata: props => props,
+    window: { matchMedia: query => { assert.equal(query, "(max-width: 900px)"); return { matches: mobile }; } },
   });
   return { ...hooks, render: () => hooks.render(AdminFeedbackPanel) };
 }
@@ -138,11 +140,13 @@ test("shared panel retains list, detail snapshots, filters, pagination, refresh 
   assert.match(text(view.render()), /평가 불러오는 중/);
   await tick();
   let tree = view.render();
-  assert.match(text(tree), /21건 · 1페이지/);
-  find(tree, node => node.type === "button" && node.props["aria-pressed"] === false).props.onClick();
+  assert.equal(find(tree, node => node.props?.className === "summary").props.children, "조회된 평가 21건");
+  assert.deepEqual(find(tree, node => node.props?.["aria-label"] === "평가 페이지").props.children[1].props.children, [1, " / ", 2]);
+  find(tree, node => node.type === "button" && node.props["aria-pressed"] === false).props.onClick({ currentTarget: { focus: noop } });
   view.render(); view.flush(); await tick(); tree = view.render();
   assert.equal(details[0].id, 7);
-  assert.match(text(tree), /질문 스냅샷.*답변 스냅샷.*실제 저장 메타데이터/);
+  assert.match(text(tree), /질문 스냅샷.*답변 스냅샷/);
+  assert.deepEqual(find(tree, node => node.props?.metadata).props.metadata, row.metadata);
   find(tree, node => node.props?.children === "상세 닫기").props.onClick();
   assert.equal(find(view.render(), node => node.props?.["aria-label"] === "평가 상세"), undefined);
   find(tree, node => node.props?.children === "다음").props.onClick();
@@ -169,13 +173,105 @@ test("shared panel retains error/retry and the legacy route reuses it without a 
   assert.equal(find(view.render(), node => node.props?.role === "alert").props.children, "조회 실패");
   find(view.render(), node => node.props?.children === "새로고침").props.onClick();
   view.render(); view.flush(); await tick();
-  assert.match(text(view.render()), /해당 평가가 없습니다/);
+  assert.match(text(view.render()), /조회된 평가 0건.*아직 등록된 평가가 없어요/);
+  assert.deepEqual(find(view.render(), node => node.props?.["aria-label"] === "평가 페이지").props.children[1].props.children, [1, " / ", 1]);
   assert.equal(find(view.render(), node => node.props?.role === "alert"), undefined);
   assert.equal(view.render().type, "section");
   const { default: Legacy } = load("app/admin/feedback/page.tsx", { Link: noop, AdminFeedbackPanel: noop, styles });
   const tree = Legacy();
   assert.equal(tree.type, "main");
-  assert.equal(find(tree, node => node.props?.href === "/admin").props.children, "← 관리자");
-  assert.equal(tree.props.children[1].type, noop);
+  assert.equal(find(tree, node => node.props?.href === "/admin").props.children, "← 관리자 대시보드");
+  assert.equal(tree.props.children[1].type, "header");
+  assert.equal(tree.props.children[2].type, noop);
   view.unmount();
+});
+
+
+const feedbackRow = id => ({ id, rating: "down", question: `질문 ${id}`, answer: `답변 ${id}`, updated_at: "2026-10-01", metadata: {} });
+const selectFeedback = (view, id, button = { focus: noop }) => {
+  find(view.render(), node => node.type === "button" && node.props?.["aria-pressed"] !== undefined && text(node).includes(`질문 ${id}`)).props.onClick({ currentTarget: button });
+};
+
+test("feedback detail focuses and scrolls on mobile only, and closing restores the selected button", async () => {
+  for (const mobile of [true, false]) {
+    const row = feedbackRow(7), focus = [], scroll = [], returned = [];
+    const view = panel(roles[3], async () => ({ count: 1, results: [row] }), async () => row, mobile);
+    view.render(); view.flush(); await tick();
+    selectFeedback(view, 7, { focus: options => returned.push(options) });
+    view.render(); view.flush(); await tick();
+    const tree = view.render();
+    const heading = find(tree, node => node.type === "h2" && node.props.tabIndex === -1);
+    assert.ok(heading);
+    heading.props.ref.current = { focus: options => focus.push(options), scrollIntoView: options => scroll.push(options) };
+    view.flush();
+    assert.deepEqual(focus, mobile ? [{ preventScroll: true }] : []);
+    assert.deepEqual(scroll, mobile ? [{ block: "start" }] : []);
+    find(tree, node => node.props?.children === "상세 닫기").props.onClick();
+    assert.deepEqual(returned, [{ preventScroll: !mobile }]);
+    view.render(); view.flush();
+    assert.equal(find(view.render(), node => node.props?.["aria-label"] === "평가 상세"), undefined);
+    view.unmount();
+  }
+});
+
+test("feedback detail failure retries the same selection and ignores aborted detail responses", async () => {
+  const rows = [feedbackRow(7), feedbackRow(8)], requests = [];
+  const view = panel(roles[3], async () => ({ count: 2, results: rows }), (id, signal) => new Promise((resolve, reject) => requests.push({ id, signal, resolve, reject })));
+  view.render(); view.flush(); await tick();
+  selectFeedback(view, 7); view.render(); view.flush(); await tick();
+  requests[0].reject(new Error("상세 조회 실패")); await tick();
+  assert.equal(find(view.render(), node => node.props?.role === "alert").props.children, "상세 조회 실패");
+  selectFeedback(view, 7); view.render(); view.flush(); await tick();
+  assert.equal(requests.length, 2);
+  assert.equal(requests[0].signal.aborted, true);
+  assert.match(text(view.render()), /상세 불러오는 중/);
+  assert.equal(find(view.render(), node => node.props?.role === "alert"), undefined);
+  selectFeedback(view, 8); view.render(); view.flush(); await tick();
+  assert.equal(requests[1].signal.aborted, true);
+  requests[2].resolve(rows[1]); await tick();
+  requests[1].resolve(rows[0]); await tick();
+  let tree = view.render(); view.flush();
+  assert.deepEqual(find(tree, node => node.type === "h2" && node.props.tabIndex === -1).props.children, ["평가 #", 8]);
+  find(tree, node => node.props?.children === "상세 닫기").props.onClick();
+  view.render(); view.flush();
+  assert.equal(requests[2].signal.aborted, true);
+  selectFeedback(view, 7); view.render(); view.flush(); await tick();
+  view.unmount();
+  assert.equal(requests[3].signal.aborted, true);
+  requests[3].reject(new Error("늦은 오류")); await tick();
+  assert.equal(find(view.render(), node => node.props?.role === "alert"), undefined);
+});
+
+test("feedback filters, pages and refresh cancel detail work and retain the filtered empty state", async () => {
+  for (const change of ["filter", "page", "refresh"]) {
+    const row = feedbackRow(7), requests = [], calls = [];
+    const view = panel(roles[3], async (...args) => { calls.push(args); return calls.length === 1 ? { count: 21, results: [row] } : { count: 0, results: [] }; }, (id, signal) => new Promise(resolve => requests.push({ id, signal, resolve })));
+    view.render(); view.flush(); await tick();
+    selectFeedback(view, 7); view.render(); view.flush(); await tick();
+    const tree = view.render();
+    if (change === "filter") find(tree, node => node.type === "select").props.onChange({ target: { value: "down" } });
+    else find(tree, node => node.props?.children === (change === "page" ? "다음" : "새로고침")).props.onClick();
+    view.render(); view.flush(); await tick();
+    view.render(); view.flush();
+    assert.equal(requests[0].signal.aborted, true);
+    requests[0].resolve(row); await tick();
+    assert.equal(find(view.render(), node => node.props?.["aria-label"] === "평가 상세"), undefined);
+    assert.match(text(view.render()), change === "filter" ? /조건에 맞는 평가가 없어요/ : /아직 등록된 평가가 없어요/);
+    assert.equal(calls.at(-1)[0], change === "page" ? 2 : 1);
+    view.unmount();
+  }
+});
+
+test("admin tables wrap user text but retain single-line dates, numbers, status and actions", () => {
+  const source = read("components/admin-panels.tsx");
+  for (const field of ["member.username", "post.author", "report.post.author", "report.reporter"]) {
+    assert.ok(source.includes(`<td className={styles.longText}>{${field}}`), field);
+  }
+  for (const field of ["member.id", "member.date_joined.slice(0, 10)", "dateText(post.created_at)", "post.views", "dateText(report.created_at)"]) {
+    assert.ok(source.includes(`<td className={styles.nowrap}>{${field}}`), field);
+  }
+  const css = read("components/admin-panels.module.css");
+  assert.doesNotMatch(css.match(/\.tableScroll td \{([^}]+)\}/)[1], /white-space:\s*nowrap/);
+  assert.match(css, /\.tableScroll td\.nowrap \{ white-space: nowrap;/);
+  assert.match(css, /td\.longText[^}]*overflow-wrap: anywhere/);
 });

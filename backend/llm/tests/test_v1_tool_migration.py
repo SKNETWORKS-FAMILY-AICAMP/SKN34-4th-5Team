@@ -42,7 +42,8 @@ class V1ToolMigrationTest(unittest.TestCase):
         self.assertEqual(len(set(names)), 30)
         self.assertIn("search_place_knowledge", names)
         self.assertEqual(names[:9], SPECIALIZED)
-        self.assertIs(tools[0].func, assistant.get_games)
+        from llm.tools.baseball import GamesInput
+        self.assertIs(tools[0].args_schema, GamesInput)
 
     def test_state_shared_with_knowledge_context(self):
         current = assistant.new_state("JAMSIL", "q", [])

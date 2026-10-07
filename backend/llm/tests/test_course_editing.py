@@ -149,9 +149,11 @@ class CourseEditingTest(SimpleTestCase):
         call = AIMessage("", tool_calls=[{"name": "plan_course", "id": "c", "args": {"request": "교체"}}])
         result = ToolMessage("조건 미확인, 기존 코스 유지", name="plan_course", tool_call_id="c", artifact={"course_edit_handled": True})
         middleware = DynamicToolMiddleware(["plan_course"])
-        request = SimpleNamespace(state={"messages": [HumanMessage("교체"), call, result]})
-        response = middleware.wrap_model_call(request, lambda _: self.fail("실패 결과를 다시 쓰면 안 됨"))
-        self.assertEqual(response.content, result.content)
+        request = SimpleNamespace(state={"messages": [HumanMessage("교체"), call, result]}, tools=[])
+        request.override = lambda **kwargs: request
+        final = AIMessage("조건 미확인, 기존 코스 유지")
+        response = middleware.wrap_model_call(request, lambda _: final)
+        self.assertIs(response, final)
 
     def test_v2_partial_request_routes_to_edit_tool_and_keeps_map_artifact(self):
         from llm.v2.agent import chain
@@ -161,14 +163,15 @@ class CourseEditingTest(SimpleTestCase):
         registered.update({t.name: t for t in assistant.build_specialized_tools() if t.name == "plan_course"})
         for outcome in ({"answer": "카페만 변경", "places": PLACES, "edit": True, "stadiumCode": "JAMSIL"},
                         editing.unchanged("어느 카페인가요?")):
-            graph = chain.build_graph(ScriptedModel(script=[call("plan_course", {"request": "카페만 교체"}, "e")], calls=[]), registered)
+            graph = chain.build_graph(ScriptedModel(script=[call("ask_course", {"task": "카페만 교체"}, "e"), AIMessage(outcome["answer"])], calls=[]), registered)
             with patch.object(jev_guidelines, "classify", return_value=decision(capabilities=["nearby_places"])), \
                     patch.object(agent, "answer", return_value=outcome) as edit:
                 result = graph.invoke({"messages": [HumanMessage("카페만 바꿔줘")], "context": {"stadium": "JAMSIL", "currentCourse": CURRENT}})
             self.assertEqual(edit.call_args.kwargs["current_course"], CURRENT)
             self.assertEqual(result["messages"][-1].content, outcome["answer"])
             tool = next(m for m in result["messages"] if isinstance(m, ToolMessage))
-            self.assertEqual(bool(tool.artifact.get("course")), bool(outcome["places"]))
+            from llm.v2.agent.course_output import course_artifacts
+            self.assertEqual(any(a.get("course") for a in course_artifacts([tool])), bool(outcome["places"]))
 
     def test_original_brand_request_is_available_even_when_summary_misses_it(self):
         from unittest.mock import Mock

@@ -18,7 +18,7 @@ export type CategoryFilter = PlaceCategory | "all";
 export const CUISINES = ["전체", "한식", "중식", "일식", "양식", "분식", "치킨", "기타"] as const;
 export type Cuisine = typeof CUISINES[number];
 export type NearbyPlace = RouteStop & { placeId: string; kind: PlaceCategory; cuisine: Cuisine; address: string; phone: string; detail: string; distance: number; subcategory?: string; source?: string; collectedAt?: string; referenceMonth?: string; verificationStatus?: string; cafeType?: string | null; stadiumFacility?: { scope: "internal" | "exterior" | "unknown"; floor: string; zone: string; uncertaintyM: number; sourceUrl: string }; stadiumAffiliation?: { stadium: string; status: "candidate"; scope: "unknown"; label: string; basis: string; coordinateStatus: "shop_position_unverified" } | null };
-export type NearbyStadium = Pick<Stadium, "code" | "name" | "lat" | "lng" | "address">;
+export type NearbyStadium = Pick<Stadium, "code" | "name" | "lat" | "lng" | "address" | "parkingMap">;
 export type SearchSpec = { kind: PlaceCategory; method: "category" | "keyword"; query: string; group?: string; accuracy?: boolean };
 
 export const NEARBY_SEARCHES: SearchSpec[] = [

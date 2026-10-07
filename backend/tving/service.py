@@ -456,13 +456,17 @@ def player_entity(player):
     return {"externalCode": player.external_code, "teamCode": code, "name": player.name, "imageUrl": player.image_url, "positions": player.positions, "backNumber": player.back_number, "profileLastSyncedAt": _iso(player.profile_last_synced_at)}
 
 
-def search_entities(*, kind, team=None, player=None, date=None, month=None, page=1, page_size=50):
+def search_entities(*, kind, team=None, player=None, date=None, month=None, page=1, page_size=50, name=None, offset=None):
     if kind not in {"game", "standing", "team", "player", "roster", "player-season", "team-top"}:
         raise TvingInputError("entity kind가 올바르지 않습니다.")
     if isinstance(page, bool) or not isinstance(page, int) or not 1 <= page <= 10_000 or isinstance(page_size, bool) or not isinstance(page_size, int) or not 1 <= page_size <= 100:
         raise TvingInputError("페이지 범위가 올바르지 않습니다.")
     if team is not None and (not isinstance(team, str) or team.upper() not in TEAM_CODES):
         raise TvingInputError("구단 코드가 올바르지 않습니다.")
+    if name is not None and (kind != "player" or not isinstance(name, str) or not name.strip() or len(name) > 80):
+        raise TvingInputError("선수 이름이 올바르지 않습니다.")
+    if offset is not None and (isinstance(offset, bool) or not isinstance(offset, int) or not 0 <= offset <= 1_000_000):
+        raise TvingInputError("페이지 범위가 올바르지 않습니다.")
     mapped_team = team_for(team.upper()) if team else None
     if player is not None and (not isinstance(player, str) or not player.strip() or len(player) > 40 or any(ord(char) < 32 for char in player)):
         raise TvingInputError("선수 코드가 올바르지 않습니다.")
@@ -488,6 +492,7 @@ def search_entities(*, kind, team=None, player=None, date=None, month=None, page
         query = Player.objects.select_related("team").order_by("external_code")
         if mapped_team: query = query.filter(team=mapped_team)
         if player: query = query.filter(external_code=player)
+        if name: query = query.filter(name__icontains=name.strip())
         serializer = player_entity
     elif kind == "roster":
         query = TeamRoster.objects.select_related("team", "player").order_by("team_id", "position", "player_id")
@@ -504,7 +509,7 @@ def search_entities(*, kind, team=None, player=None, date=None, month=None, page
         if mapped_team: query = query.filter(team=mapped_team)
         if player: query = query.filter(player_id=player)
         serializer = lambda row: {"id": row.pk, "teamCode": row.team.team_code, "playerCode": row.player_id, "athleteType": row.athlete_type, "category": row.category, "rank": row.rank, "lastSyncedAt": row.last_synced_at}
-    count = query.count(); start = (page - 1) * page_size
+    count = query.count(); start = offset if offset is not None else (page - 1) * page_size
     return [serializer(row) for row in query[start:start + page_size]], count
 
 

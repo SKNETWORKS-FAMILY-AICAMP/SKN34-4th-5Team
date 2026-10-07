@@ -1,10 +1,21 @@
 """stadium domain tools."""
 from datetime import date
-from pydantic import Field, StrictInt, model_validator
+from pydantic import Field, StrictBool, StrictInt, model_validator
 from django.db.models import Q
 from baseball.models import Facility, FoodStore, HomeContext, SeatMap, SeatScope, SeatZone, Stadium, StadiumContent, TicketPolicy, TicketPrice, Transport
 
+from baseball.stadium_guides import GUIDE_PREFETCH, parking_map, seating_map
+
 from .common import LimitInput, ToolInput, _json, _result, _rows, _tool, db_team_code, is_team_code
+
+IMAGE_FIELDS = ("image_url", "image_source_url", "image_credit", "image_credit_url", "image_license_url")
+
+
+def _stadium_image(item):
+    values = {name: item.pop(name) for name in IMAGE_FIELDS}
+    return {"imageUrl": values["image_url"], "sourceUrl": values["image_source_url"],
+            "credit": values["image_credit"], "creditUrl": values["image_credit_url"],
+            "licenseUrl": values["image_license_url"], "collected_at": None} if values["image_url"] else None
 
 class StadiumInput(ToolInput):
     stadium_id: StrictInt | None = Field(default=None, ge=1)
@@ -46,6 +57,7 @@ class StadiumListInput(LimitInput):
 
 class FacilityInput(StadiumListInput):
     facility_type: str | None = Field(default=None, min_length=1, max_length=80)
+    include_locations: StrictBool = Field(default=False, description="별도 catalogue의 근사 좌표·불확실성·검증 출처 포함. ORM 시설과 ID/분류를 합치지 않는다.")
 
 class ContentInput(StadiumListInput):
     content_type: str | None = Field(default=None, min_length=1, max_length=80)
@@ -58,12 +70,22 @@ def create_stadium_tools():
 
     def get_stadiums(limit=20):
         """공개 구장 목록을 코드순으로 조회한다."""
-        return _result(_rows(Stadium.objects.order_by("stadium_code", "id"), ("id", "stadium_code", "stadium_name_ko", "address"), limit))
+        items = _rows(Stadium.objects.order_by("stadium_code", "id"), ("id", "stadium_code", "stadium_name_ko", "address", "longitude", "latitude", "geocode_source", "collected_at", *IMAGE_FIELDS), limit)
+        for item in items:
+            item["detailPath"] = f"/stadiums/{item['stadium_code']}"
+            item["image"] = _stadium_image(item)
+        return _result(items)
 
     def get_stadium(stadium_id=None, stadium_code=None):
         """ID 또는 코드로 공개 구장 정보를 조회한다."""
         query = Stadium.objects.filter(id=stadium_id) if stadium_id is not None else Stadium.objects.filter(stadium_code=stadium_code)
-        item = _rows(query, ("id", "stadium_code", "stadium_name_ko", "address", "longitude", "latitude", "facility_manager", "game_operator", "phone_general", "phone_facility", "phone_ticket"), 1)
+        item = _rows(query, ("id", "stadium_code", "stadium_name_ko", "address", "longitude", "latitude", "facility_manager", "game_operator", "phone_general", "phone_facility", "phone_ticket", "geocode_source", "collected_at", *IMAGE_FIELDS), 1)
+        if item:
+            item[0]["detailPath"] = f"/stadiums/{item[0]['stadium_code']}"
+            item[0]["image"] = _stadium_image(item[0])
+            stadium = query.prefetch_related(*GUIDE_PREFETCH).get()
+            item[0]["parkingMap"] = parking_map(stadium)
+            item[0]["seatingMap"] = seating_map(stadium)
         return {"item": item[0] if item else None}
 
     def get_seat_zones(season, team_code, stadium_id=None, limit=20):
@@ -95,44 +117,63 @@ def create_stadium_tools():
 
     def get_transport(stadium_id, limit=20):
         """구장의 교통·주차 정보를 조회한다."""
-        return _result(_rows(Transport.objects.filter(stadium_id=stadium_id).order_by("mode", "access_code"), ("access_code", "mode", "title", "details", "parking_spaces", "reservation_required"), limit))
+        return _result(_rows(Transport.objects.filter(stadium_id=stadium_id).order_by("mode", "access_code"), ("access_code", "mode", "title", "details", "parking_spaces", "reservation_required", "collected_at"), limit), parkingMap=parking_map(Stadium.objects.filter(pk=stadium_id).first()))
 
     def get_food_stores(stadium_id, limit=20):
         """구장 공식 매점과 위치·메뉴 분류를 조회한다."""
         items = []
-        for store in FoodStore.objects.filter(stadium_id=stadium_id).prefetch_related("locations", "menus").order_by("record_code")[:limit]:
-            items.append({"record_code": store.record_code, "store_facility": store.store_facility, "location_qty": store.location_qty, "locations": list(store.locations.order_by("location_no").values("location_no", "floor", "zone_location")), "menus": list(store.menus.order_by("menu_category_official").values_list("menu_category_official", flat=True))})
+        for store in FoodStore.objects.filter(stadium_id=stadium_id).select_related("stadium").prefetch_related("locations", "menus").order_by("record_code")[:limit]:
+            items.append({"record_code": store.record_code, "store_facility": store.store_facility, "location_qty": store.location_qty, "collected_at": _json(store.collected_at), "detailPath": f"/stadiums/{store.stadium.stadium_code}", "locations": list(store.locations.order_by("location_no").values("location_no", "floor", "zone_location")), "menus": list(store.menus.order_by("menu_category_official").values_list("menu_category_official", flat=True))})
         return _result(items)
 
-    def get_facilities(stadium_id, limit=20, facility_type=None):
+    def get_facilities(stadium_id, limit=20, facility_type=None, include_locations=False):
         """구장의 편의시설을 조회한다."""
         query = Facility.objects.filter(stadium_id=stadium_id)
         if facility_type:
             query = query.filter(facility_type=facility_type)
-        return _result(_rows(query.order_by("facility_type", "record_code"), ("record_code", "facility_type", "floor", "side", "nearby_section", "gate", "gender", "indoor_outdoor", "location_detail"), limit))
+        items = _rows(query.order_by("facility_type", "record_code"), ("record_code", "facility_type", "floor", "side", "nearby_section", "gate", "gender", "indoor_outdoor", "location_detail", "collected_at"), limit)
+        stadium = Stadium.objects.filter(pk=stadium_id).first()
+        path = f"/stadiums/{stadium.stadium_code}" if stadium else None
+        result = _result(items, detailPath=path)
+        if include_locations:
+            from travel.stadium_facilities import facility_catalogue
+            from travel.collected_places import CatalogueQueryError, CatalogueUnavailable
+            try:
+                catalogue = facility_catalogue(stadium.stadium_code) if stadium else None
+                if catalogue:
+                    records = [row for row in catalogue["records"] if row["kind"] == "facility"]
+                    result["catalogue"] = {**catalogue, "records": records[:limit], "count": min(len(records), limit),
+                                           "total_count": len(records), "has_more": len(records) > limit,
+                                           "pinCount": sum(len(row["pins"]) for row in records[:limit]),
+                                           "filter_scope": "facility_type applies only to ORM items; catalogue IDs are separate"}
+                else:
+                    result["catalogue"] = None
+            except (CatalogueQueryError, CatalogueUnavailable):
+                result.update(catalogue=None, catalogue_warning="구장 위치 catalogue가 미확보되어 ORM 시설만 반환합니다.")
+        return result
 
     def get_stadium_contents(stadium_id, limit=20, content_type=None):
         """구장의 공개 부가 콘텐츠를 조회한다."""
         query = StadiumContent.objects.filter(stadium_id=stadium_id)
         if content_type:
             query = query.filter(content_type=content_type)
-        return _result(_rows(query.order_by("content_type", "record_code"), ("record_code", "content_type", "name", "floor", "location", "official_description", "operating_condition"), limit))
+        return _result(_rows(query.order_by("content_type", "record_code"), ("record_code", "content_type", "name", "floor", "location", "official_description", "operating_condition", "collected_at"), limit))
 
     def get_seat_maps(season, team_code, stadium_id=None, limit=20):
         """팀·시즌 홈 컨텍스트의 공식 좌석도와 자산을 조회한다."""
         items = []
-        for seat_map in SeatMap.objects.filter(home_context__in=_context(season, team_code, stadium_id)).select_related("home_context").prefetch_related("assets").order_by("home_context__stadium_id", "id")[:limit]:
-            items.append({"home_context_id": seat_map.home_context_id, "stadium_id": seat_map.home_context.stadium_id, "map_title": seat_map.map_title, "page_url": seat_map.page_url, "assets": list(seat_map.assets.order_by("asset_no").values("asset_no", "asset_url", "asset_role"))})
+        for seat_map in SeatMap.objects.filter(home_context__in=_context(season, team_code, stadium_id)).select_related("home_context__stadium").prefetch_related("assets").order_by("home_context__stadium_id", "id")[:limit]:
+            items.append({"home_context_id": seat_map.home_context_id, "stadium_id": seat_map.home_context.stadium_id, "map_title": seat_map.map_title, "page_url": seat_map.page_url, "sourceUrl": seat_map.page_url, "collected_at": None, "detailPath": f"/stadiums/{seat_map.home_context.stadium.stadium_code}", "assets": list(seat_map.assets.order_by("asset_no").values("asset_no", "asset_url", "asset_role", "source_url"))})
         return _result(items)
 
     specs = (
-        (get_stadiums, 'get_stadiums', '공개 구장 목록(ID·코드·이름·주소)을 조회한다.', LimitInput),
-        (get_stadium, 'get_stadium', '구장 ID 또는 코드로 공개 상세를 조회한다.', StadiumInput),
+        (get_stadiums, 'get_stadiums', '공개 구장 목록(ID·코드·이름·주소)을 조회한다. items에 detailPath와 외관 사진 image(imageUrl·sourceUrl·credit·creditUrl·licenseUrl)가 있으면 함께 반환한다. 한 구장 소개는 get_stadium으로 상세를 확인한다.', LimitInput),
+        (get_stadium, 'get_stadium', '구장 ID 또는 코드로 주소·운영·시설 관리·연락처 등 공개 상세를 조회한다. item의 detailPath와 중첩된 image.imageUrl은 소개용 Markdown 링크·사진으로 쓴다. 사진을 보여줄 때 제공된 image.credit·creditUrl·sourceUrl·licenseUrl로 저작자·출처·라이선스를 함께 안내하고 없는 값은 만들지 않는다. 외관 사진은 좌석도·주차 지도가 아니다.', StadiumInput),
         (get_seat_zones, 'get_seat_zones', '팀·시즌·선택 구장의 좌석 구역을 조회한다.', ContextInput),
         (get_seat_views, 'get_seat_views', '팀·시즌·선택 구장의 좌석 시야를 조회한다.', ContextInput),
         (get_ticket_prices, 'get_ticket_prices', '팀·시즌 좌석 가격을 선택 유효일 기준으로 조회한다.', TicketPricesInput),
         (get_ticket_policies, 'get_ticket_policies', '팀과 선택 경기의 예매 정책을 조회한다.', TicketPoliciesInput),
-        (get_transport, 'get_transport', '구장의 교통·주차 정보를 조회한다.', StadiumListInput),
+        (get_transport, 'get_transport', '구장의 교통·주차 items와 선택적 parkingMap 안내 이미지를 조회한다. parkingMap.imageUrl·sourceUrl·credit은 제공된 값만 안내하며 실시간 주차 현황이나 지도 좌표가 아니다.', StadiumListInput),
         (get_food_stores, 'get_food_stores', '구장 공식 매점, 위치와 메뉴를 조회한다.', StadiumListInput),
         (get_facilities, 'get_facilities', '구장 편의시설을 조회한다.', FacilityInput),
         (get_stadium_contents, 'get_stadium_contents', '구장 부가 콘텐츠를 조회한다.', ContentInput),

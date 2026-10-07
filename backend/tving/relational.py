@@ -374,7 +374,7 @@ def read_team(code):
         categories = []
         active = {tuple(value) for value in profile.top_keys.get(kind, [])}
         for name in dict.fromkeys(row.category for row in top_rows if row.athlete_type == kind and (row.category, row.player_id) in active):
-            categories.append({"title": name, "athletes": [{"rank": row.rank, "name": row.player.name, "code": row.player_id, "value": row.value, "imageUrl": row.image_url} for row in top_rows if row.athlete_type == kind and row.category == name and (row.category, row.player_id) in active]})
+            categories.append({"title": name, "athletes": [{"rank": row.rank, "name": row.player.name, "code": row.player_id, "value": row.value, "imageUrl": row.image_url or row.player.image_url} for row in top_rows if row.athlete_type == kind and row.category == name and (row.category, row.player_id) in active]})
         rankings[kind] = categories
     if any(
         {row.player_id for row in TeamRoster.objects.filter(team=team, position=position) if row.player_id in profile.roster_codes.get(position, [])}
@@ -392,13 +392,13 @@ def read_team(code):
     return {"code": code, "teamName": team.team_name_ko, "shortName": profile.short_name, "teamImageUrl": profile.image_url, "backgroundImage": profile.background_image_url, "seasonTitle": profile.season_title, "mainRecords": [{"title": row.title, "value": row.value} for row in records if row.category == "main"], "boxRecords": [{"title": row.title, "value": row.value} for row in records if row.category == "box"], "schedule": [{key: value for key, value in _game_json(game, raw=True).items() if key != "date"} for game in games], "rankings": rankings, "rosters": rosters, "shortcuts": shortcuts}
 
 
-def read_athlete(code):
-    player = Player.objects.filter(external_code=code, profile_last_synced_at__isnull=False, detail_last_synced_at__isnull=False).select_related("team").first()
-    if not player:
+def read_athlete(code, *, player=None):
+    player = player or Player.objects.filter(external_code=code).select_related("team").first()
+    if not player or not player.profile_last_synced_at or not player.detail_last_synced_at:
         return None
     team_code = next(key for key, value in TEAM_MAP.items() if value == player.team.team_code)
-    season_records = player.season_records.filter(record_kind="detail", record_key__in=player.detail_record_keys).order_by("id")
-    career = list(player.career_records.filter(position__in=player.career_positions).order_by("position"))
-    if season_records.count() != len(player.detail_record_keys) or len(career) != len(player.career_positions):
+    season_records = sorted((row for row in player.season_records.all() if row.record_kind == "detail" and row.record_key in player.detail_record_keys), key=lambda row: row.pk)
+    career = sorted((row for row in player.career_records.all() if row.position in player.career_positions), key=lambda row: row.position)
+    if len(season_records) != len(player.detail_record_keys) or len(career) != len(player.career_positions):
         return None
     return {"profile": {"code": code, "name": player.name, "imageUrl": player.image_url, "positions": player.positions, "backNumber": player.back_number, "joinDate": player.join_date, "birthDate": player.birth_date, "body": player.body, "education": player.education, "draftOrder": player.draft_order, "team": {"name": player.team.team_name_ko, "code": team_code, "color": player.team_color, "logoUrl": player.team_logo_url}}, "seasonTitle": player.season_title or "시즌 기록", "seasonRecords": [{"title": row.title, "value": row.value, "rank": row.rank_label, "isFirstRank": row.is_first_rank, "graphs": row.graphs} for row in season_records], "careerTitle": player.career_title or (career[0].title if career else "통산 기록"), "careerColumns": career[0].columns if career else [], "careerRows": [row.metrics for row in career]}

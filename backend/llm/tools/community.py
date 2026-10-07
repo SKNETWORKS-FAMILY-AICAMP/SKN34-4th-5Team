@@ -38,14 +38,21 @@ def create_community_tools():
 
     def search_community_posts(query, board=None, team_code=None, category=None, limit=20):
         """공개 커뮤니티 글을 제목·본문으로 검색한다."""
-        posts = CommunityPost.objects.filter(Q(title__icontains=query) | Q(content__icontains=query))
+        posts = CommunityPost.objects.filter(Q(title__icontains=query) | Q(content__icontains=query), is_hidden=False)
         if board:
             posts = posts.filter(board=board)
         if team_code:
             posts = posts.filter(team_code=team_code)
         if category:
             posts = posts.filter(category=category)
-        return _result(_rows(posts.order_by("-created_at", "post_number"), ("post_number", "board", "team_code", "author", "title", "content", "category", "created_at", "views", "recommendations", "comment_count", "is_sample"), limit))
+        from urllib.parse import urlencode
+        items = _rows(posts.order_by("-created_at", "post_number"), ("source_id", "post_number", "board", "team_code", "author", "title", "content", "content_doc", "category", "created_at", "views", "recommendations", "comment_count", "is_sample"), limit)
+        for item in items:
+            params = {"post": item["source_id"]}
+            if item["board"] == "teams":
+                params = {"team": item["team_code"], **params}
+            item["detailPath"] = ("/community/teams" if item["board"] == "teams" else "/community") + "?" + urlencode(params)
+        return _result(items)
 
     def get_prediction_games(game_date, team_code=None, status=None, limit=20):
         """저장된 승부예측 대상 경기와 익명 팬 투표 집계를 조회한다(개인 선택 제외)."""
