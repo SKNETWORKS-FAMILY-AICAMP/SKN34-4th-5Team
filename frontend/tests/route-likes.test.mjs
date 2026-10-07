@@ -6,16 +6,16 @@ import ts from "typescript";
 function setup(api) {
   const source = readFileSync(new URL("../lib/routes.ts", import.meta.url), "utf8");
   const code = ts.transpileModule(source + '\nexport function seedTestRoute() { serverRoutes = [{ id: "test", likes: 0 } as TripRoute]; }', {
-    compilerOptions: { module: ts.ModuleKind.CommonJS },
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText;
-  const module = { exports: {} };
+  const testModule = { exports: {} };
   new Function("require", "module", "exports", "window", code)(
-    name => name === "./course-api" ? api : {}, module, module.exports,
+    name => name === "./course-api" ? api : name === "react" ? { useSyncExternalStore() {} } : {}, testModule, testModule.exports,
     { dispatchEvent() {}, localStorage: { getItem() { return null; } } },
   );
-  module.exports.seedTestRoute();
-  module.exports.resetRouteLikes(1);
-  return module.exports;
+  testModule.exports.seedTestRoute();
+  testModule.exports.resetRouteLikes(1);
+  return testModule.exports;
 }
 
 test("initial reaction requests are deduplicated", async () => {
@@ -39,6 +39,27 @@ test("toggles read server state and serialize updates", async () => {
   assert.deepEqual(await Promise.all([store.toggleRouteLike("test"), store.toggleRouteLike("test")]), [true, false]);
   assert.deepEqual(writes, [true, false]);
   assert.equal(store.getRoutes()[0].likes, 0);
+});
+
+test("removing a cached like stays unliked after another tab already removed it", async () => {
+  let liked = true;
+  const writes = [];
+  const store = setup({
+    fetchCourseReaction: async () => ({ liked, likes: Number(liked) }),
+    setCourseReaction: async (_id, desired) => {
+      writes.push(desired); liked = desired;
+      return { liked, likes: Number(liked) };
+    },
+  });
+  await store.loadRouteLike("test");
+  assert.deepEqual(store.useLikedRoutes(), ["test"]);
+  assert.equal(store.getRoutes()[0].likes, 1);
+  liked = false;
+  assert.equal(await store.setRouteLike("test", false), false);
+  assert.deepEqual(writes, [false]);
+  assert.equal(liked, false);
+  assert.equal(store.getRoutes()[0].likes, 0);
+  assert.deepEqual(store.useLikedRoutes(), []);
 });
 
 test("account changes discard stale reads and prevent subsequent writes", async () => {

@@ -254,13 +254,21 @@ export function loadRouteLike(id: string): Promise<void> {
 }
 
 export function toggleRouteLike(id: string): Promise<boolean> {
+  return mutateRouteLike(id);
+}
+
+export function setRouteLike(id: string, liked: boolean): Promise<boolean> {
+  return mutateRouteLike(id, liked);
+}
+
+function mutateRouteLike(id: string, liked?: boolean): Promise<boolean> {
   const generation = likeGeneration;
   return enqueueReaction(id, async () => {
     assertLikeSession(generation);
     const apiId = reactionTarget(id);
-    const current = await fetchCourseReaction(apiId);
+    const desired = liked ?? !(await fetchCourseReaction(apiId)).liked;
     assertLikeSession(generation);
-    const result = await setCourseReaction(apiId, !current.liked);
+    const result = await setCourseReaction(apiId, desired);
     applyReaction(id, result, generation);
     return result.liked;
   });
