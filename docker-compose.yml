@@ -6,6 +6,16 @@ x-logging: &default-logging
 
 services:
 
+  qdrant:
+    image: qdrant/qdrant:v1.19.2
+    restart: unless-stopped
+    environment:
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:?Set QDRANT_API_KEY}
+    volumes:
+      - qdrant_data:/qdrant/storage
+    # No host ports: only backend services on the Compose network can connect.
+    logging: *default-logging
+
   # ========================
   # PostgreSQL + pgvector1
   # ========================
@@ -44,7 +54,10 @@ services:
       COMPOSE_PROFILES: ${COMPOSE_PROFILES:-}
       CHAT_CHECKPOINT_SIGNING_KEY: ${CHAT_CHECKPOINT_SIGNING_KEY:?Set CHAT_CHECKPOINT_SIGNING_KEY}
       CHAT_TRUST_PROXY_HEADERS: "true"
-      EMBEDDING_MODEL: ${EMBEDDING_MODEL}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+      QDRANT_API_KEY: ${QDRANT_API_KEY:?Set QDRANT_API_KEY}
+      QDRANT_DOCUMENT_COLLECTION: ${QDRANT_DOCUMENT_COLLECTION:-kbo_documents_openai}
       LLM_MODEL: ${LLM_MODEL:-gpt-6-luna}
       SERPER_API_KEY: ${SERPER_API_KEY:-${Serper_API_KEY:-}}
       COURSE_WEB_VERIFICATION_ENABLED: ${COURSE_WEB_VERIFICATION_ENABLED:-false}
@@ -102,6 +115,8 @@ services:
       - "8000:8000"
 
     depends_on:
+      qdrant:
+        condition: service_started
       db:
         condition: service_started
         required: false
@@ -223,3 +238,4 @@ services:
 volumes:
   postgres_data:
   minio_data:
+  qdrant_data:

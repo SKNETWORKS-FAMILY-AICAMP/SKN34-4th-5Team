@@ -224,11 +224,8 @@ def _meta(m):
 
 def fetch_rows(code) -> list[dict]:
     """구장의 TRANSPORT 청크 metadata 전부 (많아야 10행 안팎)."""
-    from django.db import connection                 # 순수 함수 테스트를 위해 지연 import
-    with connection.cursor() as cur:
-        cur.execute("""SELECT metadata FROM llm_documentchunk
-                       WHERE metadata->>'category' = 'TRANSPORT' AND metadata->>'stadium_code' = %s""", [code])
-        return [_meta(r[0]) for r in cur.fetchall()]
+    from llm.vector_store import iter_documents
+    return [doc["metadata"] for doc in iter_documents(stadium=code, categories=["TRANSPORT"], include_common=False)]
 
 
 def info(code, mode, question="") -> dict:
