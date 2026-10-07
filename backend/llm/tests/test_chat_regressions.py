@@ -16,11 +16,14 @@ class OrdinarySendLinearizationTest(CheckpointTestCase):
     def setUp(self):
         self.session = ChatSession.objects.create(guest="12121212-1212-1212-1212-121212121212")
 
-    def test_concurrent_sends_from_same_base_both_stay_in_root_history(self):
+    def test_busy_send_retries_after_answer_and_both_stay_in_root_history(self):
+        from llm.service.usage import WalletBusy
         with patch_chain(return_value=PausingChain(chunks=("답",))):
             a = chat_service.send_message(self.session, "A")
-            b = chat_service.send_message(self.session, "B")  # A pending 을 읽은 같은 base
-            a_frames, b_frames = list(a), list(b)
+            with self.assertRaises(WalletBusy):
+                chat_service.send_message(self.session, "B")
+            a_frames = list(a)
+            b_frames = list(chat_service.send_message(self.session, "B"))
         self.assertEqual([e for e, _ in a_frames], ["delta", "done"])
         self.assertEqual([e for e, _ in b_frames], ["delta", "done"])
         self.assertEqual([(i["role"], i["content"], i["status"]) for i in history(self.session)], [

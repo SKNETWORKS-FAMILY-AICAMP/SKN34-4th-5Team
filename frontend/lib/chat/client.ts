@@ -1,7 +1,8 @@
 import { parsePlanning, type ChatPlanning } from "./planning";
+import { parseChatCourse, parseCoursePreferences } from "./course";
 import { memberError, memberFetch } from "../member-auth-request";
 import { isRecord, parseChatRequest } from "./validation";
-import type { AnswerFeedback, ChatContext, ChatReply, ChatStatus } from "./types";
+import type { AnswerFeedback, ChatContext, ChatCourse, ChatReply, ChatStatus, CoursePreferences } from "./types";
 import { MAX_REPLY_LENGTH, buildTimeline } from "./types";
 import { fromAttachmentDto, fromToolDto } from "./history";
 import type { ChatAttachment, ChatToolGroup } from "./types";
@@ -88,7 +89,9 @@ async function request<T>(mode: ChatMode, path: string, init: RequestInit, signa
     if (!response.ok) {
       const data = await readJson(response).catch(() => null);
       throw new ChatClientError(
-        response.status >= 500 ? fallback(response.status) : memberError(data, fallback(response.status)),
+        response.status >= 500 ? fallback(response.status)
+          : isRecord(data) && typeof data.detail === "string" && data.detail.trim()
+            ? data.detail : memberError(data, fallback(response.status)),
         response.status,
         response.status >= 500 && mutating,
         undefined,
@@ -142,14 +145,17 @@ const readEmpty = async (response: Response) => { await response.text(); };
 // Frames are `event: <name>\ndata: <json>\n\n` (backend/llm/views/sse.py): delta{text}* / tool{id,
 // tool_name, status}* then exactly one terminal event: done{message_id, assistant_message, tools},
 // error{detail}, or stopped{}. A stream that closes with none is a dropped connection.
-async function readStream(response: Response, sessionId: string, callbacks: ChatStreamCallbacks): Promise<{ reply: string; assistantMessageId: number; tools: ChatToolCallDto[]; steps: ChatStepDto[]; planning?: ChatPlanning }> {
+async function readStream(response: Response, sessionId: string, callbacks: ChatStreamCallbacks): Promise<{ reply: string; assistantMessageId: number; tools: ChatToolCallDto[]; steps: ChatStepDto[]; planning?: ChatPlanning; course?: ChatCourse; coursePreferences?: CoursePreferences }> {
   if (!response.body || !response.headers.get("Content-Type")?.toLowerCase().startsWith("text/event-stream")) {
     throw new ChatClientError("스트림 응답을 확인하지 못했어요.", 502, true, sessionId);
   }
   const reader = response.body.getReader(), decoder = new TextDecoder();
-  let buffer = "", streamed = 0, result: { reply: string; assistantMessageId: number; tools: ChatToolCallDto[]; steps: ChatStepDto[]; planning?: ChatPlanning } | null = null;
+  let buffer = "", streamed = 0, result: { reply: string; assistantMessageId: number; tools: ChatToolCallDto[]; steps: ChatStepDto[]; planning?: ChatPlanning; course?: ChatCourse; coursePreferences?: CoursePreferences } | null = null;
   const consume = (frame: string) => {
-    const [eventLine, ...lines] = frame.split(/\r?\n/);
+    // SSE 주석은 연결 유지 신호다. 답변/도구/완료 이벤트로 취급하지 않는다.
+    const fields = frame.split(/\r?\n/).filter(line => !line.startsWith(":"));
+    if (fields.every(line => !line.trim())) return;
+    const [eventLine, ...lines] = fields;
     const event = eventLine?.startsWith("event:") ? eventLine.slice(6).trim() : "";
     const raw = lines.filter(line => line.startsWith("data:")).map(line => line.slice(5).trimStart()).join("\n");
     let value: unknown;
@@ -177,7 +183,7 @@ async function readStream(response: Response, sessionId: string, callbacks: Chat
         !Array.isArray(value.tools) || !value.tools.every(isTool) || !isSteps(value.steps)) {
         throw new ChatClientError("최종 답변을 확인하지 못했어요.", 502, true, sessionId);
       }
-      result = { reply: value.assistant_message, assistantMessageId: Number(value.message_id), tools: value.tools, steps: (value.steps as ChatStepDto[] | undefined) ?? [], planning: parsePlanning(value.planning) };
+      result = { reply: value.assistant_message, assistantMessageId: Number(value.message_id), tools: value.tools, steps: (value.steps as ChatStepDto[] | undefined) ?? [], planning: parsePlanning(value.planning), course: parseChatCourse(value.course), coursePreferences: parseCoursePreferences(value.coursePreferences) };
       return;
     }
     if (event === "error") {
@@ -202,7 +208,8 @@ async function readStream(response: Response, sessionId: string, callbacks: Chat
       if (buffer.length > MAX_STREAM_LENGTH * 2) throw new ChatClientError("스트림 응답이 너무 길어요.", 502, true, sessionId);
       if (next.done) break;
     }
-    if (!result || buffer.trim()) throw new ChatClientError("답변이 끝나기 전에 연결이 끊겼어요.", 502, true, sessionId);
+    const remainingFields = buffer.split(/\r?\n/).filter(line => !line.startsWith(":"));
+    if (!result || remainingFields.some(line => line.trim())) throw new ChatClientError("답변이 끝나기 전에 연결이 끊겼어요.", 502, true, sessionId);
     return result;
   } finally { await reader.cancel().catch(() => undefined); }
 }

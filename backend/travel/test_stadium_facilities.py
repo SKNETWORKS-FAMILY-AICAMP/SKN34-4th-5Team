@@ -23,13 +23,12 @@ class StadiumFacilityTests(SimpleTestCase):
         self.assertIsNone(stadium_affiliation_hint('JAMSIL',{**row,'source':'TOUR'}))
         self.assertIsNone(stadium_affiliation_hint('DAEJEON',{**row,'name':'대전야구장3루점','address':'대전 대종로 373'}))
 
-    def test_public_candidate_annotation_does_not_change_record_or_coordinates(self):
+    def test_removed_sbiz_candidates_are_absent_from_live_catalogue(self):
         from .collected_places import catalogue
-        row = next(p for p in catalogue('JAMSIL')['places'] if p['placeId']=='collected:SBIZ:MA010120220804279123')
-        self.assertEqual(row['stadiumAffiliation']['scope'],'unknown')
-        self.assertEqual(row['kind'],'cafe')
-        self.assertAlmostEqual(row['lat'],37.5161925601351)
-        self.assertNotIn('courseEligible',row)
+        rows = catalogue('JAMSIL')['places']
+        self.assertTrue(rows)
+        self.assertTrue(all(row['source'] in {'PARK', 'TOUR'} for row in rows))
+        self.assertTrue(all(row['stadiumAffiliation'] is None for row in rows))
 
     def test_all_source_records_are_separate_and_original_counts_preserved(self):
         codes = ('JAMSIL','GOCHEOK','MUNHAK','SUWON','DAEJEON','DAEGU','GWANGJU','SAJIK','CHANGWON')

@@ -1,3 +1,4 @@
+import calendar as month_calendar
 import hashlib
 import os
 import sys
@@ -58,12 +59,20 @@ def collect_schedule(month=None):
     from tving.relational import persist_month
     from tving.service import _provider_json
     month = month or datetime.now(KST).strftime("%Y-%m")
-    calendar = parse_calendar(_provider_json("/kbo/schedule/day", {"date": month.replace("-", "")}), month)
-    games, days = [], []
-    for day in calendar:
+    calendar_payload = _provider_json("/kbo/schedule/day", {"date": month.replace("-", "")})
+    game_days = parse_calendar(calendar_payload, month)
+    games, games_by_day = [], {}
+    for day in game_days:
         date = f"{month}-{day:02d}"
-        parsed = parse_schedule(_provider_json("/kbo/schedule", {"date": date.replace("-", "")}), date)
-        games.extend(parsed); days.append({"date": date, "status": "ready" if parsed else "empty", "gameCount": len(parsed)})
+        parsed = parse_schedule(_provider_json("/kbo/schedule", {"date": date.replace("-", "")}), date, calendar_payload)
+        games.extend(parsed)
+        games_by_day[day] = parsed
+    # 조회기는 월 전체가 수집되었는지 확인하므로, 원천 달력의 휴식일도 기록한다.
+    # 모든 응답의 검증이 끝난 뒤 저장하여 수집 실패를 경기 없음으로 바꾸지 않는다.
+    days = []
+    for day in range(1, month_calendar.monthrange(int(month[:4]), int(month[5:]))[1] + 1):
+        day_games = games_by_day.get(day, [])
+        days.append({"date": f"{month}-{day:02d}", "status": "ready" if day_games else "empty", "gameCount": len(day_games)})
     data = {"year": int(month[:4]), "month": month, "today": datetime.now(KST).date().isoformat(), "games": games, "days": days, "loading": False}
     with override_settings(EXTERNAL_DATA_SYNC_INTERVAL_SECONDS=0): persist_month(data, timezone.now())
     return len(games)

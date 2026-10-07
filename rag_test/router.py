@@ -5,12 +5,12 @@ import re
 PLACE_ALIAS = {
     "JAMSIL": ["잠실"],
     "GOCHEOK": ["고척", "스카이돔"],
-    "MUNHAK": ["문학", "랜더스필드"],
+    "MUNHAK": ["문학", "인천", "랜더스필드"],
     "SUWON": ["수원", "위즈파크"],
     "DAEJEON": ["대전", "볼파크", "한밭"],
     "DAEGU": ["대구", "라팍", "라이온즈파크"],
     "GWANGJU": ["광주", "챔필", "챔피언스필드"],
-    "SAJIK": ["사직"],
+    "SAJIK": ["사직", "부산"],
     "CHANGWON": ["창원", "엔씨파크", "NC파크", "마산"],
     "OTHER": ["포항"],
 }
@@ -18,13 +18,13 @@ PLACE_ALIAS = {
 TEAM_ALIAS = {
     "JAMSIL": ["LG", "엘지", "트윈스", "두산", "베어스"],
     "GOCHEOK": ["키움", "히어로즈"],
-    "MUNHAK": ["SSG", "랜더스"],
-    "SUWON": ["KT", "위즈"],
+    "MUNHAK": ["SSG", "쓱", "에스에스지", "랜더스"],
+    "SUWON": ["KT", "케이티", "위즈"],
     "DAEJEON": ["한화", "이글스"],
     "DAEGU": ["삼성", "라이온즈"],
     "GWANGJU": ["KIA", "기아", "타이거즈"],
     "SAJIK": ["롯데", "자이언츠"],
-    "CHANGWON": ["NC", "다이노스"],
+    "CHANGWON": ["NC", "엔씨", "다이노스"],
 }
 
 CATEGORY_KEYWORDS = {
@@ -81,11 +81,13 @@ CATEGORY_KEYWORDS = {
 
 
 def _hits(q: str, table: dict) -> set:
-    return {code for code, words in table.items() if any(w.upper() in q for w in words)}
+    q = q.replace(" ", "")
+    suffix = r"(?!역|동|전자|화재|카드|백화점|마트|월드|호텔|몰|아울렛|타워|빌딩)"
+    return {code for code, words in table.items() if any(
+        re.search(re.escape(w.upper().replace(" ", "")) + suffix, q) for w in words)}
 
 
-def detect_stadium(question: str) -> str | None:
-    q = question.upper()
+def _stadium_in(q: str) -> str | None:
     places = _hits(q, PLACE_ALIAS)
     if len(places) == 1:
         return places.pop()
@@ -93,6 +95,15 @@ def detect_stadium(question: str) -> str | None:
         return None  # "잠실이랑 고척 중에…" 같은 비교 질문 → 필터를 걸지 않는다
     teams = _hits(q, TEAM_ALIAS)
     return teams.pop() if len(teams) == 1 else None
+
+
+def detect_stadium(question: str) -> str | None:
+    q = question.upper()
+    # "잠실 말고 사직", "삼성 대신 한화"는 비교가 아니라 목적지 변경이다.
+    replacement = re.split(r"말고|아니라|아니고|대신(?:에)?", q)[-1]
+    if replacement != q and (_hits(replacement, PLACE_ALIAS) or _hits(replacement, TEAM_ALIAS)):
+        return _stadium_in(replacement)
+    return _stadium_in(q)
 
 
 # 규칙 질문에는 "경기"·"몇 시" 같은 말이 자연스럽게 섞인다("경기 중 비가 오면").

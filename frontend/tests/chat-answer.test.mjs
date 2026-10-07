@@ -21,6 +21,39 @@ writeFileSync(join(scratch, "answer.cjs"), ts.transpileModule(source, {
 }).outputText);
 const { ChatAnswer, safeChatUrl } = createRequire(import.meta.url)(join(scratch, "answer.cjs"));
 const render = text => renderToStaticMarkup(React.createElement(ChatAnswer, { text }));
+const sourcePlaces = [
+  { name: "첫 카페", time: "12:00", placeUrl: "https://example.com/first" },
+  { name: "둘째 식당", time: "13:00", placeUrl: "https://example.com/second" },
+];
+const renderPlaces = text => renderToStaticMarkup(React.createElement(ChatAnswer, { text, places: sourcePlaces }));
+
+for (const [name, markdown] of [
+  ["multiline strong", "**12:00 첫 카페\n13:00 둘째 식당**"],
+  ["GFM table rows", "| 시간 | 장소 |\n| --- | --- |\n| 12:00 | 첫 카페 |\n| 13:00 | 둘째 식당 |"],
+  ["tight nested lists", "- 12:00 첫 카페\n  - 13:00 둘째 식당"],
+  ["loose nested lists", "- 12:00 첫 카페\n\n  설명\n\n  - 13:00 둘째 식당"],
+]) {
+  test(`place sources associate once at each boundary: ${name}`, () => {
+    const html = renderPlaces(markdown);
+    assert.equal((html.match(/class="chat-place-source"/g) ?? []).length, 2, html);
+    assert.match(html, /첫 카페[\s\S]*href="https:\/\/example.com\/first"[\s\S]*둘째 식당[\s\S]*href="https:\/\/example.com\/second"/);
+    if (name === "multiline strong") assert.match(html, /example.com\/first[\s\S]*<br\/>[\s\S]*둘째 식당/);
+    if (name === "GFM table rows") {
+      const rows = html.match(/<tr>[\s\S]*?<\/tr>/g);
+      assert.equal(rows.filter(row => row.includes("chat-place-source")).length, 2);
+      assert.match(rows[1], /<td>첫 카페[\s\S]*chat-place-source[\s\S]*<\/td>/);
+    }
+    assert.doesNotMatch(html, /<a[^>]*>[^<]*<a/);
+  });
+}
+
+test("explicit place source and Yanolja links are not duplicated", () => {
+  const html = renderPlaces("12:00 첫 카페 [출처](https://example.com/first)\n13:00 둘째 식당");
+  assert.equal((html.match(/href="https:\/\/example.com\/first"/g) ?? []).length, 1);
+  const stay = { name: "호텔", time: "20:00", placeUrl: "https://nol.yanolja.com/stay/domestic/123" };
+  const lodging = renderToStaticMarkup(React.createElement(ChatAnswer, { text: "20:00 호텔 [야놀자](https://nol.yanolja.com/stay/domestic/123)", places: [stay] }));
+  assert.equal((lodging.match(/href=/g) ?? []).length, 1);
+});
 
 test("standard Markdown preserves headings, emphasis, lists, line breaks, code and GFM tables", () => {
   const html = render("# 제목\n\n**굵게** *강조* `inline`\n다음 줄\n\n- 하나\n  - 중첩\n\n3. 셋\n\n```js\n<tag>\n```\n\n| 선수 | 기록 |\n| --- | --- |\n| 곽빈 | 10 |\n");

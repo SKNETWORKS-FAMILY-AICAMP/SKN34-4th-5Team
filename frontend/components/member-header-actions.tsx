@@ -20,7 +20,6 @@ export function MemberHeaderActions() {
   }, [open]);
   return <>
     {status === "loading" ? <span role="status">회원 확인 중…</span> : user ? <>
-    {status === "authenticated" && user.is_active && user.is_staff && <Link className="login-link" href="/admin" aria-label="Admin 대시보드">Admin</Link>}
     <div className="member-menu" ref={root}>
       <button ref={trigger} type="button" className="button button-primary header-signup" aria-expanded={open} aria-controls="member-menu-panel" onClick={() => setOpen(!open)}>마이페이지</button>
       {open && <nav id="member-menu-panel" className="member-menu-panel" aria-label="마이페이지 메뉴">

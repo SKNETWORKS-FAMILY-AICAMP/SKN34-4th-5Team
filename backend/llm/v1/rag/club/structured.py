@@ -88,8 +88,11 @@ def team_in(question):
 
 
 def date_in(question, today):
-    """질문 속 날짜 → 'YYYY-MM-DD' (오늘/내일/모레/N월 N일). 없으면 None"""
+    """질문 속 날짜 → 'YYYY-MM-DD'. 명시한 연도를 보존한다."""
     t = date.fromisoformat(today)
+    full = re.search(r"(?<!\d)(\d{4})\s*(?:년\s*|[-/.])\s*(\d{1,2})\s*(?:월\s*|[-/.])\s*(\d{1,2})(?:\s*일)?(?!\d)", question)
+    if full:
+        return date(*map(int, full.groups())).isoformat()
     if "오늘" in question:
         return today
     if "그제" in question or "그저께" in question:

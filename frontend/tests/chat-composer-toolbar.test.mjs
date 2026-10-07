@@ -61,7 +61,8 @@ test("workspace and popup/embedded pass textarea, existing hints and send/stop t
     const attrs = tools[0].openingElement.attributes.properties;
     assert.ok(attrs.some(node => node.name?.getText(caller) === "hint"));
     const action = attrs.find(node => node.name?.getText(caller) === "actions").getText(caller);
-    assert.match(action, /질문 보내기/);
+    assert.match(action, /sendLabel/);
+    assert.match(caller.text, /const sendLabel = .*질문 보내기/);
     assert.match(action, /답변 생성 중단/);
     assert.match(action, /chat\.onCancel/);
   }

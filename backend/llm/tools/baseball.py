@@ -196,7 +196,6 @@ def create_baseball_domain_tools():
         if status in STATUS:
             states = {"upcoming": ("PREV", "READY", "scheduled"), "finished": ("END", "final"), "canceled": ("CANCEL", "cancelled")}
             query = query.filter(status_code__in=states[status])
-        freshness = tving_service.get_game_range_freshness(start_date, end_date)
         if stadium_id is not None:
             query = query.filter(stadium_id=stadium_id)
         from django.utils import timezone
@@ -206,10 +205,13 @@ def create_baseball_domain_tools():
             query = query.filter(status_code__in=("scheduled", "PREV", "READY")).filter(
                 Q(game_date__gt=cutoff.date()) | Q(game_date=cutoff.date(), game_time__gt=cutoff.time().replace(tzinfo=None))
             )
+        # 다음 경기 날짜까지만 최신성을 확인한 뒤 최종 행을 읽는다.
+        checked_end = (query.order_by("game_date", "game_time", "game_code").values_list("game_date", flat=True).first() or end_date) if upcoming_only else end_date
+        freshness = tving_service.get_game_range_freshness(start_date, checked_end)
         total = query.count()
         rows = _rows(query.order_by("game_date", "game_time", "game_code")[offset:], (
             "id", "game_code", "game_date", "game_time", "home_team__team_code", "home_team__team_name_ko",
-            "away_team__team_code", "away_team__team_name_ko", "stadium_id", "stadium__stadium_name_ko",
+            "away_team__team_code", "away_team__team_name_ko", "stadium_id", "stadium__stadium_name_ko", "stadium__stadium_code",
             "home_score", "away_score", "status_code", "game_type", "home_starting_pitcher", "away_starting_pitcher",
             "source", "source_external_code", "source_stadium_name", "source_status_label", "source_home_code", "source_home_name",
             "source_away_code", "source_away_name", "collected_at", "source_fetched_at", "last_synced_at",

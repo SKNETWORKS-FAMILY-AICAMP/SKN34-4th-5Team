@@ -14,9 +14,11 @@ from ..middleware.jev_guidelines import JevGuidelineMiddleware
 class Decision(TypedDict):
     allowed: bool  # JEV guard PASS 여부
     capabilities: list[str]  # 도구 노출용 capability 이름
+    course_request: NotRequired[str]  # NEW / EDIT / NONE
 
 
 class V2AgentState(AgentState):
+    course_memory: NotRequired[dict]  # 완료된 턴의 서버 체크포인트에서만 복원
     decision: NotRequired[Decision]
     tool_group_ids: NotRequired[list[str]]
     attachment_session_id: NotRequired[str]
@@ -88,6 +90,7 @@ def build_agent(model, tools, rules, capability_tools=None, budget=MODEL_CALL_BU
             ModelCallLimitMiddleware(run_limit=budget, exit_behavior="error"),
             FinalAnswerMiddleware(budget),
             ToolCallLimitMiddleware(tool_name="get_directions", run_limit=2),
+            ToolCallLimitMiddleware(tool_name="ask_course", run_limit=1),
         ],
     )
     # 비공개 백스톱: 호출당 step 은 10 미만이라 예산보다 먼저 걸리지 않는다. 공개 설정 아님.

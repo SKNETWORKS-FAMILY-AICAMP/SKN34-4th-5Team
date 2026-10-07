@@ -57,6 +57,7 @@ def _frames(graph_input, run):
     from llm.v2.agent.chain import get_graph
     stream = get_graph().stream(graph_input, stream_mode=["messages", "updates"], subgraphs=True)
     parents, titles, summaries = {}, {}, {}  # namespace 첫 칸 → parent tool_call_id / tool_call_id → 하위 Agent title
+    new_course, course_failed = False, False
     streamed = False  # 마지막 메인 도구 호출 뒤 메인 텍스트를 흘렸는지
     with closing(stream):
         for ns, mode, data in stream:
@@ -74,7 +75,11 @@ def _frames(graph_input, run):
                 yield PublicChatEvent.DELTA.value, {"text": chunk.text, **({"parent_id": parent} if ns else {})}
                 continue
             for update in data.values():
+                if not ns and isinstance(update, dict) and (update.get("decision") or {}).get("course_request") == "NEW":
+                    new_course = True
                 for message in (update or {}).get("messages") or [] if isinstance(update, dict) else ():
+                    if ns and isinstance(message, AIMessage) and message.response_metadata.get("parent_id"):
+                        parents[ns[0]] = parent = message.response_metadata["parent_id"]
                     if not ns and isinstance(message, AIMessage) and not message.tool_calls:
                         citations = _citation_links(message)
                         run["answer"] = str(message.text) + citations
@@ -93,6 +98,9 @@ def _frames(graph_input, run):
                                 call["id"], call["name"], PublicToolStatus.RUNNING.value, parent, titles[call["id"]],
                                 summaries[call["id"]])
                     elif isinstance(message, ToolMessage):
+                        if message.status == "error" and (message.name == "plan_course" or
+                                (message.name == "ask_course" and isinstance(message.artifact, list))):
+                            course_failed = True
                         if not ns:
                             run["messages"].append(message)
                             if message.name == "present_planning_questions" and message.status != "error":
@@ -103,14 +111,20 @@ def _frames(graph_input, run):
                         yield PublicChatEvent.TOOL.value, _public_tool(
                             message.tool_call_id, message.name, status.value, parent, titles.get(message.tool_call_id),
                             summaries.get(message.tool_call_id))
+    if new_course and not course_failed:
+        run["course_history_reset"] = True
 
 
 def _stream_turn(thread, prefix, turns, human, context, charge):
     """프레임: tool*/delta* → done | stopped | error (chat_runs.stream_turn). 저장 답변 = 마지막 도구 없는 model 호출의 답."""
     run = {"answer": "", "messages": []}
     from llm.v2.middleware.attachment_context import recent_messages
-    graph_input = {"messages": recent_messages([*_model_history(prefix, turns), human]), "attachment_session_id": thread.thread_id,
+    from llm.v1.rag.course.conversation_scope import scoped_messages
+    scoped = scoped_messages(prefix, turns)
+    graph_input = {"messages": recent_messages([*_model_history(scoped, turns), human]), "attachment_session_id": thread.thread_id,
                    "tool_group_ids": human.additional_kwargs.get("tool_group_ids", [])}
+    from llm.v1.rag.course.memory import restore
+    graph_input["course_memory"] = restore(scoped, turns)
     if context:
         graph_input["context"] = context
     return chat_runs.stream_turn(thread, prefix, turns, human, lambda: _frames(graph_input, run), run,

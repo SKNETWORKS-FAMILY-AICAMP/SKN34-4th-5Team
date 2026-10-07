@@ -285,13 +285,21 @@ class CancelAndDeleteTest(CheckpointTestCase):
         self.assertEqual(snapshot(self.session), ([], {}))
         self.assertEqual(self.thread.history()[0].values["revision"], 1)  # 최신은 편집 branch
 
-    def test_put_during_stream_keeps_edit_and_only_new_stream_completes(self):
+    def test_put_waits_for_running_answer_then_edits_the_same_question(self):
+        from llm.service.usage import WalletBusy
+
         with patch_chain(return_value=PausingChain(chunks=("안", "녕"))):
             old = chat_service.send_message(self.session, "옛 질문")
-            next(old)
-            human = snapshot(self.session)[0][0]
+            try:
+                next(old)
+                human = snapshot(self.session)[0][0]
+                with self.assertRaises(WalletBusy):
+                    chat_service.message_update(guest_request(self.session), self.session.id, human.id, "새 질문")
+                self.assertEqual(history(self.session)[0]["content"], "옛 질문")
+                self.assertEqual([event for event, _ in old][-1], "done")
+            finally:
+                old.close()
             new = chat_service.message_update(guest_request(self.session), self.session.id, human.id, "새 질문")
-            self.assertEqual(list(old), [("stopped", {})])  # 편집 전 스트림은 stopped
             self.assertEqual([(i["content"], i["status"]) for i in history(self.session)], [("새 질문", "pending")])
             frames = list(new)
         self.assertEqual([e for e, _ in frames], ["delta", "delta", "done"])
@@ -506,25 +514,29 @@ class RunCancellationTest(CheckpointTestCase):
         return Gated()
 
     def test_edit_cancels_old_run_but_not_new_one_aba(self):
+        from llm.service.usage import WalletBusy
         gate = threading.Event()
         with patch_chain(return_value=self._gated(gate)):
             old = chat_service.send_message(self.session, "q")
             next(old)
             human = snapshot(self.session)[0][0]
+            with self.assertRaises(WalletBusy):
+                chat_service.message_update(guest_request(self.session), self.session.id, human.id, "q2")
+            gate.set()
+            self.assertEqual([e for e, _ in old], ["done"])
             new = chat_service.message_update(guest_request(self.session), self.session.id, human.id, "q2")
             next(new)
             stale = chat_runs.Run(self.session.id)  # 같은 세션의 옛 run 객체를 늦게 취소해도(ABA)
             stale.cancel()
             chat_runs.unregister(stale)  # 등록 안 된 객체 정리는 새 run 을 빼지 않는다
-            self.assertEqual(sorted(r.cancelled for r in chat_runs.snapshot(self.session.id)), [False, True])
-            gate.set()
-            self.assertEqual(list(old), [("stopped", {})])
+            self.assertEqual([r.cancelled for r in chat_runs.snapshot(self.session.id)], [False])
             frames = list(new)
         self.assertEqual([e for e, _ in frames], ["done"])
         self.assertEqual(chat_runs.snapshot(self.session.id), [])  # 정리
 
     def test_cancel_is_scoped_to_session(self):
-        other = ChatSession.objects.create(guest=GUEST)
+        # Each wallet permits one active answer; separate owners exercise run isolation.
+        other = ChatSession.objects.create(guest="c1c1c1c1-c1c1-c1c1-c1c1-c1c1c1c1c1c1")
         gate = threading.Event()
         with patch_chain(return_value=self._gated(gate)):
             mine = chat_service.send_message(self.session, "q")

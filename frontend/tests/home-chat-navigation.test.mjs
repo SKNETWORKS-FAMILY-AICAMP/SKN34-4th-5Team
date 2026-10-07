@@ -41,6 +41,7 @@ test("home question form hands guest and member questions to chat only on submit
   const calls = [];
   const auth = { useMemberAuth: () => ({ status, user: null }) };
   const chat = { messages: [], conversations: [], draft: "", pending: "", failed: "",
+    queued: [], editingQueuedId: null,
     activeConversationId: "initial-chat", status: null, statusLoading: false,
     editingMessageId: null, timeline: [], openChat: (...args) => calls.push(args) };
   let question = "";
@@ -92,7 +93,7 @@ test("home question form hands guest and member questions to chat only on submit
     "./chat-pending": { ChatPending: "pending" }, "./chat-progress": { ChatProgress: "progress", ChatSubAgentStatus: "subagents" },
     "./chat-inline-input": { ChatInlineInput: "inline-input" },
     "./chat-composer-tools": { ChatComposerTools: "tools", ChatAttachmentCards: "attachments" },
-    "./chat-usage": { ChatUsage: "usage" } });
+    "./chat-course-preferences": { ChatCoursePreferences: "preferences" }, "./chat-queue": { ChatQueue: "queue" }, "./chat-usage": { ChatUsage: "usage" } });
   const destination = load("../app/chat/page.tsx", { "@/components/chat-workspace": workspace });
   assert.equal(destination.default().type, workspace.ChatWorkspace);
   const rendered = workspace.ChatWorkspace();

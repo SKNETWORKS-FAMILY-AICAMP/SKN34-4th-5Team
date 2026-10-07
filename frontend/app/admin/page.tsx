@@ -21,11 +21,12 @@ export function AdminDashboard() {
   if (status !== "authenticated" || !user) return <main className={`container ${styles.page}`}><h1>관리자 로그인 필요</h1><Link href="/login?next=admin">로그인</Link></main>;
   if (!user.is_active || !user.is_staff) return <main className={`container ${styles.page}`}><h1>접근 권한이 없습니다</h1><p>관리자 계정만 이용할 수 있어요.</p><Link href="/">메인으로 돌아가기</Link></main>;
   return <main className={`container ${styles.page}`}>
-    <header className={styles.dashboardHeader}><div><p className="eyebrow">ADMIN DASHBOARD</p><h1>관리자 대시보드</h1><p className={styles.intro}>회원과 커뮤니티 운영을 한곳에서 관리하세요.</p></div><Link href="/">사이트로 돌아가기 →</Link></header>
-    <nav className={styles.cards} aria-label="관리 메뉴">
+    <header className={styles.dashboardHeader}><div><h1>관리자 대시보드</h1><p className={styles.intro}>회원과 커뮤니티 운영을 한곳에서 관리하세요.</p></div><Link href="/">사이트로 돌아가기 →</Link></header>
+    <nav className={`${styles.cards} ${user.is_superuser ? styles.withFeedback : ""}`} aria-label="관리 메뉴">
       {tabs.map(tab => <Link key={tab.id} href={`/admin?tab=${tab.id}`} aria-current={selected === tab.id ? "page" : undefined} className={styles.card}><strong>{tab.title}</strong><span>{tab.description}</span></Link>)}
+      {user.is_superuser && <Link href="/admin/feedback" className={styles.card}><strong>챗봇 답변 평가 검토</strong><span>사용자 평가 · 질문과 답변 확인</span></Link>}
     </nav>
-    <div className={styles.tools}><Link href="/admin/baseball">야구 데이터 관리 →</Link>{user.is_superuser && <Link href="/admin/feedback">챗봇 답변 평가 검토 →</Link>}</div>
+    <div className={styles.tools}><Link href="/admin/baseball">야구 데이터 관리 →</Link></div>
     <div key={`${user.id}:${selected}`}>
       {selected === "posts" ? <AdminPostsPanel /> : selected === "reports" ? <AdminReportsPanel /> : <AdminMembersPanel />}
     </div>

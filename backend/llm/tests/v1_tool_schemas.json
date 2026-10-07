@@ -294,7 +294,7 @@
      }
     ],
     "default": null,
-    "description": "세부 종류 (예: 호텔, 게스트하우스, 볼링장)",
+    "description": "세부 종류/숙박 조건 (예: 호텔, 금연 객실, 주차, 반려동물 동반, 볼링장)",
     "title": "Keyword"
    }
   },

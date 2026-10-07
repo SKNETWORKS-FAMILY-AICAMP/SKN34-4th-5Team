@@ -50,7 +50,7 @@ class GoogleLodgingTests(TestCase):
         factory = APIRequestFactory()
         request = factory.post("/api/v1/courses/", {"title": "숙박 참조 테스트", "stadium": "인천", "duration": "반나절", "tags": [], "stops": [self.stop()]}, format="json")
         force_authenticate(request, user=user)
-        with patch.object(Course._meta.get_field("route_number"), "default", lambda: "900002"), patch.dict(CourseWriteThrottle.THROTTLE_RATES, {"course_write": "100/min"}):
+        with patch.object(Course._meta.get_field("route_number"), "_get_default", lambda: "900002"), patch.dict(CourseWriteThrottle.THROTTLE_RATES, {"course_write": "100/min"}):
             created = CourseListCreateView.as_view()(request)
         self.assertEqual(created.status_code, 201, created.data)
         response = CourseDetailView.as_view()(factory.get("/api/v1/courses/test/"), pk=created.data["id"])

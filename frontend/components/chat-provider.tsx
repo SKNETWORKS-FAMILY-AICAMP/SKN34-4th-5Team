@@ -2,6 +2,8 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { inheritCourseState } from "@/lib/chat/course";
+import { restoreWriterCourse } from "@/lib/chat/writer-state";
 import type { AnswerFeedback, ChatAttachment, ChatContext, ChatCourse, ChatMessage, ChatStatus, ChatTimelineItem } from "@/lib/chat/types";
 import type { ChatPlanning } from "@/lib/chat/planning";
 import { MAX_MESSAGE_LENGTH, appendTimeline } from "@/lib/chat/types";
@@ -13,10 +15,12 @@ import {
   deleteChatSession,
   editChatMessage,
   fetchChatHistory,
+  fetchChatUsage,
   getChatStatus,
   listChatSessions,
   sendChatMessage,
   saveAnswerFeedback,
+  USAGE_BUSY,
   type ChatMode,
 } from "@/lib/chat/client";
 import { commitChatLoad, fromToolDto, restoreChatMessages } from "@/lib/chat/history";
@@ -28,6 +32,12 @@ import { ChatPopup } from "./chat-popup";
 
 import type { ChatAttachmentDraft } from "@/lib/chat/types";
 
+export type QueuedQuestion = { id: number; content: string; context?: ChatContext; attachments?: ChatAttachmentDraft[]; toolGroupIds?: string[]; edit?: { messageId: number; historyStamp: string } };
+const QUEUE_LIMIT = 2;
+function editHistoryStamp(messages: ChatMessage[], messageId: number) {
+  const index = messages.findIndex(message => message.role === "user" && message.id === messageId);
+  return index < 0 ? "" : JSON.stringify(messages.slice(index).map(({ id, role, content, status }) => [id, role, content, status]));
+}
 type ConversationSnapshot = {
   attachments?: ChatAttachmentDraft[];
   toolGroupIds?: string[];
@@ -38,14 +48,19 @@ type ConversationSnapshot = {
   failedContext?: ChatContext;
   error: string;
   notice: string;
+  queued?: QueuedQuestion[];
+  queuePaused?: boolean;
 };
 /** 챗봇 코스를 받아 줄 화면 (루트 작성). apply 는 되돌리기 함수를 돌려준다. */
 export type CourseTarget = {
   stadiumCode: string;
   stopCount: number;
-  apply: (course: ChatCourse, how: "replace" | "append") => (() => void) | null;
+  selectionKey?: string;
+  getContext?: () => ChatContext;
+  getVersion?: () => string;
+  apply: (course: ChatCourse, how: "replace" | "append") => (() => boolean | void) | null;
 };
-export type AppliedCourse = { undo: (() => void) | null; message: string };
+export type AppliedCourse = { undo: (() => boolean | void) | null; message: string };
 type ChatControls = ConversationSnapshot & {
   attachments: ChatAttachmentDraft[];
   toolGroupIds: string[];
@@ -58,6 +73,15 @@ type ChatControls = ConversationSnapshot & {
   onRemoveAttachment: (key: string) => void;
   onRetryAttachment: (key: string) => void;
   onCancelAttachment: (key: string) => void;
+  queued: QueuedQuestion[];
+  queuePaused: boolean;
+  queueSendingId: number | null;
+  queueWaitingForServer: boolean;
+  editingQueuedId: number | null;
+  onEditQueued: (id: number) => void;
+  onRemoveQueued: (id: number) => void;
+  onCancelQueuedEdit: () => void;
+  onResumeQueue: () => void;
   writerSeconds: number | null;
   writerAnnouncement: string;
   stayHere: (explicit?: boolean) => void;
@@ -123,6 +147,8 @@ export function ChatSampleProvider({ children }: { children: React.ReactNode }) 
     messages: [], draft: "", context: undefined,
     failed: "", error: "", notice: "",
     pending: "", streaming: "", timeline: [], editingMessageId: null,
+    queued: [], queuePaused: false, queueSendingId: null, queueWaitingForServer: false, editingQueuedId: null,
+    onEditQueued: noop, onRemoveQueued: noop, onCancelQueuedEdit: noop, onResumeQueue: noop,
     conversations: [{ id: "guide-sample", title: "새 대화" }], activeConversationId: "guide-sample",
     openChat: noop, onExpand: noop, onMinimize: noop, onClosePopup: noop,
     onDraftChange: noop, onRefreshStatus: noop, onSend: noop, onRetry: noop, onCancel: noop, onReset: noop,
@@ -184,9 +210,24 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [streaming, setStreaming] = useState("");
   const [timeline, setTimeline] = useState<ChatTimelineItem[]>([]);
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
+  const [queued, setQueued] = useState<QueuedQuestion[]>([]);
+  const queuedRef = useRef<QueuedQuestion[]>([]);
+  const queueSequenceRef = useRef(0);
+  const [queuePaused, setQueuePaused] = useState(false);
+  const [queueSendingId, setQueueSendingId] = useState<number | null>(null);
+  const [serverBusyQueueId, setServerBusyQueueId] = useState<number | null>(null);
+  const queueSendingRef = useRef<number | null>(null);
+  const [editingQueuedId, setEditingQueuedId] = useState<number | null>(null);
+  const editingQueuedRef = useRef<number | null>(null);
+  const queueEditDraftRef = useRef("");
+  const updateQueue = useCallback((items: QueuedQuestion[]) => {
+    queuedRef.current = items;
+    setQueued(items);
+  }, []);
   const [chatIdentity, setChatIdentity] = useState(identity);
   const [courseTarget, setCourseTarget] = useState<CourseTarget | null>(null);
   const courseTargetRef = useRef<CourseTarget | null>(null);
+  const courseTargetVersionRef = useRef(0);
   const [appliedCourses, setAppliedCourses] = useState<ReadonlyMap<ChatCourse, AppliedCourse>>(() => new Map());
   const appliedCoursesRef = useRef(appliedCourses);
   useEffect(() => { appliedCoursesRef.current = appliedCourses; }, [appliedCourses]);
@@ -490,22 +531,25 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     if (loadingConversationRef.current === activeConversationId) return;
     const saved = preEditComposer.current;
     archivedConversations.current.set(activeConversationId, {
-      messages: historyRef.current, draft, context, failed, failedContext: failedContextRef.current, error, notice, attachments: attachmentRef.current, toolGroupIds, ...saved,
+      messages: historyRef.current, draft: editingQueuedRef.current === null ? draft : queueEditDraftRef.current,
+      context, failed, failedContext: failedContextRef.current, error, notice, attachments: attachmentRef.current, toolGroupIds, ...saved,
+      queued: queuedRef.current, queuePaused,
     });
     restorePreEditComposer();
-  }, [activeConversationId, context, draft, error, failed, notice, toolGroupIds, stopUploads, restorePreEditComposer]);
+  }, [activeConversationId, context, draft, error, failed, notice, toolGroupIds, stopUploads, restorePreEditComposer, queuePaused]);
 
   const resetChat = useCallback(() => {
     if (requestRef.current) return;
     setEditingMessageId(null);
     stopUploads();
-    if (!historyRef.current.length && !draft.trim() && !failed && !attachmentRef.current.length && !toolGroupIds.length && !backendSessions.current.has(activeConversationId)) {
+    if (!historyRef.current.length && !draft.trim() && !failed && !queuedRef.current.length && !attachmentRef.current.length && !toolGroupIds.length && !backendSessions.current.has(activeConversationId)) {
       invalidateHistory();
       setContext(undefined);
       setNotice("");
       return;
     }
     archiveCurrentConversation();
+    updateQueue([]); setQueuePaused(false); setEditingQueuedId(null); editingQueuedRef.current = null;
     invalidateHistory();
     invalidateSync();
     const id = createClientId();
@@ -524,10 +568,12 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     setError("");
     setNotice("");
     setContext(undefined);
-  }, [activeConversationId, archiveCurrentConversation, draft, failed, invalidateHistory, invalidateSync, toolGroupIds, stopUploads, updateAttachments]);
+  }, [activeConversationId, archiveCurrentConversation, draft, failed, invalidateHistory, invalidateSync, toolGroupIds, stopUploads, updateAttachments, updateQueue]);
 
   const showConversation = useCallback((saved: ConversationSnapshot, preserveDraft = false) => {
     if (!preserveDraft) { updateAttachments(() => saved.attachments ?? []); setToolGroupIds(saved.toolGroupIds ?? []); }
+    updateQueue(saved.queued ?? []); setQueuePaused(saved.queuePaused ?? false);
+    setEditingQueuedId(null); editingQueuedRef.current = null;
     historyRef.current = saved.messages;
     failedContextRef.current = saved.failedContext;
     setMessages(saved.messages);
@@ -539,7 +585,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     setStreaming("");
     setTimeline([]);
     setEditingMessageId(null);
-  }, [updateAttachments]);
+  }, [updateAttachments, updateQueue]);
 
   const restoreConversation = useCallback(async (id: string, sessionId: string, controller: AbortController, expectedIdentity: string) => {
     try {
@@ -569,7 +615,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       commitChatLoad(controller.signal, () => identityRef.current === expectedIdentity && activeConversationRef.current === id && !requestRef.current, () => {
         const local = historyRef.current;
         const localAttachments = new Map([...local.flatMap(message => message.attachments ?? []), ...(sentAttachments ?? [])].map(item => [item.id, item] as const));
-        historyRef.current = restoreChatMessages(history).map(message => {
+        historyRef.current = restoreChatMessages(history, local).map(message => {
           const optimistic = message.role === "user" && sentContent === message.content ? [...local].reverse().find(item => item.role === "user" && item.content === sentContent) : undefined;
           return { ...message, ...(message.attachments ? { attachments: message.attachments.map(item => ({ ...localAttachments.get(item.id), ...item })) } : optimistic?.attachments ? { attachments: optimistic.attachments } : {}) };
         });
@@ -606,6 +652,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     invalidateSync();
     setActiveConversationId(id);
     activeConversationRef.current = id;
+    updateQueue([]); setQueuePaused(false); setEditingQueuedId(null); editingQueuedRef.current = null;
     if (saved) { showConversation(saved); return; }
     const sessionId = backendSessions.current.get(id);
     if (!sessionId) return;
@@ -616,7 +663,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     updateAttachments(() => []); setToolGroupIds([]);
     setMessages([]); setDraft(""); setFailed(""); setError(""); setNotice("대화 기록을 불러오고 있어요."); setStreaming(""); setTimeline([]); setEditingMessageId(null);
     void restoreConversation(id, sessionId, controller, identityRef.current);
-  }, [activeConversationId, archiveCurrentConversation, invalidateHistory, invalidateSync, restoreConversation, showConversation, updateAttachments]);
+  }, [activeConversationId, archiveCurrentConversation, invalidateHistory, invalidateSync, restoreConversation, showConversation, updateAttachments, updateQueue]);
 
   const deleteConversation = useCallback((id: string) => {
     // 답변을 받는 중인 대화는 지우지 않는다
@@ -633,6 +680,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         const fresh = createClientId();
         activeConversationRef.current = fresh;
         setActiveConversationId(fresh);
+        updateQueue([]); setQueuePaused(false); setEditingQueuedId(null); editingQueuedRef.current = null;
         remaining.push({ id: fresh, title: "새 대화" });
         invalidateSync();
         historyRef.current = [];
@@ -656,7 +704,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     setConversations(remaining);
     // 서버 기록 삭제가 실패해도 화면에서는 지운 상태를 유지한다
     if (sessionId && mode) void deleteChatSession(mode, sessionId).catch(() => undefined);
-  }, [activeConversationId, conversations, invalidateHistory, invalidateSync, mode, selectConversation, stopUploads, updateAttachments, restorePreEditComposer]);
+  }, [activeConversationId, conversations, invalidateHistory, invalidateSync, mode, selectConversation, stopUploads, updateAttachments, restorePreEditComposer, updateQueue]);
 
   useEffect(() => {
     if (identityRef.current === identity) return;
@@ -677,6 +725,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     syncRequestRef.current?.abort();
     loadingConversationRef.current = null;
     requestRef.current = null;
+    updateQueue([]); setQueuePaused(false); setQueueSendingId(null); queueSendingRef.current = null;
+    setEditingQueuedId(null); editingQueuedRef.current = null; queueEditDraftRef.current = "";
     statusRequestRef.current = null;
     pendingRef.current = "";
     inlineHistory.current.clear(); inlineTools.current.clear(); retiredInlineText.current.clear(); removedUrls.current.clear(); deletedConversations.current.clear();
@@ -701,7 +751,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     setFailed("");
     setError("");
     setNotice("");
-  }, [identity, memberStatus, stopUploads, updateAttachments]);
+  }, [identity, memberStatus, stopUploads, updateAttachments, updateQueue]);
 
   // 회원은 계정의 대화를, 비회원은 guest_id 쿠키의 대화를 불러온다 (쿠키가 없으면 빈 목록).
   useEffect(() => {
@@ -731,29 +781,76 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   }, [accountId, identity, invalidateHistory, mode, restoreConversation]);
 
   const registerCourseTarget = useCallback((target: CourseTarget | null) => {
+    if (courseTargetRef.current?.stadiumCode !== target?.stadiumCode || courseTargetRef.current?.selectionKey !== target?.selectionKey) courseTargetVersionRef.current++;
     courseTargetRef.current = target;
     setCourseTarget(target);
+  }, []);
+  const prepareWriterCourse = useCallback((course: ChatCourse, restoreSaved = true) => {
+    const message = historyRef.current.find(item => item.course === course && item.role === "assistant" && item.status === "completed");
+    return restoreWriterCourse(course, identityRef.current, backendSessions.current.get(activeConversationRef.current), message?.id, undefined, restoreSaved);
   }, []);
   const applyChatCourse = useCallback((course: ChatCourse, how: "replace" | "append") => {
     const target = courseTargetRef.current;
     if (!target) return;
     const had = target.stopCount, otherStadium = Boolean(course.stadiumCode && course.stadiumCode !== target.stadiumCode);
-    const undo = target.apply(course, how);
+    const undo = target.apply(prepareWriterCourse(course, false), how);
     const message = !undo ? "이 코스를 지도에 담지 못했어요. 구장을 확인해 주세요."
       : otherStadium ? "구장을 바꾸고 추천 코스를 옆 지도에 그렸어요."
       : how === "append" ? "내 코스 뒤에 이어 담았어요."
+      : course.edit ? "요청한 변경을 지도에 반영했어요. 이동 시간과 경로도 갱신돼요."
       : had ? `옆 지도에 추천 코스를 그렸어요. 원래 담아둔 ${had}곳은 되돌리기로 복구할 수 있어요.`
       : "옆 지도에 추천 코스를 그렸어요. 순서는 내 코스에서 바꿀 수 있어요.";
     setAppliedCourses(current => new Map(current).set(course, { undo, message }));
-  }, []);
+  }, [prepareWriterCourse]);
   const undoChatCourse = useCallback((course: ChatCourse) => {
-    appliedCoursesRef.current.get(course)?.undo?.();
-    setAppliedCourses(current => new Map(current).set(course, { undo: null, message: "담기 전 코스로 되돌렸어요." }));
+    const restored = appliedCoursesRef.current.get(course)?.undo?.();
+    setAppliedCourses(current => new Map(current).set(course, { undo: null, message: restored === false
+      ? "추천 적용 후 코스를 수정해 최신 내용을 유지했어요." : "담기 전 코스로 되돌렸어요." }));
   }, []);
 
-  const send = useCallback(async (text: string | undefined = undefined, options?: { context?: ChatContext; editId?: number | null; preserveDraft?: boolean; onAccepted?: () => void; attachments?: ChatAttachmentDraft[]; toolGroupIds?: string[] }): Promise<"rejected" | "failed" | "succeeded"> => {
+  const enqueue = useCallback((content: string, selectedContext?: ChatContext, first = false, edit?: QueuedQuestion["edit"], input?: { attachments: ChatAttachmentDraft[]; toolGroupIds: string[] }) => {
+    if (!content.trim() || content.length > MAX_MESSAGE_LENGTH || identityRef.current !== identity) return false;
+    if (queuedRef.current.length >= QUEUE_LIMIT) {
+      setNotice("예약은 최대 2개까지 가능해요. 기존 예약을 수정하거나 취소해 주세요.");
+      return false;
+    }
+    const item = { id: ++queueSequenceRef.current, content: content.trim(), context: selectedContext, ...input, ...(edit ? { edit } : {}) };
+    updateQueue(first ? [item, ...queuedRef.current] : [...queuedRef.current, item]);
     stayHere();
-    const selectedContext = options ? options.context : context;
+    setNotice("");
+    return true;
+  }, [identity, stayHere, updateQueue]);
+
+  const cancelQueuedEdit = useCallback(() => {
+    if (editingQueuedRef.current === null) return;
+    editingQueuedRef.current = null; setEditingQueuedId(null);
+    setDraft(queueEditDraftRef.current); queueEditDraftRef.current = "";
+  }, []);
+  const editQueued = useCallback((id: number) => {
+    if (queueSendingRef.current === id) return;
+    const item = queuedRef.current.find(item => item.id === id);
+    if (!item) return;
+    stayHere();
+    if (editingQueuedRef.current === null) queueEditDraftRef.current = draft;
+    editingQueuedRef.current = id; setEditingQueuedId(id);
+    setEditingMessageId(null); setDraft(item.content);
+  }, [draft, stayHere]);
+  const removeQueued = useCallback((id: number) => {
+    if (queueSendingRef.current === id) return;
+    updateQueue(queuedRef.current.filter(item => item.id !== id));
+    if (editingQueuedRef.current === id) cancelQueuedEdit();
+  }, [cancelQueuedEdit, updateQueue]);
+
+  const send = useCallback(async (text: string | undefined = undefined, options?: { context?: ChatContext; editId?: number | null; confirmedEdit?: string; preserveDraft?: boolean; queueId?: number; attachments?: ChatAttachmentDraft[]; toolGroupIds?: string[]; onAccepted?: () => void }): Promise<"rejected" | "failed" | "succeeded"> => {
+    stayHere();
+    const requestedTarget = courseTargetRef.current;
+    const requestedTargetVersion = courseTargetVersionRef.current;
+    const requestedCourseVersion = requestedTarget?.getVersion?.();
+    const suppliedContext = options ? options.context : context;
+    // 재시도·대화 전환 직후에도 현재 지도 구장을 사용한다.
+    const selectedContext = requestedTarget
+      ? requestedTarget.getContext?.() ?? { ...context, stadium: requestedTarget.stadiumCode, intent: "route" as const }
+      : suppliedContext;
     const editId = options ? options.editId ?? null : editingMessageId;
     const fromComposer = text === undefined;
     if (fromComposer && !composing.current && !preparingSend.current && !requestRef.current && mode) {
@@ -797,7 +894,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     const sessionId = backendSessions.current.get(activeConversationId);
     const editIndex = editId === null ? -1 : historyRef.current.findIndex(message => message.id === editId && message.role === "user");
     if (editId !== null && (!sessionId || editIndex < 0)) { setEditingMessageId(null); setError("수정할 질문을 찾지 못했어요."); return "rejected"; }
-    if (editId !== null && !window.confirm("이 질문 이후의 대화는 모두 지워지고 답변을 새로 받아요. 계속할까요?")) return "rejected";
+    const historyStamp = editId === null ? "" : editHistoryStamp(historyRef.current, editId);
+    if (editId !== null && options?.confirmedEdit !== historyStamp && !window.confirm("이 질문 이후의 대화는 모두 지워지고 답변을 새로 받아요. 계속할까요?")) return "rejected";
     const controller = new AbortController();
     const version = ++requestVersion.current;
     const conversationId = activeConversationId, expectedIdentity = identity;
@@ -808,6 +906,14 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     restorePreEditComposer();
     const active = { controller, version, stopped: false };
     requestRef.current = active;
+    if (options?.queueId !== undefined) {
+      queueSendingRef.current = options.queueId;
+      setQueueSendingId(options.queueId);
+    }
+    const acknowledgeQueue = () => {
+      if (options?.queueId !== undefined && queuedRef.current.some(item => item.id === options.queueId))
+        updateQueue(queuedRef.current.filter(item => item.id !== options.queueId));
+    };
     options?.onAccepted?.();
     offerCancelledRef.current = false;
     pendingRef.current = content;
@@ -832,7 +938,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     failedContextRef.current = undefined;
     retryRef.current = null;
     const userMessage: ChatMessage = { role: "user", content, toolGroupIds: selectedGroups, attachments: selectedAttachments.map(item => ({ ...item.attachment!, ...(item.preview ? { preview: item.preview } : {}) })) };
-    const previous = editIndex >= 0 ? historyRef.current.slice(0, editIndex) : historyRef.current;
+    const originalHistory = historyRef.current;
+    const previous = editIndex >= 0 ? originalHistory.slice(0, editIndex) : originalHistory;
     historyRef.current = [...previous, userMessage];
     setMessages(historyRef.current);
     if (previous.length === 0) {
@@ -844,11 +951,13 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     try {
       const onDelta = (piece: string, parentId: string | null) => {
         if (version !== requestVersion.current) return "rejected";
+        acknowledgeQueue();
         setStreaming(current => current + piece);
         setTimeline(current => appendTimeline(current, piece, parentId));
       };
       const onTool = (tool: ChatToolCallDto) => {
         if (version !== requestVersion.current) return "rejected";
+        acknowledgeQueue();
         setTimeline(current => appendTimeline(current, fromToolDto(tool)));
       };
       const onPlanning = (payload: ChatPlanning) => {
@@ -858,17 +967,32 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         setWriterSeconds(20);
         setWriterAnnouncement("20초 후 루트 작성 화면으로 자동 이동해요. 여기 머무르기를 누르면 자동 이동을 취소할 수 있어요.");
       };
-      const reply = editId !== null && sessionId
+      const response = editId !== null && sessionId
         ? await editChatMessage(mode, { sessionId, messageId: editId, content, context: selectedContext, ...inputOptions }, controller.signal, { onDelta, onTool, onPlanning })
         : await sendChatMessage(mode, { sessionId, content, context: selectedContext, ...inputOptions }, controller.signal, { onDelta, onTool, onPlanning });
       if (version !== requestVersion.current) return "rejected";
+      const reply = { ...response, course: response.course ? inheritCourseState(response.course, previous.findLast(item => item.course)?.course) : undefined };
+      acknowledgeQueue();
+      setQueuePaused(false);
       knownSession = reply.sessionId;
       if (reply.sessionId) backendSessions.current.set(conversationId, reply.sessionId);
-      const assistant: ChatMessage = { role: "assistant", content: reply.reply, planning: reply.planning, status: "completed", ...(reply.assistantMessageId ? { id: reply.assistantMessageId } : {}), ...(reply.tools?.length ? { tools: reply.tools } : {}), ...(reply.timeline?.length ? { timeline: reply.timeline } : {}) };
+      const assistant: ChatMessage = { role: "assistant", content: reply.reply, planning: reply.planning, course: reply.course, coursePreferences: reply.coursePreferences, status: "completed", ...(reply.assistantMessageId ? { id: reply.assistantMessageId } : {}), ...(reply.tools?.length ? { tools: reply.tools } : {}), ...(reply.timeline?.length ? { timeline: reply.timeline } : {}) };
       const next: ChatMessage[] = [...previous, { ...userMessage, status: "completed" }, assistant];
       historyRef.current = next;
       setMessages(next);
       setStatus({ provider: reply.provider, model: reply.model, ready: reply.ready });
+      const target = courseTargetRef.current;
+      if (reply.course && requestedTarget && target) {
+        // 이번 질문에서 다른 팀·구장을 지정했다면 코스가 정한 구장으로 지도도 옮긴다.
+        // 요청 이후 직접 구장을 바꿨다면 (바꿨다가 돌아온 경우도) 최신 선택을 지킨다.
+        if (requestedCourseVersion !== undefined
+          ? target.getContext === requestedTarget.getContext && target.getVersion?.() === requestedCourseVersion
+          : courseTargetVersionRef.current === requestedTargetVersion) {
+          applyChatCourse(reply.course, "replace");
+        } else {
+          setAppliedCourses(current => new Map(current).set(reply.course!, { undo: null, message: "답변을 기다리는 중 구장이나 경로를 바꿔 새 선택을 유지했어요. 이 코스는 확인한 뒤 직접 담을 수 있어요." }));
+        }
+      }
       return "succeeded";
     } catch (cause) {
       if (version !== requestVersion.current) return "rejected";
@@ -877,6 +1001,18 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         knownSession = cause.sessionId;
         backendSessions.current.set(conversationId, cause.sessionId);
       }
+      if (cause instanceof ChatClientError && cause.code === USAGE_BUSY && !active.stopped) {
+        // 거절된 POST/PUT는 서버가 수락하지 않았다. 편집 대상과 승인 범위를 그대로 예약한다.
+        if (editId !== null) { historyRef.current = originalHistory; setMessages(originalHistory); }
+        if (options?.queueId !== undefined || enqueue(content, selectedContext, true,
+          editId === null ? undefined : { messageId: editId, historyStamp }, { attachments: selectedAttachments, toolGroupIds: selectedGroups })) {
+          setServerBusyQueueId(queuedRef.current[0]?.id ?? null);
+          setQueuePaused(false);
+          return "rejected";
+        }
+      }
+      acknowledgeQueue();
+      setQueuePaused(true);
       historyRef.current = previous;
       setMessages(previous);
       if (!preserveDraft && draftVersion.current === acceptedDraftVersion && composerVersion.current === acceptedComposerVersion) {
@@ -905,6 +1041,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     } finally {
       if (version === requestVersion.current) {
         requestRef.current = null;
+        queueSendingRef.current = null; setQueueSendingId(null);
         pendingRef.current = "";
         setPending("");
         setStreaming("");
@@ -912,11 +1049,95 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         if (knownSession) syncConversation(conversationId, knownSession, expectedIdentity, content, userMessage.attachments);
       }
     }
-  }, [activeConversationId, context, editingMessageId, identity, invalidateHistory, invalidateSync, mode, syncConversation, stayHere, hasEmbeddedChat, pathname, toolGroupIds, updateAttachments, restorePreEditComposer, attach, urlScope]);
+  }, [activeConversationId, context, editingMessageId, identity, invalidateHistory, invalidateSync, mode, syncConversation, stayHere, hasEmbeddedChat, pathname, toolGroupIds, updateAttachments, restorePreEditComposer, attach, urlScope, applyChatCourse, enqueue, updateQueue]);
+
+  const submitDraft = useCallback(() => {
+    stayHere();
+    const content = chatComposerContent(draftRef.current, attachmentRef.current);
+    if (!content || content.length > MAX_MESSAGE_LENGTH || identityRef.current !== identity) return;
+    const editingId = editingQueuedRef.current;
+    if (editingId !== null) {
+      updateQueue(queuedRef.current.map(item => item.id === editingId ? { ...item, content } : item));
+      cancelQueuedEdit();
+      return;
+    }
+    if (editingMessageId !== null) { void send(); return; }
+    if (requestRef.current || queuedRef.current.length) {
+      if (attachmentRef.current.some(item => item.state !== "ready")) { setNotice("첨부 업로드를 완료한 뒤 예약해 주세요."); return; }
+      if (enqueue(content, context, false, undefined, { attachments: attachmentRef.current, toolGroupIds })) { setDraft(""); draftRef.current = ""; updateAttachments(() => []); }
+    } else void send();
+  }, [cancelQueuedEdit, context, editingMessageId, enqueue, identity, send, updateQueue, stayHere, toolGroupIds, updateAttachments]);
+
+  useEffect(() => {
+    if (!queued.length || pending || requestRef.current || queuePaused || editingQueuedId !== null || editingMessageId !== null
+        || !mode || !status?.ready || statusLoading || identityChanged || loadingConversationRef.current) return;
+    const controller = new AbortController();
+    const item = queued[0], conversation = activeConversationId, owner = identity;
+    let timer: number | undefined;
+    const current = () => !controller.signal.aborted && identityRef.current === owner && activeConversationRef.current === conversation
+      && queuedRef.current[0] === item && editingQueuedRef.current === null && !requestRef.current;
+    async function advance() {
+      try {
+        const usage = await fetchChatUsage(mode!, controller.signal);
+        if (!current()) return;
+        if (usage.active_turn) {
+          setServerBusyQueueId(item.id);
+          timer = window.setTimeout(() => void advance(), 1200); return;
+        }
+        setServerBusyQueueId(null);
+        if (!usage.can_send) {
+          setQueuePaused(true); setNotice("사용 가능한 제공량이 없어 예약을 멈췄어요. 예약 내용은 남겨뒀어요."); return;
+        }
+        if (item.edit) {
+          const sessionId = backendSessions.current.get(conversation);
+          if (!sessionId) { setQueuePaused(true); setNotice("수정할 대화를 찾지 못했어요. 예약을 취소하고 다시 선택해 주세요."); return; }
+          const history = await fetchChatHistory(mode!, sessionId, controller.signal);
+          if (!current()) return;
+          historyRef.current = restoreChatMessages(history, historyRef.current);
+          setMessages(historyRef.current);
+          if (editHistoryStamp(historyRef.current, item.edit.messageId) !== item.edit.historyStamp) {
+            setQueuePaused(true); setNotice("예약을 기다리는 동안 대화가 바뀌었어요. 내용을 확인한 뒤 예약 계속을 눌러 주세요."); return;
+          }
+        }
+        // 지도는 직전 답변의 적용 결과를 사용하고, 지도 없는 화면은 서버의 최신 코스를 이어받는다.
+        const nextContext = item.context ? { ...item.context, currentCourse: undefined } : undefined;
+        void send(item.content, { context: nextContext, editId: item.edit?.messageId ?? null,
+          confirmedEdit: item.edit?.historyStamp, preserveDraft: true, queueId: item.id, attachments: item.attachments, toolGroupIds: item.toolGroupIds ?? [] });
+      } catch {
+        if (current()) { setQueuePaused(true); setNotice("연결을 확인하지 못해 예약을 잠시 멈췄어요. 예약 계속을 눌러 주세요."); }
+      }
+    }
+    void advance();
+    return () => { controller.abort(); window.clearTimeout(timer); };
+  }, [queued, pending, queuePaused, editingQueuedId, editingMessageId, mode, status?.ready, statusLoading, identityChanged, activeConversationId, identity, send]);
+
+  const resumeQueue = useCallback(() => {
+    const first = queuedRef.current[0];
+    if (first?.edit) {
+      const stamp = editHistoryStamp(historyRef.current, first.edit.messageId);
+      if (!stamp) { setNotice("수정할 질문이 없어졌어요. 해당 예약을 취소해 주세요."); return; }
+      if (stamp !== first.edit.historyStamp) {
+        if (!window.confirm("이 질문 이후의 바뀐 대화도 지워지고 답변을 새로 받아요. 계속할까요?")) return;
+        updateQueue(queuedRef.current.map(item => item.id === first.id ? { ...item, edit: { ...first.edit!, historyStamp: stamp } } : item));
+      }
+    }
+    setQueuePaused(false); setNotice("");
+  }, [updateQueue]);
+
+  // 이 탭의 대기 질문은 페이지 이동에는 유지되지만 창을 닫으면 전송할 수 없다.
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => {
+      if (queuedRef.current.length || [...archivedConversations.current.values()].some(saved => saved.queued?.length)) {
+        event.preventDefault(); event.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, []);
 
   const submitQuestions = useCallback(async (messageId: number, text: string, onAccepted?: () => void) => {
     const index = historyRef.current.findIndex(m => m.id === messageId && m.role === "assistant" && m.planning);
-    if (index < 0 || index !== historyRef.current.length - 1 || requestRef.current || !text.trim() || text.length > MAX_MESSAGE_LENGTH) return "rejected" as const;
+    if (index < 0 || index !== historyRef.current.length - 1 || requestRef.current || queuedRef.current.length || !text.trim() || text.length > MAX_MESSAGE_LENGTH) return "rejected" as const;
     return send(text, { context, editId: null, preserveDraft: true, onAccepted });
   }, [context, send]);
 
@@ -1021,10 +1242,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   }, [send, draft, editingMessageId, toolGroupIds]);
 
   const openCourseInWriter = useCallback((course: ChatCourse) => {
-    pendingCourseRef.current = course;
+    pendingCourseRef.current = prepareWriterCourse(course);
     setPopupRequested(false);
     router.push(`/routes/new${course.stadiumCode ? `?stadium=${encodeURIComponent(course.stadiumCode)}` : ""}`);
-  }, [router]);
+  }, [router, prepareWriterCourse]);
   const takePendingCourse = useCallback(() => {
     const course = pendingCourseRef.current;
     pendingCourseRef.current = null;
@@ -1034,15 +1255,14 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const openChat = useCallback((initialMessage?: string, nextContext?: ChatContext) => {
     expandChat();
     if (nextContext) setContext(nextContext);
-    if (requestRef.current) {
+    if (requestRef.current || queuedRef.current.length) {
       if (initialMessage?.trim()) {
-        changeDraft(initialMessage.slice(0, MAX_MESSAGE_LENGTH));
-        setNotice("지금 답변이 끝나면 아래에 준비한 질문을 보낼 수 있어요.");
+        if (!enqueue(initialMessage.slice(0, MAX_MESSAGE_LENGTH), nextContext ?? context)) changeDraft(initialMessage.slice(0, MAX_MESSAGE_LENGTH));
       }
       return;
     }
     if (initialMessage?.trim()) void send(initialMessage.slice(0, MAX_MESSAGE_LENGTH), { context: nextContext ?? context, editId: null });
-  }, [changeDraft, context, expandChat, send]);
+  }, [changeDraft, context, expandChat, send, enqueue]);
 
   useEffect(() => {
     if (isChatPage || !restorePageRef.current) return;
@@ -1101,13 +1321,20 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       streaming: identityChanged ? "" : streaming,
       timeline: identityChanged ? [] : timeline,
       editingMessageId: identityChanged ? null : editingMessageId,
+      queued: identityChanged ? [] : queued,
+      queuePaused: identityChanged ? false : queuePaused,
+      queueSendingId: identityChanged ? null : queueSendingId,
+      queueWaitingForServer: !identityChanged && queued.length > 0 && queued[0].id === serverBusyQueueId,
+      editingQueuedId: identityChanged ? null : editingQueuedId,
+      onEditQueued: editQueued, onRemoveQueued: removeQueued, onCancelQueuedEdit: cancelQueuedEdit,
+      onResumeQueue: resumeQueue,
       failed: identityChanged ? "" : failed,
       error: identityChanged ? "" : error,
       notice: identityChanged ? "" : notice,
       conversations: identityChanged ? [{ id: "initial-chat", title: "새 대화" }] : conversations,
       activeConversationId: identityChanged ? "initial-chat" : activeConversationId,
       onDraftChange: changeDraft, onRefreshStatus: () => void refreshStatus(),
-      onSend: () => void send(), onRetry: retry,
+      onSend: submitDraft, onRetry: retry,
       onCancel: cancelRequest, onReset: resetChat,
       onSuggestion: (text, intent) => { changeDraft(text); setContext(current => ({ ...current, intent })); },
       onSelectConversation: selectConversation,

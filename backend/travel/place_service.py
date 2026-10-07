@@ -206,6 +206,7 @@ def _normalize_document(value):
             raise PlaceUpstreamError
     except ValueError as error:
         raise PlaceUpstreamError from error
+    document["place_url"] = place_url
     return document, {
         "name": name,
         "road_address": document["road_address_name"],

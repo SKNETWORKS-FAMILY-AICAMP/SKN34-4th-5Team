@@ -10,6 +10,7 @@
 | [travel](travel.md) | 코스·장소·길찾기·날씨·관광 |
 | [수집 장소](collected-places.md) | 수집본 읽기 전용 조회·지도 핀·챗봇 장소 검색 |
 | [장소 지식 저장 규약](place-knowledge.md) | 메뉴·후기 속성, 근거·유효기한, 조사 이력의 백엔드 저장 틀 |
+| [공용 장소 근거 연결](shared-place-evidence.md) | 활성 코스의 키워드 검증·저장·재조회와 로컬/RDS 연결 설정 |
 | [로컬 장소 RAG](place-rag.md) | 실제 수집본 색인, 분석 기록 분리, 비용 없는 로컬 조회 |
 | [Google 숙박](google-lodging.md) | 공식 분류 카드·코스 선택·ID 참조 저장·직선 표시 제한 |
 | [community](community.md) | 게시글·댓글·초안·이미지·승부예측 |

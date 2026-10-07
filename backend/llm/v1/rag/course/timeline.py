@@ -55,6 +55,11 @@ def kind_of(place) -> str:
 
 
 def stay_min(place, phase: str) -> int:
+    override = place.get("stayOverride")
+    if isinstance(override, int) and not isinstance(override, bool) and 1 <= override <= 720 and place.get("category") not in ("STADIUM", "STAY"):
+        return override
+    if place.get("category") == "CONVENIENCE":
+        return 10
     k = kind_of(place)
     if k in ("STADIUM", "STAY"):             # 숙소는 코스의 끝 — 머무는 시간을 세지 않는다
         return 0
@@ -103,7 +108,7 @@ def build(course, lookup, game_time: str, leg_minutes=None) -> dict:
 
     first, last = rows[0]["time"], rows[-1]["until"]
     return {
-        "rows": [{**r, "time": to_hhmm(r["time"]), "until": to_hhmm(r["until"])} for r in rows],
+        "rows": [{**r, "dayOffset": int(r["time"] // 1440), "time": to_hhmm(r["time"]), "until": to_hhmm(r["until"])} for r in rows],
         "gameStart": to_hhmm(start), "gameEnd": to_hhmm(start + GAME_DURATION_MIN),
         "startTime": to_hhmm(first), "endTime": to_hhmm(last), "totalMin": int(last - first),
     }
@@ -115,11 +120,21 @@ def text_lines(course, lookup, tl, label=None) -> list[str]:
     out = []
     for c, r in zip(course, tl["rows"]):
         p = lookup.get(c["key"], {})
-        if c["phase"] == "GAME":
+        if p.get("completed"):
+            out.append(f"{r['time']}  {p.get('name', '')} · 방문 완료")
+        elif c["phase"] == "GAME":
             out.append(f"{r['time']}  {p.get('name', '구장')} 입장 · {tl['gameStart']} 경기 시작 "
                        f"(종료 {tl['gameEnd']} 예상)")
         elif kind_of(p) == "STAY":
-            out.append(f"{r['time']}  {p.get('name', '')} (숙소 도착) — {c.get('reason', '')}")
+            reason = c.get("reason", "")
+            out.append(f"{r['time']}  {p.get('name', '')} (숙소 도착)" + (f" — {reason}" if reason else ""))
+            from ..nearby.lodging import source_url
+            if url := source_url(p.get("placeUrl")):
+                out[-1] += f" [야놀자]({url})"
         else:
             out.append(f"{r['time']}  {p.get('name', '')} ({r['stayMin']}분) — {c.get('reason', '')}")
+        if p.get("verifiedFacts") and not p.get("completed"):
+            from .evidence_memory import citation_links
+            if links := citation_links(p):
+                out[-1] += " " + links
     return out

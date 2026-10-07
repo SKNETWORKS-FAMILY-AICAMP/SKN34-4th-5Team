@@ -44,7 +44,7 @@ class AttachmentBoundaryTests(SimpleTestCase):
                    HumanMessage("잠실 좌석 안내 " + "x" * 500), AIMessage("잠실 좌석 사진을 올려 주세요"),
                    HumanMessage("잠실 직관"), AIMessage("사진을 보고 안내할게요")]
         human = HumanMessage("이 사진 설명해줘", additional_kwargs={"attachment_ids": ["image-reference"]})
-        result = SimpleNamespace(choices={"guard": SimpleNamespace(choice="PASS")},
+        result = SimpleNamespace(choices={"guard": SimpleNamespace(choice="PASS"), "course_request": SimpleNamespace(choice="NONE")},
                                  nouls={key: SimpleNamespace(noul=0) for key in jev_guidelines.CAPABILITIES})
         client = SimpleNamespace(invoke=lambda payload: result)
         with patch.object(jev_guidelines, "_client", return_value=client), \
