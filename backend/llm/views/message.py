@@ -75,6 +75,18 @@ def _role_stream(request, events):
     return _Projected()
 
 
+def _input_options(session, data, version):
+    from rest_framework.exceptions import ValidationError
+    from llm.service.attachments import resolve
+    options = {key: data[key] for key in ("attachment_ids", "tool_group_ids") if key in data}
+    if version == "v1" and any(options.values()):
+        raise ValidationError({"detail": "첨부와 수동 도구는 v2에서만 지원합니다."})
+    if version == "v1":
+        return {}
+    resolve(session.id, options.get("attachment_ids", []))
+    return options
+
+
 def _dispatch(version):
     """version -> chat_v1/chat_v2 의 (send_message, message_update)."""
     if chat_service.resolve_version(version) == ChainVersion.V1:
@@ -139,7 +151,8 @@ class ChatMessageView(GenericAPIView):
         data = serializer.validated_data
         send, _update = _dispatch(kwargs.get("version"))
         try:
-            events = send(session, data["content"], data.get("context"))
+            options = _input_options(session, data, kwargs.get("version"))
+            events = send(session, data["content"], data.get("context"), **({"input_options": options} if options else {}))
         except usage.InsufficientCredits:
             return _insufficient()
         except usage.WalletBusy:
@@ -155,7 +168,9 @@ class ChatMessageView(GenericAPIView):
         _send, update = _dispatch(kwargs.get("version"))
         session = get_owned_session(request, kwargs["session_id"])
         try:
-            events = update(session, data["message_id"], data["content"], data.get("context"))
+            options = _input_options(session, data, kwargs.get("version"))
+            events = update(session, data["message_id"], data["content"], data.get("context"),
+                            **({"input_options": options} if options else {}))
         except usage.InsufficientCredits:
             return _insufficient()
         except usage.WalletBusy:

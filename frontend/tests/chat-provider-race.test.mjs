@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
+import { runInNewContext } from "node:vm";
 
 const frontend = dirname(dirname(fileURLToPath(import.meta.url)));
 const scratch = mkdtempSync(join(tmpdir(), "kbo-chat-provider-race-"));
@@ -21,7 +22,7 @@ function compile(name) {
   writeFileSync(join(scratch, `${name}.js`), outputText);
 }
 
-for (const name of ["lib/chat/planning", "lib/chat/types", "lib/chat/validation", "lib/chat/history"]) compile(name);
+for (const name of ["lib/chat/planning", "lib/chat/types", "lib/chat/validation", "lib/chat/history", "lib/chat/inline-urls"]) compile(name);
 mkdirSync(join(scratch, "components"), { recursive: true });
 
 const providerSource = readFileSync(join(frontend, "components/chat-provider.tsx"), "utf8")
@@ -30,6 +31,7 @@ const providerSource = readFileSync(join(frontend, "components/chat-provider.tsx
   .replaceAll('from "@/lib/chat/types"', 'from "../lib/chat/types"')
   .replace('from "@/lib/chat/client"', 'from "../test-chat-client"')
   .replace('from "@/lib/chat/history"', 'from "../lib/chat/history"')
+  .replace('from "@/lib/chat/inline-urls"', 'from "../lib/chat/inline-urls"')
   .replace('from "@/lib/member-auth"', 'from "../test-member-auth"')
   .replace('from "@/lib/client-id"', 'from "../test-client-id"')
   .replace('from "./chat-popup"', 'from "../test-popup"');
@@ -51,7 +53,7 @@ exports.usePathname = () => global.__path ?? "/";
 exports.useRouter = () => ({ push(url) { global.__pushes?.push(url); } });
 `);
 writeFileSync(join(scratch, "test-member-auth.js"), `exports.useMemberAuth = () => global.__memberAuth;`);
-writeFileSync(join(scratch, "test-client-id.js"), `exports.createClientId = () => "new-chat";`);
+writeFileSync(join(scratch, "test-client-id.js"), `let next = 0; exports.createClientId = () => "new-chat-" + ++next;`);
 writeFileSync(join(scratch, "components/chat-planning.js"), `exports.ChatQuestions = () => null; exports.ChatWriterOffer = () => null;`);
 writeFileSync(join(scratch, "test-popup.js"), `exports.ChatPopup = () => null;`);
 writeFileSync(join(scratch, "test-chat-client.js"), `
@@ -60,7 +62,7 @@ class ChatStreamStoppedError extends ChatClientError {}
 exports.ChatClientError = ChatClientError;
 exports.ChatStreamStoppedError = ChatStreamStoppedError;
 exports.GUEST_STATUS = { provider: "guest", model: "guest", ready: true };
-for (const name of ["deleteChatMessages", "deleteChatSession", "editChatMessage", "fetchChatHistory", "getChatStatus", "listChatSessions", "sendChatMessage", "saveAnswerFeedback"])
+for (const name of ["deleteChatMessages", "deleteChatSession", "editChatMessage", "fetchChatHistory", "getChatStatus", "listChatSessions", "sendChatMessage", "saveAnswerFeedback", "createChatSession", "uploadChatAttachment", "deleteChatAttachment", "validateChatFile"])
   exports[name] = (...args) => global.__chatApi[name](...args);
 `);
 
@@ -118,6 +120,47 @@ function hookRunner() {
   };
 }
 
+// Execute the real editor's DOM × handler and undo stack against the real provider.
+function inlineEditor(runner) {
+  class Element {
+    constructor(name = "SPAN") { this.nodeName = name; this.dataset = {}; this.childNodes = []; }
+    append(...children) { this.childNodes.push(...children); }
+    replaceChildren(...children) { this.childNodes = children.flatMap(child => child.nodeName === "#fragment" ? child.childNodes : [child]); }
+    setAttribute() {}
+    focus() {}
+  }
+  const root = new Element("DIV"), refs = [], states = [], effects = [];
+  const selectionContext = {}, selectionRef = { current: null };
+  const textNode = value => ({ nodeName: "#text", nodeType: 3, textContent: value, childNodes: [] });
+  let chat, refIndex, stateIndex, props;
+  const source = readFileSync(join(frontend, "components/chat-inline-input.tsx"), "utf8");
+  const ast = ts.createSourceFile("editor.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const body = ast.statements.filter(node => !ts.isImportDeclaration(node)).map(node => node.getText(ast)).join("\n");
+  const exports = {}, require = createRequire(join(scratch, "entry.cjs"));
+  runInNewContext(ts.transpileModule(body, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText, {
+    exports, require, URL, HTMLElement: Element, Node: { TEXT_NODE: 3 },
+    document: { createElement: name => new Element(name.toUpperCase()), createElementNS: (_, name) => new Element(name), createTextNode: textNode, createDocumentFragment: () => new Element("#fragment") },
+    window: { getSelection: () => null }, useChat: () => chat, useMemberAuth: () => global.__memberAuth,
+    ChatToolGroupsContext: {}, ChatToolSelectionContext: selectionContext, useContext: context => context === selectionContext ? selectionRef : [], useId: () => "tools", useLayoutEffect: effect => effects.push(effect),
+    useRef: value => refs[refIndex++] ??= { current: value },
+    useState: initial => { const index = stateIndex++; return [states[index] ?? initial, value => { states[index] = typeof value === "function" ? value(states[index] ?? initial) : value; }]; },
+    ...require("./lib/chat/inline-urls.js"), Icon: () => null, presentationFor: () => ({ icon: "book" }),
+  });
+  const flatten = tree => !tree || typeof tree !== "object" ? [] : [tree, ...[tree.props?.children].flat(Infinity).flatMap(flatten)];
+  function render() {
+    chat = runner.render(); refIndex = stateIndex = 0;
+    const tree = exports.ChatInlineInput({ id: "test", inputRef: { current: root }, disabled: false, available: true, onSend: chat.onSend, onCompositionChange() {} });
+    props = flatten(tree).find(node => node.props?.role === "textbox").props;
+    effects.splice(0).forEach(effect => effect());
+    return chat;
+  }
+  return {
+    render,
+    remove() { root.childNodes.find(node => node.dataset?.marker !== undefined).childNodes.find(node => node.textContent === "×").onclick(); },
+    undo(redo = false) { props.onKeyDown({ key: "z", metaKey: true, shiftKey: redo, nativeEvent: {}, target: root, currentTarget: root, preventDefault() {} }); },
+  };
+}
+
 const deferred = () => {
   let resolve;
   const promise = new Promise(done => { resolve = done; });
@@ -144,6 +187,36 @@ global.window = {
 global.requestAnimationFrame = callback => { callback(); return 1; };
 global.cancelAnimationFrame = () => {};
 global.__memberAuth = { status: "authenticated", user: { id: 7 } };
+
+test("attachment upload failures retry/cancel honestly; successful send clears attachments not chips and new chats scope drafts", async () => {
+  global.__memberAuth = { status: "anonymous", user: null };
+  const uploaded = { id: FIRST, kind: "text", name: "notes.md", size: 5, contentType: "text/markdown", width: null, height: null, url: null, createdAt: "now" };
+  let uploads = 0; const sends = [];
+  global.__chatApi = { ...baseApi, listChatSessions: async () => [], createChatSession: async () => rooms[0], validateChatFile: () => "text",
+    uploadChatAttachment: async () => { if (++uploads === 1) throw new Error("storage unavailable"); return uploaded; },
+    sendChatMessage: async (_, body) => { sends.push(body); return { reply: "answer", sessionId: FIRST, ready: true, model: "m", provider: "guest" }; } };
+  const runner = hookRunner(); let c = runner.render(); runner.flushEffects(); await tick(); c = runner.render();
+  c.onAttach([new File(["notes"], "notes.md")]); await tick(); c = runner.render();
+  assert.equal(c.attachments[0].state, "failed"); assert.equal(c.attachments[0].error, "storage unavailable");
+  c.onDraftChange("question"); c.onToolGroupsChange(["rules"]); c = runner.render(); c.onSend(); await tick(); assert.equal(sends.length, 0);
+  c.onRetryAttachment(c.attachments[0].key); await tick(); c = runner.render(); assert.equal(c.attachments[0].state, "ready");
+  c.onSend(); await tick(); c = runner.render(); assert.deepEqual(sends[0].attachmentIds, [FIRST]); assert.deepEqual(sends[0].toolGroupIds, ["rules"]);
+  assert.deepEqual(c.attachments, []); assert.deepEqual(c.toolGroupIds, ["rules"]);
+  c.onReset(); c = runner.render(); assert.equal(c.draft, ""); assert.deepEqual(c.toolGroupIds, []); assert.deepEqual(c.attachments, []); runner.unmount();
+});
+
+test("cancelled attachment ignores late upload success and restores scoped drafts after room switching", async () => {
+  global.__memberAuth = { status: "anonymous", user: null }; const pendingUpload = deferred(); let signal;
+  global.__chatApi = { ...baseApi, listChatSessions: async () => rooms, validateChatFile: () => "text", uploadChatAttachment: async (_mode, _session, _source, value) => { signal = value; return pendingUpload.promise; } };
+  const runner = hookRunner(); let c = runner.render(); runner.flushEffects(); await tick(); c = runner.render();
+  c.onAttach([new File(["notes"], "notes.txt")]); c = runner.render(); const key = c.attachments[0].key;
+  c.onCancelAttachment(key); assert.equal(signal.aborted, true);
+  pendingUpload.resolve({ id: FIRST, kind: "text", name: "notes.txt", size: 5 }); await tick(); c = runner.render();
+  assert.equal(c.attachments[0].state, "cancelled"); assert.equal(c.attachments[0].attachment, undefined);
+  c.onDraftChange("room one draft"); c.onToolGroupsChange(["weather"]); c = runner.render();
+  c.onSelectConversation(`guest:${SECOND}`); await tick(); c = runner.render(); assert.deepEqual(c.attachments, []); assert.equal(c.draft, "");
+  c.onSelectConversation(`guest:${FIRST}`); c = runner.render(); assert.equal(c.draft, "room one draft"); assert.deepEqual(c.toolGroupIds, ["weather"]); assert.equal(c.attachments[0].state, "cancelled"); runner.unmount();
+});
 
 test("provider ignores delayed list/history callbacks and reloads an interrupted room", async () => {
   global.__memberAuth = { status: "authenticated", user: { id: 7 } };
@@ -404,8 +477,9 @@ for (const [path, exportName] of [["components/chat-workspace", "ChatWorkspace"]
       .replace('from "next/link"', 'from "../test-surface-stub"')
       .replace('from "next/image"', 'from "../test-surface-stub"')
       .replace('from "@/lib/chat/types"', 'from "../lib/chat/types"')
+      .replace('from "@/lib/chat/inline-urls"', 'from "../lib/chat/inline-urls"')
       .replace('from "@/lib/member-auth"', 'from "../test-member-auth"')
-      .replace(/from "\.\/(chat-provider|icons|chat-answer|chat-course-card|chat-pending|chat-progress|chat-usage|chat-feedback)"/g, 'from "../test-surface-stub"');
+      .replace(/from "\.\/(chat-provider|icons|chat-answer|chat-course-card|chat-pending|chat-progress|chat-usage|chat-feedback|chat-composer-tools|chat-inline-input)"/g, 'from "../test-surface-stub"');
     writeFileSync(join(scratch, `${path}.js`), ts.transpileModule(source, {
       fileName: `${path}.tsx`, compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
     }).outputText);
@@ -415,7 +489,7 @@ for (const [path, exportName] of [["components/chat-workspace", "ChatWorkspace"]
     let cancelled = 0;
     global.__chat = new Proxy({
       messages: [], conversations: [{ id: "initial-chat", title: "새 대화" }], activeConversationId: "initial-chat",
-      draft: "잠실 맛집 알려 주세요", pending: "잠실 맛집 알려 주세요", streaming: "", timeline: [], failed: "", error: "", notice: "",
+      attachments: [], toolGroupIds: [], draft: "잠실 맛집 알려 주세요", pending: "잠실 맛집 알려 주세요", streaming: "", timeline: [], failed: "", error: "", notice: "",
       editingMessageId: null, status: { provider: "guest", model: "m", ready: true }, statusLoading: false, statusError: "",
       onCancel: () => { cancelled += 1; },
     }, { get: (target, key) => key in target ? target[key] : () => {} });
@@ -425,7 +499,7 @@ for (const [path, exportName] of [["components/chat-workspace", "ChatWorkspace"]
       if (!node || typeof node !== "object") return null;
       if (Array.isArray(node)) { for (const child of node) { const hit = find(child); if (hit) return hit; } return null; }
       if (node.props?.["aria-label"] === "답변 생성 중단") return node;
-      return find(node.props?.children);
+      return find(node.props?.children) ?? find(node.props?.actions);
     };
     const stop = find(Surface({}));
     assert.ok(stop, "stop button renders while a reply is pending");
@@ -454,6 +528,17 @@ for (const [path, exportName] of [["components/chat-workspace", "ChatWorkspace"]
       assert.equal(action.props.children.props["aria-hidden"], "true");
       assert.equal(action.props.children.props.width, "16");
     }
+    global.__chat.draft = "";
+    global.__chat.attachments = [{ key: "url", kind: "url", state: "ready", sourceUrl: "https://example.com/#part", attachment: { id: FIRST, url: "https://example.com/" } }];
+    const readyActions = [];
+    const findReady = node => {
+      if (!node || typeof node !== "object") return;
+      if (Array.isArray(node)) { node.forEach(findReady); return; }
+      if (node.props?.["aria-label"] === "질문 보내기") readyActions.push(node);
+      findReady(node.props?.children); findReady(node.props?.actions);
+    };
+    findReady(Surface({}));
+    assert.equal(readyActions[0].props.disabled, false);
     global.__memberAuth = { status: "authenticated", user: { id: 7 } };
   });
 }
@@ -643,6 +728,94 @@ test("saved failed planning answer retries via edit without duplicate user histo
  const runner=hookRunner();let c=runner.render();runner.flushEffects();await tick();c=runner.render();assert.equal(await c.submitQuestions(2,"동행: 친구"),"failed");await tick();c=runner.render();assert.equal(await c.submitQuestions(2,"동행: 혼자"),"rejected");c.onRetry();await tick();c=runner.render();assert.deepEqual([sends,edits],[1,1]);assert.equal(c.messages.filter(m=>m.role==="user").length,1);runner.unmount();
 });
 
+test("edit restores the composer bundle and cancels only replaced upload scopes", async () => {
+  global.__memberAuth = { status: "anonymous", user: null };
+  window.confirm = () => true;
+  const uploads = [], sent = [];
+  const uploaded = { id: FIRST, kind: "text", name: "notes.md", size: 5 };
+  global.__chatApi = { ...baseApi, listChatSessions: async () => rooms,
+    fetchChatHistory: async () => [row(1, "user", "old question"), row(2, "assistant", "answer"), row(3, "user", "other question")],
+    validateChatFile: () => "text", uploadChatAttachment: (_mode, _session, _source, signal) => { const pending = deferred(); uploads.push({ pending, signal }); return pending.promise; },
+    editChatMessage: async (_, body) => { sent.push(body); return { reply: "ok", ready: true, provider: "guest", model: "m" }; },
+  };
+  const runner = hookRunner(); let c = runner.render(); runner.flushEffects(); await tick(); c = runner.render();
+  c.onDraftChange("unsent draft"); c.onToolGroupsChange(["weather"]); c.onContextChange({ intent: "course" });
+  c.onAttach([new File(["notes"], "notes.md")]); await tick(); c = runner.render();
+  const key = c.attachments[0].key;
+  c.onEditMessage(1); c = runner.render(); assert.equal(uploads[0].signal.aborted, true);
+  c.onAttach([new File(["edit"], "edit.md")]); await tick(); c = runner.render();
+  c.onEditMessage(3); c = runner.render(); assert.equal(uploads[1].signal.aborted, true);
+  c.onCancelEdit(); c = runner.render();
+  assert.equal(c.draft, "unsent draft"); assert.deepEqual(c.toolGroupIds, ["weather"]); assert.deepEqual(c.context, { intent: "course" });
+  assert.equal(c.attachments[0].key, key); assert.equal(c.attachments[0].state, "cancelled");
+  uploads[0].pending.resolve(uploaded); uploads[1].pending.resolve(uploaded); await tick(); c = runner.render();
+  assert.equal(c.attachments[0].state, "cancelled"); assert.equal(c.attachments[0].attachment, undefined);
+  c.onRetryAttachment(key); await tick(); uploads[2].pending.resolve(uploaded); await tick(); c = runner.render();
+  assert.equal(c.attachments[0].state, "ready");
+  c.onEditMessage(1); c = runner.render(); c.onDraftChange("edited question"); c = runner.render(); c.onSend(); await tick(); c = runner.render();
+  assert.equal(sent[0].content, "edited question"); assert.deepEqual(sent[0].attachmentIds, []);
+  assert.equal(c.draft, "unsent draft"); assert.equal(c.attachments[0].attachment.id, FIRST); assert.deepEqual(c.toolGroupIds, ["weather"]);
+  c.onEditMessage(1); c = runner.render(); c.onSelectConversation(`guest:${SECOND}`); await tick(); c = runner.render();
+  c.onSelectConversation(`guest:${FIRST}`); c = runner.render();
+  assert.equal(c.draft, "unsent draft"); assert.equal(c.editingMessageId, null); assert.equal(c.attachments[0].state, "ready");
+  c.onCancelEdit(); c = runner.render(); assert.equal(c.draft, "unsent draft"); runner.unmount();
+});
+
+for (const edited of [false, true]) for (const result of ["success", "failure", "stop"]) {
+  test(`retry preserves newer composer bundle (${edited ? "edit" : "send"}, ${result})`, async () => {
+    global.__memberAuth = { status: "anonymous", user: null }; window.confirm = () => true;
+    const uploaded = { id: SECOND, kind: "text", name: "new.md", size: 3 };
+    let calls = 0, finish;
+    const bodies = [];
+    const request = async (_, body, signal) => {
+      bodies.push(body);
+      if (++calls === 1) throw new Error("offline");
+      return new Promise((resolve, reject) => { finish = () => result === "failure" ? reject(new Error("still offline")) : resolve({ reply: "ok", ready: true, provider: "guest", model: "m" }); signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true }); });
+    };
+    global.__chatApi = { ...baseApi, listChatSessions: async () => [rooms[0]], fetchChatHistory: async () => [row(1, "user", "old question"), row(2, "assistant", "answer")],
+      sendChatMessage: request, editChatMessage: request, validateChatFile: () => "text", uploadChatAttachment: async () => uploaded };
+    const runner = hookRunner(); let c = runner.render(); runner.flushEffects(); await tick(); c = runner.render();
+    if (edited) { c.onEditMessage(1); c = runner.render(); }
+    c.onDraftChange("failed question"); c = runner.render(); c.onSend(); await tick(); c = runner.render();
+    c.onDraftChange("new unsent draft"); c.onToolGroupsChange(["rules"]); c.onAttach([new File(["new"], "new.md")]); await tick(); c = runner.render();
+    const bundle = c.attachments;
+    c.onRetry(); await tick(); c = runner.render();
+    assert.equal(c.draft, "new unsent draft");
+    if (result === "stop") c.onCancel(); else finish();
+    await tick(); c = runner.render();
+    assert.equal(c.draft, "new unsent draft"); assert.deepEqual(c.attachments, bundle); assert.deepEqual(c.toolGroupIds, ["rules"]);
+    assert.equal(bodies[1].content, "failed question"); assert.deepEqual(bodies[1].attachmentIds, []); assert.deepEqual(bodies[1].toolGroupIds, []);
+    runner.unmount();
+  });
+}
+
+for (const change of ["same text", "chips", "attachment", "empty"]) {
+  test(`retry preserves user-owned composer even when text matches (${change})`, async () => {
+    global.__memberAuth = { status: "anonymous", user: null };
+    let calls = 0;
+    global.__chatApi = { ...baseApi, listChatSessions: async () => [rooms[0]],
+      sendChatMessage: async () => { if (++calls === 1) throw new Error("offline"); return { reply: "ok", ready: true, provider: "guest", model: "m" }; },
+      validateChatFile: () => "text", uploadChatAttachment: async () => ({ id: SECOND, kind: "text", name: "notes.md", size: 5 }) };
+    const runner = hookRunner(); let c = runner.render(); runner.flushEffects(); await tick(); c = runner.render();
+    c.onDraftChange("question"); c = runner.render(); c.onSend(); await tick(); c = runner.render();
+    if (change === "same text" || change === "empty") c.onDraftChange(change === "empty" ? "" : "question");
+    if (change === "chips") c.onToolGroupsChange(["weather"]);
+    if (change === "attachment") c.onAttach([new File(["notes"], "notes.md")]);
+    await tick(); c = runner.render(); const bundle = [c.draft, c.attachments, c.toolGroupIds];
+    c.onRetry(); await tick(); c = runner.render(); assert.deepEqual([c.draft, c.attachments, c.toolGroupIds], bundle); runner.unmount();
+  });
+}
+
+test("retry consumes only an unchanged auto-restored draft and normal send consumes its submitted bundle", async () => {
+  global.__memberAuth = { status: "anonymous", user: null };
+  let calls = 0;
+  global.__chatApi = { ...baseApi, listChatSessions: async () => [], sendChatMessage: async () => { if (++calls === 1) throw new Error("offline"); return { reply: "ok", ready: true, provider: "guest", model: "m" }; } };
+  const runner = hookRunner(); let c = runner.render(); runner.flushEffects(); await tick(); c = runner.render();
+  c.onDraftChange("question"); c = runner.render(); c.onSend(); await tick(); c = runner.render(); assert.equal(c.draft, "question");
+  c.onRetry(); await tick(); c = runner.render(); assert.equal(c.draft, "");
+  c.onDraftChange("normal question"); c = runner.render(); c.onSend(); await tick(); c = runner.render(); assert.equal(c.draft, ""); runner.unmount();
+});
+
 test("edit and delete start cancel writer countdown including delete failure and declined confirmation",async()=>{
  for(const action of ["edit","delete","decline"]){
   global.__memberAuth={status:"anonymous",user:null};global.__path="/chat";global.__pushes=[];global.window.confirm=()=>action!=="decline";
@@ -652,4 +825,462 @@ test("edit and delete start cancel writer countdown including delete failure and
   if(action==="edit")c.onEditMessage(1);else c.onDeleteMessage(1);await tick();c=runner.render();runner.flushEffects();assert.equal(c.writerSeconds,null);assert.deepEqual(global.__pushes,[]);if(action==="delete")assert.equal(c.error,"delete offline");runner.unmount();
  }
  global.__path="/";
+});
+
+test("composer reserves concurrent batches atomically and rejects overflow without uploads", async () => {
+  const wait = deferred(), uploads = [], sends = [];
+  const runner = await urlRunner({ validateChatFile: () => "image", uploadChatAttachment: async (_, __, source) => {
+    const id = `image-${uploads.length}`; uploads.push(source); await wait.promise;
+    return { id, kind: "image", name: source.name, size: source.size };
+  }, sendChatMessage: async (_, body) => { sends.push(body); if (sends.length === 1) throw new Error("offline"); return urlReply; } });
+  let c = runner.render();
+  const files = count => Array.from({ length: count }, (_, i) => new File(["pixels"], `seat-${i}.png`, { type: "image/png" }));
+  c.onAttach(files(6)); c.onAttach(files(5)); c = runner.render();
+  assert.equal(c.attachments.length, 6); assert.match(c.notice, /10개/);
+  c.onAttach(files(4)); c.onAttach(files(1)); await tick(); c = runner.render();
+  assert.equal(c.attachments.length, 10); assert.equal(uploads.length, 10);
+  wait.resolve(); await tick(); c = runner.render();
+  c.onDraftChange("잠실 사진"); c = runner.render(); c.onSend(); await tick();
+  assert.equal(sends[0].attachmentIds.length, 10);
+  c = runner.render(); assert.equal(c.attachments.length, 10);
+  c.onRetry(); await tick();
+  assert.deepEqual(sends[1].attachmentIds, sends[0].attachmentIds); assert.equal(uploads.length, 10);
+  runner.unmount();
+});
+
+test("mixed image and text ten accepted; URL and eleven batches reject atomically", async () => {
+  const uploads = [], sends = [];
+  const runner = await urlRunner({ validateChatFile: file => file.name.endsWith("png") ? "image" : "text", uploadChatAttachment: async (_, __, source) => {
+    uploads.push(source); return { id: `ref-${uploads.length}`, kind: source.name.endsWith("png") ? "image" : "text", name: source.name, size: 4 };
+  }, sendChatMessage: async (_, body) => { sends.push(body); return urlReply; } });
+  let c = runner.render();
+  c.onAttach([new File(["x"], "x.txt"), "not a URL"]); await tick(); c = runner.render();
+  assert.equal(uploads.length, 0); assert.equal(c.attachments.length, 0); assert.match(c.notice, /HTTP/);
+  c.onAttach(Array.from({ length: 11 }, () => new File(["x"], "x.txt"))); c = runner.render();
+  assert.equal(c.attachments.length, 0); assert.match(c.notice, /10개/);
+  c.onAttach(Array.from({ length: 10 }, (_, i) => new File(["x"], i < 5 ? "x.png" : "x.txt"))); await tick(); c = runner.render();
+  assert.equal(c.attachments.length, 10); assert.equal(uploads.length, 10);
+  c.onDraftChange("잠실 자료 https://example.com/"); c = runner.render(); c.onSend(); await tick();
+  assert.equal(sends.length, 0); c = runner.render(); assert.match(c.notice, /10개/);
+  c.onDraftChange("잠실 자료"); c = runner.render(); c.onSend(); await tick();
+  assert.equal(sends[0].attachmentIds.length, 10); assert.equal(sends[0].content, "잠실 자료"); runner.unmount();
+});
+
+const urlAttachment = (url, id = FIRST) => ({ id, kind: "url", name: url, url, size: 0 });
+const urlReply = { reply: "ok", sessionId: FIRST, ready: true, model: "m", provider: "guest" };
+async function urlRunner(api = {}) {
+  global.__memberAuth = { status: "anonymous", user: null };
+  global.__chatApi = { ...baseApi, deleteChatAttachment: async () => {}, listChatSessions: async () => [], createChatSession: async () => rooms[0], validateChatFile: () => "text", uploadChatAttachment: async (_, __, source) => typeof source === "string" ? urlAttachment(source) : ({ id: FIRST, kind: "text", name: source.name, size: source.size }), sendChatMessage: async () => urlReply, ...api };
+  const runner = hookRunner(); runner.render(); runner.flushEffects(); await tick();
+  return runner;
+}
+
+test("automatic URL registration preserves inline literal on success and failed drafts", async () => {
+  const uploads = [], sends = []; let fail = true;
+  const runner = await urlRunner({ uploadChatAttachment: async (_, __, url) => { uploads.push(url); if (fail) throw new Error("offline"); return urlAttachment(url); }, sendChatMessage: async (_, body) => { sends.push(body); return urlReply; } });
+  let c = runner.render(); const text = "요약 https://EXAMPLE.com:443/story#part";
+  c.onDraftChange(text); c.onCommitUrls(text, true); await tick(); c = runner.render();
+  assert.equal(c.draft, text); assert.equal(c.attachments[0].state, "failed");
+  fail = false; c.onRetryAttachment(c.attachments[0].key); await tick(); c = runner.render();
+  assert.equal(c.draft, text);
+  c.onSend(); await tick(); assert.equal(sends[0].content, text); assert.deepEqual(sends[0].attachmentIds, [FIRST]);
+  assert.equal(uploads.length, 2); runner.unmount();
+});
+
+test("URL edit and failed-turn retry keep attachment IDs without re-extracting or disturbing newer draft", async () => {
+  let uploads = 0, fail = true; const edits = [];
+  const text = "요약 https://example.com/";
+  const runner = await urlRunner({ listChatSessions: async () => [rooms[0]], fetchChatHistory: async () => [{ ...row(USER_MSG, "user", text), attachments: [{ id: FIRST, kind: "url", name: "Example title", url: "https://example.com/", size: 0, content_type: "text/html", width: null, height: null, created_at: "now" }], tool_group_ids: [] }], uploadChatAttachment: async (_, __, url) => { uploads++; return urlAttachment(url); }, editChatMessage: async (_, body) => { edits.push(body); if (fail) throw new Error("turn offline"); return urlReply; } });
+  global.window.confirm = () => true;
+  let c = runner.render(); c.onDraftChange("newer draft"); c = runner.render(); c.onEditMessage(USER_MSG); c = runner.render();
+  c.onDraftChange(`${text} 수정`); c = runner.render(); c.onSend(); await tick(); c = runner.render();
+  assert.equal(uploads, 0); assert.equal(c.error, "turn offline"); assert.equal(c.draft, "newer draft"); assert.deepEqual(edits[0].attachmentIds, [FIRST]);
+  fail = false; c.onRetry(); await tick(); c = runner.render(); assert.equal(uploads, 0); assert.deepEqual(edits[1].attachmentIds, [FIRST]); assert.equal(c.draft, "newer draft"); runner.unmount();
+});
+
+test("inline URL parser ignores incidental malformed and credential URLs, preserving punctuation in paths", () => {
+  const require = createRequire(join(scratch, "entry.cjs"));
+  const { inlineChatUrls } = require("./lib/chat/inline-urls.js");
+  assert.deepEqual(inlineChatUrls("xhttps://example.com https:/bad https://user:pw@example.com https:// https://example. ftp://example.com"), []);
+  assert.deepEqual(inlineChatUrls("요약 (https://Example.com/wiki/A_(B)), https://example.com/wiki/A_(B)#part"), ["https://example.com/wiki/A_(B)"]);
+});
+
+
+test("URL tokenizer preserves literals, query distinctions and composer bytes", () => {
+  const require = createRequire(join(scratch, "entry.cjs"));
+  const { chatUrlTokens, chatComposerContent } = require("./lib/chat/inline-urls.js");
+  const text = "  https://example.com/a?q=1, 질문\nhttps://EXAMPLE.com:443/a?q=1#part! https://example.com/a?q=12 ";
+  assert.deepEqual(chatUrlTokens(text).map(token => token.literal), ["https://example.com/a?q=1", "https://EXAMPLE.com:443/a?q=1#part", "https://example.com/a?q=12"]);
+  assert.equal(chatComposerContent(text, []), text.trim());
+  assert.equal(chatComposerContent("  ", [{ kind: "text", state: "ready", attachment: { id: FIRST } }]), "");
+});
+
+
+test("accepted attachment submit transfers to optimistic history before SSE and preserves metadata on done refresh", async () => {
+  const upload = deferred(), reply = deferred(), sends = [];
+  let callbacks, stored = [], uploads = 0;
+  const dto = { id: FIRST, kind: "image", name: "photo.png", url: `/llm/guest/sessions/${FIRST}/attachments/${FIRST}/`, size: 12, content_type: "image/png", width: 96, height: 76, created_at: "now" };
+  const runner = await urlRunner({ validateChatFile: () => "image", uploadChatAttachment: () => { uploads++; return upload.promise; }, fetchChatHistory: async () => stored, sendChatMessage: (_, body, signal, cb) => { sends.push(body); callbacks = cb; return reply.promise; } });
+  let c = runner.render(); c.onDraftChange("사진 질문"); c.onAttach([new File(["photo"], "photo.png", { type: "image/png" })]); c = runner.render();
+  const preview = c.attachments[0].preview;
+  c.onSend(); await tick(); c = runner.render();
+  assert.equal(sends.length, 0); assert.equal(c.attachments[0].state, "uploading"); assert.equal(c.draft, "사진 질문");
+  upload.resolve({ id: FIRST, kind: "image", name: "photo.png", size: 12, url: dto.url }); await tick(); c = runner.render();
+  assert.equal(c.pending, "사진 질문"); assert.equal(c.messages.length, 1); assert.equal(c.messages[0].content, "사진 질문"); assert.equal(c.messages[0].attachments[0].preview, preview);
+  assert.deepEqual(c.attachments, []); assert.equal(c.draft, ""); assert.deepEqual(sends[0].attachmentIds, [FIRST]);
+  callbacks.onDelta("분석", null); c = runner.render(); assert.equal(c.streaming, "분석"); assert.equal(c.messages.length, 1); assert.deepEqual(c.attachments, []);
+  stored = [{ ...row(1, "user", "사진 질문"), attachments: [dto] }, row(2, "assistant", "ok")];
+  reply.resolve(urlReply); await tick(); c = runner.render();
+  assert.equal(c.messages[0].id, 1); assert.equal(c.messages[0].attachments[0].preview, preview); assert.equal(c.messages[0].attachments[0].contentType, "image/png"); assert.equal(c.draft, ""); assert.deepEqual(c.attachments, []);
+  c.onDraftChange("후속 질문"); c = runner.render(); c.onSend(); await tick();
+  assert.equal(uploads, 1); assert.deepEqual(sends[1].attachmentIds, []); assert.equal(sends[1].sessionId, FIRST);
+  assert.equal((await fetch(preview)).ok, true);
+  runner.unmount();
+  await assert.rejects(fetch(preview));
+});
+
+for (const action of ["failure", "stop"]) for (const newer of [false, true]) {
+  test(`attachment ${action} restores accepted bundle without overwriting newer draft (${newer})`, async () => {
+    let reject;
+    const runner = await urlRunner({ sendChatMessage: (_, body, signal) => new Promise((resolve, fail) => { reject = fail; signal.addEventListener("abort", () => fail(new Error("aborted")), { once: true }); }) });
+    let c = runner.render(); c.onDraftChange("요약 https://example.com/a"); c.onCommitUrls("https://example.com/a", true); await tick(); c = runner.render();
+    const selected = c.attachments;
+    c.onSend(); await tick(); c = runner.render(); assert.deepEqual(c.attachments, []); assert.equal(c.messages.length, 1);
+    if (newer) { c.onDraftChange("새 질문"); c = runner.render(); c.onDraftChange(""); c = runner.render(); }
+    if (action === "stop") c.onCancel(); else reject(new Error("offline"));
+    await tick(); c = runner.render();
+    assert.equal(c.messages.length, 0); assert.equal(c.draft, newer ? "" : "요약 https://example.com/a"); assert.deepEqual(c.attachments, newer && action !== "stop" ? [] : selected);
+    runner.unmount();
+  });
+}
+
+test("successful URL-only submit never puts the literal back in the composer", async () => {
+  const reply = deferred();
+  const runner = await urlRunner({ sendChatMessage: () => reply.promise, fetchChatHistory: async () => [] });
+  let c = runner.render(); c.onDraftChange("https://example.com/a#part"); c.onCommitUrls("https://example.com/a#part", true); await tick(); c = runner.render(); c.onSend(); await tick(); c = runner.render();
+  assert.equal(c.draft, ""); assert.deepEqual(c.attachments, []); assert.equal(c.messages[0].attachments[0].id, FIRST); assert.equal(c.messages[0].content, "https://example.com/a#part");
+  reply.resolve(urlReply); await tick(); c = runner.render(); assert.equal(c.draft, ""); assert.deepEqual(c.attachments, []); runner.unmount();
+});
+
+// Attachment ownership regressions (also exercised by the standalone reproduction).
+for (const destination of ["same", "room", "identity"]) {
+  test(`cancel after openChat preserves newer input and scopes retry (${destination})`, async () => {
+    const sends = [];
+    const runner = await urlRunner({ sendChatMessage: (_, body, signal) => {
+      sends.push(body);
+      return new Promise((_, reject) => signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true }));
+    } });
+    try {
+      let c = runner.render(); c.onDraftChange("요약 https://example.com/a"); c.onAttach([new File(["notes"], "x.txt")]); await tick();
+      c = runner.render(); c.onSend(); await tick(); c = runner.render(); c.openChat("newer input"); c = runner.render(); c.onCancel(); await tick(); c = runner.render();
+      assert.equal(c.draft, "newer input"); assert.equal(c.attachments[0].attachment.id, FIRST); assert.equal(c.failed, "");
+      if (destination === "room") { c.onReset(); c = runner.render(); }
+      if (destination === "identity") { global.__memberAuth = { status: "authenticated", user: { id: 99 } }; runner.render(); runner.flushEffects(); await tick(); c = runner.render(); }
+      c.onRetry(); c = runner.render();
+      if (destination === "same") {
+        assert.equal(sends.length, 2); assert.equal(sends[1].sessionId, FIRST); assert.deepEqual(sends[1].attachmentIds, [FIRST]);
+        assert.equal(c.draft, "newer input"); c.onCancel(); await tick();
+      } else { assert.equal(sends.length, 1); assert.deepEqual(c.attachments, []); }
+    } finally { runner.unmount(); }
+  });
+}
+
+for (const text of ["https://example.com/a#part", "요약 https://example.com/a", "  요약 https://example.com/a  "]) {
+  test(`unchanged converted retry consumes composer on acceptance and restores exact draft on repeat failure (${text})`, async () => {
+    let calls = 0; const reply = deferred();
+    const runner = await urlRunner({ fetchChatHistory: async () => { throw new Error("history unavailable"); }, sendChatMessage: async () => {
+      if (++calls <= 2) throw new Error("offline");
+      return reply.promise;
+    } });
+    try {
+      let c = runner.render(); c.onDraftChange(text); c.onAttach([new File(["notes"], "x.txt")]); await tick(); c = runner.render();
+      const converted = c.draft;
+      c.onSend(); await tick(); c = runner.render(); assert.equal(c.draft, converted);
+      c.onRetry(); await tick(); c = runner.render(); assert.equal(c.draft, converted); assert.equal(c.attachments.length, 2);
+      c.onRetry(); c = runner.render(); assert.equal(c.draft, ""); assert.deepEqual(c.attachments, []); assert.equal(c.messages[0].attachments[0].id, FIRST);
+      reply.resolve(urlReply); await tick(); c = runner.render(); assert.equal(c.draft, ""); assert.deepEqual(c.attachments, []);
+    } finally { runner.unmount(); }
+  });
+}
+
+for (const newer of [null, "요약 ", "newer input"]) {
+  test(`completed history clears only owned converted draft (${newer})`, async () => {
+    const history = deferred();
+    const runner = await urlRunner({ fetchChatHistory: () => history.promise, sendChatMessage: async () => {
+      const { ChatClientError } = createRequire(join(scratch, "entry.cjs"))("./test-chat-client.js");
+      const error = new ChatClientError("offline"); error.sessionId = FIRST; throw error;
+    } });
+    try {
+      let c = runner.render(); c.onDraftChange("요약 https://example.com/a"); c.onAttach([new File(["notes"], "x.txt")]); await tick(); c = runner.render();
+      c.onSend(); await tick(); c = runner.render(); assert.equal(c.draft, "요약 https://example.com/a");
+      if (newer !== null) { c.onDraftChange(newer); c = runner.render(); }
+      const dto = { id: FIRST, kind: "url", name: "title", url: "https://example.com/a", size: 0, content_type: "text/html", width: null, height: null, created_at: "now" };
+      history.resolve([{ ...row(1, "user", "요약 https://example.com/a"), attachments: [dto] }, row(2, "assistant", "ok")]); await tick(); c = runner.render();
+      assert.equal(c.draft, newer ?? ""); assert.equal(c.failed, ""); assert.equal(c.error, ""); assert.equal(c.attachments.length, newer === null ? 0 : 1);
+    } finally { runner.unmount(); }
+  });
+}
+// End attachment ownership regressions.
+
+test("deferred paste cannot attach into a new conversation", async () => {
+  let uploads = 0;
+  const runner = await urlRunner({ uploadChatAttachment: async (_, __, url) => { uploads++; return urlAttachment(url); } });
+  let c = runner.render(); c.onDraftChange("old draft"); c = runner.render();
+  const paste = c.onCommitUrls;
+  c.onReset(); c = runner.render(); paste("https://example.com/", true); await tick(); c = runner.render();
+  assert.equal(uploads, 0); assert.equal(c.draft, ""); assert.deepEqual(c.attachments, []); runner.unmount();
+});
+
+for (const only of [false, true]) test(`pending automatic URL send waits and sends exact question with one reference (${only})`, async () => {
+  const upload = deferred(), sends = [], uploads = [];
+  const runner = await urlRunner({ uploadChatAttachment: (_, __, url) => { uploads.push(url); return upload.promise; }, sendChatMessage: async (_, body) => { sends.push(body); return urlReply; } });
+  let c = runner.render(); const literal = "https://EXAMPLE.com/a?q=1#part";
+  c.onDraftChange(only ? literal : `질문 ${literal}`); c.onCommitUrls(literal, true); c = runner.render(); c.onSend(); await tick();
+  assert.equal(sends.length, 0); upload.resolve(urlAttachment("https://example.com/a?q=1")); await tick(); c = runner.render();
+  assert.equal(sends[0].content, only ? literal : `질문 ${literal}`); assert.deepEqual(sends[0].attachmentIds, [FIRST]);
+  assert.equal(uploads.length, 1); assert.equal(c.draft, ""); runner.unmount();
+});
+test("IME, removal suppression and renewed paste keep a single URL registration", async () => {
+  const uploads = [], upload = deferred();
+  const runner = await urlRunner({ uploadChatAttachment: (_, __, url) => { uploads.push(url); return upload.promise; } });
+  let c = runner.render(); const url = "https://example.com/a";
+  c.onCompositionChange(true); c.onDraftChange(`질문 ${url}`); c.onCommitUrls(url); await tick(); assert.equal(uploads.length, 0);
+  c.onCompositionChange(false); c = runner.render(); c.onCommitUrls(url); c = runner.render(); c.onCommitUrls(url); await tick();
+  assert.equal(uploads.length, 1); c = runner.render(); c.onRemoveAttachment(c.attachments[0].key); c.onCommitUrls(url); await tick();
+  assert.equal(uploads.length, 1); upload.resolve(urlAttachment(url)); await tick(); c = runner.render(); assert.equal(c.draft, `질문 ${url}`); assert.equal(c.attachments.length, 0);
+  c.onCommitUrls(url, true); await tick(); c = runner.render(); assert.equal(uploads.length, 2); assert.equal(c.attachments.length, 1); assert.equal(c.draft, `질문 ${url}`); runner.unmount();
+});
+test("pending mixed slots and URL-specific cap reject entire batches", async () => {
+  const wait = deferred(), uploads = [];
+  const runner = await urlRunner({ uploadChatAttachment: (_, __, source) => { uploads.push(source); return wait.promise; } });
+  let c = runner.render(); c.onAttach(["https://a.com", "https://b.com", "https://c.com", ...Array.from({length: 7}, () => new File(["x"], "x.txt"))]); await tick(); c = runner.render();
+  assert.equal(c.attachments.length, 10); assert.equal(uploads.length, 10);
+  c.onAttach([new File(["x"], "x.txt")]); c = runner.render(); assert.match(c.notice, /10개/); assert.equal(uploads.length, 10);
+  c.onAttach(["https://d.com"]); c = runner.render(); assert.match(c.notice, /3개/); assert.equal(uploads.length, 10); runner.unmount(); wait.resolve(urlAttachment("https://a.com")); await tick();
+});
+
+test("late removed URL registration cleans its unused owned metadata", async () => {
+  const upload = deferred(), deleted = [];
+  const runner = await urlRunner({ uploadChatAttachment: () => upload.promise, deleteChatAttachment: async (...args) => deleted.push(args) });
+  let c = runner.render(); c.onAttach(["https://example.com/a"]); await tick(); c = runner.render(); c.onRemoveAttachment(c.attachments[0].key);
+  upload.resolve(urlAttachment("https://example.com/a")); await tick(); c = runner.render();
+  assert.equal(c.attachments.length, 0); assert.deepEqual(deleted, [["guest", FIRST, FIRST]]); runner.unmount();
+});
+
+for (const size of [1999, 2000]) test(`one paste uses Unicode codepoints threshold (${size}) and full plain original`, async () => {
+  const uploads = [], sends = [];
+  const runner = await urlRunner({ uploadChatAttachment: async (_, __, file) => { uploads.push(file); return { id: FIRST, kind: "text", name: file.name, size: file.size }; }, sendChatMessage: async (_, body) => { sends.push(body); return urlReply; } });
+  let c = runner.render(); const text = "😀".repeat(size - 50) + "<script>literal</script> https://example.com/".padEnd(50, "x");
+  c.onDraftChange("before SELECT after"); c = runner.render(); const marker = c.onPasteText(text);
+  if (size === 1999) { assert.equal(marker, null); assert.equal(uploads.length, 0); }
+  else {
+    assert.equal(marker, "[[ Text 1 ]]"); c.onDraftChange(`before ${marker} after`); await tick(); c = runner.render();
+    assert.equal(await uploads[0].text(), text); assert.equal(uploads.length, 1); assert.equal(c.attachments[0].inlineText, marker);
+    c.onSend(); await tick(); assert.deepEqual(sends[0].attachmentIds, [FIRST]); assert.doesNotMatch(sends[0].content, /\[\[ Text/); assert.equal(sends[0].content, "before 첨부 참고 자료: Pasted Text 1.txt after");
+  }
+  runner.unmount();
+});
+for (const newer of ["surrounding", "replacement", "empty", "room", "identity"]) test(`failed long paste restores original without taking newer input ownership (${newer})`, async () => {
+  const wait = deferred();
+  const runner = await urlRunner({ uploadChatAttachment: async () => { await wait.promise; throw new Error("upload offline"); } });
+  let c = runner.render(); c.onDraftChange("a".repeat(2000)); c = runner.render(); assert.equal(c.attachments.length, 0);
+  const text = "😀<script>literal</script>".repeat(200), marker = c.onPasteText(text);
+  c.onDraftChange(`prefix ${marker} suffix`); await tick(); c = runner.render();
+  if (newer === "surrounding") c.onDraftChange(`new prefix ${marker} newer suffix`);
+  if (newer === "replacement") c.onDraftChange("newer input");
+  if (newer === "empty") c.onDraftChange("");
+  if (newer === "room") c.onReset();
+  if (newer === "identity") { global.__memberAuth = { status: "authenticated", user: { id: 99 } }; runner.render(); runner.flushEffects(); }
+  c = runner.render(); wait.resolve(); await tick(); c = runner.render();
+  assert.equal(c.draft, newer === "surrounding" ? `new prefix ${text} newer suffix` : newer === "replacement" ? "newer input" : "");
+  assert.deepEqual(c.attachments, []);
+  if (newer === "surrounding") { c.onDraftChange(`undo ${marker}`); c = runner.render(); assert.equal(c.draft, `undo ${text}`); }
+  runner.unmount();
+});
+
+test("native undo redo retains removed reference mapping, submission excludes deleted references and fences old markers", async () => {
+  const sends = [], deletes = [];
+  const runner = await urlRunner({ deleteChatAttachment: async (...args) => deletes.push(args), sendChatMessage: async (_, body) => { sends.push(body); return urlReply; } });
+  let c = runner.render(); const text = "b".repeat(2000), marker = c.onPasteText(text);
+  c.onDraftChange(`prefix ${marker} suffix`); await tick(); c = runner.render(); const key = c.attachments[0].key;
+  c.onRemoveAttachment(key); c = runner.render(); assert.equal(c.draft, `prefix ${text} suffix`); assert.deepEqual(c.attachments, []);
+  c.onDraftChange(`prefix ${marker} suffix`); c = runner.render(); assert.equal(c.attachments[0].attachment.id, FIRST);
+  c.onDraftChange(`prefix ${text} suffix`); c = runner.render();
+  c.onDraftChange(`prefix ${marker} suffix`); c = runner.render(); c.onSend(); await tick(); c = runner.render();
+  assert.deepEqual(sends[0].attachmentIds, [FIRST]); assert.deepEqual(c.attachments, []);
+  c.onDraftChange(marker); c = runner.render(); assert.equal(c.draft, text); assert.deepEqual(c.attachments, []);
+  const next = c.onPasteText(text); assert.notEqual(next, marker); c.onDraftChange("deleted reference"); await tick(); c = runner.render(); c.onSend(); await tick();
+  assert.deepEqual(sends[1].attachmentIds, []); assert.deepEqual(deletes, []); runner.unmount();
+});
+
+test("undo of removed in-flight paste completes its original mapping without another upload", async () => {
+  const wait = deferred(); let uploads = 0;
+  const runner = await urlRunner({ uploadChatAttachment: async (_, __, file) => { uploads++; await wait.promise; return { id: FIRST, kind: "text", name: file.name, size: file.size }; } });
+  let c = runner.render(); const text = "한".repeat(2000), marker = c.onPasteText(text);
+  c.onDraftChange(marker); await tick(); c = runner.render(); const key = c.attachments[0].key;
+  c.onRemoveAttachment(key); c = runner.render(); assert.equal(c.draft, text); assert.deepEqual(c.attachments, []);
+  c.onDraftChange(marker); c = runner.render(); assert.equal(c.attachments[0].state, "uploading");
+  wait.resolve(); await tick(); c = runner.render(); assert.equal(c.attachments[0].state, "ready"); assert.equal(uploads, 1);
+  c.onDraftChange(""); c = runner.render(); assert.deepEqual(c.attachments, []);
+  c.onDraftChange(marker); c = runner.render(); assert.equal(c.attachments[0].attachment.id, FIRST); runner.unmount();
+});
+
+test("failed unchanged paste restores exact full original and manual selection added later survives tag deletion", async () => {
+  const runner = await urlRunner({ uploadChatAttachment: async () => { throw new Error("offline"); } });
+  let c = runner.render(); const text = "字".repeat(2000), marker = c.onPasteText(text);
+  c.onDraftChange(`before ${marker} after`); await tick(); c = runner.render(); assert.equal(c.draft, `before ${text} after`); assert.deepEqual(c.attachments, []);
+  c.onInlineToolSelect("rules", "야구 규칙"); c.onDraftChange("@야구 규칙"); c = runner.render();
+  c.onToolGroupsChange([...c.toolGroupIds, "rules"]); c = runner.render(); c.onDraftChange(""); c = runner.render(); assert.deepEqual(c.toolGroupIds, ["rules"]); runner.unmount();
+});
+
+for (const explicit of [false, true]) test(`deleting tool tag deselects only inline-owned capability and undo redo synchronizes (${explicit})`, async () => {
+  const runner = await urlRunner(); let c = runner.render();
+  if (explicit) { c.onToolGroupsChange(["rules"]); c = runner.render(); }
+  c.onInlineToolSelect("rules", "야구 규칙"); c.onDraftChange("@야구 규칙 question"); c = runner.render(); assert.deepEqual(c.toolGroupIds, ["rules"]);
+  c.onDraftChange("question"); c = runner.render(); assert.deepEqual(c.toolGroupIds, explicit ? ["rules"] : []);
+  c.onDraftChange("@야구 규칙 question"); c = runner.render(); assert.deepEqual(c.toolGroupIds, ["rules"]);
+  c.onDraftChange("question"); c = runner.render(); assert.deepEqual(c.toolGroupIds, explicit ? ["rules"] : []); runner.unmount();
+});
+test("paste limit refusal retains original via caller and no pending placeholder", async () => {
+  const runner = await urlRunner(); let c = runner.render();
+  c.onAttach(Array.from({ length: 10 }, (_, index) => new File(["x"], `${index}.txt`))); await tick(); c = runner.render();
+  assert.equal(c.onPasteText("a".repeat(2000)), null); c = runner.render(); assert.equal(c.attachments.length, 10); assert.match(c.notice, /10개/); runner.unmount();
+});
+
+
+test("undo restoration at ten slots expands auto TXT to original without dropping existing cards", async () => {
+  let uploads = 0;
+  const runner = await urlRunner({ uploadChatAttachment: async (_, __, file) => ({ id: `unique-${++uploads}`, kind: "text", name: file.name, size: file.size }) });
+  try {
+    let c = runner.render(); const original = "가".repeat(2000);
+    const marker = c.onPasteText(original); c.onDraftChange(marker); await tick(); c = runner.render();
+    c.onDraftChange(""); c = runner.render();
+    c.onAttach(Array.from({ length: 10 }, (_, index) => new File(["notes"], `manual-${index}.txt`))); await tick(); c = runner.render();
+    assert.equal(c.attachments.length, 10);
+    c.onDraftChange(marker); c = runner.render();
+    assert.equal(c.attachments.length, 10); assert.equal(c.draft, original); assert.match(c.notice, /10개/);
+  } finally { runner.unmount(); }
+});
+
+for (const kind of ["url", "text"]) for (const completeRemoved of [false, true]) test(`actual pending ${kind} × undo retains original request and exact send ID (complete removed: ${completeRemoved})`, async () => {
+  const wait = deferred(), sends = [], uploads = [];
+  const runner = await urlRunner({ uploadChatAttachment: (_, __, source, signal) => { uploads.push({ source, signal }); return wait.promise; }, sendChatMessage: async (_, body) => { sends.push(body); return urlReply; } });
+  try {
+    let c = runner.render(); const literal = "https://pending.example.com/a", original = "가".repeat(2000);
+    const marker = kind === "url" ? literal : c.onPasteText(original);
+    const draft = `prior ${marker} suffix`;
+    c.onDraftChange(draft); if (kind === "url") c.onCommitUrls(literal, true);
+    await tick(); const editor = inlineEditor(runner); c = editor.render(); const key = c.attachments[0].key;
+    editor.remove(); c = editor.render(); assert.equal(c.draft, "prior  suffix"); assert.deepEqual(c.attachments, []);
+    assert.equal(uploads[0].signal.aborted, false);
+    const attachment = kind === "url" ? urlAttachment(literal, SECOND) : { id: SECOND, kind: "text", name: uploads[0].source.name, size: uploads[0].source.size };
+    if (completeRemoved) { wait.resolve(attachment); await tick(); c = editor.render(); assert.deepEqual(c.attachments, []); }
+    editor.undo(); c = editor.render(); assert.equal(c.draft, draft); assert.equal(c.attachments[0].key, key);
+    editor.undo(true); c = editor.render(); assert.deepEqual(c.attachments, []);
+    editor.undo(); c = editor.render(); assert.equal(c.attachments[0].key, key);
+    c.onSend(); await tick(); assert.equal(sends.length, completeRemoved ? 1 : 0);
+    if (!completeRemoved) { wait.resolve(attachment); await tick(); c = editor.render(); }
+    assert.equal(uploads.length, 1); assert.equal(sends.length, 1); assert.deepEqual(sends[0].attachmentIds, [SECOND]);
+    assert.equal(sends[0].content, kind === "url" ? draft : "prior 첨부 참고 자료: Pasted Text 1.txt suffix");
+  } finally { runner.unmount(); }
+});
+
+for (const kind of ["url", "text"]) test(`actual pending ${kind} × during submit fences old send and excludes hidden reference`, async () => {
+  const wait = deferred(), sends = []; let signal;
+  const runner = await urlRunner({ uploadChatAttachment: (_, __, source, value) => { signal = value; return wait.promise; }, sendChatMessage: async (_, body) => { sends.push(body); return urlReply; } });
+  try {
+    let c = runner.render(); const literal = "https://pending.example.com/a", original = "나".repeat(2000);
+    const marker = kind === "url" ? literal : c.onPasteText(original);
+    c.onDraftChange(`question ${marker}`); if (kind === "url") c.onCommitUrls(literal, true);
+    await tick(); const editor = inlineEditor(runner); c = editor.render();
+    c.onSend(); await tick(); editor.remove(); c = editor.render(); assert.deepEqual(c.attachments, []); assert.equal(signal.aborted, false);
+    wait.resolve(kind === "url" ? urlAttachment(literal, SECOND) : { id: SECOND, kind: "text", name: "Pasted Text 1.txt", size: 6000 });
+    await tick(); c = editor.render(); assert.equal(sends.length, 0); assert.deepEqual(c.attachments, []);
+    c.onSend(); await tick(); c = editor.render(); assert.equal(sends.length, 1); assert.deepEqual(sends[0].attachmentIds, []); assert.equal(sends[0].content, "question");
+    editor.undo(); c = editor.render(); assert.deepEqual(c.attachments, []); assert.doesNotMatch(c.draft, /\[\[ Text/);
+  } finally { runner.unmount(); }
+});
+
+for (const kind of ["url", "text"]) test(`explicit ${kind} cancel still aborts and rejects late completion`, async () => {
+  const wait = deferred(), sends = []; let signal;
+  const runner = await urlRunner({ uploadChatAttachment: (_, __, source, value) => { signal = value; return wait.promise; }, sendChatMessage: async (_, body) => { sends.push(body); return urlReply; } });
+  try {
+    let c = runner.render(); const literal = "https://pending.example.com/a", original = "다".repeat(2000);
+    const marker = kind === "url" ? literal : c.onPasteText(original);
+    c.onDraftChange(marker); if (kind === "url") c.onCommitUrls(literal, true);
+    await tick(); c = runner.render(); const key = c.attachments[0].key;
+    c.onCancelAttachment(key); c = runner.render(); assert.equal(signal.aborted, true);
+    wait.resolve(kind === "url" ? urlAttachment(literal, SECOND) : { id: SECOND, kind: "text", name: "Pasted Text 1.txt", size: 6000 });
+    await tick(); c = runner.render();
+    if (kind === "url") { assert.equal(c.attachments[0].state, "cancelled"); assert.equal(c.attachments[0].attachment, undefined); c.onSend(); await tick(); assert.equal(sends.length, 0); }
+    else { assert.equal(c.draft, original); assert.deepEqual(c.attachments, []); c.onDraftChange(marker); c = runner.render(); assert.equal(c.draft, original); assert.deepEqual(c.attachments, []); }
+  } finally { runner.unmount(); }
+});
+
+test("URL chip deletion and undo reconnect the same mapping without duplicate registration", async () => {
+  let uploads = 0;
+  const runner = await urlRunner({ uploadChatAttachment: async (_, __, url) => { uploads++; return urlAttachment(url); } });
+  try {
+    let c = runner.render(); const draft = "prior https://example.com/a suffix";
+    c.onDraftChange(draft); c.onCommitUrls(draft, true); await tick(); c = runner.render();
+    const id = c.attachments[0].attachment.id;
+    c.onDraftChange("prior  suffix"); c = runner.render(); assert.equal(c.attachments.length, 0);
+    c.onDraftChange(draft); c = runner.render(); assert.equal(c.attachments.length, 1); assert.equal(c.attachments[0].attachment.id, id); assert.equal(uploads, 1);
+  } finally { runner.unmount(); }
+});
+
+
+test("removed pending URL failure restores failed mapping and retries once", async () => {
+  const wait = deferred(); let uploads = 0;
+  const runner = await urlRunner({ uploadChatAttachment: async (_, __, url) => { if (++uploads === 1) { await wait.promise; throw new Error("offline"); } return urlAttachment(url); } });
+  try {
+    let c = runner.render(); const url = "https://example.com/fail";
+    c.onDraftChange(url); c.onCommitUrls(url, true); await tick();
+    const editor = inlineEditor(runner); c = editor.render(); editor.remove(); editor.render();
+    wait.resolve(); await tick(); editor.undo(); c = editor.render();
+    assert.equal(c.attachments[0].state, "failed");
+    c.onRetryAttachment(c.attachments[0].key); await tick(); c = editor.render();
+    assert.equal(c.attachments[0].state, "ready"); assert.equal(uploads, 2);
+  } finally { runner.unmount(); }
+});
+
+test("saved edit chip ownership removal and undo preserve only independent selections", async () => {
+  const edits = [];
+  const runner = await urlRunner({ listChatSessions: async () => [rooms[0]], fetchChatHistory: async () => [{ ...row(USER_MSG, "user", "@야구 규칙 질문"), tool_group_ids: ["rules", "schedule"] }], editChatMessage: async (_, body) => { edits.push(body); return urlReply; } });
+  try {
+    let c = runner.render(); c.onEditMessage(USER_MSG); c = runner.render();
+    c.onInlineToolSelect("rules", "야구 규칙", true);
+    c.onDraftChange("질문"); c = runner.render(); assert.deepEqual(c.toolGroupIds, ["schedule"]);
+    c.onDraftChange("@야구 규칙 질문"); c = runner.render(); assert.deepEqual(c.toolGroupIds, ["schedule", "rules"]);
+    c.onDraftChange("질문"); c = runner.render(); c.onSend(); await tick();
+    assert.deepEqual(edits[0].toolGroupIds, ["schedule"]);
+  } finally { runner.unmount(); }
+});
+
+
+test("deleted conversation purges draft/edit maps without discarding a surviving Undo", async () => {
+  const runner = await urlRunner();
+  try {
+    let c = runner.render(); const deleted = c.activeConversationId;
+    const oldMarker = c.onPasteText("old".repeat(1000)); c.onDraftChange(oldMarker); await tick(); c = runner.render();
+    c.onDraftChange(""); c = runner.render(); c.onReset(); c = runner.render();
+    const alive = c.activeConversationId; const marker = c.onPasteText("alive".repeat(500)); c.onDraftChange(marker); await tick(); c = runner.render();
+    c.onDraftChange(""); c = runner.render(); c.onDeleteConversation(deleted); c = runner.render();
+    c.onDraftChange(marker); c = runner.render(); assert.equal(c.activeConversationId, alive); assert.equal(c.attachments.length, 1);
+    c.onSelectConversation(deleted); c = runner.render();
+    assert.equal(c.activeConversationId, alive);
+    c.onDraftChange(oldMarker); c = runner.render(); assert.equal(c.attachments.length, 0);
+  } finally { runner.unmount(); }
+});
+
+test("deleted pending session creation cannot resurrect a backend session", async () => {
+  const creation = deferred(); let uploads = 0;
+  const runner = await urlRunner({ createChatSession: () => creation.promise, uploadChatAttachment: async () => { uploads++; return urlAttachment("https://example.com"); } });
+  try {
+    let c = runner.render(); const deleted = c.activeConversationId;
+    const marker = c.onPasteText("gone".repeat(750)); c.onDraftChange(marker); c = runner.render();
+    c.onDeleteConversation(deleted); c = runner.render(); creation.resolve(rooms[0]); await tick(); c = runner.render();
+    assert.equal(uploads, 0); assert.equal(c.attachments.length, 0); assert.equal(c.draft, "");
+    c.onSelectConversation(deleted); c = runner.render(); c.onEditMessage(USER_MSG); c = runner.render(); assert.equal(c.messages.length, 0);
+  } finally { runner.unmount(); }
 });

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { type ReactNode, useEffect, useRef } from "react";
+import { chatComposerContent } from "@/lib/chat/inline-urls";
 import { MAX_MESSAGE_LENGTH } from "@/lib/chat/types";
 import { useMemberAuth } from "@/lib/member-auth";
 import { ChatAnswer } from "./chat-answer";
@@ -12,6 +13,8 @@ import { ChatPending } from "./chat-pending";
 import { ChatProgress, ChatSubAgentStatus } from "./chat-progress";
 import { useChat } from "./chat-provider";
 import { Icon } from "./icons";
+import { ChatAttachmentCards, ChatComposerTools } from "./chat-composer-tools";
+import { ChatInlineInput } from "./chat-inline-input";
 import "@/styles/chat-popup.css";
 
 const SUGGESTIONS = [
@@ -39,7 +42,7 @@ export function ChatPopup({
 }: ChatPopupProps) {
   const chat = useChat();
   const { status: authStatus } = useMemberAuth();
-  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const inputRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const composingRef = useRef(false);
@@ -57,7 +60,7 @@ export function ChatPopup({
   useEffect(() => {
     if (embedded) return;
     const input = inputRef.current;
-    if (input && !input.disabled) input.focus({ preventScroll: true });
+    if (input && input.getAttribute("aria-disabled") !== "true") input.focus({ preventScroll: true });
     else closeRef.current?.focus({ preventScroll: true });
   }, [embedded]);
 
@@ -77,7 +80,7 @@ export function ChatPopup({
   }, [chat.messages, chat.pending, chat.failed, chat.error, chat.activeConversationId, busy]);
 
   function send() {
-    if (busy || !available || !chat.draft.trim()) return;
+    if (busy || !available || !chatComposerContent(chat.draft, chat.attachments)) return;
     nearBottomRef.current = true;
     chat.onSend();
   }
@@ -114,9 +117,9 @@ export function ChatPopup({
         {chat.context?.stadium && <p className="chat-popup-context"><Icon name="pin" size={13} />{chat.context.stadium}에서의 하루</p>}
         <div className="chat-popup-messages" role="log" aria-label="직관 도우미 대화 내용" aria-live="polite" aria-relevant="additions">
           {chat.messages.map((message, index) => <article key={`${chat.activeConversationId}-${index}`} className={`chat-popup-message chat-popup-message-${message.role}`}>
-            {message.role === "assistant" ? <><div className="chat-popup-assistant-label"><Icon name="sparkles" size={14} />직관 도우미</div><ChatProgress items={message.timeline ?? []} />{message.content && <ChatAnswer text={message.content} />}{message.status && message.status !== "completed" && <p className="chat-popup-message-note">끝까지 만들지 못한 답변이에요.</p>}{message.course && <ChatCourseCard course={message.course} />}<ChatQuestions message={message} disabled={!available || busy || index !== chat.messages.length - 1} /><ChatFeedback key={`${chat.activeConversationId}-${message.id}`} message={message} disabled={!available || busy} /></> : <><span className="sr-only">나</span><div className="chat-popup-user-bubble"><ChatUserContent content={message.content} planning={chat.messages[index - 1]?.role === "assistant" ? chat.messages[index - 1].planning : undefined} /></div>{message.answerDeleted && <p className="chat-popup-message-note">답변을 삭제했어요.</p>}{message.status && message.status !== "completed" && <p className="chat-popup-message-note">답변을 받지 못한 질문이에요.</p>}{message.id !== undefined && available && !busy && <div className="chat-popup-message-actions"><button type="button" aria-label="이 질문 수정" title="수정하면 이 질문 이후의 대화가 지워져요" onClick={() => { chat.onEditMessage(message.id!); inputRef.current?.focus(); }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m16 3 5 5-13 13H3v-5L16 3ZM14 5l5 5" /></svg></button><button type="button" aria-label="이 질문부터 삭제" title="이 질문과 이후 대화를 모두 지워요" onClick={() => chat.onDeleteMessage(message.id!)}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7" /></svg></button></div>}</>}
+            {message.role === "assistant" ? <><div className="chat-popup-assistant-label"><Icon name="sparkles" size={14} />직관 도우미</div><ChatProgress items={message.timeline ?? []} />{message.content && <ChatAnswer text={message.content} />}{message.status && message.status !== "completed" && <p className="chat-popup-message-note">끝까지 만들지 못한 답변이에요.</p>}{message.course && <ChatCourseCard course={message.course} />}<ChatQuestions message={message} disabled={!available || busy || index !== chat.messages.length - 1} /><ChatFeedback key={`${chat.activeConversationId}-${message.id}`} message={message} disabled={!available || busy} /></> : <><span className="sr-only">나</span><ChatAttachmentCards items={(message.attachments ?? []).filter(item => !(item.kind === "text" && /^Pasted Text \d+\.txt$/.test(item.name) && message.content.includes(`첨부 참고 자료: ${item.name}`)))} /><div className="chat-popup-user-bubble"><ChatUserContent attachments={message.attachments} content={message.content} planning={chat.messages[index - 1]?.role === "assistant" ? chat.messages[index - 1].planning : undefined} /></div>{message.answerDeleted && <p className="chat-popup-message-note">답변을 삭제했어요.</p>}{message.status && message.status !== "completed" && <p className="chat-popup-message-note">답변을 받지 못한 질문이에요.</p>}{message.id !== undefined && available && !busy && <div className="chat-popup-message-actions"><button type="button" aria-label="이 질문 수정" title="수정하면 이 질문 이후의 대화가 지워져요" onClick={() => { chat.onEditMessage(message.id!); inputRef.current?.focus(); }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m16 3 5 5-13 13H3v-5L16 3ZM14 5l5 5" /></svg></button><button type="button" aria-label="이 질문부터 삭제" title="이 질문과 이후 대화를 모두 지워요" onClick={() => chat.onDeleteMessage(message.id!)}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7" /></svg></button></div>}</>}
           </article>)}
-          {(chat.pending || chat.failed) && <article className="chat-popup-message chat-popup-message-user"><span className="sr-only">나</span><div className="chat-popup-user-bubble"><ChatUserContent content={chat.pending || chat.failed} planning={chat.messages.at(-1)?.role === "assistant" ? chat.messages.at(-1)?.planning : undefined} /></div></article>}
+          {chat.failed && <article className="chat-popup-message chat-popup-message-user"><span className="sr-only">나</span><div className="chat-popup-user-bubble"><ChatUserContent content={chat.failed} planning={chat.messages.at(-1)?.role === "assistant" ? chat.messages.at(-1)?.planning : undefined} /></div></article>}
           {busy && <article className="chat-popup-message chat-popup-message-assistant"><div className="chat-popup-assistant-label"><Icon name="sparkles" size={14} />직관 도우미</div><ChatProgress items={chat.timeline} live /><ChatPending busy={busy} streaming={chat.streaming} className="chat-popup-thinking" /></article>}
         </div>
         <ChatWriterOffer />
@@ -129,12 +132,11 @@ export function ChatPopup({
       {<div className="chat-popup-composer-area">
           <ChatSubAgentStatus items={busy ? chat.timeline : []} />
         {chat.editingMessageId !== null && <p className="chat-popup-edit-banner" role="status">질문을 수정하고 있어요. 보내면 이 질문 이후의 대화는 지워져요. <button type="button" onClick={chat.onCancelEdit}>수정 취소</button></p>}
-        <div className="chat-popup-composer">
+        <div className="chat-popup-composer" onDragOver={event => { if (event.dataTransfer.types.includes("Files")) event.preventDefault(); }} onDrop={event => { if (!event.dataTransfer.files.length) return; event.preventDefault(); event.stopPropagation(); if (!busy && available) chat.onAttach(Array.from(event.dataTransfer.files)); }} onPaste={event => { const images = Array.from(event.clipboardData.files).filter(file => file.type.startsWith("image/")); if (images.length && !busy && available) { event.preventDefault(); chat.onAttach(images); } }}>
+          <ChatComposerTools disabled={busy} available={available} hint={chat.draft.length > MAX_MESSAGE_LENGTH * .8 ? `${chat.draft.length}/${MAX_MESSAGE_LENGTH}` : busy ? "답변을 준비하고 있어요" : "야구가 궁금한 모든 순간"} actions={busy ? <button type="button" className="chat-popup-send chat-popup-stop" aria-label="답변 생성 중단" title="답변 받기 중단 (받던 답변은 저장되지 않아요)" onClick={event => { event.preventDefault(); chat.onCancel(); }}><span /></button> : <button type="button" className="chat-popup-send" aria-label="질문 보내기" title="질문 보내기" disabled={!chatComposerContent(chat.draft, chat.attachments) || !available} onClick={send}><Icon name="arrow" size={19} /></button>}>
           <label className="sr-only" htmlFor={questionId}>직관 도우미에게 질문</label>
-          <textarea ref={inputRef} id={questionId} value={chat.draft} maxLength={MAX_MESSAGE_LENGTH} rows={1} placeholder="직관 도우미에게 물어보세요" disabled={busy} onChange={event => chat.onDraftChange(event.target.value)} onCompositionStart={() => { composingRef.current = true; }} onCompositionEnd={() => { composingRef.current = false; }} onKeyDown={event => {
-            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && !composingRef.current && event.keyCode !== 229) { event.preventDefault(); send(); }
-          }} />
-          <div className="chat-popup-composer-bottom"><span>{chat.draft.length > MAX_MESSAGE_LENGTH * .8 ? `${chat.draft.length}/${MAX_MESSAGE_LENGTH}` : busy ? "답변을 준비하고 있어요" : "야구가 궁금한 모든 순간"}</span>{busy ? <button type="button" className="chat-popup-send chat-popup-stop" aria-label="답변 생성 중단" title="답변 받기 중단 (받던 답변은 저장되지 않아요)" onClick={event => { event.preventDefault(); chat.onCancel(); }}><span /></button> : <button type="button" className="chat-popup-send" aria-label="질문 보내기" title="질문 보내기" disabled={!chat.draft.trim() || !available} onClick={send}><Icon name="arrow" size={19} /></button>}</div>
+          <ChatInlineInput id={questionId} inputRef={inputRef} disabled={busy} available={available} onSend={send} onCompositionChange={value => { composingRef.current = value; }} />
+          </ChatComposerTools>
         </div>
         <p className="chat-popup-footnote">{guest && !demo ? <><Link href="/login">로그인</Link>하면 계정에 대화가 저장돼요. 비회원 대화는 이 브라우저에서만 이어져요. </> : null}{demo ? "예시 답변이에요. 실제 검색 결과는 포함되지 않아요." : "일정과 구장 운영 정보는 방문 전 공식 안내를 확인해 주세요."}</p>
       </div>}

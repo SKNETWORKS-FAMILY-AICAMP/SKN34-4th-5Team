@@ -66,6 +66,80 @@ const hanging = init => new Response(new ReadableStream({
 
 beforeEach(() => { stored.clear(); clearMemberTokens(); });
 
+const ATTACHMENT = "11111111-1111-4111-8111-111111111111";
+const attachmentDto = { id: ATTACHMENT, kind: "image", name: "seat.png", content_type: "image/png", size: 12, width: 1, height: 1, url: `/api/v2/chat/sessions/${SESSION}/attachments/${ATTACHMENT}/`, created_at: "2026-10-06T00:00:00Z" };
+test("empty text MIME uploads use verified extension MIME without overriding multipart boundary", async () => {
+  const { uploadChatAttachment, validateChatFile } = require("./lib/chat/client.js");
+  for (const [name, type, expected] of [["notes.md", "", "text/markdown"], ["notes.txt", "", "text/plain"], ["notes.md", "text/x-markdown", "text/x-markdown"]]) {
+    let captured;
+    global.fetch = async (_, init) => { captured = init; return json({ ...attachmentDto, kind: "text", name, content_type: expected, width: null, height: null }, 201); };
+    const file = new File(["notes"], name, { type });
+    assert.equal(validateChatFile(file), "text"); await uploadChatAttachment("guest", SESSION, file);
+    const uploaded = captured.body.get("file"); assert.equal(uploaded.name, name); assert.equal(uploaded.type, expected); assert.equal(await uploaded.text(), "notes");
+    assert.equal(new Headers(captured.headers).get("Content-Type"), null);
+  }
+});
+test("attachment multipart and private previews reuse Bearer; URL uploads are explicit JSON", async () => {
+  const { uploadChatAttachment, fetchChatAttachmentBlob } = require("./lib/chat/client.js");
+  saveMemberTokens("access-token", "refresh-token");
+  const calls = [];
+  global.fetch = async (url, init) => { calls.push({ url, init }); return init.method === "GET" ? new Response("image bytes") : json(attachmentDto, 201); };
+  const image = new File(["image"], "seat.png", { type: "image/png" });
+  const saved = await uploadChatAttachment("member", SESSION, image);
+  assert.equal(saved.contentType, "image/png"); assert.equal(saved.createdAt, attachmentDto.created_at);
+  assert.ok(calls[0].init.body instanceof FormData); assert.equal(calls[0].init.body.get("file").name, "seat.png");
+  assert.equal(new Headers(calls[0].init.headers).get("Content-Type"), null);
+  assert.equal(new Headers(calls[0].init.headers).get("Authorization"), "Bearer access-token");
+  assert.equal(await (await fetchChatAttachmentBlob("member", SESSION, ATTACHMENT)).text(), "image bytes");
+  const count = calls.length;
+  await uploadChatAttachment("guest", SESSION, "https://example.com/info");
+  assert.equal(calls.length, count + 1);
+  assert.deepEqual(JSON.parse(calls.at(-1).init.body), { url: "https://example.com/info" });
+  global.fetch = async () => json({ detail: "저장소를 사용할 수 없어요." }, 503);
+  await assert.rejects(uploadChatAttachment("guest", SESSION, image), error => error.status === 503);
+  await assert.rejects(uploadChatAttachment("guest", SESSION, new File(["svg"], "bad.svg", { type: "image/svg+xml" })), error => error.status === 400);
+});
+test("message options map snake_case, PUT omissions preserve and explicit empty clears", async () => {
+  const calls = [], log = record(calls); global.fetch = async (url, init) => { await log(url, init); return sse(answerEvents()); };
+  await sendChatMessage("guest", { sessionId: SESSION, content: "question", toolGroupIds: ["rules", "weather"], attachmentIds: [ATTACHMENT] });
+  assert.deepEqual(calls[0].body, { content: "question", tool_group_ids: ["rules", "weather"], attachment_ids: [ATTACHMENT] });
+  await editChatMessage("guest", { sessionId: SESSION, messageId: 1, content: "edit" });
+  assert.equal(Object.hasOwn(calls[1].body, "attachment_ids"), false);
+  await editChatMessage("guest", { sessionId: SESSION, messageId: 1, content: "clear", toolGroupIds: [], attachmentIds: [] });
+  assert.deepEqual(calls[2].body.attachment_ids, []);
+  await assert.rejects(sendChatMessage("guest", { sessionId: SESSION, content: "question", toolGroupIds: ["unknown"] }), error => error.status === 400);
+  await assert.rejects(sendChatMessage("guest", { sessionId: SESSION, content: "question", attachmentIds: [ATTACHMENT, ATTACHMENT] }), error => error.status === 400);
+});
+for (const mode of ["guest", "member"]) for (const method of ["POST", "PUT"]) for (const count of [9, 10, 11]) {
+  test(`${mode} ${method} accepts 9/10 attachments and rejects 11: ${count}`, async () => {
+    if (mode === "member") saveMemberTokens("access-token", "refresh-token");
+    const calls = [], log = record(calls);
+    global.fetch = async (url, init) => { await log(url, init); return sse(answerEvents()); };
+    const attachmentIds = Array.from({ length: count }, (_, index) => `11111111-1111-4111-8111-${String(index + 1).padStart(12, "0")}`);
+    const body = { sessionId: SESSION, content: "question", attachmentIds };
+    const send = () => method === "POST" ? sendChatMessage(mode, body) : editChatMessage(mode, { ...body, messageId: USER_MSG });
+    if (count === 11) {
+      await assert.rejects(send(), error => error instanceof ChatClientError && error.status === 400 && !error.uncertain);
+      assert.equal(calls.length, 0);
+    } else {
+      assert.equal((await send()).reply, "첫 답변");
+      assert.equal(calls.length, 1);
+      assert.equal(calls[0].method, method);
+      assert.equal(calls[0].url, `/api/v2/chat/sessions/${SESSION}/messages/`);
+      assert.deepEqual(calls[0].body, { ...(method === "PUT" ? { message_id: USER_MSG } : {}), content: "question", attachment_ids: attachmentIds });
+      assert.equal(calls[0].headers.get("Authorization"), mode === "member" ? "Bearer access-token" : null);
+    }
+  });
+}
+
+test("history restores validated metadata and manual groups, rejects unsafe private preview URL", async () => {
+  global.fetch = async () => json([{ ...row(1, "user", "image"), attachments: [attachmentDto], tool_group_ids: ["stadium_info"] }]);
+  const message = restoreChatMessages(await fetchChatHistory("guest", SESSION))[0];
+  assert.equal(message.attachments[0].contentType, "image/png"); assert.deepEqual(message.toolGroupIds, ["stadium_info"]);
+  global.fetch = async () => json([{ ...row(1, "user", "image"), attachments: [{ ...attachmentDto, url: "https://evil.test/image" }] }]);
+  await assert.rejects(fetchChatHistory("guest", SESSION), error => error.status === 502);
+});
+
 test("member send creates a UUID session then streams v2 delta/done with Bearer auth", async () => {
   saveMemberTokens("access-token", "refresh-token");
   const calls = [], log = record(calls);

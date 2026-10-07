@@ -10,6 +10,14 @@ ChatThread.update 의 revision fence/세션 행 잠금에 막혀 error 로 끝�
 """
 import queue
 import threading
+from contextvars import ContextVar
+
+_cancelled = ContextVar("chat_run_cancelled", default=lambda: False)
+
+
+def check_cancelled():
+    if _cancelled.get()():
+        raise Stopped
 
 from django.conf import settings
 from django.db import connections
@@ -58,6 +66,7 @@ class Run:
             return False
 
         def work():
+            token = _cancelled.set(lambda: self.cancelled or stop.is_set())
             try:
                 for item in frames:
                     if not put(("item", item)):
@@ -68,6 +77,7 @@ class Run:
                 put(("error", exc))
             finally:
                 frames.close()
+                _cancelled.reset(token)
                 connections.close_all()  # 이 스레드가 연 DB 연결(도구 등)
 
         threading.Thread(target=work, daemon=True, name=f"chat-run-{self.session_id}").start()
@@ -139,6 +149,7 @@ def stream_turn(thread, prefix, turns, human, produce, run, on_stop=None, label=
 
     from llm.enum import PublicChatEvent, TurnStatus
     from llm.serializer.message import error_payload, wire_done
+    from llm.service.attachments import AttachmentProcessingLimit
 
     log = logging.getLogger(__name__)
 
@@ -162,7 +173,7 @@ def stream_turn(thread, prefix, turns, human, produce, run, on_stop=None, label=
         produce = lambda: usage.metered(source, meter, charge)  # noqa: E731
     owner = register(thread.thread_id)
     try:
-        final = None
+        final, failure = None, error_payload()
         try:
             yield None  # priming: 소비 전에 close() 돼도 아래 GeneratorExit 경로가 돈다
             owner_started[0] = True
@@ -181,6 +192,8 @@ def stream_turn(thread, prefix, turns, human, produce, run, on_stop=None, label=
             cancel_save()  # 대개 revision fence/세션 삭제에 막혀 쓰지 않는다. 그래도 같은 경로로 둔다.
             yield PublicChatEvent.STOPPED.value, {}
             return
+        except AttachmentProcessingLimit as error:
+            failure = {"detail": error.detail}
         except TimeoutError:
             log.warning("%s chat stream idle timeout", label)
         except Exception:
@@ -203,7 +216,7 @@ def stream_turn(thread, prefix, turns, human, produce, run, on_stop=None, label=
         if done:
             yield PublicChatEvent.DONE.value, done
         else:
-            yield PublicChatEvent.ERROR.value, error_payload()
+            yield PublicChatEvent.ERROR.value, failure
     finally:
         unregister(owner)
         if charge is not None:

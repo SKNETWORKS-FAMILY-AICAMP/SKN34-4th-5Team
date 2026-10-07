@@ -51,6 +51,7 @@ test("home question form hands guest and member questions to chat only on submit
     "next/image": { __esModule: true, default: "img" },
     "@/lib/member-auth": auth, "./chat-provider": { useChat: () => chat },
     "@/lib/chat/types": { MAX_MESSAGE_LENGTH: 2000 },
+    "@/lib/chat/inline-urls": { chatComposerContent: text => text.trim() },
     "./icons": { Icon: "icon", Baseball: "baseball", CapBot: "cap-bot" } };
   const home = load("../components/home-page.tsx", { ...common,
     "@/lib/routes": { useRoutes: () => [], useRoutesReady: () => true },
@@ -89,6 +90,8 @@ test("home question form hands guest and member questions to chat only on submit
     "./chat-answer": { ChatAnswer: "answer" }, "./chat-planning": { ChatQuestions: "questions", ChatUserContent: "content", ChatWriterOffer: "offer" },
     "./chat-feedback": { ChatFeedback: "feedback" }, "./chat-course-card": { ChatCourseCard: "course" },
     "./chat-pending": { ChatPending: "pending" }, "./chat-progress": { ChatProgress: "progress", ChatSubAgentStatus: "subagents" },
+    "./chat-inline-input": { ChatInlineInput: "inline-input" },
+    "./chat-composer-tools": { ChatComposerTools: "tools", ChatAttachmentCards: "attachments" },
     "./chat-usage": { ChatUsage: "usage" } });
   const destination = load("../app/chat/page.tsx", { "@/components/chat-workspace": workspace });
   assert.equal(destination.default().type, workspace.ChatWorkspace);

@@ -3,7 +3,9 @@ import { memberError, memberFetch } from "../member-auth-request";
 import { isRecord, parseChatRequest } from "./validation";
 import type { AnswerFeedback, ChatContext, ChatReply, ChatStatus } from "./types";
 import { MAX_REPLY_LENGTH, buildTimeline } from "./types";
-import { fromToolDto } from "./history";
+import { fromAttachmentDto, fromToolDto } from "./history";
+import type { ChatAttachment, ChatToolGroup } from "./types";
+import type { ChatAttachmentDto } from "./wire";
 import type { ChatMessageDto, ChatSessionDto, ChatStepDto, ChatToolCallDto } from "./wire";
 
 // Members and guests share one API. Members authenticate with Bearer (memberFetch); guests send no
@@ -23,8 +25,9 @@ const STATUS: Record<ChatMode, ChatStatus> = {
 export const GUEST_STATUS = STATUS.guest;
 
 export type ChatStreamCallbacks = { onPlanning?: (payload: ChatPlanning) => void; onDelta?: (piece: string, parentId: string | null) => void; onTool?: (tool: ChatToolCallDto) => void };
-export type ChatSendRequest = { sessionId?: string; content: string; context?: ChatContext };
-export type ChatEditRequest = { sessionId: string; messageId: number; content: string; context?: ChatContext };
+export type ChatInputOptions = { toolGroupIds?: string[]; attachmentIds?: string[] };
+export type ChatSendRequest = ChatInputOptions & { sessionId?: string; content: string; context?: ChatContext };
+export type ChatEditRequest = ChatInputOptions & { sessionId: string; messageId: number; content: string; context?: ChatContext };
 
 export class ChatClientError extends Error {
   constructor(message: string, public status: number, public uncertain = false, public sessionId?: string, public code?: string) { super(message); }
@@ -124,11 +127,15 @@ const isDetail = (value: unknown) => isRecord(value) && isRecord(value.args) && 
 const isStep = (value: unknown): value is ChatStepDto => isRecord(value) &&
   ((value.type === "text" && typeof value.text === "string" && isParent(value.parent_id)) || (value.type === "tool" && typeof value.id === "string" && Boolean(value.id)));
 const isSteps = (value: unknown) => value === undefined || (Array.isArray(value) && value.every(isStep));
+export const TOOL_GROUP_IDS = ["schedule", "standings", "players", "baseball_stats", "rules", "stadium_info", "parking_transport", "community", "nearby_places", "tourism", "directions", "courses", "weather", "day_plan"];
+const isGroups = (value: unknown): value is string[] => Array.isArray(value) && value.every(id => typeof id === "string" && TOOL_GROUP_IDS.includes(id)) && new Set(value).size === value.length;
+const isAttachment = (value: unknown): value is ChatAttachmentDto => isRecord(value) && typeof value.id === "string" && UUID.test(value.id) && ["image", "text", "url"].includes(String(value.kind)) && typeof value.name === "string" && typeof value.content_type === "string" && isCount(value.size) && (value.width === null || isCount(value.width)) && (value.height === null || isCount(value.height)) && typeof value.created_at === "string" && (value.kind === "url" ? typeof value.url === "string" && /^https?:\/\//.test(value.url) : value.url === null || typeof value.url === "string" && new RegExp(`^/api/v2/chat/sessions/[0-9a-f-]{36}/attachments/${value.id}/$`, "i").test(value.url));
 const isMessage = (value: unknown): value is ChatMessageDto => isRecord(value) && isMessageId(value.id) && isMessageId(value.sequence_no) &&
   (value.role === "user" || value.role === "assistant") && typeof value.content === "string" &&
   ["pending", "completed", "failed", "stopped"].includes(String(value.status)) &&
   Array.isArray(value.tools) && value.tools.every(isTool) && isSteps(value.steps) && typeof value.created_at === "string" && typeof value.updated_at === "string" &&
-  (value.feedback === undefined || value.feedback === null || isAnswerFeedback(value.feedback));
+  (value.feedback === undefined || value.feedback === null || isAnswerFeedback(value.feedback)) &&
+  (value.tool_group_ids === undefined || isGroups(value.tool_group_ids)) && (value.attachments === undefined || (Array.isArray(value.attachments) && value.attachments.every(isAttachment)));
 // DELETE answers 204 with no body.
 const readEmpty = async (response: Response) => { await response.text(); };
 
@@ -288,13 +295,55 @@ async function streamReply(mode: ChatMode, method: "POST" | "PUT", sessionId: st
 }
 
 export async function sendChatMessage(mode: ChatMode, body: ChatSendRequest, signal?: AbortSignal, callbacks: ChatStreamCallbacks = {}): Promise<ChatReply> {
-  const input = parseInput(body.content, body.context);
+  const input = { ...parseInput(body.content, body.context), ...inputOptions(body) };
   const sessionId = body.sessionId ?? (await createChatSession(mode, input.content.slice(0, 80), signal)).id;
   return streamReply(mode, "POST", sessionId, input, signal, callbacks);
+}
+
+function inputOptions(body: ChatInputOptions) {
+  if (body.toolGroupIds !== undefined && !isGroups(body.toolGroupIds)) throw new ChatClientError("선택한 기능을 확인해 주세요.", 400);
+  if (body.attachmentIds !== undefined && (!Array.isArray(body.attachmentIds) || body.attachmentIds.length > 10 || body.attachmentIds.some(id => !UUID.test(id)) || new Set(body.attachmentIds).size !== body.attachmentIds.length)) throw new ChatClientError("첨부 자료를 확인해 주세요.", 400);
+  return { ...(body.toolGroupIds !== undefined ? { tool_group_ids: body.toolGroupIds } : {}), ...(body.attachmentIds !== undefined ? { attachment_ids: body.attachmentIds } : {}) };
+}
+
+export async function fetchChatToolGroups(mode: ChatMode, signal?: AbortSignal): Promise<ChatToolGroup[]> {
+  const value = await request(mode, "/api/v2/chat/tool-groups/", { method: "GET" }, signal, readJson);
+  if (!Array.isArray(value) || !value.every(item => isRecord(item) && typeof item.id === "string" && TOOL_GROUP_IDS.includes(item.id) && typeof item.label === "string")) throw new ChatClientError("기능 목록을 불러오지 못했어요.", 502);
+  return value;
+}
+
+export function validateChatFile(file: File): ChatAttachment["kind"] {
+  const image = /\.(jpe?g|png|webp)$/i.test(file.name) && ["image/jpeg", "image/png", "image/webp"].includes(file.type);
+  const text = /\.(txt|md)$/i.test(file.name) && ["", "text/plain", "text/markdown", "text/x-markdown"].includes(file.type);
+  if (!image && !text) throw new ChatClientError("JPEG·PNG·WebP 이미지 또는 TXT·MD 문서를 선택해 주세요.", 400);
+  if (!file.size || file.size > (image ? 10 : 2) * 1024 * 1024) throw new ChatClientError(image ? "이미지는 10MB 이하로 첨부해 주세요." : "문서는 2MB 이하로 첨부해 주세요.", 400);
+  return image ? "image" : "text";
+}
+export async function uploadChatAttachment(mode: ChatMode, sessionId: string, source: File | string, signal?: AbortSignal): Promise<ChatAttachment> {
+  let init: RequestInit;
+  if (typeof source === "string") {
+    init = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: source }) };
+  } else {
+    validateChatFile(source);
+    const body = new FormData();
+    body.append("file", source.type ? source : new File([source], source.name, { type: /\.md$/i.test(source.name) ? "text/markdown" : "text/plain", lastModified: source.lastModified }));
+    init = { method: "POST", body };
+  }
+  const value = await request(mode, `${sessionPath(sessionId)}attachments/`, init, signal, readJson);
+  if (!isAttachment(value)) throw new ChatClientError("첨부 응답을 확인하지 못했어요.", 502);
+  return fromAttachmentDto(value);
+}
+export async function deleteChatAttachment(mode: ChatMode, sessionId: string, id: string): Promise<void> {
+  if (!UUID.test(id)) throw new ChatClientError("첨부 번호를 확인해 주세요.", 400);
+  await request(mode, `${sessionPath(sessionId)}attachments/${id}/`, { method: "DELETE" }, undefined, async () => undefined);
+}
+export async function fetchChatAttachmentBlob(mode: ChatMode, sessionId: string, id: string, signal?: AbortSignal): Promise<Blob> {
+  if (!UUID.test(id)) throw new ChatClientError("첨부 번호를 확인해 주세요.", 400);
+  return request(mode, `${sessionPath(sessionId)}attachments/${id}/`, { method: "GET" }, signal, response => response.blob());
 }
 
 /** Replaces a persisted user message: the server drops it and everything after, then streams a new answer. */
 export async function editChatMessage(mode: ChatMode, body: ChatEditRequest, signal?: AbortSignal, callbacks: ChatStreamCallbacks = {}): Promise<ChatReply> {
   if (!isMessageId(body.messageId)) throw new ChatClientError("메시지 번호를 확인해 주세요.", 400);
-  return streamReply(mode, "PUT", body.sessionId, { message_id: body.messageId, ...parseInput(body.content, body.context) }, signal, callbacks);
+  return streamReply(mode, "PUT", body.sessionId, { message_id: body.messageId, ...parseInput(body.content, body.context), ...inputOptions(body) }, signal, callbacks);
 }

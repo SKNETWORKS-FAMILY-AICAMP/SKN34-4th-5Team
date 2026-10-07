@@ -33,16 +33,17 @@ class ScriptedModel(BaseChatModel):
     script: Any  # Any: pydantic 이 list 를 복사하지 않게 해서 bind_tools 복사본과 공유한다
     calls: Any
     bound: tuple = ()
+    choice: Any = None
 
     @property
     def _llm_type(self):
         return "scripted"
 
     def bind_tools(self, tools, **kwargs):
-        return self.model_copy(update={"bound": tuple(t.name for t in tools)})
+        return self.model_copy(update={"bound": tuple(t.get("type") if isinstance(t, dict) else t.name for t in tools), "choice": kwargs.get("tool_choice")})
 
     def _generate(self, messages, stop=None, run_manager=None, **kwargs):
-        self.calls.append({"tools": self.bound, "system": messages[0].content, "messages": messages})
+        self.calls.append({"tools": self.bound, "system": messages[0].content, "messages": messages, "tool_choice": self.choice})
         while self.script:
             head = self.script[0]
             if not callable(head):

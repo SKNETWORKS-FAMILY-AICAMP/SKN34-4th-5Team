@@ -61,6 +61,12 @@ ALLOWED_HOSTS = [
 if "*" in ALLOWED_HOSTS:
     raise ValueError("DJANGO_ALLOWED_HOSTS must list explicit hosts")
 
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",")
+    if origin.strip()
+]
+
 AUTH_USER_MODEL = 'accounts.CustomUser'
 
 # Application definition

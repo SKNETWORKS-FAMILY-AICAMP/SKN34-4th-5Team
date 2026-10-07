@@ -1,7 +1,10 @@
 import type { ChatMessage, ChatToolCall } from "./types";
 import { parsePlanning } from "./planning";
 import { buildTimeline } from "./types";
-import type { ChatMessageDto, ChatToolCallDto } from "./wire";
+import type { ChatAttachmentDto, ChatMessageDto, ChatToolCallDto } from "./wire";
+import type { ChatAttachment } from "./types";
+
+export const fromAttachmentDto = (item: ChatAttachmentDto): ChatAttachment => ({ id: item.id, kind: item.kind, name: item.name, contentType: item.content_type, size: item.size, width: item.width, height: item.height, url: item.url, createdAt: item.created_at });
 
 export const fromToolDto = (tool: ChatToolCallDto): ChatToolCall => ({
   id: tool.id, toolName: tool.tool_name, status: tool.status, kind: tool.kind ?? "tool", parentId: tool.parent_id ?? null,
@@ -23,6 +26,8 @@ export function restoreChatMessages(history: ChatMessageDto[]): ChatMessage[] {
     const tools = item.tools.map(fromToolDto), timeline = buildTimeline(item.steps ?? [], tools), planning = parsePlanning(item.planning);
     return {
       id: item.id, role: item.role, content: item.content, status: item.status,
+      ...(item.attachments ? { attachments: item.attachments.map(fromAttachmentDto) } : {}),
+      ...(item.tool_group_ids ? { toolGroupIds: item.tool_group_ids } : {}),
       ...(item.answer_deleted ? { answerDeleted: true } : {}),
       ...(item.feedback !== undefined ? { feedback: item.feedback } : {}),
       ...(planning ? { planning } : {}),

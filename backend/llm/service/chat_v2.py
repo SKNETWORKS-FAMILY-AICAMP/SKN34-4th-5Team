@@ -15,11 +15,32 @@ log = logging.getLogger(__name__)
 
 def _model_history(messages, turns):
     """다음 모델 입력용 projection: 완료된 턴의 질문/최종 답변만."""
+    raw = {m.id: m for m in messages}
     return [
-        HumanMessage(item["content"]) if item["role"] == ChatRole.USER else AIMessage(item["content"] + ("\n" if item.get("planning", {}).get("questions") else "") + "\n".join(
+        raw[item["id"]] if item["role"] == ChatRole.USER else AIMessage(item["content"] + ("\n" if item.get("planning", {}).get("questions") else "") + "\n".join(
             q["question"] + ": " + " / ".join(q["choices"]) for q in item.get("planning", {}).get("questions", [])))
         for item in project_history(messages, turns) if item["status"] == TurnStatus.COMPLETED and not item.get("answer_deleted")
     ]
+
+
+def _citation_links(message):
+    """Responses annotations become visible Markdown links in SSE and stored answer."""
+    from urllib.parse import urlsplit, quote
+    links, seen = [], set()
+    for block in message.content if isinstance(message.content, list) else []:
+        if not isinstance(block, dict):
+            continue
+        for annotation in block.get("annotations") or []:
+            if annotation.get("type") != "url_citation":
+                continue
+            url = annotation.get("url", "")
+            parsed = urlsplit(url)
+            if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password or url in seen:
+                continue
+            seen.add(url)
+            title = str(annotation.get("title") or parsed.hostname).replace("\\", "\\\\").replace("[", "\\[").replace("]", "\\]").replace("\n", " ")
+            links.append(f"[{title}]({quote(url, safe=':/?&=#%+~@!$;,*')})")
+    return "\n\n출처: " + " · ".join(links) if links else ""
 
 
 def _frames(graph_input, run):
@@ -55,9 +76,12 @@ def _frames(graph_input, run):
             for update in data.values():
                 for message in (update or {}).get("messages") or [] if isinstance(update, dict) else ():
                     if not ns and isinstance(message, AIMessage) and not message.tool_calls:
-                        run["answer"] = str(message.text)
+                        citations = _citation_links(message)
+                        run["answer"] = str(message.text) + citations
                         if not streamed:
                             yield PublicChatEvent.DELTA.value, {"text": run["answer"]}  # 청크 없이 끝난 답: 한 번에
+                        elif citations:
+                            yield PublicChatEvent.DELTA.value, {"text": citations}
                     elif isinstance(message, AIMessage) and message.tool_calls:
                         if not ns:
                             run["messages"].append(message)
@@ -84,7 +108,9 @@ def _frames(graph_input, run):
 def _stream_turn(thread, prefix, turns, human, context, charge):
     """프레임: tool*/delta* → done | stopped | error (chat_runs.stream_turn). 저장 답변 = 마지막 도구 없는 model 호출의 답."""
     run = {"answer": "", "messages": []}
-    graph_input = {"messages": [*_model_history(prefix, turns), human]}
+    from llm.v2.middleware.attachment_context import recent_messages
+    graph_input = {"messages": recent_messages([*_model_history(prefix, turns), human]), "attachment_session_id": thread.thread_id,
+                   "tool_group_ids": human.additional_kwargs.get("tool_group_ids", [])}
     if context:
         graph_input["context"] = context
     return chat_runs.stream_turn(thread, prefix, turns, human, lambda: _frames(graph_input, run), run,
@@ -103,13 +129,13 @@ def _start(session, thread, begin, context):
     return frames
 
 
-def send_message(session, content, context=None):
+def send_message(session, content, context=None, input_options=None):
     """V2 사용자 메시지를 저장하고 (event, data) 튜플을 흘려보내는 제너레이터를 돌려준다."""
     thread = ChatThread(session.id)
-    return _start(session, thread, lambda: thread.ask(content), context)
+    return _start(session, thread, lambda: thread.ask(content, input_options), context)
 
 
-def message_update(session, message_id, content, context=None):
+def message_update(session, message_id, content, context=None, input_options=None):
     """V2: 해당 사용자 메시지 뒤를 지우고 같은 ID 로 질문을 바꾼 뒤 다시 답한다."""
     thread = ChatThread(session.id)
-    return _start(session, thread, lambda: thread.edit(message_id, content), context)
+    return _start(session, thread, lambda: thread.edit(message_id, content, input_options), context)
