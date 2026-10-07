@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 import os
 import json
 from datetime import timedelta
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -92,6 +93,7 @@ INSTALLED_APPS = [
     'community',
     'ads.apps.AdsConfig',
     'tving.apps.TvingConfig',
+    'fantasy.apps.FantasyConfig',
 ]
 
 MIDDLEWARE = [
@@ -171,6 +173,18 @@ BASEBALL_QUERY_MAX_RESPONSE_BYTES = positive_int_env(
     "BASEBALL_QUERY_MAX_RESPONSE_BYTES", 1024 * 1024
 )
 EXTERNAL_DATA_SYNC_INTERVAL_SECONDS = positive_int_env("EXTERNAL_DATA_SYNC_INTERVAL_SECONDS", 600)
+FANTASY_LOCAL_REQUEST_JOBS_ENABLED = os.getenv(
+    "FANTASY_LOCAL_REQUEST_JOBS_ENABLED", "false"
+).strip().lower() == "true"
+try:
+    FANTASY_POINT_PAYOUT_RATE = Decimal(os.getenv("FANTASY_POINT_PAYOUT_RATE", "0.10"))
+except InvalidOperation as error:
+    raise ValueError("FANTASY_POINT_PAYOUT_RATE must be a decimal between 0 and 1.") from error
+if (
+    not FANTASY_POINT_PAYOUT_RATE.is_finite()
+    or not Decimal("0") <= FANTASY_POINT_PAYOUT_RATE <= Decimal("1")
+):
+    raise ValueError("FANTASY_POINT_PAYOUT_RATE must be a decimal between 0 and 1.")
 KMA_SERVICE_KEY = os.getenv("KMA_SERVICE_KEY", "")
 KMA_API_KEY = os.getenv("KMA_API_KEY", "")
 KAKAO_REST_API_KEY = os.getenv("KAKAO_REST_API_KEY", "")

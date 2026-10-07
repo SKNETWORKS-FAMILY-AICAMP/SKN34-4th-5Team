@@ -1,6 +1,10 @@
-# Local HTTP startup: use the pinned MinIO source build from docker-compose.yml.
+# Local HTTP startup: reuse the same prebuilt MinIO image as docker-compose.dev.yml.
 # Run: docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
 services:
   backend:
     environment:
       COURSE_WEB_VERIFICATION_ENABLED: "true"
+      FANTASY_LOCAL_REQUEST_JOBS_ENABLED: "true"
+  minio:
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+    build: !reset null
