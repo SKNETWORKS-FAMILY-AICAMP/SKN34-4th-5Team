@@ -1,5 +1,5 @@
 """
-RAG 인덱싱: 전처리 CSV/docs → 청크 텍스트 → 임베딩 → DocumentChunk 적재
+RAG 인덱싱: 전처리 CSV/docs → 청크 텍스트 → 임베딩 → Qdrant upsert
 
 실행:
   python manage.py build_index --dry-run          # 청크만 만들고 통계·샘플 출력 (임베딩 X)
@@ -21,10 +21,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from django.core.management.base import BaseCommand
-from django.db import transaction
 from dotenv import load_dotenv
-
-from llm.models import Document, DocumentChunk
 
 BACKEND_DIR = Path(__file__).resolve().parents[3]
 REPO_DIR = BACKEND_DIR.parent
@@ -183,7 +180,7 @@ def row_text(header: str, row: dict) -> str:
 
 
 class Command(BaseCommand):
-    help = "전처리 CSV/docs → 청크 → 임베딩 → DocumentChunk 적재"
+    help = "전처리 CSV/docs → 청크 → 임베딩 → Qdrant upsert"
 
     def add_arguments(self, parser):
         parser.add_argument("--dry-run", action="store_true", help="청크만 만들고 통계 출력")
@@ -327,7 +324,7 @@ class Command(BaseCommand):
         ARTIFACTS_DIR.mkdir(exist_ok=True)
         ckpt = ARTIFACTS_DIR / "embeddings.npy"
         fp = ARTIFACTS_DIR / "embeddings.fingerprint"
-        fingerprint = hashlib.sha256("\n".join(texts).encode()).hexdigest()
+        fingerprint = hashlib.sha256((EMBEDDING_MODEL + ":1536\n" + "\n".join(texts)).encode()).hexdigest()
 
         vecs: list = []
         if ckpt.exists() and fp.exists() and fp.read_text() == fingerprint:
@@ -335,7 +332,8 @@ class Command(BaseCommand):
             self.stdout.write(f"체크포인트 재개: {len(vecs)}/{len(texts)}")
         fp.write_text(fingerprint)
 
-        model = OpenAIEmbeddings(model=EMBEDDING_MODEL)
+        from llm.vector_store import embedding_model
+        model = OpenAIEmbeddings(model=embedding_model(), dimensions=1536)
         for i in range(len(vecs), len(texts), EMBED_BATCH):
             vecs.extend(model.embed_documents(texts[i:i + EMBED_BATCH]))
             if len(vecs) % CHECKPOINT_EVERY < EMBED_BATCH:
@@ -346,20 +344,15 @@ class Command(BaseCommand):
         return arr
 
     # ── 3. 적재 ──────────────────────────────────────────────────────────────
-    @transaction.atomic
     def load(self, chunks: list[dict], vecs: np.ndarray):
-        DocumentChunk.objects.all().delete()
-        Document.objects.all().delete()
-        docs = {}
-        objs = []
-        for i, (c, v) in enumerate(zip(chunks, vecs)):
-            src = c["source"]
-            if src not in docs:
-                docs[src] = Document.objects.create(title=src, source=src)
-            objs.append(DocumentChunk(document=docs[src], content=c["content"], chunk_index=i,
-                                      metadata=c["metadata"], embedding=v.tolist()))
-        DocumentChunk.objects.bulk_create(objs, batch_size=500)
-        return len(objs)
+        from llm.vector_store import upsert_documents
+        if len(chunks) != len(vecs):
+            raise ValueError("Chunk/vector count mismatch")
+        for start in range(0, len(chunks), 500):
+            upsert_documents([{"id": c["doc_id"], "content": c["content"], "metadata": c["metadata"],
+                               "embedding": v.tolist()}
+                              for c, v in zip(chunks[start:start + 500], vecs[start:start + 500])])
+        return len(chunks)
 
     # ── main ────────────────────────────────────────────────────────────────
     def handle(self, *args, **opt):
@@ -397,4 +390,4 @@ class Command(BaseCommand):
 
         self.stdout.write("적재 시작...")
         loaded = self.load(chunks, vecs)
-        self.stdout.write(self.style.SUCCESS(f"완료: DocumentChunk {loaded}건, Document {Document.objects.count()}건"))
+        self.stdout.write(self.style.SUCCESS(f"완료: Qdrant {loaded}건 upsert (PostgreSQL 원본 보존)"))
