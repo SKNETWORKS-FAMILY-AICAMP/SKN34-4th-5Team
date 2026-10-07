@@ -13,7 +13,7 @@ const frontend = dirname(dirname(fileURLToPath(import.meta.url)));
 const scratch = mkdtempSync(join(tmpdir(), "kbo-chat-progress-test-"));
 after(() => rmSync(scratch, { recursive: true, force: true }));
 symlinkSync(join(frontend, "node_modules"), join(scratch, "node_modules"), "dir");
-for (const name of ["lib/course-directions", "lib/member-auth-request", "lib/chat/planning", "lib/chat/types", "lib/chat/validation", "lib/chat/course", "lib/chat/wire", "lib/chat/history", "lib/chat/client"]) {
+for (const name of ["lib/course-directions", "lib/media-url", "lib/member-auth-request", "lib/chat/planning", "lib/chat/types", "lib/chat/validation", "lib/chat/course", "lib/chat/wire", "lib/chat/history", "lib/chat/client"]) {
   const source = readFileSync(join(frontend, `${name}.ts`), "utf8");
   const { outputText } = ts.transpileModule(source, {
     fileName: `${name}.ts`, compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
@@ -30,7 +30,7 @@ for (const name of ["lib/course-directions", "lib/member-auth-request", "lib/cha
   writeFileSync(join(scratch, "components/chat-pending.js"), outputText);
 }
 {
-  const source = readFileSync(join(frontend, "components/chat-answer.tsx"), "utf8");
+  const source = readFileSync(join(frontend, "components/chat-answer.tsx"), "utf8").replace(/^import "@\/styles\/chat-answer\.css";$/m, "").replaceAll("@/lib/media-url", "../lib/media-url.js");
   const { outputText } = ts.transpileModule(source, {
     fileName: "chat-answer.tsx", compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
   });
@@ -166,6 +166,17 @@ test("tool log renders Korean labels for known and unknown tool names, no raw na
   assert.match(specialists, /여행 정보 조사 정보 조회 완료/);
   assert.match(specialists, /장소 정보 확인 조회 중/);
   assert.doesNotMatch(specialists, /ask_|<span>정보 조회/);
+});
+
+test("main progress text renders approved images and blocks untrusted media", () => {
+  const html = renderToStaticMarkup(React.createElement(ChatProgress, { items: [{
+    kind: "text", parentId: null,
+    text: "![구장](/images/stadiums/exteriors/jamsil.jpg)\n\n![차단](https://evil.example/photo.png)",
+  }] }));
+  assert.match(html, /<img[^>]*src="\/images\/stadiums\/exteriors\/jamsil\.jpg"[^>]*alt="구장"/);
+  assert.doesNotMatch(html, /https:\/\/evil\.example/);
+  assert.match(html, /role="img" aria-label="차단"/);
+  assert.match(html, /이미지를 표시할 수 없어요/);
 });
 
 test("display progress never enters the model message payload", () => {

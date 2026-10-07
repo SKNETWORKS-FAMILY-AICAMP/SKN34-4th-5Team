@@ -24,6 +24,11 @@ _session_patterns = [
     ),
 ]
 
+from llm.views.attachments import ChatAttachmentView, ChatAttachmentDetailView, ToolGroupsView
+
 urlpatterns = [
+    path("v2/chat/tool-groups/", ToolGroupsView.as_view()),
+    path("v2/chat/sessions/<uuid:session_id>/attachments/", ChatAttachmentView.as_view()),
+    path("v2/chat/sessions/<uuid:session_id>/attachments/<uuid:attachment_id>/", ChatAttachmentDetailView.as_view()),
     re_path(r"^(?P<version>v1|v2)/chat/", include(_session_patterns)),
 ]

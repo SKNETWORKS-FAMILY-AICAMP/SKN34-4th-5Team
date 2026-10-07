@@ -111,8 +111,10 @@ def stadium_anchor(code):
                        WHERE metadata->>'category' = 'STADIUM' AND metadata->>'stadium_code' = %s LIMIT 1""", [code])
         row = cur.fetchone()
     m = _meta(row[0]) if row else {}
+    from baseball.stadium_locations import reviewed_venue
+    point = reviewed_venue(code)
     return {"key": "STADIUM", "phase": "GAME", "name": m.get("stadium_name_ko") or STADIUM_KO.get(code, code),
-            "lat": _f(m.get("lat_y")), "lng": _f(m.get("lng_x")), "category": "STADIUM", "detail": "",
+            "lat": point["lat"] if point else _f(m.get("lat_y")), "lng": point["lng"] if point else _f(m.get("lng_x")), "category": "STADIUM", "detail": "",
             "placeId": None, "address": m.get("address") or "", "placeUrl": "", "distance": 0, "doc_id": m.get("doc_id")}
 
 
@@ -287,7 +289,7 @@ def find_game(code, question, today, tool_result=None, *, now=None, stadium_id=N
     else:
         games = [g for g in structured.games() if g["place"] == place and not g.get("canceled")]
     games.sort(key=lambda g: (g["date"], g["time"]))
-    upcoming = [g for g in games if g.get("status") == "scheduled" and
+    upcoming = [g for g in games if g.get("status") in {"scheduled", "PREV", "READY"} and
                 (g["date"], g["time"]) > (now.date().isoformat(), now.strftime("%H:%M"))][:3]
     if want:
         hit = [g for g in games if g["date"] == want]

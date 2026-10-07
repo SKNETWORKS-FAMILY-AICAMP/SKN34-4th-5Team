@@ -172,6 +172,10 @@ class ChatThread:
         with transaction.atomic():
             if not ChatSession.objects.select_for_update().filter(id=self.thread_id).exists():
                 return False
+            from llm.service.attachments import resolve
+            for message in messages:
+                if isinstance(message, HumanMessage) and message.additional_kwargs.get("attachment_ids"):
+                    resolve(self.thread_id, message.additional_kwargs["attachment_ids"])
             with self._graph() as graph:
                 latest = graph.get_state(self.root).values
                 if latest.get("revision", 0) != self.revision:
@@ -243,14 +247,17 @@ class ChatThread:
                     self.revision + 1)
         return len(removed)
 
-    def edit(self, message_id, content):
+    def edit(self, message_id, content, input_options=None):
         """대상 뒤 메시지를 지우고 대상을 같은 ID 의 새 질문(pending)으로 바꾼다.
 
         반환 (앞부분 messages, 앞부분 turns, 새 HumanMessage) -- 다시 답할 입력이다.
         """
         messages, turns, index = self._find(message_id)
         later = messages[index + 1:]
-        human = HumanMessage(content=content, id=messages[index].id)
+        options = {key: messages[index].additional_kwargs[key] for key in ("attachment_ids", "tool_group_ids")
+                   if key in messages[index].additional_kwargs}
+        options.update(input_options or {})
+        human = HumanMessage(content=content, id=messages[index].id, additional_kwargs=options)
         self._write(
             [*(RemoveMessage(id=m.id) for m in later), human],
             {**{m.id: None for m in later if m.id in turns}, human.id: _pending_turn()},
@@ -260,10 +267,10 @@ class ChatThread:
         kept = {m.id for m in prefix if isinstance(m, HumanMessage)}
         return prefix, {key: turn for key, turn in turns.items() if key in kept}, human
 
-    def ask(self, content):
+    def ask(self, content, input_options=None):
         """새 질문(pending)을 덧붙인다. 반환은 edit 와 같다."""
         messages, turns = self.state()
-        human = HumanMessage(content, id=str(uuid.uuid4()))
+        human = HumanMessage(content, id=str(uuid.uuid4()), additional_kwargs=input_options or {})
         self._write([human], {human.id: _pending_turn()})
         return messages, turns, human
 

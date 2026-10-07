@@ -1,9 +1,9 @@
 """코스 기본 경기 선택: 실제 제공자·DB 없이 일정 선택과 요청 경계를 검증한다."""
-from datetime import datetime
+from datetime import date, datetime, time
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
 from llm.v1.rag.course import agent as course
 
@@ -17,6 +17,32 @@ def game(day="2026-10-04", time="18:30", status="scheduled", stadium="GWANGJU", 
             "stadium_id": stadium_id, "stadium__stadium_code": stadium,
             "stadium__stadium_name_ko": "광주-KIA 챔피언스 필드",
             "home_team__team_name_ko": "KIA", "away_team__team_name_ko": "LG"}
+
+
+class CourseScheduleToolTest(TestCase):
+    def test_actual_upcoming_tool_and_consumer_accept_all_canonical_states(self):
+        from baseball.models import Game, Stadium, Team
+        from llm.tools.baseball import create_baseball_domain_tools
+        stadium = Stadium.objects.create(id=980099, stadium_code="FIX", stadium_name_ko="테스트 구장", address="", longitude=127, latitude=37, collected_at=NOW)
+        team = Team.objects.create(id=980099, team_code="FIX", team_name_ko="테스트")
+        tool = next(t for t in create_baseball_domain_tools() if t.name == "get_games")
+        now = datetime(2099, 10, 4, 16, tzinfo=KST)
+        for index, status in enumerate(("scheduled", "PREV", "READY", "final", "cancelled", "postponed")):
+            Game.objects.create(id=980090 + index, game_code=f"FIX-{index}", game_date=date(2099, 10, 4),
+                                game_time=time(18, index), status_code=status, stadium=stadium, home_team=team, collected_at=NOW)
+        for index, clock in enumerate((time(15), time(16))):
+            Game.objects.create(id=980080 + index, game_code=f"PAST-{index}", game_date=now.date(),
+                                game_time=clock, status_code="READY", stadium=stadium, home_team=team, collected_at=NOW)
+        with patch("tving.service.get_game_range_freshness", return_value={}):
+            result = tool.invoke({"start_date": "2099-10-04", "end_date": "2099-10-05", "stadium_id": stadium.id,
+                                  "upcoming_only": True, "as_of": now.isoformat(), "limit": 3})
+        self.assertEqual([r["status_code"] for r in result["items"]], ["scheduled", "PREV", "READY"])
+        chosen, _, upcoming = course.find_game("GWANGJU", "", "2099-10-04", result, now=now, stadium_id=stadium.id)
+        self.assertEqual(chosen["time"], "18:00")
+        self.assertEqual([r["status"] for r in upcoming], ["scheduled", "PREV", "READY"])
+        for row in result["items"]:
+            with self.subTest(status=row["status_code"]):
+                self.assertIsNotNone(course.find_game("GWANGJU", "", "2099-10-04", {"items": [row]}, now=now, stadium_id=stadium.id)[0])
 
 
 class CourseScheduleTest(SimpleTestCase):

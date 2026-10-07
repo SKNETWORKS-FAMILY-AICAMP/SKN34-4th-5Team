@@ -16,7 +16,10 @@ export type ChatToolCallDto = {
 };
 // Ordered process log of a turn (final answer excluded); tool steps reference `tools` by id.
 export type ChatStepDto = { type: "text"; text: string; parent_id?: string | null } | { type: "tool"; id: string };
+export type ChatAttachmentDto = { id: string; kind: "image" | "text" | "url"; name: string; content_type: string; size: number; width: number | null; height: number | null; url: string | null; created_at: string };
 export type ChatMessageDto = {
+  tool_group_ids?: string[];
+  attachments?: ChatAttachmentDto[];
   coursePreferences?: unknown;
   answer_deleted?: boolean;
   feedback?: AnswerFeedback | null;

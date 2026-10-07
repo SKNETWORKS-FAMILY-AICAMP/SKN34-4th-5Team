@@ -70,6 +70,27 @@ class ChatSession(models.Model):
         ]
 
 
+class ChatAttachment(models.Model):
+    """비공개 파일/명시적 URL. 소유권은 세션과 같고 원본은 공용 private object storage 에 둔다."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    session = models.ForeignKey(ChatSession, on_delete=models.CASCADE, related_name="attachments")
+    kind = models.CharField(max_length=5, choices=[("image", "image"), ("text", "text"), ("url", "url")])
+    name = models.CharField(max_length=255)
+    object_key = models.CharField(max_length=255, blank=True)
+    content_type = models.CharField(max_length=64, blank=True)
+    size = models.PositiveIntegerField(default=0)
+    width = models.PositiveIntegerField(null=True)
+    height = models.PositiveIntegerField(null=True)
+    source_url = models.URLField(max_length=2048, blank=True)
+    extracted_text = models.TextField(blank=True)  # URL 캐시만. 파일은 private storage 에서 읽는다
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class ChatAttachmentDeletion(models.Model):
+    object_key = models.CharField(max_length=255, primary_key=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
 class ChatThreadDeletion(models.Model):
     """삭제된 ChatSession 의 checkpoint 삭제 outbox. 세션 삭제와 같은 트랜잭션에 쓰고, checkpoint 삭제 성공 뒤 지운다.
 

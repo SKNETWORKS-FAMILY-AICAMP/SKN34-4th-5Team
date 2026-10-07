@@ -3,10 +3,13 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
+import { chatComposerContent } from "@/lib/chat/inline-urls";
 import { MAX_MESSAGE_LENGTH } from "@/lib/chat/types";
 import { useMemberAuth } from "@/lib/member-auth";
 import { useChat } from "./chat-provider";
 import { Icon } from "./icons";
+import { ChatAttachmentCards, ChatComposerTools } from "./chat-composer-tools";
+import { ChatInlineInput } from "./chat-inline-input";
 import { ChatAnswer } from "./chat-answer";
 import { ChatQuestions, ChatUserContent, ChatWriterOffer } from "./chat-planning";
 import { ChatFeedback } from "./chat-feedback";
@@ -37,7 +40,7 @@ export function ChatWorkspace() {
   const profileAvatar = authStatus === "authenticated" && user?.avatar ? user.avatar : "/images/default-avatar.svg";
   const usageMode = authStatus === "authenticated" && user ? "member" : null;
   const usageIdentity = usageMode === "member" ? `member:${user!.id}` : authStatus;
-  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const inputRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const drawerRef = useRef<HTMLDialogElement>(null);
   const menuRef = useRef<HTMLButtonElement>(null);
@@ -50,7 +53,7 @@ export function ChatWorkspace() {
   const available = (authStatus === "authenticated" || authStatus === "anonymous") && Boolean(chat.status?.ready) && !chat.statusLoading && !chat.statusError;
   const reserving = busy || chat.queued.length > 0;
   const sendLabel = chat.editingQueuedId !== null ? "예약 수정 저장" : chat.editingMessageId !== null ? "수정한 질문 보내기" : reserving ? "질문 예약" : "질문 보내기";
-  const canSubmit = available && Boolean(chat.draft.trim()) && (chat.editingQueuedId !== null || chat.editingMessageId !== null || !reserving || chat.queued.length < 2);
+  const canSubmit = available && Boolean(chatComposerContent(chat.draft, chat.attachments)) && (chat.editingQueuedId !== null || chat.editingMessageId !== null || !reserving || chat.queued.length < 2);
   const empty = chat.messages.length === 0 && !chat.pending && !chat.failed;
   const demo = chat.status?.provider === "demo";
   const guest = authStatus === "anonymous";
@@ -58,7 +61,7 @@ export function ChatWorkspace() {
 
   useEffect(() => {
     const input = inputRef.current;
-    if (input?.disabled) minimizeRef.current?.focus({ preventScroll: true });
+    if (input?.getAttribute("aria-disabled") === "true") minimizeRef.current?.focus({ preventScroll: true });
     else input?.focus({ preventScroll: true });
   }, []);
 
@@ -214,9 +217,9 @@ export function ChatWorkspace() {
             {chat.context?.stadium && <p className="workspace-context"><Icon name="pin" size={14} />{chat.context.stadium}에서의 하루</p>}
             <div className="workspace-messages" role="log" aria-label="직관 도우미 대화 내용" aria-live="polite" aria-relevant="additions">
               {chat.messages.map((message, index) => <article key={`${chat.activeConversationId}-${index}`} className={`workspace-message workspace-message-${message.role}`}>
-                {message.role === "assistant" ? <><div className="workspace-assistant-label"><span><Icon name="sparkles" size={15} /></span>직관 도우미</div><ChatProgress items={message.timeline ?? []} />{message.content && <ChatAnswer text={message.content} places={message.course?.places} />}{message.status && message.status !== "completed" && <p className="workspace-message-note">끝까지 만들지 못한 답변이에요.</p>}{message.course && <ChatCourseCard course={message.course} />}<ChatQuestions message={message} disabled={!available || busy || index !== chat.messages.length - 1} /><ChatFeedback key={`${chat.activeConversationId}-${message.id}`} message={message} disabled={!available || busy} /></> : <><span className="sr-only">나</span><div className="workspace-user-bubble"><ChatUserContent content={message.content} planning={chat.messages[index - 1]?.role === "assistant" ? chat.messages[index - 1].planning : undefined} /></div>{message.answerDeleted && <p className="workspace-message-note">답변을 삭제했어요.</p>}{message.status && message.status !== "completed" && <p className="workspace-message-note">답변을 받지 못한 질문이에요.</p>}{message.id !== undefined && available && !busy && <div className="workspace-message-actions"><button type="button" aria-label="이 질문 수정" title="수정하면 이 질문 이후의 대화가 지워져요" onClick={() => { chat.onEditMessage(message.id!); inputRef.current?.focus(); }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m16 3 5 5-13 13H3v-5L16 3ZM14 5l5 5" /></svg></button><button type="button" aria-label="이 질문부터 삭제" title="이 질문과 이후 대화를 모두 지워요" onClick={() => chat.onDeleteMessage(message.id!)}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7" /></svg></button></div>}</>}
+                {message.role === "assistant" ? <><div className="workspace-assistant-label"><span><Icon name="sparkles" size={15} /></span>직관 도우미</div><ChatProgress items={message.timeline ?? []} />{message.content && <ChatAnswer text={message.content} places={message.course?.places} />}{message.status && message.status !== "completed" && <p className="workspace-message-note">끝까지 만들지 못한 답변이에요.</p>}{message.course && <ChatCourseCard course={message.course} />}<ChatQuestions message={message} disabled={!available || busy || index !== chat.messages.length - 1} /><ChatFeedback key={`${chat.activeConversationId}-${message.id}`} message={message} disabled={!available || busy} /></> : <><span className="sr-only">나</span><ChatAttachmentCards items={(message.attachments ?? []).filter(item => !(item.kind === "text" && /^Pasted Text \d+\.txt$/.test(item.name) && message.content.includes(`첨부 참고 자료: ${item.name}`)))} /><div className="workspace-user-bubble"><ChatUserContent attachments={message.attachments} content={message.content} planning={chat.messages[index - 1]?.role === "assistant" ? chat.messages[index - 1].planning : undefined} /></div>{message.answerDeleted && <p className="workspace-message-note">답변을 삭제했어요.</p>}{message.status && message.status !== "completed" && <p className="workspace-message-note">답변을 받지 못한 질문이에요.</p>}{message.id !== undefined && available && !busy && <div className="workspace-message-actions"><button type="button" aria-label="이 질문 수정" title="수정하면 이 질문 이후의 대화가 지워져요" onClick={() => { chat.onEditMessage(message.id!); inputRef.current?.focus(); }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m16 3 5 5-13 13H3v-5L16 3ZM14 5l5 5" /></svg></button><button type="button" aria-label="이 질문부터 삭제" title="이 질문과 이후 대화를 모두 지워요" onClick={() => chat.onDeleteMessage(message.id!)}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7" /></svg></button></div>}</>}
               </article>)}
-              {(chat.pending || chat.failed) && <article className="workspace-message workspace-message-user"><span className="sr-only">나</span><div className="workspace-user-bubble"><ChatUserContent content={chat.pending || chat.failed} planning={chat.messages.at(-1)?.role === "assistant" ? chat.messages.at(-1)?.planning : undefined} /></div></article>}
+              {chat.failed && <article className="workspace-message workspace-message-user"><span className="sr-only">나</span><div className="workspace-user-bubble"><ChatUserContent content={chat.failed} planning={chat.messages.at(-1)?.role === "assistant" ? chat.messages.at(-1)?.planning : undefined} /></div></article>}
               {busy && <article className="workspace-message workspace-message-assistant"><div className="workspace-assistant-label"><span><Icon name="sparkles" size={15} /></span>직관 도우미</div><ChatProgress items={chat.timeline} live /><ChatPending busy={busy} streaming={chat.streaming} className="workspace-thinking" /></article>}
             </div>
             <ChatWriterOffer />
@@ -231,13 +234,13 @@ export function ChatWorkspace() {
           <ChatSubAgentStatus items={busy ? chat.timeline : []} />
           <ChatQueue focusInput={() => inputRef.current?.focus()} />
           {chat.editingMessageId !== null && <p className="workspace-edit-banner" role="status">질문을 수정하고 있어요. 보내면 이 질문 이후의 대화는 지워져요. <button type="button" onClick={chat.onCancelEdit}>수정 취소</button></p>}
-          <form className="workspace-composer" onSubmit={event => { event.preventDefault(); send(); }}>
+          <div className="workspace-composer" onDragOver={event => { if (event.dataTransfer.types.includes("Files")) event.preventDefault(); }} onDrop={event => { if (!event.dataTransfer.files.length) return; event.preventDefault(); event.stopPropagation(); if (!busy && available) chat.onAttach(Array.from(event.dataTransfer.files)); }} onPaste={event => { const images = Array.from(event.clipboardData.files).filter(file => file.type.startsWith("image/")); if (images.length && !busy && available) { event.preventDefault(); chat.onAttach(images); } }}>
+          <ChatComposerTools disabled={false} available={available} hint={busy ? "답변을 준비하고 있어요" : "야구가 궁금한 모든 순간"} actions={<>{busy && <button type="button" className="workspace-send workspace-stop" aria-label="답변 생성 중단" title="답변 받기 중단 (받던 답변은 저장되지 않아요)" onClick={event => { event.preventDefault(); chat.onCancel(); }}><span /></button>}<button type="button" onClick={send} className="workspace-send" aria-label={sendLabel} title={sendLabel} disabled={!canSubmit}><Icon name="arrow" size={20} /></button></>}>
             <label className="sr-only" htmlFor="workspace-question">직관 도우미에게 질문</label>
-            <textarea ref={inputRef} id="workspace-question" value={chat.draft} maxLength={MAX_MESSAGE_LENGTH} rows={1} placeholder={busy ? "다음 질문을 예약해 보세요" : "직관 도우미에게 물어보세요"} disabled={!available} onChange={event => chat.onDraftChange(event.target.value)} onCompositionStart={() => { composingRef.current = true; }} onCompositionEnd={() => { composingRef.current = false; }} onKeyDown={event => {
-              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && !composingRef.current && event.keyCode !== 229) { event.preventDefault(); send(); }
-            }} />
-            <div className="workspace-composer-bottom"><span>{chat.editingQueuedId !== null ? "예약 내용을 수정하고 있어요" : reserving ? `다음 질문 예약 · ${chat.queued.length}/2` : "야구가 궁금한 모든 순간"}</span><div className="workspace-send-group">{chat.draft.length > MAX_MESSAGE_LENGTH * .8 && <span className="workspace-character-count">{chat.draft.length}/{MAX_MESSAGE_LENGTH}</span>}{busy && <button type="button" className="workspace-send workspace-stop" aria-label="답변 생성 중단" title="답변 받기 중단 (받던 답변은 저장되지 않아요)" onClick={event => { event.preventDefault(); chat.onCancel(); }}><span /></button>}<button type="submit" className="workspace-send" aria-label={sendLabel} title={sendLabel} disabled={!canSubmit}><Icon name="arrow" size={20} /></button></div></div>
-          </form>
+            <ChatInlineInput id="workspace-question" inputRef={inputRef} disabled={false} available={available} onSend={send} onCompositionChange={value => { composingRef.current = value; }} />
+          </ChatComposerTools>
+
+          </div>
           <p className="workspace-footnote">{guest && !demo ? <><Link href="/login">로그인</Link>하면 계정에 대화가 저장돼요. 비회원 대화는 이 브라우저에서만 이어져요. </> : null}{demo ? "예시 답변이에요. 실제 일정과 장소 검색 결과는 포함되지 않아요." : "경기 일정과 구장 운영 정보는 방문 전 공식 안내를 확인해 주세요."}</p>
         </div>}
       </main>

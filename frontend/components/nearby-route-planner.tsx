@@ -719,7 +719,7 @@ function LoadedPlanner({ maps, plannerMode = "places", stadium, stops, onChange:
           <div className="planner-card-actions">
             {!googleLodgingId(currentSelection) && <a href={placeLink(currentSelection)} target="_blank" rel="noreferrer">{kakaoLodgingReference(currentSelection) || (currentSelection.placeId && /^\d+$/.test(currentSelection.placeId)) ? "카카오맵 상세 ↗" : "카카오맵 위치 보기 ↗"}</a>}
             <div className="planner-card-course-actions">
-              {stadiumSelected && <StadiumParkingMapDialog stadiumCode={stadium.code} className="planner-parking-map-trigger" />}
+              {stadiumSelected && <StadiumParkingMapDialog parking={stadium.parkingMap} className="planner-parking-map-trigger" />}
               <button type="button" disabled={courseCompleted || Boolean(alreadyAdded) || (!canReplacePoint && stops.length >= MAX_ROUTE_STOPS)} onClick={addStop}>{courseCompleted ? "코스 수정 후 담기" : alreadyAdded ? "바로 직전 지점이에요" : canReplacePoint ? "이 지점으로 지정" : stops.length >= MAX_ROUTE_STOPS ? "최대 12곳까지" : "+ 코스에 담기"}</button>
             </div>
           </div>

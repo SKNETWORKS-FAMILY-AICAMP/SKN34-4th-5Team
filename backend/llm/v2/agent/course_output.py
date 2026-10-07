@@ -23,6 +23,19 @@ def _source_url(value):
         return ""
 
 
+def course_artifacts(messages):
+    """성공한 코스 결과만 읽는다. 기존 최상위와 전문 도구 내부 기록 모두 호환한다."""
+    from langchain_core.messages import ToolMessage
+    from llm.serializer.message import _artifact_messages
+    for message in messages:
+        if not isinstance(message, ToolMessage) or message.status == "error":
+            continue
+        if message.name == "plan_course" and isinstance(message.artifact, dict):
+            yield message.artifact
+        elif message.name == "ask_course":
+            yield from course_artifacts(_artifact_messages(message.artifact))
+
+
 def public_course(value):
     if not isinstance(value, dict) or not isinstance(value.get("places"), list):
         return None

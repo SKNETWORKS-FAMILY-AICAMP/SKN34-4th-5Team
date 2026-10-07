@@ -29,7 +29,10 @@ async function harness(count = 2, run) {
       .replace(/^import "@\/styles\/[^\"]+";$/m, "")
       .replace('from "react"', 'from "./hooks.cjs"')
       .replace('from "./chat-provider"', 'from "./hooks.cjs"')
+      .replace('from "./chat-inline-input"', 'from "./inline.cjs"')
+      .replace('from "@/lib/chat/inline-urls"', 'from "./inline.cjs"')
       .replace('from "@/lib/chat/planning"', 'from "./helper.cjs"');
+    writeFileSync(join(scratch, "inline.cjs"), "exports.ChatInlineContent = () => null; exports.normalizeChatUrl = value => value; exports.inlineChatUrls = () => [];");
     writeFileSync(join(scratch, "helper.cjs"), ts.transpileModule(readFileSync(join(frontend, "lib/chat/planning.ts"), "utf8"), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText);
     writeFileSync(join(scratch, "planning.cjs"), ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText);
     const { ChatQuestions } = require("./planning.cjs");
@@ -105,7 +108,7 @@ test("manual composer pending collapses latest wizard without pretending it was 
   global.__planningHooks.useChat = () => ({ messages: [h.props.message], pending: "시간: 18:30? 자유 답변", stayHere() {} });
   h.render(); assert.equal(nodes(h.tree).some(n => ["input", "button", "fieldset"].includes(n.type)), false);
   const { ChatUserContent } = h.require("./planning.cjs");
-  assert.equal(ChatUserContent({content:"시간: 18:30? 자유 답변", planning:h.props.message.planning}).props.children, "시간: 18:30? 자유 답변");
+  assert.equal(ChatUserContent({content:"시간: 18:30? 자유 답변", planning:h.props.message.planning}).props.text, "시간: 18:30? 자유 답변");
 }));
 
 test("structured answer formatting preserves semantic values and ordinary colon text", () => harness(1, h => {

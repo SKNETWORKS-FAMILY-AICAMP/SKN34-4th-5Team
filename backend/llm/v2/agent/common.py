@@ -20,6 +20,10 @@ class Decision(TypedDict):
 class V2AgentState(AgentState):
     course_memory: NotRequired[dict]  # 완료된 턴의 서버 체크포인트에서만 복원
     decision: NotRequired[Decision]
+    tool_group_ids: NotRequired[list[str]]
+    attachment_session_id: NotRequired[str]
+    attachment_window_start: NotRequired[str]
+    attachment_messages: NotRequired[dict]
     context: NotRequired[dict | None]  # 선택: {"stadium", "intent", "origin": {"lat", "lng"}}
 
 
@@ -76,14 +80,17 @@ def build_agent(model, tools, rules, capability_tools=None, budget=MODEL_CALL_BU
     budget: invocation 당 model 호출 수(포함). 1..N-1 은 도구 사용 가능, N 은 도구 없이 답, N+1 은 provider 호출 없이 오류.
     get_directions 는 요청당 2회까지만 실행하고(외부 429 반복 방지), 넘으면 오류 ToolMessage 로 모델이 다음으로 간다."""
     from langchain.agents import create_agent
+    from ..middleware.attachment_context import AttachmentContextMiddleware
     agent = create_agent(
         model=model, tools=tools, state_schema=V2AgentState,
         middleware=[
             JevGuidelineMiddleware(rules, run_jev),
+            *([AttachmentContextMiddleware()] if run_jev else []),
             DynamicToolMiddleware([t.name for t in tools], capability_tools),
             ModelCallLimitMiddleware(run_limit=budget, exit_behavior="error"),
             FinalAnswerMiddleware(budget),
             ToolCallLimitMiddleware(tool_name="get_directions", run_limit=2),
+            ToolCallLimitMiddleware(tool_name="ask_course", run_limit=1),
         ],
     )
     # 비공개 백스톱: 호출당 step 은 10 미만이라 예산보다 먼저 걸리지 않는다. 공개 설정 아님.

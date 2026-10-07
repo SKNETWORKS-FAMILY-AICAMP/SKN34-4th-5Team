@@ -2,7 +2,9 @@
 
 import "@/styles/chat-planning.css";
 import { useEffect, useRef, useState } from "react";
-import type { ChatMessage } from "@/lib/chat/types";
+import type { ChatAttachment, ChatMessage } from "@/lib/chat/types";
+import { ChatInlineContent } from "./chat-inline-input";
+import { inlineChatUrls } from "@/lib/chat/inline-urls";
 import { planningAnswers, type ChatPlanning } from "@/lib/chat/planning";
 import { useChat } from "./chat-provider";
 
@@ -22,9 +24,13 @@ export function ChatWriterOffer() {
   </>;
 }
 
-export function ChatUserContent({ content, planning }: { content: string; planning?: ChatPlanning }) {
+export function ChatUserContent({ content, planning, attachments = [] }: { content: string; planning?: ChatPlanning; attachments?: ChatAttachment[] }) {
   const answers = planningAnswers(content, planning);
-  if (!answers) return <>{content}</>;
+  if (!answers) {
+    const present = new Set(inlineChatUrls(content));
+    const legacy = attachments.filter(item => item.kind === "url" && item.url && !present.has(item.url)).map(item => item.url).join("\n");
+    return <ChatInlineContent text={content + (legacy ? `\n${legacy}` : "")} attachments={attachments} />;
+  }
   return <><span>{answers.join(" · ")}</span><details className="chat-answer-details"><summary>답변 상세 보기</summary><div>{content}</div></details></>;
 }
 

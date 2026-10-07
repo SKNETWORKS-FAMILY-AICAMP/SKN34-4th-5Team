@@ -62,7 +62,8 @@ class DomainAllowlistTest(SimpleTestCase):
         self.assertEqual(set(inventories.values()), {inventories["assistant"]})
         self.assertEqual(set(inventories["assistant"]), EXPECTED)
         self.assertEqual(len(inventories["assistant"]), len(EXPECTED))
-        self.assertIs(assistant_tools.build_tools()[0].func, assistant_tools.get_games)
+        from llm.tools.baseball import GamesInput
+        self.assertIs(assistant_tools.build_tools()[0].args_schema, GamesInput)
         with self.assertRaisesRegex(ValueError, "not allowed"):
             domain_tools.invoke("venue", "not_registered", {})
 

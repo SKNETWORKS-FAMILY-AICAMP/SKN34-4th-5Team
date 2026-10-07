@@ -128,7 +128,8 @@ class CourseMemoryScopeTests(SimpleTestCase):
             self.assertEqual(memory.restore(messages, turns), {})
             self.assertEqual(messages[0].id, "old")
             with patch.object(chat_runs, "stream_turn") as stream:
-                chat_v2._stream_turn(None, messages, turns, HumanMessage("순서 바꿔줘"), self.context, None)
+                from types import SimpleNamespace
+                chat_v2._stream_turn(SimpleNamespace(thread_id="scope-test"), messages, turns, HumanMessage("순서 바꿔줘"), self.context, None)
             # _frames 캡처로 서비스가 실제 사용하는 모델 입력을 확인한다.
             with patch.object(chat_v2, "_frames") as frames:
                 stream.call_args.args[4]()
