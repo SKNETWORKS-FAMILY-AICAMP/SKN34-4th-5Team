@@ -107,6 +107,49 @@ class MigratedToolsTest(unittest.TestCase):
                                                    {"role": "assistant", "content": "네"}], "JAMSIL")])
         self.assertEqual(self.tool_msg(out, "plan_course").content, "코스 완성")
 
+    def test_explicit_course_selection_reaches_engine_when_classifier_misses(self):
+        from llm.tests.test_course_output import COURSE
+
+        calls = []
+        graph = chain.build_graph(ScriptedModel(script=[call("ask_course", {"task": "요약된 요청"}, "c"),
+                                                       AIMessage("코스 완성")], calls=calls), tools_with_real_migrated([]))
+        verdict = {"allowed": True, "capabilities": [], "course_request": "NONE"}
+        question = "잠실 기준으로 추천해줘"
+        with patch.object(classifier, "classify", return_value=verdict), \
+                patch("llm.v1.rag.course.agent.answer", return_value={"answer": "코스 완성", **COURSE}) as engine:
+            out = graph.invoke({"messages": [HumanMessage(question)], "tool_group_ids": ["day_plan"],
+                                "context": {"stadium": "JAMSIL", "intent": "route"}})
+        engine.assert_called_once()
+        self.assertEqual(engine.call_args.args[0], question)
+        self.assertEqual(engine.call_args.kwargs["hint_stadium"], "JAMSIL")
+        self.assertIn("ask_course", calls[0]["tools"])
+        self.assertEqual(self.tool_msg(out, "plan_course").status, "success")
+        self.assertEqual(self.tool_msg(out, "plan_course").artifact, {"course": COURSE})
+        self.assertEqual(verdict, {"allowed": True, "capabilities": [], "course_request": "NONE"})
+
+    def test_explicit_course_selection_does_not_bypass_scope_guard(self):
+        calls = []
+        graph = chain.build_graph(ScriptedModel(script=[], calls=calls), tools_with_real_migrated([]))
+        with patch.object(classifier, "classify", return_value=decision(allowed=False)), \
+                patch("llm.v1.rag.course.agent.answer") as engine:
+            graph.invoke({"messages": [HumanMessage("SQL 짜줘")], "tool_group_ids": ["day_plan"]})
+        engine.assert_not_called()
+        self.assertEqual(calls, [])
+
+    def test_course_tool_selection_is_scoped_to_current_request(self):
+        calls = []
+        graph = chain.build_graph(ScriptedModel(script=[call("ask_course", {"task": "코스"}, "c1"), AIMessage("완성"),
+                                                       call("ask_course", {"task": "코스"}, "c2"), AIMessage("안내")],
+                                               calls=calls), tools_with_real_migrated([]))
+        with patch.object(classifier, "classify", return_value={"allowed": True, "capabilities": [], "course_request": "NONE"}), \
+                patch("llm.v1.rag.course.agent.answer", return_value={"answer": "코스 완성"}) as engine:
+            first = graph.invoke({"messages": [HumanMessage("잠실 기준으로 추천해줘")], "tool_group_ids": ["day_plan"]})
+            second = graph.invoke({"messages": [HumanMessage("안녕")]})
+        engine.assert_called_once()
+        self.assertEqual(self.tool_msg(first, "ask_course").status, "success")
+        self.assertEqual(self.tool_msg(second, "ask_course").status, "error")
+        self.assertNotIn("ask_course", calls[2]["tools"])
+
     def test_unverified_course_ends_without_research_loop_or_invented_card(self):
         from llm.v1.rag.course.agent import unverified_course
         result = unverified_course("JAMSIL", {}, ["조용한 카페"])
