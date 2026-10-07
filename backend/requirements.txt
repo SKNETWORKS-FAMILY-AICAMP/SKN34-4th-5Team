@@ -18,6 +18,8 @@ pydantic==2.13.5
 langchain
 langchain-core
 langchain-openai
+langchain-mcp-adapters==0.2.1
+mcp==1.26.0
 openai==3.19.2
 httpx==0.28.1
 langchain-community

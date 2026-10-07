@@ -19,6 +19,7 @@ from llm.views.message import GuestChatThrottle
 log = logging.getLogger(__name__)
 
 TOOL_GROUP_LABELS = {
+    "web_research": "웹 조사",
     "schedule": "경기 일정",
     "standings": "순위",
     "players": "선수 정보",

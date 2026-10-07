@@ -6,6 +6,29 @@ x-logging: &default-logging
 
 services:
 
+  jev-browser:
+    profiles: [web-research]
+    build: ./docker/jev-browser
+    restart: unless-stopped
+    init: true
+    cap_add: [NET_ADMIN]
+    security_opt:
+      - seccomp=./docker/jev-browser/seccomp.json
+    shm_size: 256m
+    environment:
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      TEXT_MODEL_API_KEY: ${RESEARCH_API_KEY:-${OPENAI_API_KEY:-}}
+      TEXT_MODEL_BASE_URL: ${RESEARCH_BASE_URL:-https://api.openai.com/v1}
+      TEXT_MODEL: ${RESEARCH_MODEL:-gpt-6-luna}
+      ANSWER_REVIEW_MODEL: ${RESEARCH_MODEL:-gpt-6-luna}
+      JEV_TIMEOUT_SECONDS: ${JEV_TIMEOUT_SECONDS:-120}
+      JEV_LANGSMITH_TRACING: ${JEV_LANGSMITH_TRACING:-false}
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+      LANGSMITH_ENDPOINT: ${LANGSMITH_ENDPOINT:-https://api.smith.langchain.com}
+      LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-kbo-rag}
+      JEV_MCP_TOKEN: ${JEV_MCP_TOKEN:-}
+    logging: *default-logging
+
   # ========================
   # PostgreSQL + pgvector1
   # ========================
@@ -39,6 +62,7 @@ services:
 
     environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
+      JEV_MCP_TOKEN: ${JEV_MCP_TOKEN:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
       # 로컬 프로필일 때만 API 요청 기반 크롤링을 활성화한다.
       COMPOSE_PROFILES: ${COMPOSE_PROFILES:-}

@@ -22,6 +22,7 @@ HISTORY_WINDOW = 4
 HISTORY_MESSAGE_CHAR_LIMIT = 200
 
 CAPABILITY_INSTRUCTIONS = {
+    "web_research": "서비스 범위의 공개 웹 키워드 검색·최신 외부 사실·후기·메뉴·분위기 근거 또는 URL 읽기/요약/확인을 요청했는가. 첨부를 이어 묻는 질문도 포함",
     "schedule": "경기 일정·시각을 물었는가",
     "standings": "순위 또는 구단 상세·시즌 기록·팀내 순위·포지션별 선수단을 물었는가 (예: LG 도루 TOP3, 두산 포수 명단)",
     "players": "선수 정보를 물었는가",

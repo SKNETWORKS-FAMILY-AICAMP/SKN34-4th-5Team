@@ -34,7 +34,7 @@ def direct_context(rows, texts=None):
     parts, total_bytes = [], 0
     boundary = uuid.uuid4().hex
     for row in rows:
-        if row.kind != "text":  # Legacy URL metadata survives, but never fetches or enters context.
+        if row.kind not in {"text", "url"}:
             continue
         check_cancelled()
         text = attachments.source_text(row) if texts is None else texts[str(row.id)]
@@ -74,17 +74,17 @@ class AttachmentContextMiddleware(AgentMiddleware):
             raise ValueError("missing conversation attachment")
         import tiktoken
         encoding = tiktoken.get_encoding("cl100k_base")
-        rebuilt, seen = {}, set()
+        rebuilt, seen, cache = {}, set(), {}
         tokens, text_bytes, image_count = 0, 0, 0
         start = humans[-1].id
         for human in reversed(humans):
             keys = list(dict.fromkeys(str(key) for key in human.additional_kwargs.get("attachment_ids", [])))
-            rows = [by_id[key] for key in keys if key not in seen and by_id[key].kind != "url"]
+            rows = [by_id[key] for key in keys if key not in seen]
             try:
                 # Read each eligible text once; never scan/fetch sources outside the recent window.
                 texts = {}
                 for row in rows:
-                    if row.kind == "text":
+                    if row.kind in {"text", "url"}:
                         check_cancelled()
                         texts[str(row.id)] = attachments.source_text(row)
                         check_cancelled()
@@ -99,17 +99,13 @@ class AttachmentContextMiddleware(AgentMiddleware):
                 if human is humans[-1]:
                     raise  # Current turn is atomic: full sources or explicit failure.
                 break  # Older messages and their sources roll out together, oldest-first.
+            cache.update({str(row.id): texts[str(row.id)] for row in rows if row.kind == "url" and not row.extracted_text})
             tokens += added_tokens
             text_bytes += added_bytes
             images = [row for row in rows if row.kind == "image"]
             images = images[-(10 - image_count):] if image_count < 10 else []
             image_count += len(images)
             restored = attachments.multimodal(human, images)
-            legacy_urls = list(dict.fromkeys(by_id[key].source_url for key in keys if by_id[key].kind == "url" and by_id[key].source_url))
-            if legacy_urls:
-                blocks = list(restored.content) if isinstance(restored.content, list) else [{"type": "text", "text": restored.content}]
-                restored = HumanMessage(content=[*blocks, {"type": "text", "text": "참고 URL (본문을 읽은 자료가 아님): " + " ".join(legacy_urls)}],
-                                        id=human.id, additional_kwargs=human.additional_kwargs)
             if context:
                 blocks = list(restored.content) if isinstance(restored.content, list) else [{"type": "text", "text": restored.content}]
                 restored = HumanMessage(content=[*blocks, {"type": "text", "text": context}], id=human.id,
@@ -117,6 +113,13 @@ class AttachmentContextMiddleware(AgentMiddleware):
             rebuilt[human.id] = restored
             seen.update(keys)
             start = human.id
+        check_cancelled()
+        from django.db import transaction
+        with transaction.atomic():
+            for key, body in cache.items():
+                check_cancelled()
+                ChatAttachment.objects.filter(pk=key, session_id=session, extracted_text="").update(extracted_text=body)
+            check_cancelled()
         return {"attachment_messages": rebuilt, "attachment_window_start": start}
 
     def wrap_model_call(self, request, handler):

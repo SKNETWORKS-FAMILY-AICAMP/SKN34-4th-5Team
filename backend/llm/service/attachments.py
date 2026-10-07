@@ -167,6 +167,20 @@ def multimodal(human, rows):
 
 
 def source_text(row):
+    if row.kind == "url":
+        from llm.service.chat_runs import check_cancelled
+        from llm.v2.agent.browser_research import web_body
+        check_cancelled()
+        reference_url(row.source_url)
+        if row.extracted_text:
+            return row.extracted_text
+        result = web_body(row.source_url)
+        if result.get("status") == "overflow":
+            raise AttachmentProcessingLimit()
+        if result.get("status") != "ok":
+            raise ValueError("URL body unavailable: " + result.get("status", "error"))
+        check_cancelled()
+        return result["body"]
     if row.kind != "text":
-        raise ValueError("only TXT/MD attachments have local source text")
+        raise ValueError("only text/URL attachments have source text")
     return read_file(row).decode("utf-8")

@@ -314,6 +314,21 @@ test("history steps rebuild the same timeline; missing kind/parent_id/steps defa
   assert.deepEqual(buildTimeline([], []), []);
 });
 
+test("web specialist label and inner MCP artifacts survive live and restored history", () => {
+  const items = toolItems([
+    tl("web", "ask_web_research", "completed", { kind: "sub_agent", summary: "메뉴 확인" }),
+    tl("body", "jev_read_body", "completed", { parentId: "web" }),
+  ]);
+  const html = renderToStaticMarkup(React.createElement(ChatProgress, { items, live: true }));
+  assert.match(html, /웹 정보 조사 \(서브에이전트\).*메뉴 확인.*chat-progress-nested.*웹 원문 확인/s);
+  const [restored] = restoreChatMessages([{ id: ASSISTANT_MSG, sequence_no: 2, role: "assistant", content: "답", status: "completed", created_at: "x", updated_at: "x",
+    tools: [{ id: "web", tool_name: "ask_web_research", status: "completed", kind: "sub_agent", parent_id: null },
+            { id: "body", tool_name: "jev_read_body", status: "completed", kind: "tool", parent_id: "web" }],
+    steps: [{ type: "tool", id: "web" }, { type: "tool", id: "body" }] }]);
+  const history = renderToStaticMarkup(React.createElement(ChatProgress, { items: restored.timeline }));
+  assert.match(history, /웹 정보 조사 \(서브에이전트\).*chat-progress-nested.*웹 원문 확인/s);
+});
+
 test("detail disclosure renders only when detail is present, as plain text", () => {
   const plain = renderToStaticMarkup(React.createElement(ChatProgress, { items: toolItems([{ id: "x", toolName: "get_weather", status: "completed" }]) }));
   assert.doesNotMatch(plain, /<details|상세|args/);

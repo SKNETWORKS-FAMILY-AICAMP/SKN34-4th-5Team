@@ -32,6 +32,7 @@ function AttachmentImage({ attachment, preview }: { attachment?: ChatAttachment;
 }
 
 const toolPresentation: Record<string, { icon: Parameters<typeof Icon>[0]["name"]; description: string }> = {
+  web_research: { icon: "book", description: "웹" },
   schedule: { icon: "calendar", description: "야구" },
   standings: { icon: "trophy", description: "야구" },
   players: { icon: "userPlus", description: "야구" },
