@@ -253,23 +253,11 @@ nginx/ssl/
 # 4차 후반 DVC 도입 시 dvc add 대상으로 전환 예정
 data/raw/rules/*.pdf
 
-<<<<<<< HEAD
-# Local Impeccable skills, context and generated configuration
+# Local Impeccable skills, binaries, agents, hooks and generated configuration
 /.agents/skills/impeccable/
 /.github/skills/impeccable/
 /.github/agents/impeccable-*.agent.md
 /.github/hooks/impeccable.json
 **/.impeccable/
-=======
-# Local Impeccable installation (skills, bundled binaries, agents and hooks)
-/.github/skills/impeccable/
-/.github/agents/impeccable-*.agent.md
-/.github/hooks/impeccable.json
-/.impeccable/
-/frontend/.impeccable/
->>>>>>> 35ef353fb5633ca8f7c03ef189c94d9874c1aaf4
 /PRODUCT.md
 /DESIGN.md
-
-# Local-only migration merge (not shared with other environments).
-/backend/llm/migrations/0013_merge_attachment_and_legacy_usage.py
