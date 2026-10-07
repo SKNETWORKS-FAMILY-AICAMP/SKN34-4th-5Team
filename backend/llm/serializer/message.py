@@ -107,7 +107,7 @@ class ChatMessageInputSerializer(serializers.Serializer):
     """POST /messages/ 요청 바디 검증 (content + 선택 사항 context)."""
     content = serializers.CharField(max_length=2200, allow_blank=False)
     context = serializers.DictField(required=False, allow_null=True)
-    tool_group_ids = serializers.ListField(child=serializers.CharField(), required=False, max_length=14)
+    tool_group_ids = serializers.ListField(child=serializers.CharField(), required=False, max_length=15)
     attachment_ids = serializers.ListField(child=serializers.UUIDField(), required=False)
 
     def validate_tool_group_ids(self, value):
@@ -182,7 +182,7 @@ _TOOL_RESULT_STATUS = {"success": PublicToolStatus.COMPLETED.value, "error": Pub
 
 
 # 하위 Agent 도구 이름 (llm.v2.agent.sub_agents.SPECIALISTS 와 같다. 무거운 agent import 를 피하려고 여기 둔다).
-SUB_AGENT_TOOLS = ("ask_baseball", "ask_travel_research", "ask_place_data", "ask_course")
+SUB_AGENT_TOOLS = ("ask_baseball", "ask_travel_research", "ask_place_data", "ask_course", "ask_web_research")
 TITLE_LIMIT = 80
 SUMMARY_LIMIT = 40
 

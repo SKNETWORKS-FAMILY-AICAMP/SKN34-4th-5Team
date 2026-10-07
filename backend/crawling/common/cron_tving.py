@@ -19,37 +19,43 @@ def _setup():
     django.setup()
 
 def _vector_upsert(items):
-    from django.db import transaction
     from langchain_openai import OpenAIEmbeddings
-    from llm.models import Document, DocumentChunk
-    pending, skipped = [], 0
-    for item in items:
-        digest = hashlib.sha256(item["content"].encode()).hexdigest()
-        old = DocumentChunk.objects.filter(metadata__doc_id=item["doc_id"]).first()
-        if old is None and item.get("metadata", {}).get("category") == "TICKET_POLICY":
-            old = DocumentChunk.objects.filter(content=item["content"]).first()
-        if old and old.metadata.get("content_hash") == digest:
+    from llm import vector_store
+    items = list({item["doc_id"]: item for item in items}.values())
+    if not items:
+        return {"new": 0, "updated": 0, "skipped": 0}
+    collection = vector_store.ensure_collection(create=True)
+    db = vector_store.client()
+    new = updated = skipped = 0
+    for start in range(0, len(items), 256):
+        batch = items[start:start + 256]
+        existing = {str(point.id): point for point in db.retrieve(
+            collection, ids=[vector_store.point_id(item["doc_id"]) for item in batch],
+            with_payload=True, with_vectors=True)}
+        pending = []
+        for item in batch:
+            digest = hashlib.sha256(item["content"].encode()).hexdigest()
+            old = existing.get(vector_store.point_id(item["doc_id"]))
+            old_metadata = old.payload.get("metadata", {}) if old else {}
             # 기존 청크의 추적 필드(source_file 등)는 보존하고 크롤러 값만 덮어쓴다.
-            metadata = {**old.metadata, **item.get("metadata", {}), "doc_id": item["doc_id"], "content_hash": digest}
-            if old.metadata != metadata:
-                old.metadata = metadata
-                old.save(update_fields=("metadata",))
-            skipped += 1
-        else:
-            pending.append((item, digest, old))
-    if not pending:
-        return {"new": 0, "updated": 0, "skipped": skipped}
-    vectors = OpenAIEmbeddings(model=os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")).embed_documents([x[0]["content"] for x in pending])
-    with transaction.atomic():
-        document, _ = Document.objects.get_or_create(source="tving-crawler", defaults={"title": "TVING 크롤러"})
-        new = updated = 0
-        for (item, digest, old), vector in zip(pending, vectors):
-            metadata = {**(old.metadata if old else {}), **item.get("metadata", {}), "doc_id": item["doc_id"], "content_hash": digest}
-            if old:
-                old.content, old.metadata, old.embedding = item["content"], metadata, vector
-                old.save(update_fields=("content", "metadata", "embedding")); updated += 1
+            metadata = {**old_metadata, **item.get("metadata", {}), "doc_id": item["doc_id"], "content_hash": digest}
+            if old and old.payload.get("content") == item["content"]:
+                if old_metadata != metadata:
+                    vector_store.upsert_documents([{"id": item["doc_id"], "content": item["content"],
+                                                    "metadata": metadata, "embedding": old.vector}])
+                skipped += 1
             else:
-                DocumentChunk.objects.create(document=document, content=item["content"], chunk_index=0, metadata=metadata, embedding=vector); new += 1
+                pending.append((item, metadata, old))
+        if pending:
+            vectors = OpenAIEmbeddings(model=vector_store.embedding_model(), dimensions=1536).embed_documents(
+                [item["content"] for item, _, _ in pending])
+            if len(vectors) != len(pending):
+                raise ValueError("Crawler embedding count mismatch")
+            vector_store.upsert_documents([{"id": item["doc_id"], "content": item["content"],
+                                            "metadata": metadata, "embedding": vector}
+                                           for (item, metadata, _), vector in zip(pending, vectors)])
+            updated += sum(old is not None for _, _, old in pending)
+            new += sum(old is None for _, _, old in pending)
     return {"new": new, "updated": updated, "skipped": skipped}
 
 def collect_schedule(month=None):

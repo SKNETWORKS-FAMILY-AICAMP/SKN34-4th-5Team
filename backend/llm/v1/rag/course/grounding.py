@@ -5,6 +5,7 @@ import json
 from urllib.parse import urlsplit
 
 from travel.public_page_reader import PublicReader
+from llm.v2.agent.browser_research import read_evidence
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, ConfigDict
 from llm.v1.progress import config_kwargs, ProgressCancelled, ProgressStorageError
@@ -183,7 +184,7 @@ def verify(findings, urls, budget):
             # Truncated, stitched excerpts can lose the boundary between a menu
             # and the review/recommendation section. Keep full visible text in
             # this request's RAM only; neither the model nor the DB receives it.
-            pages[url] = reader.read(url, [f.term for f in findings if f.url == url] + [finding.address], complete_text=True)
+            pages[url] = read_evidence(reader, url, [f.term for f in findings if f.url == url] + [finding.address])
         page = pages.get(url, {})
         from .availability import observe
         observe({"place_id": finding.place_id, "name": finding.name, "address": finding.address}, page, url)

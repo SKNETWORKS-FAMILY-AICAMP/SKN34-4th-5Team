@@ -22,7 +22,7 @@ import re
 from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
-from django.db import connection
+from llm.vector_store import client, ensure_collection, point_id
 
 DATASET = "kbo-rag-golden"
 REFUSE = re.compile(r"확인한 자료|찾을 수 없|알 수 없|확인할 수 없|확인이 어렵|확인 불가|안내드리기 어렵|답변드리기 어렵|"
@@ -81,9 +81,11 @@ def number_grounded(inputs, outputs, reference_outputs):
     ids = [s.get("doc_id") for s in (outputs.get("sources") or []) if s.get("doc_id")]
     evidence = inputs.get("question", "")
     if ids:
-        with connection.cursor() as cur:
-            cur.execute("SELECT content FROM llm_documentchunk WHERE metadata->>'doc_id' = ANY(%s)", [ids])
-            evidence += " ".join(r[0] for r in cur.fetchall())
+        name = ensure_collection()
+        for start in range(0, len(ids), 256):
+            points = client().retrieve(name, ids=[point_id(identifier) for identifier in ids[start:start + 256]],
+                                       with_payload=True, with_vectors=False)
+            evidence += " " + " ".join(point.payload.get("content", "") for point in points)
     evidence = evidence.replace(",", "")
     return all(n in evidence for n in nums)
 

@@ -1,13 +1,12 @@
-"""[club] 질문 임베딩 · pgvector 검색 · 키워드 재정렬 (rag_test/common.py 의 Django 판)
+"""[club] 질문 임베딩 · Qdrant 검색 · 키워드 재정렬 (rag_test/common.py 의 Django 판)
 
-rag_test 와 다른 점: DB 접속을 직접 열지 않고 django.db.connection 을 쓴다.
+Qdrant 검색 결과를 기존 RAG 행 계약으로 변환한다.
 임베딩 모델은 적재(build_index) 때와 반드시 같아야 한다 → EMBEDDING_MODEL 환경변수.
 """
 import os
 import re
 import time
 
-from django.db import connection, transaction
 from langchain_openai import OpenAIEmbeddings
 
 EMBED_MODEL = os.getenv("EMBEDDING_MODEL") or "text-embedding-3-small"
@@ -19,8 +18,10 @@ _embedder = None
 def embed(text: str) -> list[float]:
     """질문 1건 → 벡터. 임베딩 클라이언트는 서버 기동 후 한 번만 만든다."""
     global _embedder
+    from llm.vector_store import embedding_model
+    embedding_model()
     if _embedder is None:
-        _embedder = OpenAIEmbeddings(model=EMBED_MODEL)
+        _embedder = OpenAIEmbeddings(model=EMBED_MODEL, dimensions=1536)
     return _embedder.embed_query(text)
 
 
@@ -31,47 +32,19 @@ def embed_many(texts: list[str]) -> list[list[float]]:
     (embed() 를 두 번 부르면 네트워크 왕복이 두 번이라 그만큼 느려진다).
     """
     global _embedder
+    from llm.vector_store import embedding_model
+    embedding_model()
     if _embedder is None:
-        _embedder = OpenAIEmbeddings(model=EMBED_MODEL)
+        _embedder = OpenAIEmbeddings(model=EMBED_MODEL, dimensions=1536)
     return _embedder.embed_documents(texts)
-
-
-def _where(stadium=None, categories=None, must_text=None):
-    conds, params = [], {}
-    if stadium:
-        # 공통 반입규정·기초규칙은 stadium_code 가 null → 어느 구장 질문에도 같이 포함
-        conds.append("(metadata->>'stadium_code' = %(st)s OR metadata->>'stadium_code' IS NULL)")
-        params["st"] = stadium
-    if categories:
-        conds.append("metadata->>'category' = ANY(%(cats)s)")
-        params["cats"] = list(categories)
-    if must_text:
-        conds.append("content ILIKE %(mt)s")
-        params["mt"] = f"%{must_text}%"
-    return ("WHERE " + " AND ".join(conds)) if conds else "", params
 
 
 def search(qvec, k=5, stadium=None, categories=None, ef_search=EF_SEARCH, must_text=None):
     """벡터 검색. 반환 (rows, ms). rows 는 dict 목록 (doc_id·stadium·category·status·evidence_type·updated_at·content·dist)"""
-    where, params = _where(stadium, categories, must_text)
-    params.update(v="[" + ",".join(map(str, qvec)) + "]", k=k)
-    sql = f"""
-        SELECT metadata->>'doc_id' AS doc_id, metadata->>'stadium_code' AS stadium,
-               metadata->>'category' AS category, metadata->>'status' AS status,
-               metadata->>'evidence_type' AS evidence_type,
-               left(coalesce(metadata->'metadata'->>'updated_at', metadata->>'updated_at', ''), 10) AS updated_at,
-               content, embedding <=> %(v)s::vector AS dist
-        FROM llm_documentchunk {where}
-        ORDER BY embedding <=> %(v)s::vector
-        LIMIT %(k)s"""
+    from llm import vector_store
     t0 = time.perf_counter()
-    with transaction.atomic(), connection.cursor() as cur:      # SET LOCAL 은 트랜잭션 안에서만 유지
-        cur.execute(f"SET LOCAL hnsw.ef_search = {int(ef_search)}")
-        cur.execute(sql, params)
-        cols = [c[0] for c in cur.description]
-        rows = [dict(zip(cols, row)) for row in cur.fetchall()]
-    for r in rows:
-        r["dist"] = float(r["dist"])
+    rows = [vector_store.legacy_row(doc) for doc in vector_store.search(
+        qvec, k=k, stadium=stadium, categories=categories, must_text=must_text, ef_search=ef_search)]
     return rows, (time.perf_counter() - t0) * 1000
 
 

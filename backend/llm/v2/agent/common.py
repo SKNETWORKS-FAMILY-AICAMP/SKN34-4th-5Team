@@ -71,7 +71,7 @@ class FinalAnswerMiddleware(AgentMiddleware):
         return response
 
 
-def build_agent(model, tools, rules, capability_tools=None, budget=MODEL_CALL_BUDGET, run_jev=False):
+def build_agent(model, tools, rules, capability_tools=None, budget=MODEL_CALL_BUDGET, run_jev=False, extra_middleware=()):
     """create_agent 를 JEV 가이드라인 + 동적 도구 노출 + 종료 보장 미들웨어와 함께 조립한다.
 
     capability_tools 가 None 이면 role_tools(주어진 tools) 그대로 노출한다(구성 시점에 고정된
@@ -89,6 +89,7 @@ def build_agent(model, tools, rules, capability_tools=None, budget=MODEL_CALL_BU
             DynamicToolMiddleware([t.name for t in tools], capability_tools),
             ModelCallLimitMiddleware(run_limit=budget, exit_behavior="error"),
             FinalAnswerMiddleware(budget),
+            *extra_middleware,
             ToolCallLimitMiddleware(tool_name="get_directions", run_limit=2),
             ToolCallLimitMiddleware(tool_name="ask_course", run_limit=1),
         ],

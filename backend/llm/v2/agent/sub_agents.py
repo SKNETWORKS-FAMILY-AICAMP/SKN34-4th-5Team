@@ -5,10 +5,11 @@ from langchain.tools import ToolRuntime, tool
 from langchain_core.messages import HumanMessage, ToolMessage
 from langchain_core.runnables.config import merge_configs
 
-from . import baseball_sub_agent, course_sub_agent, place_sub_agent, travel_sub_agent
+from . import baseball_sub_agent, course_sub_agent, place_sub_agent, travel_sub_agent, web_sub_agent
 from .common import final_text
 
 SPECIALISTS = {
+    "ask_web_research": (web_sub_agent, "공개 웹 조사 전문 에이전트: 키워드 검색·URL 확인으로 사실과 출처·미확인 조건을 돌려준다. 최종 답변은 메인이 작성한다."),
     "ask_course": (course_sub_agent, "직관 코스 전문 에이전트: 실제 사용자 요청과 현재 지도·서버 기억으로 코스 생성·수정을 검증해 돌려준다. 턴당 한 번만 실행한다."),
     "ask_baseball": (baseball_sub_agent, "야구 전문 에이전트: 경기 일정·시각, 구장 확인, 구장 안 정보, 야구 커뮤니티를 조회해 돌려준다."),
     "ask_travel_research": (travel_sub_agent, "주변 후보 조사 에이전트: 구장 주변 맛집·카페·관광·실내활동 후보를 찾아 돌려준다."),
