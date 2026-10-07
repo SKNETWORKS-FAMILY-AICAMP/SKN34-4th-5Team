@@ -270,3 +270,6 @@ data/raw/rules/*.pdf
 >>>>>>> 35ef353fb5633ca8f7c03ef189c94d9874c1aaf4
 /PRODUCT.md
 /DESIGN.md
+
+# Local-only migration merge (not shared with other environments).
+/backend/llm/migrations/0013_merge_attachment_and_legacy_usage.py
