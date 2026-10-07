@@ -6530,6 +6530,41 @@ paths:
   /api/v1/courses/:
     get:
       operationId: v1_courses_list
+      parameters:
+      - in: query
+        name: exclude_samples
+        schema:
+          type: string
+          enum:
+          - 'false'
+          - 'true'
+      - in: query
+        name: limit
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+      - in: query
+        name: ordering
+        schema:
+          type: string
+          enum:
+          - likes
+          - newest
+      - in: query
+        name: stadium
+        schema:
+          type: string
+          enum:
+          - CHANGWON
+          - DAEGU
+          - DAEJEON
+          - GOCHEOK
+          - GWANGJU
+          - JAMSIL
+          - MUNHAK
+          - SAJIK
+          - SUWON
       tags:
       - v1
       responses:
@@ -6540,6 +6575,13 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Course'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
           description: ''
     post:
       operationId: v1_courses_create

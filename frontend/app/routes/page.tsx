@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Icon } from "@/components/icons";
 import { RouteCard } from "@/components/route-card";
+import { RouteBestSection } from "@/components/route-best-section";
 import { RouteCardsSkeleton, RouteListSkeleton } from "@/components/route-skeleton";
 import { retryRoutes, useRoutes, useRoutesError, useRoutesReady } from "@/lib/routes";
 import { routeContentToText } from "@/lib/route-content";
@@ -22,7 +23,7 @@ function RouteBrowseBoard({ initialQuery, initialStadium, deleted }: { initialQu
   const [activeSearchField, setActiveSearchField] = useState<SearchField>("all");
   const [stadium, setStadium] = useState(initialStadium);
   const [page, setPage] = useState(1);
-  const [sort, setSort] = useState("newest");
+  const [sort, setSort] = useState("likes");
   const [showDeleted, setShowDeleted] = useState(deleted);
   const resultsHeading = useRef<HTMLElement>(null);
   const routes = useRoutes();
@@ -41,7 +42,7 @@ function RouteBrowseBoard({ initialQuery, initialStadium, deleted }: { initialQu
   });
   const sorted = [...filtered].sort((a, b) => {
     const newest = b.createdAt.localeCompare(a.createdAt);
-    if (sort === "likes") return b.likes - a.likes || newest;
+    if (sort === "likes") return b.likes - a.likes || newest || b.id.localeCompare(a.id);
     if (sort === "views") return (b.views ?? 0) - (a.views ?? 0) || newest;
     return newest;
   });
@@ -76,6 +77,7 @@ function RouteBrowseBoard({ initialQuery, initialStadium, deleted }: { initialQu
           <div className="community-stadiums" role="group" aria-label="구장으로 필터">
             {stadiums.map(item => <button type="button" key={item} className={stadium === item ? "is-active" : ""} aria-pressed={stadium === item} onClick={() => { setStadium(item); setPage(1); }}>{item}</button>)}
           </div>
+          <RouteBestSection stadium={stadium} routes={routes} />
           <div className="community-toolbar">
             <p>전체 <strong>{ready ? sorted.length : "…"}</strong>개 <span className="community-page-count">{currentPage} / {pageCount} 페이지</span></p>
             <div className="community-sort">

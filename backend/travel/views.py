@@ -17,6 +17,7 @@ from rest_framework.throttling import SimpleRateThrottle
 from rest_framework.views import APIView
 
 from .models import Course, CourseReaction, CourseView
+from .course_ranking import STADIUM_ALIASES, filter_courses
 from .directions_provider import DirectionsError, fetch_directions
 from .serializers import (
     CourseCreateRequestSerializer,
@@ -68,7 +69,15 @@ class CourseWriteThrottle(SimpleRateThrottle):
 
 
 @extend_schema_view(
-    get=extend_schema(responses={200: CourseResponseSerializer(many=True)}, auth=[]),
+    get=extend_schema(
+        parameters=[
+            OpenApiParameter("stadium", OpenApiTypes.STR, enum=tuple(STADIUM_ALIASES)),
+            OpenApiParameter("ordering", OpenApiTypes.STR, enum=("newest", "likes")),
+            OpenApiParameter("limit", {"type": "integer", "minimum": 1, "maximum": 100}),
+            OpenApiParameter("exclude_samples", OpenApiTypes.STR, enum=("true", "false")),
+        ],
+        responses={200: CourseResponseSerializer(many=True), 400: OpenApiTypes.OBJECT}, auth=[],
+    ),
     post=extend_schema(
         request=CourseCreateRequestSerializer,
         responses={201: CourseCreateResultSerializer, 400: OpenApiTypes.OBJECT, 403: OpenApiTypes.OBJECT, 413: OpenApiTypes.OBJECT, 429: OpenApiTypes.OBJECT},
@@ -79,6 +88,9 @@ class CourseListCreateView(CourseWriteProtectionMixin, generics.ListCreateAPIVie
     queryset = Course.objects.prefetch_related("stops")
     serializer_class = CourseSerializer
     permission_classes = (IsAuthenticated,)
+
+    def get_queryset(self):
+        return filter_courses(super().get_queryset(), self.request.query_params)
 
     def get_permissions(self):
         return [AllowAny()] if self.request.method in {"GET", "HEAD", "OPTIONS"} else [IsAuthenticated()]

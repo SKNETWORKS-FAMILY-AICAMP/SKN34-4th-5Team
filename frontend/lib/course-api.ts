@@ -55,6 +55,21 @@ export async function fetchCourses(fetcher: Fetcher = fetch): Promise<TripRoute[
   return value.map(course => routeFromApi(course));
 }
 
+export async function fetchBestCourses(stadiumCode = "", signal?: AbortSignal, fetcher: Fetcher = fetch): Promise<TripRoute[]> {
+  const query = new URLSearchParams({ ordering: "likes", limit: "5", exclude_samples: "true" });
+  if (stadiumCode) query.set("stadium", stadiumCode);
+  const value = await apiRequest<unknown>(`/api/v1/courses/?${query}`, {
+    cache: "no-store", signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(40000)]) : AbortSignal.timeout(40000),
+  }, fetcher);
+  if (!Array.isArray(value) || value.length > 5) throw new Error("추천 코스 응답을 확인해 주세요.");
+  return value.map(course => {
+    if (course?.isSample !== false || typeof course.likes !== "number" || !Number.isFinite(course.likes) || course.likes < 0) {
+      throw new Error("추천 코스 응답을 확인해 주세요.");
+    }
+    return routeFromApi(course);
+  });
+}
+
 export async function persistCourse(route: TripRoute, fetcher: Fetcher = fetch): Promise<TripRoute> {
   const editToken = route.id ? token(route.id) : "";
   if (route.id && route.owned && !route.legacy && !editToken) throw new Error("이 코스의 편집 토큰을 찾을 수 없어 읽기만 가능해요.");

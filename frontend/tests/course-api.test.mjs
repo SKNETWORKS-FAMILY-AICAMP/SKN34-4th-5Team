@@ -36,6 +36,34 @@ function harness(memberFetch = async () => { throw new Error("unexpected authent
   return { ...testModule.exports, storage, block: () => { blocked = true; }, member: handler => { memberHandler = handler; } };
 }
 
+test("best courses use public server ranking with five results and no samples", async () => {
+  const api = harness();
+  const controller = new AbortController();
+  const result = await api.fetchBestCourses("SAJIK", controller.signal, async (url, init) => {
+    const params = new URL(url, "https://example.test").searchParams;
+    assert.equal(params.get("stadium"), "SAJIK");
+    assert.equal(params.get("ordering"), "likes");
+    assert.equal(params.get("limit"), "5");
+    assert.equal(params.get("exclude_samples"), "true");
+    assert.equal(init.cache, "no-store");
+    controller.abort();
+    assert.equal(init.signal.aborted, true);
+    return Response.json([apiCourse({ isSample: false, likes: 7 })]);
+  });
+  assert.equal(result[0].likes, 7);
+});
+
+test("best courses permit empty results and reject sample or malformed rankings", async () => {
+  const api = harness();
+  assert.deepEqual(await api.fetchBestCourses("", undefined, async url => {
+    assert.equal(new URL(url, "https://example.test").searchParams.has("stadium"), false);
+    return Response.json([]);
+  }), []);
+  for (const value of [[apiCourse({ isSample: true, likes: 2 })], [apiCourse({ isSample: false, likes: -1 })], {}, Array(6).fill(apiCourse({ isSample: false, likes: 1 }))]) {
+    await assert.rejects(api.fetchBestCourses("", undefined, async () => Response.json(value)));
+  }
+});
+
 test("default course writes use the member JWT request path while reads stay public", async () => {
   const requests = [];
   const api = harness(async (url, init) => {

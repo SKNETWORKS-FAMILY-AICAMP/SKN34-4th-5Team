@@ -11478,7 +11478,12 @@ export interface operations {
     };
     v1_courses_list: {
         parameters: {
-            query?: never;
+            query?: {
+                exclude_samples?: "false" | "true";
+                limit?: number;
+                ordering?: "likes" | "newest";
+                stadium?: "CHANGWON" | "DAEGU" | "DAEJEON" | "GOCHEOK" | "GWANGJU" | "JAMSIL" | "MUNHAK" | "SAJIK" | "SUWON";
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -11491,6 +11496,16 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Course"][];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };
