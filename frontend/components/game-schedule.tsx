@@ -274,7 +274,7 @@ function ScheduleSkeleton() {
   );
 }
 
-export function GameSchedule({ beforeTeamBoards }: { beforeTeamBoards?: ReactNode } = {}) {
+export function GameSchedule({ afterSchedule, beforeTeamBoards }: { afterSchedule?: ReactNode; beforeTeamBoards?: ReactNode } = {}) {
   const { data, error, checking, retry } = useKboSnapshot();
   const loading = !data && !error;
   const stale = Boolean(data && (data.stale || error));
@@ -304,6 +304,7 @@ export function GameSchedule({ beforeTeamBoards }: { beforeTeamBoards?: ReactNod
         {data && <><SourceMeta data={data} /><p className="game-weather-source">날씨: <a href="https://www.data.go.kr/data/15084084/openapi.do" target="_blank" rel="noreferrer">기상청 단기예보</a> · 경기 시작에 가까운 정시 예보 · 고척은 구장 외부 기준</p></>}
       </section>
 
+      {afterSchedule}
       <KboHighlightSection />
 
       <section className="container home-standings" aria-labelledby="standings-heading">

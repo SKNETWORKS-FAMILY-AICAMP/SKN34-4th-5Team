@@ -32,7 +32,7 @@ const { CHAT_INSTRUCTIONS } = requireTestModule("./prompt.js");
 const question = { messages: [{ role: "user", content: "잠실 직관 코스를 추천해줘" }] };
 // Deliberately synthetic: tests never load a real .env or contact a provider.
 const secret = "unit-test-synthetic-key-not-a-real-credential";
-const openaiEnv = { CHAT_PROVIDER: "openai", OPENAI_API_KEY: secret, OPENAI_MODEL: "gpt-5.6-luna" };
+const openaiEnv = { CHAT_PROVIDER: "openai", OPENAI_API_KEY: secret, OPENAI_MODEL: "gpt-6-luna" };
 const completed = (text = "식사, 경기 관람, 산책 순서로 하루를 구성해 보세요.") => ({
   status: "completed",
   output: [{ type: "message", role: "assistant", content: [{ type: "output_text", text }] }],
@@ -87,7 +87,7 @@ test("valid history and message length boundaries remain accepted", () => {
 });
 
 test("default configuration is explicitly demo and never calls fetch", async () => {
-  assert.deepEqual(getChatStatus({}), { provider: "demo", model: "gpt-5.6-luna", ready: true });
+  assert.deepEqual(getChatStatus({}), { provider: "demo", model: "gpt-6-luna", ready: true });
   const result = await createChatReply(question, { env: {}, fetcher: unexpectedFetch });
   assert.equal(result.provider, "demo");
   assert.match(result.reply, /예시/);
@@ -133,7 +133,7 @@ test("OpenAI request uses configured model, server instructions and private resp
       assert.equal(init.cache, "no-store");
       assert.ok(init.signal instanceof AbortSignal);
       const body = JSON.parse(init.body);
-      assert.equal(body.model, "gpt-5.6-luna");
+      assert.equal(body.model, "gpt-6-luna");
       assert.equal(body.store, false);
       assert.equal(body.instructions, CHAT_INSTRUCTIONS);
       assert.deepEqual(body.input.slice(1), question.messages);
@@ -147,7 +147,7 @@ test("OpenAI request uses configured model, server instructions and private resp
     },
   });
   assert.equal(calls, 1);
-  assert.deepEqual(result, { provider: "openai", model: "gpt-5.6-luna", ready: true, reply: "답변입니다." });
+  assert.deepEqual(result, { provider: "openai", model: "gpt-6-luna", ready: true, reply: "답변입니다." });
   assert.ok(!JSON.stringify(result).includes(secret));
   assert.ok(!JSON.stringify(getChatStatus(openaiEnv)).includes(secret));
 });
@@ -223,7 +223,7 @@ test("backend adapter forwards the same request contract without OpenAI credenti
       return jsonResponse({ reply: "  팀 챗봇의 답변입니다.  ", internalField: "not exposed" });
     },
   });
-  assert.deepEqual(result, { provider: "backend", model: "gpt-5.6-luna", ready: true, reply: "팀 챗봇의 답변입니다." });
+  assert.deepEqual(result, { provider: "backend", model: "gpt-6-luna", ready: true, reply: "팀 챗봇의 답변입니다." });
 });
 
 test("backend rejects missing or unsafe endpoint configurations before fetching", async () => {

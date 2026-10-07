@@ -148,6 +148,8 @@ function WriterForm({ stadiums, initial, existing, copying = false, sample = fal
   const touched = useRef(recovery.dirty || Boolean(restoredDraft));
   const discarded = useRef(false);
   const savingRef = useRef(false);
+  const activeForm = useRef(true);
+  useLayoutEffect(() => { activeForm.current = true; return () => { activeForm.current = false; }; }, []);
   const expectedRaw = useRef(recovery.expectedRaw);
   const draftContext = useRef(draftKey);
   const autosaveRef = useRef<ReturnType<typeof createDraftAutosave> | null>(null);
@@ -358,7 +360,9 @@ function WriterForm({ stadiums, initial, existing, copying = false, sample = fal
     };
     try {
       await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      if (!activeForm.current) return;
       const persisted = await saveRoute(route);
+      if (!activeForm.current) return;
       const oldContext = draftContext.current;
       removeRouteDraft(storage, oldContext, expectedRaw.current); writerDrafts.delete(oldContext);
       const canonicalContext = `edit:${persisted.id}`;
@@ -384,7 +388,7 @@ function WriterForm({ stadiums, initial, existing, copying = false, sample = fal
           },
         });
       } else if (!persisted.saveWarning) router.push("/routes");
-    } catch (caught) { savingRef.current = false; setSaving(false); dirty.current = true; autosaveRef.current?.changed(); setError(caught instanceof Error ? caught.message : "저장하지 못했어요. 다시 시도해 주세요. 작성 내용은 이 화면에 남아 있어요."); }
+    } catch (caught) { if (!activeForm.current) return; savingRef.current = false; setSaving(false); dirty.current = true; autosaveRef.current?.changed(); setError(caught instanceof Error ? caught.message : "저장하지 못했어요. 다시 시도해 주세요. 작성 내용은 이 화면에 남아 있어요."); }
   }
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
