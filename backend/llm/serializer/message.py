@@ -27,6 +27,13 @@ def _validate_context(value):
     errors = {}
     cleaned = {}
 
+    if "currentCourse" in value:
+        from llm.v1.rag.course.edit_context import validate
+        try:
+            cleaned["currentCourse"] = validate(value["currentCourse"])
+        except (ValueError, TypeError, OverflowError):
+            errors["currentCourse"] = "수정할 코스의 장소·번호·좌표·이동수단을 확인해 주세요."
+
     if "stadium" in value:
         stadium = value["stadium"]
         if not isinstance(stadium, str) or not stadium or len(stadium) > 100:
@@ -66,6 +73,31 @@ def _validate_context(value):
             else:
                 cleaned["origin"] = origin_cleaned
 
+    if "routePath" in value:
+        path = value["routePath"]
+        if (not isinstance(path, dict) or not isinstance(path.get("points"), list)
+                or not 2 <= len(path["points"]) <= 128 or path.get("source") not in ("drawn", "directions")
+                or not isinstance(path.get("label"), str) or not 1 <= len(path["label"]) <= 80):
+            errors["routePath"] = "경로에는 2~128개 좌표, 이름, 출처가 필요합니다."
+        else:
+            points = []
+            for point in path["points"]:
+                try:
+                    if not isinstance(point, dict) or any(isinstance(point.get(k), bool) or not isinstance(point.get(k), (int, float)) for k in ("lat", "lng")):
+                        raise ValueError()
+                    lat, lng = float(point["lat"]), float(point["lng"])
+                    if not math.isfinite(lat) or not math.isfinite(lng) or not (-90 <= lat <= 90 and -180 <= lng <= 180):
+                        raise ValueError()
+                    points.append({"lat": lat, "lng": lng})
+                except (ValueError, TypeError, KeyError, OverflowError):
+                    errors["routePath"] = "경로 좌표를 확인해 주세요."
+                    break
+            breaks = path.get("breaks", [])
+            if not isinstance(breaks, list) or len(breaks) > 127 or any(type(i) is not int or not 1 <= i < len(points) for i in breaks):
+                errors["routePath"] = "경로 구간을 확인해 주세요."
+            if "routePath" not in errors:
+                cleaned["routePath"] = {"points": points, "source": path["source"], "label": path["label"], "breaks": sorted(set(breaks))}
+
     if errors:
         raise serializers.ValidationError(errors)
     return cleaned
@@ -75,6 +107,25 @@ class ChatMessageInputSerializer(serializers.Serializer):
     """POST /messages/ 요청 바디 검증 (content + 선택 사항 context)."""
     content = serializers.CharField(max_length=2200, allow_blank=False)
     context = serializers.DictField(required=False, allow_null=True)
+    tool_group_ids = serializers.ListField(child=serializers.CharField(), required=False, max_length=14)
+    attachment_ids = serializers.ListField(child=serializers.UUIDField(), required=False)
+
+    def validate_tool_group_ids(self, value):
+        from llm.v2.middleware.dynamic_tools import CAPABILITY_TOOLS
+        if len(value) != len(set(value)) or any(key not in CAPABILITY_TOOLS for key in value):
+            raise serializers.ValidationError("알 수 없거나 중복된 도구 그룹입니다.")
+        return value
+
+    def validate_attachment_ids(self, value):
+        ids = list(dict.fromkeys(map(str, value)))
+        if len(ids) > 10:
+            raise serializers.ValidationError("첨부 자료는 합계 10개까지 사용할 수 있습니다.")
+        return ids
+
+    def validate(self, data):
+        if "toolGroupIds" in self.initial_data or "attachmentIds" in self.initial_data:
+            raise serializers.ValidationError("snake_case 필드명을 사용해 주세요.")
+        return data
 
     def validate_content(self, value):
         # CharField 는 기본적으로 int/float 등도 str() 로 강제 변환해 통과시킨다.
@@ -131,7 +182,7 @@ _TOOL_RESULT_STATUS = {"success": PublicToolStatus.COMPLETED.value, "error": Pub
 
 
 # 하위 Agent 도구 이름 (llm.v2.agent.sub_agents.SPECIALISTS 와 같다. 무거운 agent import 를 피하려고 여기 둔다).
-SUB_AGENT_TOOLS = ("ask_baseball", "ask_travel_research", "ask_place_data")
+SUB_AGENT_TOOLS = ("ask_baseball", "ask_travel_research", "ask_place_data", "ask_course")
 TITLE_LIMIT = 80
 SUMMARY_LIMIT = 40
 
@@ -260,11 +311,20 @@ def project_history(messages, turns, detail=False):
         if answer:
             item = _history_item(answer, ChatRole.ASSISTANT.value, status, tools, steps)
             from llm.v2.agent.chat_ui import public_ui
+            from llm.v2.agent.course_output import public_course
             for message in turn_messages:
                 if isinstance(message, ToolMessage) and message.name == "present_planning_questions" and message.status != "error":
                     payload = public_ui(message.artifact)
                     if payload:
                         item["planning"] = payload
+                from llm.v2.agent.course_output import course_artifacts
+                for artifact in course_artifacts([message]) if status == TurnStatus.COMPLETED else ():
+                    from llm.v1.rag.course.memory import public as public_preferences
+                    if preferences := public_preferences(artifact.get("course_memory")):
+                        item["coursePreferences"] = preferences
+                    payload = public_course(artifact.get("course"))
+                    if payload:
+                        item["course"] = payload
             items.append(item)
     return items
 
@@ -346,17 +406,31 @@ def _split_turns(messages):
 def _history_item(message, role, status, tools, steps):
     if not _nonempty_str(message.id):
         raise ValueError("message without id")
-    return {"id": message.id, "role": role, "content": str(message.text), "status": status, "tools": tools, "steps": steps}
+    item = {"id": message.id, "role": role, "content": str(message.text), "status": status, "tools": tools, "steps": steps}
+    if role == ChatRole.USER and "tool_group_ids" in message.additional_kwargs:
+        item["tool_group_ids"] = list(message.additional_kwargs["tool_group_ids"])
+    return item
 
 
-def wire_history(messages, turns, wire, detail=False):
+def wire_history(messages, turns, wire, detail=False, session_id=None):
     """HTTP 공개 목록(v1/v2 공통). 옛 ChatMessageSerializer 필드를 유지한다: 정수 id·sequence_no·created_at·updated_at,
     턴 취소는 옛 이름 stopped. 항목 순서·내용·tools 는 project_history 그대로다.
 
     wire: ChatThread.wire ({message.id: {"id", "created_at", "updated_at"}}). sequence_no 는 현재 대화 안의 위치(1부터)라
     동시 질문이 턴 안에 끼어들면 뒤 항목의 값이 밀릴 수 있다. 번호표 없는 메시지는 ValueError.
     """
-    return [_wire_item(item, wire, number) for number, item in enumerate(project_history(messages, turns, detail), 1)]
+    items = project_history(messages, turns, detail)
+    references = {m.id: list(map(str, m.additional_kwargs["attachment_ids"])) for m in messages
+                  if isinstance(m, HumanMessage) and m.additional_kwargs.get("attachment_ids")}
+    if references and session_id is not None:
+        from llm.models import ChatAttachment
+        from llm.service.attachments import metadata
+        ids = {key for keys in references.values() for key in keys}
+        rows = {str(row.id): metadata(row) for row in ChatAttachment.objects.filter(session_id=session_id, id__in=ids)}
+        for item in items:
+            if item["role"] == ChatRole.USER and item["id"] in references:
+                item["attachments"] = [rows[key] for key in references[item["id"]] if key in rows]
+    return [_wire_item(item, wire, number) for number, item in enumerate(items, 1)]
 
 
 def _wire_item(item, wire, sequence_no):
@@ -389,7 +463,9 @@ def done_payload(messages, turns):
     if not last or last["role"] != ChatRole.ASSISTANT or last["status"] != TurnStatus.COMPLETED:
         raise ValueError("no completed assistant message")
     return {"message_id": last["id"], "assistant_message": last["content"], "tools": last["tools"], "steps": last["steps"],
-            **({"planning": last["planning"]} if "planning" in last else {})}
+            **({"planning": last["planning"]} if "planning" in last else {}),
+            **({"coursePreferences": last["coursePreferences"]} if "coursePreferences" in last else {}),
+            **({"course": last["course"]} if "course" in last else {})}
 
 
 def hide_private_tools(item):

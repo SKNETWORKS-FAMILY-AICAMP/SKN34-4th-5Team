@@ -5,8 +5,10 @@ import { fetchCourseReaction, fetchCourses, persistCourse, recordCourseView, rem
 import { createClientId } from "./client-id";
 import { isLodgingReference } from "./google-lodging";
 import { isRichContentDoc, type RichContentDoc } from "./community-rich-content";
+import type { LegModes, TravelMode } from "./course-directions";
+import type { ChatCoursePlace, ChatCourse } from "./chat/types";
 
-export type RouteStop = { name: string; lat: number; lng: number; category: string; placeId?: string; visitId?: string; address?: string; tourContentId?: string; isMapPoint?: boolean; isDrawnPoint?: boolean };
+export type RouteStop = { name: string; lat: number; lng: number; category: string; placeId?: string; visitId?: string; address?: string; tourContentId?: string; isMapPoint?: boolean; isDrawnPoint?: boolean; coursePlace?: ChatCoursePlace; courseGame?: ChatCourse["game"]; courseProgress?: ChatCourse["progress"] };
 export function areValidCoordinates(lat: unknown, lng: unknown): boolean {
   return typeof lat === "number" && typeof lng === "number" && Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
 }
@@ -17,7 +19,9 @@ export type TripRoute = {
   views?: number; contentFormat?: "html"; contentDoc?: RichContentDoc | null;
   routeNumber?: string;
   apiId?: string;
-  start?: { lat: number; lng: number };
+  start?: { lat: number; lng: number; name?: string };
+  travelMode?: TravelMode;
+  legModes?: LegModes;
   owned?: boolean;
   legacy?: boolean;
   legacySourceId?: string;

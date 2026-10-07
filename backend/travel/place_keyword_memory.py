@@ -17,6 +17,7 @@ from django.utils import timezone
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, ValidationError as SchemaError, field_validator
 
 from .place_knowledge import context_applies, record_observation
+from .knowledge_router import knowledge_alias
 from .place_knowledge_models import (
     KST, PlaceKnowledge, PlaceKnowledgeObservation, PlaceKnowledgeSource,
     aware, unknown_context, validate_context,
@@ -107,7 +108,7 @@ def record_keyword_memory(*, place_id, source_id, keywords):
         if not item.same_place_verified or not item.evidence_verified:
             raise ValidationError("동일 지점과 실제 근거를 검증한 키워드만 적재합니다.")
     saved = []
-    with transaction.atomic():
+    with transaction.atomic(using=knowledge_alias()):
         # Same lock order as record_observation; no parallel source auto-creation.
         place = PlaceKnowledge.objects.select_for_update().get(pk=place_id)
         source = PlaceKnowledgeSource.objects.select_for_update().get(pk=source_id)

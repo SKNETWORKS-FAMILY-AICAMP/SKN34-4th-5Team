@@ -1,5 +1,7 @@
 # 잠실 공공 장소 데이터 파일럿
 
+> 2026-10-04: 아래는 과거 파일럿 기록입니다. 소상공인 원본·파생 자료와 비교 결과를 제거했고 SBIZ 수집 및 카카오 대조 실행을 중단했습니다. 현재 수집 방법은 [STADIUM_COLLECTION.md](STADIUM_COLLECTION.md)를 따릅니다.
+
 > 이 문서는 과거 잠실 비교 파일럿입니다. 2026-09-27 이후 구장별 수집은
 > [STADIUM_COLLECTION.md](STADIUM_COLLECTION.md)를 따릅니다. 새 수집의 숙박 출처는
 > 사용자 결정에 따라 Google Places API이며, 아래 행안부·관광공사 숙박 자료는 합치지 않습니다.

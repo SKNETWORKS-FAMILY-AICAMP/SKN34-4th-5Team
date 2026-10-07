@@ -10,7 +10,7 @@ import ts from "typescript";
 const frontend = dirname(dirname(fileURLToPath(import.meta.url)));
 const scratch = mkdtempSync(join(tmpdir(), "kbo-chat-direct-test-"));
 after(() => rmSync(scratch, { recursive: true, force: true }));
-for (const name of ["lib/member-auth-request", "lib/chat/planning", "lib/chat/types", "lib/chat/validation", "lib/chat/course", "lib/chat/history", "lib/chat/client"]) {
+for (const name of ["lib/course-directions", "lib/drawn-course", "lib/chat/current-course", "lib/member-auth-request", "lib/chat/planning", "lib/chat/types", "lib/chat/validation", "lib/chat/course", "lib/chat/history", "lib/chat/client"]) {
   const source = readFileSync(join(frontend, `${name}.ts`), "utf8");
   const { outputText } = ts.transpileModule(source, {
     fileName: `${name}.ts`, compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
@@ -31,6 +31,111 @@ const { clearMemberTokens, saveMemberTokens } = require("./lib/member-auth-reque
 const { saveAnswerFeedback, fetchAdminFeedback, fetchAdminFeedbackDetail, ChatClientError, deleteChatMessages, deleteChatSession, editChatMessage, fetchChatHistory, getChatStatus, listChatSessions, renameChatSession, sendChatMessage } = require("./lib/chat/client.js");
 const { restoreChatMessages } = require("./lib/chat/history.js");
 const { courseToStops, parseChatCourse } = require("./lib/chat/course.js");
+const { currentCourse } = require("./lib/chat/current-course.js");
+const { parseChatRequest } = require("./lib/chat/validation.js");
+
+test("writer metadata survives public response, history and follow-up including an explicitly cleared origin", () => {
+  const writerState = { title: "내 코스 제목", origin: { lat: 37.5, lng: 127.1, name: "잠실새내역" }, completed: false };
+  const place = { name: "카페", lat: 37.51, lng: 127.1, category: "CAFE", phase: "BEFORE", visitId: "cafe", label: "1" };
+  const wire = { places: [place], stadiumCode: "JAMSIL", writerState, travel: { mode: "walk" } };
+  const parsed = parseChatCourse(wire);
+  assert.deepEqual(parsed.writerState, writerState);
+  const current = { places: [place], stadiumCode: "JAMSIL", travelMode: "walk", legModes: {}, writerState: { ...writerState, title: "", origin: null } };
+  const request = parseChatRequest({ messages: [{ role: "user", content: "카페만 바꿔줘" }], context: { currentCourse: current } });
+  assert.deepEqual(request.context.currentCourse.writerState, current.writerState);
+  const history = restoreChatMessages([{ id: 42, role: "assistant", content: "코스", status: "completed", tools: [], course: wire }]);
+  assert.deepEqual(history[0].course.writerState, writerState);
+  assert.throws(() => parseChatRequest({ messages: [{ role: "user", content: "변경" }], context: { currentCourse: { ...current, writerState: { ...writerState, completed: "yes" } } } }));
+});
+const { legKey } = require("./lib/course-directions.js");
+
+test("completed visits and remaining schedule survive course card, map and follow-up requests", () => {
+  const wire = { edit: true, stadiumCode: "JAMSIL", travel: { mode: "walk" }, legModes: {},
+    game: { date: "2026-10-06", time: "18:30" }, progress: { startMinute: 1020, gameEndMinute: 1380 },
+    places: [
+      { visitId: "food", placeId: "1", name: "식당", category: "FOOD", phase: "BEFORE", lat: 37.51, lng: 127.08, time: "16:10", until: "17:00", completed: true },
+      { visitId: "game", placeId: "2", name: "잠실", category: "STADIUM", phase: "GAME", lat: 37.512, lng: 127.071, time: "17:45", until: "23:00" },
+    ] };
+  const course = parseChatCourse(wire);
+  const stops = courseToStops(course, () => "id");
+  const snapshot = currentCourse(stops, "JAMSIL", "walk", {});
+  const request = parseChatRequest({ messages: [{ role: "user", content: "출발 10분 늦어졌어" }], context: { currentCourse: snapshot } });
+  assert.deepEqual(request.context.currentCourse.progress, wire.progress);
+  assert.equal(request.context.currentCourse.places[0].completed, true);
+  assert.equal(request.context.currentCourse.places[0].until, "17:00");
+  const undone = courseToStops(parseChatCourse({ ...wire, progress: undefined, places: wire.places.map(p => ({ ...p, completed: undefined })) }), () => "id", stops);
+  assert.equal(currentCourse(undone, "JAMSIL", "walk", {}).progress, undefined);
+  assert.equal(undone[0].coursePlace.completed, undefined);
+  for (const progress of [{ startMinute: -1 }, { gameEndMinute: 2880 }, { startMinute: true }, { arbitrary: 1 }]) {
+    assert.throws(() => parseChatRequest({ messages: [{ role: "user", content: "변경" }], context: { currentCourse: { ...snapshot, progress } } }));
+  }
+});
+
+test("the current map sends exact places, map numbers, game and per-leg modes after manual reorder", () => {
+  const stops = [
+    { name: "식당", category: "먹거리", visitId: "food", placeId: "10", lat: 37.511, lng: 127.075, isDrawnPoint: true },
+    { name: "카페", category: "카페·디저트", visitId: "cafe", placeId: "20", lat: 37.513, lng: 127.078, isDrawnPoint: true },
+    { name: "잠실", category: "야구장", visitId: "game", lat: 37.512, lng: 127.071, isDrawnPoint: true, courseGame: { date: "2026-10-06", time: "18:30" } },
+  ];
+  const order = [stops[1], stops[0], stops[2]];
+  const modes = { [legKey(order[0], order[1])]: "transit", [legKey(stops[0], stops[1])]: "car" };
+  const snapshot = currentCourse(order, "JAMSIL", "walk", modes);
+  assert.deepEqual(snapshot.places.map(p => [p.visitId, p.label]), [["cafe", "출발"], ["food", "1"], ["game", "2"]]);
+  assert.deepEqual(snapshot.legModes, { [legKey(order[0], order[1])]: "transit" });
+  const request = parseChatRequest({ messages: [{ role: "user", content: "카페만 바꿔줘" }], context: { currentCourse: snapshot } });
+  assert.deepEqual(request.context.currentCourse.game, stops[2].courseGame);
+  assert.deepEqual(request.context.currentCourse.places.map(p => p.visitId), ["cafe", "food", "game"]);
+  for (const bad of [{ ...snapshot, places: [snapshot.places[0], snapshot.places[0]] }, { ...snapshot, legModes: { nope: "car" } },
+    { ...snapshot, places: [{ ...snapshot.places[0], lat: Infinity }] }]) {
+    assert.throws(() => parseChatRequest({ messages: [{ role: "user", content: "바꿔" }], context: { currentCourse: bad } }));
+  }
+});
+
+test("an edited course preserves fixed manual stops and changes only the requested venue", () => {
+  const fixed = { name: "직접 고른 식당", category: "먹거리", lat: 37.51, lng: 127.08, placeId: "1", visitId: "food", tourContentId: "manual-reference" };
+  const oldCafe = { name: "기존 카페", category: "카페·디저트", lat: 37.52, lng: 127.08, placeId: "2", visitId: "cafe", isDrawnPoint: true };
+  const reply = parseChatCourse({ edit: true, stadiumCode: "JAMSIL", legModes: {}, travel: { mode: "walk" }, places: [
+    { ...fixed, category: "FOOD", phase: "BEFORE", time: "15:30" },
+    { ...oldCafe, name: "새 카페", lat: 37.515, placeId: "3", category: "CAFE", phase: "BEFORE", time: "16:30" },
+  ] });
+  const applied = courseToStops(reply, () => "unexpected", [fixed, oldCafe]);
+  const { coursePlace, ...retained } = applied[0];
+  assert.deepEqual(retained, fixed);
+  assert.equal(coursePlace.time, "15:30");
+  assert.equal(applied[1].visitId, "cafe");
+  assert.equal(applied[1].placeId, "3");
+  assert.equal(applied[1].name, "새 카페");
+});
+
+test("GPS or map origin remains separate from editable visits", () => {
+  const origin = { name: "출발지", category: "출발", lat: 37.5, lng: 127.07, placeId: "route:origin", isDrawnPoint: true };
+  const stop = { name: "카페", category: "카페·디저트", lat: 37.51, lng: 127.07, visitId: "cafe" };
+  const snapshot = currentCourse([origin, stop], "JAMSIL", "walk", {});
+  assert.equal(snapshot.places.length, 1);
+  assert.equal(snapshot.places[0].label, "1");
+  assert.equal(currentCourse([{ ...stop, category: "야구장" }], "JAMSIL", "walk", {}).places[0].category, "STADIUM");
+});
+
+test("origin-only and explicitly empty maps send authoritative writer context, never an empty recommendation", () => {
+  const origin = { name: "출발지", category: "직접 지정", lat: 35.2, lng: 129.05, isMapPoint: true };
+  for (const stops of [[origin], []]) {
+    const writerState = { title: "", origin: stops.length ? { lat: origin.lat, lng: origin.lng, name: origin.name } : null, completed: false };
+    const snapshot = currentCourse(stops, "SAJIK", "walk", {}, undefined, writerState);
+    const request = parseChatRequest({ messages: [{ role: "user", content: "초밥 먹고 산책하다 구장 갈 코스 짜줘" }], context: { currentCourse: snapshot } });
+    assert.deepEqual(request.context.currentCourse.places, []);
+    assert.deepEqual(request.context.currentCourse.writerState, writerState);
+    assert.equal(parseChatCourse({ ...snapshot, edit: true }), undefined);
+    assert.throws(() => parseChatRequest({ messages: [{ role: "user", content: "코스" }], context: { currentCourse: { ...snapshot, writerState: undefined } } }));
+  }
+});
+
+test("course source URLs are validated without inventing links for missing sources", () => {
+  const place = { name: "카페", lat: 37.5, lng: 127, phase: "BEFORE", category: "CAFE" };
+  for (const placeUrl of ["javascript:alert(1)", "data:text/html,bad", "//example.org", "https://secret@example.org/1", "https://example.org/\n1", undefined]) {
+    assert.equal(parseChatCourse({ places: [{ ...place, placeUrl }] }).places[0].placeUrl, undefined);
+  }
+  assert.equal(parseChatCourse({ places: [{ ...place, placeUrl: "http://place.map.kakao.com/1" }] }).places[0].placeUrl, "https://place.map.kakao.com/1");
+});
 const json = (value, status = 200) => Response.json(value, { status });
 const sse = events => new Response(new ReadableStream({
   start(controller) {
@@ -65,6 +170,147 @@ const hanging = init => new Response(new ReadableStream({
 }), { headers: { "Content-Type": "text/event-stream" } });
 
 beforeEach(() => { stored.clear(); clearMemberTokens(); });
+
+const ATTACHMENT = "11111111-1111-4111-8111-111111111111";
+const attachmentDto = { id: ATTACHMENT, kind: "image", name: "seat.png", content_type: "image/png", size: 12, width: 1, height: 1, url: `/api/v2/chat/sessions/${SESSION}/attachments/${ATTACHMENT}/`, created_at: "2026-10-06T00:00:00Z" };
+test("empty text MIME uploads use verified extension MIME without overriding multipart boundary", async () => {
+  const { uploadChatAttachment, validateChatFile } = require("./lib/chat/client.js");
+  for (const [name, type, expected] of [["notes.md", "", "text/markdown"], ["notes.txt", "", "text/plain"], ["notes.md", "text/x-markdown", "text/x-markdown"]]) {
+    let captured;
+    global.fetch = async (_, init) => { captured = init; return json({ ...attachmentDto, kind: "text", name, content_type: expected, width: null, height: null }, 201); };
+    const file = new File(["notes"], name, { type });
+    assert.equal(validateChatFile(file), "text"); await uploadChatAttachment("guest", SESSION, file);
+    const uploaded = captured.body.get("file"); assert.equal(uploaded.name, name); assert.equal(uploaded.type, expected); assert.equal(await uploaded.text(), "notes");
+    assert.equal(new Headers(captured.headers).get("Content-Type"), null);
+  }
+});
+test("attachment multipart and private previews reuse Bearer; URL uploads are explicit JSON", async () => {
+  const { uploadChatAttachment, fetchChatAttachmentBlob } = require("./lib/chat/client.js");
+  saveMemberTokens("access-token", "refresh-token");
+  const calls = [];
+  global.fetch = async (url, init) => { calls.push({ url, init }); return init.method === "GET" ? new Response("image bytes") : json(attachmentDto, 201); };
+  const image = new File(["image"], "seat.png", { type: "image/png" });
+  const saved = await uploadChatAttachment("member", SESSION, image);
+  assert.equal(saved.contentType, "image/png"); assert.equal(saved.createdAt, attachmentDto.created_at);
+  assert.ok(calls[0].init.body instanceof FormData); assert.equal(calls[0].init.body.get("file").name, "seat.png");
+  assert.equal(new Headers(calls[0].init.headers).get("Content-Type"), null);
+  assert.equal(new Headers(calls[0].init.headers).get("Authorization"), "Bearer access-token");
+  assert.equal(await (await fetchChatAttachmentBlob("member", SESSION, ATTACHMENT)).text(), "image bytes");
+  const count = calls.length;
+  await uploadChatAttachment("guest", SESSION, "https://example.com/info");
+  assert.equal(calls.length, count + 1);
+  assert.deepEqual(JSON.parse(calls.at(-1).init.body), { url: "https://example.com/info" });
+  global.fetch = async () => json({ detail: "저장소를 사용할 수 없어요." }, 503);
+  await assert.rejects(uploadChatAttachment("guest", SESSION, image), error => error.status === 503);
+  await assert.rejects(uploadChatAttachment("guest", SESSION, new File(["svg"], "bad.svg", { type: "image/svg+xml" })), error => error.status === 400);
+});
+test("message options map snake_case, PUT omissions preserve and explicit empty clears", async () => {
+  const calls = [], log = record(calls); global.fetch = async (url, init) => { await log(url, init); return sse(answerEvents()); };
+  await sendChatMessage("guest", { sessionId: SESSION, content: "question", toolGroupIds: ["rules", "weather"], attachmentIds: [ATTACHMENT] });
+  assert.deepEqual(calls[0].body, { content: "question", tool_group_ids: ["rules", "weather"], attachment_ids: [ATTACHMENT] });
+  await editChatMessage("guest", { sessionId: SESSION, messageId: 1, content: "edit" });
+  assert.equal(Object.hasOwn(calls[1].body, "attachment_ids"), false);
+  await editChatMessage("guest", { sessionId: SESSION, messageId: 1, content: "clear", toolGroupIds: [], attachmentIds: [] });
+  assert.deepEqual(calls[2].body.attachment_ids, []);
+  await assert.rejects(sendChatMessage("guest", { sessionId: SESSION, content: "question", toolGroupIds: ["unknown"] }), error => error.status === 400);
+  await assert.rejects(sendChatMessage("guest", { sessionId: SESSION, content: "question", attachmentIds: [ATTACHMENT, ATTACHMENT] }), error => error.status === 400);
+});
+for (const mode of ["guest", "member"]) for (const method of ["POST", "PUT"]) for (const count of [9, 10, 11]) {
+  test(`${mode} ${method} accepts 9/10 attachments and rejects 11: ${count}`, async () => {
+    if (mode === "member") saveMemberTokens("access-token", "refresh-token");
+    const calls = [], log = record(calls);
+    global.fetch = async (url, init) => { await log(url, init); return sse(answerEvents()); };
+    const attachmentIds = Array.from({ length: count }, (_, index) => `11111111-1111-4111-8111-${String(index + 1).padStart(12, "0")}`);
+    const body = { sessionId: SESSION, content: "question", attachmentIds };
+    const send = () => method === "POST" ? sendChatMessage(mode, body) : editChatMessage(mode, { ...body, messageId: USER_MSG });
+    if (count === 11) {
+      await assert.rejects(send(), error => error instanceof ChatClientError && error.status === 400 && !error.uncertain);
+      assert.equal(calls.length, 0);
+    } else {
+      assert.equal((await send()).reply, "첫 답변");
+      assert.equal(calls.length, 1);
+      assert.equal(calls[0].method, method);
+      assert.equal(calls[0].url, `/api/v2/chat/sessions/${SESSION}/messages/`);
+      assert.deepEqual(calls[0].body, { ...(method === "PUT" ? { message_id: USER_MSG } : {}), content: "question", attachment_ids: attachmentIds });
+      assert.equal(calls[0].headers.get("Authorization"), mode === "member" ? "Bearer access-token" : null);
+    }
+  });
+}
+
+test("history restores validated metadata and manual groups, rejects unsafe private preview URL", async () => {
+  global.fetch = async () => json([{ ...row(1, "user", "image"), attachments: [attachmentDto], tool_group_ids: ["stadium_info"] }]);
+  const message = restoreChatMessages(await fetchChatHistory("guest", SESSION))[0];
+  assert.equal(message.attachments[0].contentType, "image/png"); assert.deepEqual(message.toolGroupIds, ["stadium_info"]);
+  global.fetch = async () => json([{ ...row(1, "user", "image"), attachments: [{ ...attachmentDto, url: "https://evil.test/image" }] }]);
+  await assert.rejects(fetchChatHistory("guest", SESSION), error => error.status === 502);
+});
+
+test("SSE keep-alive comments are ignored between split answer frames and never become chat text", async () => {
+  const deltas = [];
+  const body = ': keep-alive\n\n: connection alive\r\n\r\n: comment\nevent: delta\ndata: {"text":"완성"}\n\n: keep-alive\n\nevent: done\ndata: {"message_id":"2","assistant_message":"완성","tools":[]}\n\n: keep-alive\n\n';
+  const bytes = new TextEncoder().encode(body);
+  global.fetch = async () => new Response(new ReadableStream({ start(controller) {
+    for (let i = 0; i < bytes.length; i += 7) controller.enqueue(bytes.slice(i, i + 7));
+    controller.close();
+  } }), { headers: { "Content-Type": "text/event-stream" } });
+  const reply = await sendChatMessage("guest", { sessionId: SESSION, content: "코스" }, undefined, { onDelta: piece => deltas.push(piece) });
+  assert.equal(reply.reply, "완성"); assert.deepEqual(deltas, ["완성"]);
+});
+
+test("keep-alives alone cannot turn an incomplete response into success", async () => {
+  global.fetch = async () => new Response(': keep-alive\n\n: keep-alive\n\n', { headers: { "Content-Type": "text/event-stream" } });
+  await assert.rejects(sendChatMessage("guest", { sessionId: SESSION, content: "코스" }), error => error instanceof ChatClientError && error.uncertain);
+});
+
+test("v2 completed course and timing warning survive SSE and history and become map stops", async () => {
+  const course = { stadiumCode: "JAMSIL", origin: { lat: 37.55, lng: 126.97, name: "서울역" }, entryPoint: { lat: 37.512, lng: 127.044 }, approachNotice: "서쪽 진입점부터 코스를 골랐어요.", timeWarning: "2번째 장소부터는 경기 전에 방문하기 어려워요.", places: [
+    { name: "잠실 식당", category: "FOOD", phase: "BEFORE", lat: 37.511, lng: 127.075, placeId: "1", placeUrl: "https://place.map.kakao.com/1" },
+    { name: "잠실야구장", category: "STADIUM", phase: "GAME", lat: 37.512, lng: 127.071 },
+  ] };
+  global.fetch = async () => sse([["done", { message_id: "2", assistant_message: "완성", tools: [], course }]]);
+  const reply = await sendChatMessage("guest", { sessionId: SESSION, content: "코스", context: { stadium: "JAMSIL" } });
+  assert.equal(reply.course.stadiumCode, "JAMSIL");
+  assert.equal(reply.course.timeWarning, course.timeWarning);
+  assert.deepEqual(reply.course.origin, course.origin);
+  assert.deepEqual(reply.course.entryPoint, course.entryPoint);
+  assert.equal(reply.course.approachNotice, course.approachNotice);
+  assert.equal(reply.course.places[0].placeUrl, course.places[0].placeUrl);
+  assert.equal(courseToStops(reply.course, () => "visit").length, 2);
+  const previous = [{ id: 2, role: "assistant", content: "완성", course: reply.course }];
+  const restored = restoreChatMessages([{ ...row(2, "assistant", "완성"), course }], previous);
+  assert.equal(restored[0].course, reply.course); // 지도 담기/되돌리기 상태도 유지
+  assert.equal(restoreChatMessages([{ ...row(2, "assistant", "완성"), course }])[0].course.timeWarning, course.timeWarning);
+  assert.equal(restoreChatMessages([{ ...row(2, "assistant", "완성"), course }])[0].course.places[0].placeUrl, course.places[0].placeUrl);
+  global.fetch = async () => sse([["done", { message_id: "2", assistant_message: "텍스트", tools: [], course: { places: [{ lat: "bad" }] } }]]);
+  assert.equal((await sendChatMessage("guest", { sessionId: SESSION, content: "코스" })).course, undefined);
+});
+
+test("conversation conditions survive failed replacement, SSE and history without requiring a course", async () => {
+  const coursePreferences = { conditions: ["카페는 스타벅스"], lockedPlaces: ["식당"], rejectedPlaces: ["이전 카페"] };
+  global.fetch = async () => sse([["done", { message_id: "2", assistant_message: "조건 미확인, 코스 유지", tools: [], coursePreferences }]]);
+  const reply = await sendChatMessage("guest", { sessionId: SESSION, content: "카페 바꿔줘" });
+  assert.equal(reply.course, undefined);
+  assert.deepEqual(reply.coursePreferences, coursePreferences);
+  assert.deepEqual(restoreChatMessages([{ ...row(2, "assistant", reply.reply), coursePreferences }])[0].coursePreferences, coursePreferences);
+  const empty = { conditions: [], lockedPlaces: [], rejectedPlaces: [] };
+  assert.deepEqual(restoreChatMessages([{ ...row(2, "assistant", "해제"), coursePreferences: empty }])[0].coursePreferences, empty);
+  assert.equal(restoreChatMessages([{ ...row(2, "assistant", "실패", "failed"), coursePreferences }])[0].coursePreferences, undefined);
+});
+
+test("custom stay duration and convenience category survive card, map and next request", () => {
+  const course = parseChatCourse({ edit: true, stadiumCode: "JAMSIL", places: [
+    { visitId: "shop", name: "편의점", lat: 37.512, lng: 127.07, category: "CONVENIENCE", phase: "BEFORE", stayOverride: 20 },
+    { visitId: "game", name: "잠실", lat: 37.51, lng: 127.07, category: "STADIUM", phase: "GAME" },
+  ] });
+  const stops = courseToStops(course, () => "new");
+  assert.equal(stops[0].category, "편의점");
+  const context = currentCourse(stops, "JAMSIL", "walk", {});
+  const request = parseChatRequest({ messages: [{ role: "user", content: "순서 바꿔줘" }], context: { currentCourse: context } });
+  assert.equal(request.context.currentCourse.places[0].stayOverride, 20);
+  const stadiumOnly = parseChatCourse({ ...course, places: [course.places[1]] });
+  assert.equal(stadiumOnly.places.length, 1);
+  assert.ok(parseChatRequest({ messages: [{ role: "user", content: "카페 추가" }], context: { currentCourse: currentCourse(courseToStops(stadiumOnly), "JAMSIL", "walk", {}) } }));
+});
 
 test("member send creates a UUID session then streams v2 delta/done with Bearer auth", async () => {
   saveMemberTokens("access-token", "refresh-token");
@@ -369,10 +615,10 @@ test("usage DTO is fetched from the owner endpoint and quota errors keep a stabl
   await assert.rejects(fetchChatUsage("guest"), error => error instanceof ChatClientError && error.status === 502);
 
   global.fetch = async (url, init = {}) => (init.method ?? "GET") === "GET" ? json([room()]) : json({ code: USAGE_EXHAUSTED, detail: "사용 가능한 크레딧을 모두 사용했어요." }, 402);
-  await assert.rejects(sendChatMessage("guest", { sessionId: SESSION, content: "질문" }), error => error.status === 402 && error.code === USAGE_EXHAUSTED);
+  await assert.rejects(sendChatMessage("guest", { sessionId: SESSION, content: "질문" }), error => error.status === 402 && error.code === USAGE_EXHAUSTED && error.message === "사용 가능한 크레딧을 모두 사용했어요.");
   const { USAGE_BUSY } = require("./lib/chat/client.js");
   global.fetch = async () => json({ code: USAGE_BUSY, detail: "진행 중인 답변이 끝난 뒤 다시 시도해 주세요." }, 409);
-  await assert.rejects(sendChatMessage("guest", { sessionId: SESSION, content: "질문" }), error => error.status === 409 && error.code === USAGE_BUSY && !error.uncertain);
+  await assert.rejects(sendChatMessage("guest", { sessionId: SESSION, content: "질문" }), error => error.status === 409 && error.code === USAGE_BUSY && !error.uncertain && error.message === "진행 중인 답변이 끝난 뒤 다시 시도해 주세요.");
   global.fetch = async (url, init = {}) => (init.method ?? "GET") === "GET" ? json([room()]) : sse([["delta", { text: "부분" }], ["error", { detail: "사용 가능한 크레딧을 모두 사용했어요.", code: USAGE_EXHAUSTED }]]);
   await assert.rejects(sendChatMessage("guest", { sessionId: SESSION, content: "질문" }), error => error.code === USAGE_EXHAUSTED && error.uncertain);
 });

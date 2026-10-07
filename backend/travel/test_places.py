@@ -118,6 +118,7 @@ class PlaceServiceTests(TestCase):
         with patch("travel.place_service._request_kakao", return_value=payload(document(), is_end=False)):
             first = search_and_sync_places(query())
         self.assertEqual((first["places"][0]["id"], first["places"][0]["x"], first["hasNextPage"]), ("1", "127.0719", True))
+        self.assertEqual(first["places"][0]["place_url"], "https://place.map.kakao.com/1")
         saved = Place.objects.get(kakao_place_id="1")
         first_sync = saved.last_synced_at
         with patch("travel.place_service._request_kakao", return_value=payload(document(name="새 이름"))):

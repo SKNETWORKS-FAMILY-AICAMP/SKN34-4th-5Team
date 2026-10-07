@@ -16,7 +16,11 @@ export type ChatToolCallDto = {
 };
 // Ordered process log of a turn (final answer excluded); tool steps reference `tools` by id.
 export type ChatStepDto = { type: "text"; text: string; parent_id?: string | null } | { type: "tool"; id: string };
+export type ChatAttachmentDto = { id: string; kind: "image" | "text" | "url"; name: string; content_type: string; size: number; width: number | null; height: number | null; url: string | null; created_at: string };
 export type ChatMessageDto = {
+  tool_group_ids?: string[];
+  attachments?: ChatAttachmentDto[];
+  coursePreferences?: unknown;
   answer_deleted?: boolean;
   feedback?: AnswerFeedback | null;
   id: number;
@@ -27,6 +31,7 @@ export type ChatMessageDto = {
   tools: ChatToolCallDto[];
   steps?: ChatStepDto[];
   planning?: ChatPlanning;
+  course?: unknown; // Public coordinate payload, validated by parseChatCourse before use.
   created_at: string;
   updated_at: string;
 };
@@ -41,6 +46,6 @@ export type ChatSseEvent =
   | { event: "delta"; data: { text: string; parent_id?: string } }
   | { event: "tool"; data: ChatToolCallDto }
   | { event: "planning"; data: ChatPlanning }
-  | { event: "done"; data: { message_id: string; assistant_message: string; tools: ChatToolCallDto[]; steps?: ChatStepDto[] } }
+  | { event: "done"; data: { message_id: string; assistant_message: string; tools: ChatToolCallDto[]; steps?: ChatStepDto[]; course?: unknown } }
   | { event: "error"; data: { detail: string } }
   | { event: "stopped"; data: Record<string, never> };

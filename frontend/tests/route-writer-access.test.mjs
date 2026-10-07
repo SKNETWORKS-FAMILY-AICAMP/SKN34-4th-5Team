@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { createRequire } from "node:module";
 import vm from "node:vm";
 
@@ -16,8 +16,9 @@ const stadium = { code: "JAMSIL", name: "잠실", lat: 37.5, lng: 127 };
 const stop = name => ({ name, category: "직접 지정", lat: 37.5, lng: 127, isMapPoint: true });
 const scratch = mkdtempSync(join(tmpdir(), "kbo-writer-access-test-"));
 after(() => rmSync(scratch, { recursive: true }));
-for (const name of ["client-id", "route-draft", "stadiums", "stadium-locations", "google-lodging", "community-rich-content"]) {
+for (const name of ["client-id", "route-draft", "stadiums", "stadium-locations", "google-lodging", "community-rich-content", "course-directions", "drawn-course", "chat/course", "chat/current-course", "chat/writer-state", "chat/route-path", "course-state", "nearby-places", "route-content"]) {
   const source = readFileSync(new URL(`../lib/${name}.ts`, import.meta.url), "utf8");
+  mkdirSync(dirname(join(scratch, `${name}.js`)), { recursive: true });
   writeFileSync(join(scratch, `${name}.js`), ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText);
 }
 const draftService = createRequire(join(scratch, "entry.cjs"))("./route-draft.js");
@@ -44,7 +45,7 @@ function harness(status = "anonymous", sample = false, userId = 1, draftContext 
     useEffect(fn) { cursor++; effects.push(fn); },
     useLayoutEffect(fn) { cursor++; effects.push(fn); },
   };
-  const chat = { onContextChange() {}, context: {}, onReset() {}, pending: "", registerCourseTarget() {}, takePendingCourse() {} };
+  const chat = { onContextChange() {}, context: {}, onReset() {}, pending: "", registerCourseTarget(target) { chat.target = target; }, takePendingCourse() {} };
   const drafts = {
     browserDraftStorage() { calls.push("storage"); return browserStorage; },
     readRouteDraft(storage, key) { calls.push(["read", key]); return draftService.readRouteDraft(storage, key); },
@@ -65,13 +66,22 @@ function harness(status = "anonymous", sample = false, userId = 1, draftContext 
     require(id) {
       if (id === "react") return hooks;
       if (id === "react/jsx-runtime") return require(id);
+      if (id === "./use-course-state") {
+        const hook = { ...sandbox, exports: {} };
+        vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../components/use-course-state.ts", import.meta.url), "utf8"),
+          { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText, hook);
+        return hook.exports;
+      }
+      if (id.endsWith("/course-state")) return createRequire(join(scratch, "entry.cjs"))("./course-state.js");
       if (id === "next/navigation") return { useRouter: () => ({ push(url) { calls.push(["navigate", url]); } }) };
       if (id === "next/link") return { default: "a", __esModule: true };
       if (id.endsWith("/member-auth")) return { useMemberAuth: () => auth };
       if (id.endsWith("/route-draft")) return drafts;
+      if (id.endsWith("/chat/writer-state")) return createRequire(join(scratch, "entry.cjs"))("./chat/writer-state.js");
+      if (id.startsWith("@/lib/chat/")) return createRequire(join(scratch, "entry.cjs"))(`./chat/${id.split("/").at(-1)}.js`);
       if (id.endsWith("/routes")) return routeService;
       if (id.endsWith("/chat-provider")) return { useChat: () => chat, ChatSampleProvider: "sample-provider" };
-      if (id.endsWith("/community-rich-content")) return { plainRichDoc: () => ({ blocks: [] }), richText: () => "" };
+      if (id.endsWith("/community-rich-content")) return createRequire(join(scratch, "entry.cjs"))("./community-rich-content.js");
       if (id.endsWith("/route-content")) return { routeContentToText: value => value };
       if (id.endsWith("/team-community")) return { teamBoards: [] };
       if (id.endsWith("/drawn-course")) return { withCourseStart: value => value };
@@ -83,7 +93,7 @@ function harness(status = "anonymous", sample = false, userId = 1, draftContext 
   };
   vm.runInNewContext(ts.transpileModule(writer + "\nexports.WriterForm = WriterForm;", { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, esModuleInterop: true } }).outputText, sandbox);
   const render = (component = sandbox.exports.WriterForm, props = { stadiums: [stadium], initial: stadium, sample }) => { cursor = 0; effects.length = 0; return component(props); };
-  return { render, wrapper: sandbox.exports.default, calls, storage, listeners, setAuth(value) { auth = value; }, mountEffects() { return effects.map(fn => fn()).filter(fn => typeof fn === "function"); } };
+  return { render, chat, wrapper: sandbox.exports.default, calls, storage, listeners, setAuth(value) { auth = value; }, mountEffects() { return effects.map(fn => fn()).filter(fn => typeof fn === "function"); } };
 }
 function elements(node) {
   if (Array.isArray(node)) return node.flatMap(elements);
@@ -92,6 +102,57 @@ function elements(node) {
 }
 const find = (tree, predicate) => elements(tree).find(predicate);
 const plannerProps = tree => find(tree, item => item.type === "NearbyRoutePlanner").props;
+
+test("a linked conversation reopens title, origin and completion, and refresh preserves the new draft", () => {
+  const h = harness("authenticated");
+  h.storage.clear();
+  const writerKey = "chat:member:1:session:42";
+  const writerDraft = { ...originalData, title: "직접 지은 제목", chatCourseKey: writerKey, plannerCompleted: true,
+    start: { ...originalData.start, name: "잠실새내역" },
+    stops: [{ name: "식당", category: "먹거리", lat: 37.5, lng: 127.1, placeId: "food" }] };
+  const course = { stadiumCode: "JAMSIL", places: [{ name: "식당", lat: 37.5, lng: 127.1, category: "FOOD", phase: "BEFORE" }], notes: [], writerKey, writerDraft,
+    writerState: { title: writerDraft.title, origin: writerDraft.start, completed: true } };
+  let pending = course;
+  h.chat.takePendingCourse = () => { const value = pending; pending = null; return value; };
+  h.render(); h.mountEffects();
+  let tree = h.render(); h.mountEffects();
+  assert.equal(find(tree, item => item.props.id === "route-title").props.value, writerDraft.title);
+  assert.deepEqual(plannerProps(tree).initialStart, writerDraft.start);
+  assert.equal(plannerProps(tree).initialCompleted, true);
+  let prevented = false;
+  h.listeners.get("beforeunload")({ preventDefault() { prevented = true; } });
+  assert.equal(prevented, false, "a safely persisted member draft can reload without discarding its state");
+  h.listeners.get("pagehide")();
+  const saved = draftService.parseRouteDraft(h.storage.get(draftService.ROUTE_DRAFT_PREFIX + "new:JAMSIL"));
+  assert.equal(saved.data.title, writerDraft.title);
+  assert.equal(saved.data.plannerCompleted, true);
+  assert.deepEqual(saved.data.start, writerDraft.start);
+  plannerProps(tree).onCompletionChange(false);
+  tree = h.render(); h.mountEffects();
+  h.listeners.get("pagehide")();
+  assert.equal(draftService.parseRouteDraft(h.storage.get(draftService.ROUTE_DRAFT_PREFIX + writerKey)).data.plannerCompleted, false);
+});
+
+test("restoring a server course also fills the visible rich editor", () => {
+  const h = harness("authenticated");
+  h.storage.clear();
+  let pending = { stadiumCode: "JAMSIL", places: [stop("식당")], notes: [], title: "원래 코스",
+    content: "식사 후 구장으로 이동합니다.", writerKey: "chat:member:1:session:88" };
+  h.chat.takePendingCourse = () => { const value = pending; pending = null; return value; };
+  h.render(); h.mountEffects();
+  const tree = h.render(); h.mountEffects();
+  assert.match(JSON.stringify(find(tree, item => item.type === "CommunityRichEditor").props.initial), /식사 후 구장으로 이동합니다/);
+});
+
+test("opening an older conversation never silently replaces a populated writer", () => {
+  const h = harness("authenticated");
+  let pending = { stadiumCode: "JAMSIL", writerKey: "chat:member:1:another:99", places: [], notes: [] };
+  h.chat.takePendingCourse = () => { const value = pending; pending = null; return value; };
+  h.render(); h.mountEffects();
+  const tree = h.render();
+  assert.equal(find(tree, item => item.props.id === "route-title").props.value, originalData.title);
+  assert.ok(find(tree, item => item.type === "button" && item.props.children === "코스 불러오기"));
+});
 
 test("anonymous new writer loads public stadiums, but editing remains login-only", async () => {
   const h = harness();
@@ -113,10 +174,10 @@ test("guest course mutations stay in memory, cannot save, and protect unsaved na
   assert.equal(find(tree, item => item.props.className === "writer-save-area"), undefined);
   assert.equal(plannerProps(tree).allowSave, false);
   assert.equal(h.calls.length, 0);
-  plannerProps(tree).onChange([stop("A"), stop("B")]);
+  plannerProps(tree).onChange([{ ...stop("A"), isMapPoint: false }, { ...stop("B"), isMapPoint: false }]);
   tree = h.render();
   assert.deepEqual(Array.from(plannerProps(tree).stops, item => item.name), ["A", "B"]);
-  plannerProps(tree).onChange([stop("B"), stop("A")]);
+  plannerProps(tree).onChange([{ ...stop("B"), isMapPoint: false }, { ...stop("A"), isMapPoint: false }]);
   tree = h.render();
   assert.deepEqual(Array.from(plannerProps(tree).stops, item => item.name), ["B", "A"]);
   await plannerProps(tree).onSaveCourse();
@@ -132,6 +193,50 @@ test("guest course mutations stay in memory, cannot save, and protect unsaved na
   assert.deepEqual([...h.storage], [[draftService.ROUTE_DRAFT_PREFIX + "new:JAMSIL", originalRaw]]);
 });
 
+test("a completed course can select another stadium and clear the old stops", () => {
+  const h = harness();
+  const other = { code: "SAJIK", name: "사직", lat: 35.194, lng: 129.061 };
+  const props = { stadiums: [stadium, other], initial: stadium };
+  let tree = h.render(undefined, props);
+  plannerProps(tree).onChange([stop("기존 코스")]);
+  plannerProps(tree).onCompletionChange(true);
+  tree = h.render(undefined, props);
+  const select = find(tree, item => item.props.id === "route-stadium");
+  assert.ok(!select.props.disabled);
+  select.props.onChange({ target: { value: "SAJIK" } });
+  tree = h.render(undefined, props);
+  find(tree, item => item.type === "button" && item.props.children === "구장 바꾸기").props.onClick();
+  tree = h.render(undefined, props);
+  assert.equal(plannerProps(tree).stadium.code, "SAJIK");
+  assert.equal(plannerProps(tree).stops.length, 0);
+  assert.equal(plannerProps(tree).initialStart, undefined);
+  assert.equal(plannerProps(tree).courseApplied, null);
+});
+
+test("origin-only map context and generated course keep the same origin, with undo restoring the pin", () => {
+  const h = harness();
+  const origin = { name: "직접 찍은 출발지", category: "직접 지정", lat: 37.504, lng: 127.002, isMapPoint: true };
+  let tree = h.render(); h.mountEffects();
+  plannerProps(tree).onChange([origin]);
+  h.chat.onContextChange = context => { h.chat.context = context; };
+  tree = h.render(); h.mountEffects();
+  assert.equal(h.chat.context.currentCourse.places.length, 0);
+  assert.equal(h.chat.context.currentCourse.writerState.origin.lat, origin.lat);
+  const point = { lat: origin.lat, lng: origin.lng, name: origin.name };
+  const undo = h.chat.target.apply({ stadiumCode: "JAMSIL", notes: [], origin: point,
+    writerState: { title: "", origin: point, completed: false }, places: [
+      { name: "초밥집", lat: 37.503, lng: 127.002, category: "FOOD", phase: "BEFORE" },
+      { name: "공원", lat: 37.502, lng: 127.001, category: "WALK", phase: "BEFORE" },
+      { name: "잠실", lat: 37.5, lng: 127, category: "STADIUM", phase: "GAME" },
+    ] }, "replace");
+  tree = h.render(); h.mountEffects();
+  assert.deepEqual(plannerProps(tree).initialStart, point);
+  assert.deepEqual(Array.from(plannerProps(tree).stops, p => p.name), ["초밥집", "공원", "잠실"]);
+  undo(); tree = h.render();
+  assert.deepEqual(plannerProps(tree).initialStart, point);
+  assert.deepEqual(Array.from(plannerProps(tree).stops), []);
+});
+
 test("members restore valid original new/edit/copy drafts and retain canonical autosave keys", async () => {
   assert.ok(draftService.parseRouteDraft(originalRaw));
   for (const context of ["new:JAMSIL", "edit:42", "copy:42"]) {
@@ -141,19 +246,19 @@ test("members restore valid original new/edit/copy drafts and retain canonical a
     assert.equal(plannerProps(tree).allowSave, true);
     assert.ok(find(tree, item => item.type === "CommunityRichEditor"));
     assert.equal(find(tree, item => item.props.id === "route-title").props.value, originalData.title);
-    assert.deepEqual(plannerProps(tree).stops, originalData.stops);
+    assert.deepEqual(plannerProps(tree).stops, createRequire(join(scratch, "entry.cjs"))("./course-state.js").createCourseState(originalData).data.stops);
     assert.deepEqual(plannerProps(tree).initialStart, originalData.start);
     assert.equal(plannerProps(tree).travelMode, originalData.travelMode);
     assert.ok(h.calls.includes("autosave"));
     assert.ok(h.calls.some(call => call[0] === "read" && call[1] === context));
-    plannerProps(tree).onChange([stop("new")]);
+    plannerProps(tree).onChange([{ ...stop("new"), isMapPoint: false }]);
     const changed = h.render(undefined, props); h.mountEffects();
     find(changed, item => item.type === "button" && item.props.children === "임시저장").props.onClick();
     assert.equal(draftService.parseRouteDraft(h.storage.get(draftService.ROUTE_DRAFT_PREFIX + context)).data.stops[0].name, "new");
     await plannerProps(changed).onSaveCourse();
     assert.equal(h.storage.has(draftService.ROUTE_DRAFT_PREFIX + context), false);
     const saved = h.render(undefined, props);
-    plannerProps(saved).onChange([stop("after save")]);
+    plannerProps(saved).onChange([{ ...stop("after save"), isMapPoint: false }]);
     const updated = h.render(undefined, props); h.mountEffects();
     find(updated, item => item.type === "button" && item.props.children === "임시저장").props.onClick();
     assert.equal(draftService.parseRouteDraft(h.storage.get(draftService.ROUTE_DRAFT_PREFIX + "edit:saved")).data.stops[0].name, "after save");

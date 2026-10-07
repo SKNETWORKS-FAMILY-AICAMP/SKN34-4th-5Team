@@ -12,6 +12,8 @@ service.chat 은 공개 (event, data) 튜플만 만들고(serializer.message 가
 
 def _frame(event, data):
     """SSE 와이어 포맷 한 프레임: event: <name>\ndata: <json>\n\n"""
+    if event == "heartbeat":
+        return ": keep-alive\n\n"
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 

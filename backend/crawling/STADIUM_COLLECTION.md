@@ -2,7 +2,7 @@
 
 2026-09-27 사용자 결정에 따라 **숙박 출처는 Google Places API (New)** 입니다.
 행안부·관광공사·소상공인 숙박을 이번 결과에 포함하거나 Google 실패 시 대체하지 않습니다.
-기존 잠실 파일럿은 과거 비교 자료로 보존합니다.
+2026-10-04 소상공인 수집 데이터와 그 대조 자료를 제거했습니다. 공원·관광·숙박 자료는 유지합니다.
 
 `collect_stadium_places.py`는 `data/preprocessed/stadium_coordinates.csv`에 등록된 모든 구장의
 중심 좌표로부터 직선 2,500m 이내를 대상으로 합니다. Python 표준 라이브러리만 사용합니다.
@@ -13,11 +13,11 @@ python backend/crawling/collect_stadium_places.py
 python -m unittest discover -s backend/crawling -p 'test_stadium*.py'
 ```
 
-루트 `.env`에서 `SBIZ_API_KEY`, `PARK_API_KEY`, `TOUR_API_KEY`, `GOOGLE_PLACES_API_KEY`를 읽습니다.
+루트 `.env`에서 `PARK_API_KEY`, `TOUR_API_KEY`, `GOOGLE_PLACES_API_KEY`를 읽습니다.
 키는 로그·결과 파일에 기록하지 않습니다. Google 키는 서버에서만 사용합니다.
 결과는 Git에서 이미 제외된 `backend/artifacts/stadium_collection/<UTC>/`에 생성합니다.
 
-2026-09-27 수집본은 검증 후 `data/staging/stadium_places/20260927T092810Z/`에
+2026-09-27 수집본은 검증 후 `data/staging/stadium_places/20260927T092810Z-no-sbiz/`에
 중복 없는 복원용 JSONL로 따로 보관합니다. **공공장소 실제 기록과 Google Place ID도 Git에 포함**합니다.
 검증·PostgreSQL 별도 스키마 적재 방법은 [적재본 안내](../../data/staging/stadium_places/README.md)를 참고하세요.
 
@@ -25,16 +25,12 @@ python -m unittest discover -s backend/crawling -p 'test_stadium*.py'
 
 | 대상 | 출처 | 처리 |
 |---|---|---|
-| 음식점·술집 | 소상공인 상가정보 | 원본 대·중·소분류 및 상가업소번호 보존 |
-| 카페·디저트 후보 | 소상공인 상가정보 | 카페, 빵/도넛, 아이스크림/빙수, 떡/한과. 메뉴·좌석은 추정하지 않음 |
-| 편의점 | 소상공인 상가정보 | 명칭으로 확인되는 CU·GS25·세븐일레븐·이마트24. 다른 기록은 검토 파일에 보존 |
-| 놀이시설 | 소상공인 상가정보 | 명시적 키즈카페·보드게임카페를 우선 분류 |
 | 공원 | 전국도시공원 표준데이터 | 전국 페이지를 한 번 수집하고 각 구장 반경으로 필터 |
 | 산책 후보 | 관광공사 TourAPI | 관광지(12)·레포츠(28) 중 명칭으로 추린 공원·산책·둘레길·숲길 등 |
 | 숙박 | Google Places API (New) | 호텔·모텔·호스텔·게스트하우스 등 Lodging 유형 검색, ID 중복 제거 |
 
-카페의 디저트 판매가 미확인이라면 `cafe_type=unverified`이며 음료 전용으로 간주하지 않습니다.
-디저트 업종은 `dessert_candidate`로 표시합니다. 공공데이터에는 전체 메뉴나 실시간 영업 확인이 없습니다.
+소상공인(SBIZ)은 `--sources`에서 제외했으며 과거 `collect_sbiz()` 호출도 네트워크 요청 전에 거부합니다.
+현재 수집 결과는 스키마 2입니다. 스키마 1 출력 디렉터리는 재개하지 않으며 새 디렉터리를 사용합니다.
 
 공원·산책 후보 좌표는 대표 지점입니다. 실제 산책로 선형, 입구, 접근 가능 여부, 보행 거리를 뜻하지 않습니다.
 두 출처 간 동일 공원의 중복은 아직 합치지 않았습니다. 제목 기반 후보 추출로 모든 산책로를 보장하지 않습니다.
@@ -70,8 +66,6 @@ python -m unittest discover -s backend/crawling -p 'test_stadium*.py'
 
 - `summary.json`, `REPORT.md`: 구장별 출처·기록 수·완료 시각·오류·검색 한도 상태.
 - `<구장>/public_places.json`: 저장 가능한 공공데이터 통합 목록. Google 및 숙박은 포함하지 않습니다.
-- `<구장>/sbiz_places.json`: 음식점·카페·술집·편의점·놀이시설과 원본 필드.
-- `<구장>/convenience_review.json`: 선정 여부를 포함한 편의점 전체 기록. 영업 여부 확정 아님.
 - `<구장>/park_candidates.json`, `tour_walk_candidates.json`: 공원·산책 후보와 원본 필드.
 - `<구장>/google_lodging_ids.json`: 숙박 Place ID 목록. 구장 연결·수집 시각은 상위 경로와 요약에서 관리.
 - `parks_national.json`: 이번 실행에서 공유하는 전국 공원 스냅샷.

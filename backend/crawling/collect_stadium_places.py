@@ -4,7 +4,6 @@ import csv
 import json
 import re
 import sys
-from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import unquote
@@ -13,7 +12,7 @@ import collect_stadium_pilot as pilot
 from google_lodging import collect_lodging, id_references
 
 ROOT = Path(__file__).resolve().parents[2]
-SOURCES = ("SBIZ", "PARK", "TOUR_WALK", "GOOGLE")
+SOURCES = ("PARK", "TOUR_WALK", "GOOGLE")
 
 
 def save(path, value):
@@ -27,40 +26,6 @@ def stadiums():
     with (ROOT / "data/preprocessed/stadium_coordinates.csv").open(encoding="utf-8-sig", newline="") as stream:
         return [{"code": r["stadium_code"], "name": r["stadium_name_ko"],
                  "lat": float(r["lat_y"]), "lng": float(r["lng_x"])} for r in csv.DictReader(stream)]
-
-
-def classify_sbiz(place):
-    p = pilot.classify_place(place)
-    raw = p["source_fields"]
-    small = raw.get("indsSclsNm", "")
-    p = {**p, "category_large": raw.get("indsLclsNm"),
-         "category_middle": raw.get("indsMclsNm"), "category_small": small,
-         "business_status": "unverified", "menu_status": "not_provided"}
-    if p["kind"] == "play_facility":
-        return p
-    if p["kind"] == "cafe":
-        # Missing menus are not evidence that the shop sells drinks only.
-        p.update(cafe_type="unverified", dessert_offered=None, coffee_offered=None)
-    elif raw.get("indsLclsCd") == "I2" and small in ("빵/도넛", "아이스크림/빙수", "떡/한과"):
-        p.update(kind="cafe", cafe_type="dessert_candidate", dessert_offered=None,
-                 coffee_offered=None, classification_basis="sbiz_dessert_category")
-    return p
-
-
-def public_sbiz(key, center):
-    rows, meta = pilot.collect_sbiz(key, center)
-    classified = [classify_sbiz(p) for p in rows]
-    # Google is the only lodging source in this run. SBIZ lodging is not exported.
-    selected = [p for p in classified if p["kind"] in ("restaurant", "cafe", "bar", "play_facility")]
-    audit = [p for p in classified if p["kind"] == "convenience_store"]
-    selected.extend(p for p in audit if p["brand_status"] == "name_identified")
-    selected = list({p["source_id"]: p for p in selected}.values())
-    meta.update(located_in_radius=len(rows), selected_records=len(selected),
-                categories=dict(Counter(p["kind"] for p in selected)),
-                convenience_all=len(audit), convenience_selected=sum(p["brand_status"] == "name_identified" for p in audit),
-                convenience_needs_review=sum(p["brand_status"] != "name_identified" for p in audit),
-                lodging_excluded=sum(p["kind"] == "lodging" for p in classified))
-    return selected, audit, meta
 
 
 def parks_for_stadium(rows, center):
@@ -114,15 +79,12 @@ def report(out, summary):
     save(out / "summary.json", summary)
     lines = ["# 구장 주변 장소 수집 결과", "", f"수집 시작(UTC): {summary['started_at']}", "",
              "등록 구장 좌표 기준 직선 2,500m. 공공데이터 장소 기록과 Google 숙박 ID는 별도로 저장합니다.", "",
-             "| 구장 | 식당 | 술집 | 카페·디저트 후보 | 편의점 4브랜드 | 놀이시설 | 공원 | 관광공사 산책 후보 | Google 숙박 후보 ID |",
-             "|---|---:|---:|---:|---:|---:|---:|---:|---:|"]
+             "| 구장 | 공원 | 관광공사 산책 후보 | Google 숙박 후보 ID |",
+             "|---|---:|---:|---:|"]
     failures = []
     for code, stadium in summary["stadiums"].items():
         sources = stadium["sources"]
-        sbiz = sources.get("SBIZ", {})
-        categories = sbiz.get("categories", {})
-        counts = [str(categories.get(k, 0)) if sbiz.get("status") == "ok" else "—"
-                  for k in ("restaurant", "bar", "cafe", "convenience_store", "play_facility")]
+        counts = []
         for source, field in (("PARK", "selected_records"), ("TOUR_WALK", "selected_records"), ("GOOGLE", "within_radius_ids")):
             result = sources.get(source, {})
             counts.append(str(result.get(field, 0)) if result.get("status") == "ok" else "—")
@@ -130,12 +92,6 @@ def report(out, summary):
         for source, result in sources.items():
             if result.get("status") == "error":
                 failures.append(f"- {code}/{source}: {result['error']}")
-    reference_months = sorted({str(stadium["sources"]["SBIZ"]["reference_month"])
-                               for stadium in summary["stadiums"].values()
-                               if stadium["sources"].get("SBIZ", {}).get("reference_month")})
-    if reference_months:
-        lines.extend(["", "소상공인 응답의 기준월: " + ", ".join(reference_months)
-                      + ". API 조회일과 원천 데이터 기준일은 다릅니다."])
     lines.extend(["", "## Google 숙박 후보 분류", "",
                   "| 구장 | hotel | motel | lodging(세부 미확인) | 기타·미지정 | 검색 제한 잔여 영역 |",
                   "|---|---:|---:|---:|---:|---:|"])
@@ -152,13 +108,9 @@ def report(out, summary):
                   "- 숙박: Google Places만 조회합니다. `google_lodging_ids.json`은 Place ID만 보존합니다.",
                   "- Google 상호·주소·좌표·유형·영업 상태는 메모리에서 확인하며 영구 JSON/RAG로 내보내지 않습니다.",
                   "- Google Nearby 검색의 20건 제한에 도달한 영역은 세분화합니다. `unresolved_search_cells`와 `coverage`를 확인하세요. 0이어도 실제 전 업소 수집을 보증하지 않습니다.",
-                  "- 카페의 디저트 판매·음료 전용 여부는 확인 전까지 미확정입니다. 빵/도넛·아이스크림/빙수·떡/한과는 디저트 후보입니다.",
-                  "- 편의점은 명칭에서 확인되는 CU·GS25·세븐일레븐·이마트24를 포함합니다. 나머지는 `convenience_review.json`에 보존합니다.",
                   "- 공원과 관광공사 산책 후보는 출처 간 중복을 병합하지 않았습니다. 실제 보행 경로·출입구·접근 가능 여부는 미확인입니다.",
-                  "- 소상공인 기록은 영업 확인이 아닙니다. 동일 업소의 복수 등록 가능성이 있어 기록 수와 실제 매장 수는 다를 수 있습니다.",
                   "- 서비스 DB 적재, 임베딩, 주기 갱신 작업은 실행하지 않았습니다.", "",
                   "## 출처 및 Google 이용 방식", "",
-                  "- [소상공인 상가정보 API](https://www.data.go.kr/data/15012005/openapi.do)",
                   "- [Google Places 정책](https://developers.google.com/maps/documentation/places/web-service/policies)",
                   "- [Google Nearby 검색](https://developers.google.com/maps/documentation/places/web-service/nearby-search)",
                   "- Google 상세정보는 `google_lodging.fetch_detail()`로 요청 시 조회합니다. 표시 시 Google Maps 출처를 제공해야 하며 일반 Places 결과를 카카오 지도 마커로 결합하지 않습니다.",
@@ -182,12 +134,12 @@ def main():
         registered = [s for s in registered if s["code"] in args.stadiums]
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     out = args.output_dir or ROOT / "backend/artifacts/stadium_collection" / stamp
-    summary = {"schema_version": 1, "started_at": stamp, "radius_m": 2500,
+    summary = {"schema_version": 2, "started_at": stamp, "radius_m": 2500,
                "distance_type": "straight_line", "lodging_source": "GOOGLE_PLACES",
                "stadiums": {}}
     if (out / "summary.json").exists():
         summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
-        if summary.get("schema_version") != 1 or summary.get("lodging_source") != "GOOGLE_PLACES":
+        if summary.get("schema_version") != 2 or summary.get("lodging_source") != "GOOGLE_PLACES":
             parser.error("Incompatible output directory")
     credentials = pilot.keys()
     national_parks = None
@@ -211,11 +163,7 @@ def main():
                 key = credentials.get(key_name)
                 if not key:
                     raise RuntimeError("Missing " + key_name)
-                if source == "SBIZ":
-                    places, audit, meta = public_sbiz(key, center)
-                    save(out / code / "sbiz_places.json", places)
-                    save(out / code / "convenience_review.json", audit)
-                elif source == "PARK":
+                if source == "PARK":
                     if national_parks is None:
                         cache = out / "parks_national.json"
                         if cache.exists():
@@ -243,7 +191,7 @@ def main():
             report(out, summary)
         # Public-data export explicitly excludes Google responses and all lodging.
         public = []
-        for filename in ("sbiz_places.json", "park_candidates.json", "tour_walk_candidates.json"):
+        for filename in ("park_candidates.json", "tour_walk_candidates.json"):
             path = out / code / filename
             if path.exists():
                 public.extend(json.loads(path.read_text(encoding="utf-8")))

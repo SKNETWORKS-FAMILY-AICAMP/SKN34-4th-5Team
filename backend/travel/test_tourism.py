@@ -252,7 +252,8 @@ class TourismMigrationTests(TransactionTestCase):
         self.assertEqual((kakao.name, kakao.address, kakao.last_synced_at), ("카카오 장소", "기존 주소", marker))
 
     def tearDown(self):
-        MigrationExecutor(connection).migrate(self.migrate_to)
+        executor = MigrationExecutor(connection)
+        executor.migrate(executor.loader.graph.leaf_nodes())
         super().tearDown()
 
 

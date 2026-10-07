@@ -22,10 +22,20 @@ def _enqueue_thread_deletion(sender, instance, **kwargs):
     transaction.on_commit(lambda: purge_deleted_threads([thread_id]), robust=True)  # 이미 commit 된 삭제를 500 으로 만들지 않는다
 
 
+def _enqueue_attachment_deletion(sender, instance, **kwargs):
+    from django.db import transaction
+    from llm.service.attachments import purge_deleted_attachments, reserve_attachment_deletion
+    if instance.object_key:
+        reserve_attachment_deletion(instance.object_key)
+        transaction.on_commit(lambda: purge_deleted_attachments([instance.object_key]), robust=True)
+
+
 class LlmConfig(AppConfig):
     name = 'llm'
 
     def ready(self):
         from django.db.models.signals import post_delete
+        post_delete.connect(_enqueue_attachment_deletion, sender="llm.ChatAttachment",
+                            dispatch_uid="llm.chat_attachment_cleanup")
         post_delete.connect(_enqueue_thread_deletion, sender="llm.ChatSession",
                             dispatch_uid="llm.chat_session_checkpoint_cleanup")

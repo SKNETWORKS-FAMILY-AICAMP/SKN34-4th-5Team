@@ -30,19 +30,21 @@ const deferred = () => { let resolve; const promise = new Promise(done => { reso
 const workspaceSource = readFileSync(join(frontend, "components/chat-workspace.tsx"), "utf8");
 const workspaceAst = ts.createSourceFile("workspace.tsx", workspaceSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 const workspaceBody = workspaceAst.statements.filter(node => !ts.isImportDeclaration(node)).map(node => node.getText(workspaceAst)).join("\n");
-const workspaceCode = ts.transpileModule(`const { Link, Image, useEffect, useRef, useState, useMemberAuth, useChat, Icon, ChatUsage, ChatSubAgentStatus, ChatQuestions, ChatWriterOffer, MAX_MESSAGE_LENGTH } = global.__workspaceDependencies;\n${workspaceBody}`, {
+const workspaceCode = ts.transpileModule(`const { Link, Image, useEffect, useRef, useState, useMemberAuth, useChat, Icon, ChatUsage, ChatQueue, ChatCoursePreferences, ChatSubAgentStatus, ChatQuestions, ChatWriterOffer, ChatComposerTools, ChatAttachmentCards, ChatInlineInput, chatComposerContent, MAX_MESSAGE_LENGTH } = global.__workspaceDependencies;\n${workspaceBody}`, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
 }).outputText;
 writeFileSync(join(scratch, "workspace.js"), workspaceCode);
 let identity;
 const Link = () => null;
 global.__workspaceDependencies = {
-  Link, Image: () => null, Icon: () => null, ChatUsage, ChatSubAgentStatus: () => null, ChatQuestions: () => null, ChatWriterOffer: () => null, MAX_MESSAGE_LENGTH: 2000,
+  chatComposerContent: text => text.trim(),
+  ChatComposerTools: () => null, ChatAttachmentCards: () => null, ChatInlineInput: () => null,
+  Link, Image: () => null, Icon: () => null, ChatUsage, ChatQueue: () => null, ChatCoursePreferences: () => null, ChatSubAgentStatus: () => null, ChatQuestions: () => null, ChatWriterOffer: () => null, MAX_MESSAGE_LENGTH: 2000,
   useState: (...args) => global.__hooks.useState(...args),
   useEffect: (...args) => global.__hooks.useEffect(...args),
   useRef: (...args) => global.__hooks.useRef(...args),
   useMemberAuth: () => identity,
-  useChat: () => ({ conversations: [], messages: [], draft: "", timeline: [], editingMessageId: null, status: { ready: true } }),
+  useChat: () => ({ queued: [], editingQueuedId: null, attachments: [], toolGroupIds: [], conversations: [], messages: [], draft: "", timeline: [], editingMessageId: null, status: { ready: true } }),
 };
 const { ChatWorkspace } = require("./workspace.js");
 
@@ -399,7 +401,7 @@ test("workspace settings use existing identity, native dialog handoff and preser
     assert.equal(props.className, "workspace-icon-button");
     assert.match(link.getText(ast), new RegExp(`Icon name="${icon}"`));
   }
-  for (const retained of ["value={chat.draft}", "chat.onSend()", "chat.onCancel", "chat.onSelectConversation", "chat.error", "chat.streaming"]) assert.ok(workspace.includes(retained));
+  for (const retained of ['<ChatInlineInput id="workspace-question"', "chat.onSend()", "chat.onCancel", "chat.onSelectConversation", "chat.error", "chat.streaming"]) assert.ok(workspace.includes(retained));
 });
 
 
@@ -412,7 +414,7 @@ test("positive fractional credit is sendable; busy and unknown are not exhausted
     const tree = view.render({ mode: "guest", refreshKey: 0 });
     assert.match(JSON.stringify(tree), /확인된 토큰만/);
     assert.doesNotMatch(JSON.stringify(tree), /사용 가능한 제공량이 없어요|예약된 양/);
-    assert.equal(/진행 중인 답변이 끝나면/.test(JSON.stringify(tree)), active);
+    assert.equal(/다음 질문을 예약할 수 있어요/.test(JSON.stringify(tree)), active);
     view.unmount();
   }
 });

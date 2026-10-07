@@ -107,10 +107,8 @@ def optimize(course, lookup, cands, reason_text="구장에서 가까워 이동�
 # ── 출발지 기준 이어 짜기 ─────────────────────────────────────────────────────
 # 사용자가 지도에서 출발지를 찍었으면, 각 장소는 "바로 앞 지점"을 중심으로 다시 고른다.
 #   출발지 → BEFORE 1 (출발지 근처) → BEFORE 2 (BEFORE 1 근처) → 구장 → AFTER 1 (구장 근처) → AFTER 2 (AFTER 1 근처)
-# 단, 종착지(구장)에서 앞 지점보다 멀어지는 곳은 막는다 — 구장 반대쪽으로 끌려가는 코스를 만들지 않는다.
+# 구장에 가까운 것 자체에 가산하지 않고, 방문으로 추가되는 이동 거리를 비교한다.
 HOP_SCALE_M = 1000        # 앞 지점에서 1km 떨어질 때마다 점수 -1 (관련도 차이보다 거리가 우선)
-AWAY_SCALE_M = 500        # 앞 지점보다 구장에서 500m 멀어질 때마다 점수 -1
-AWAY_LIMIT_M = 1000       # 앞 지점보다 구장에서 이만큼 넘게 멀어지는 곳은 후보에서 뺀다
 KEEP_MARGIN = 0.15        # LLM 이 고른 곳이 최선과 이 차이 안이면 그대로 둔다 (LLM 이 쓴 이유를 살린다)
 
 
@@ -129,8 +127,8 @@ def away_from_anchor(p, prev, anchor):
     return max(0.0, _dist(p, anchor) - _dist(prev, anchor))
 
 
-def chain_score(p, prev, anchor, relevance):
-    return relevance(p) - _dist(prev, p) / HOP_SCALE_M - away_from_anchor(p, prev, anchor) / AWAY_SCALE_M
+def chain_score(p, prev, anchor, relevance, phase="BEFORE"):
+    return step_score(p, prev, anchor, relevance, phase)
 
 
 def chain_course(course, lookup, cands, origin, anchor, relevance, same_kind):
@@ -154,10 +152,12 @@ def chain_course(course, lookup, cands, origin, anchor, relevance, same_kind):
         if not _has_xy(cur):
             continue
         pool = [p for p in cands if _has_xy(p) and same_kind(p, cur) and (p["key"] == c["key"] or p["key"] not in used)]
-        allowed = [p for p in pool if away_from_anchor(p, prev, anchor) <= AWAY_LIMIT_M] or pool
-        best = max(allowed, key=lambda p: chain_score(p, prev, anchor, relevance))
-        keep = cur in allowed and (chain_score(best, prev, anchor, relevance)
-                                   - chain_score(cur, prev, anchor, relevance)) <= KEEP_MARGIN
+        allowed = pool
+        if not allowed:
+            continue
+        score = lambda p: chain_score(p, prev, anchor, relevance, c["phase"])
+        best = max(allowed, key=score)
+        keep = cur in allowed and score(best) - score(cur) <= KEEP_MARGIN
         if best["key"] != c["key"] and not keep:
             used.discard(c["key"])
             used.add(best["key"])
@@ -170,9 +170,8 @@ def chain_course(course, lookup, cands, origin, anchor, relevance, same_kind):
 
 
 # ── 출발지부터 한 단계씩 검색해 나가기 ────────────────────────────────────────
-# 후보를 "앞 지점 주변"에서 새로 찾고, 그중 앞 지점과 가까우면서 구장 쪽으로 다가가는 곳을 고른다.
-PROGRESS_SCALE_M = 800     # 구장에 800m 다가갈 때마다 +1 (HOP_SCALE_M 보다 작아서, 구장 방향으로 가는 걸음은 이득)
-AWAY_SLACK_M = 300         # 경기 전 단계는 앞 지점보다 구장에서 이 이상 멀어지면 고르지 않는다
+# 실제 이동시간을 비교할 후보를 추린다. 경기 전 역방향 이동은 제외 대신 안내한다.
+AWAY_SLACK_M = 300         # 역방향 안내 및 경기 후 탐색 확장 여유
 
 
 def progress_m(p, prev, anchor):
@@ -183,16 +182,18 @@ def progress_m(p, prev, anchor):
 
 
 def step_allowed(p, prev, anchor, phase, after_max_m):
-    """경기 전: 구장에서 앞 지점보다 크게 멀어지지 않는다. 경기 후: 구장에서 너무 멀리 가지 않는다."""
+    """경기 전 우회 여부는 코스 비용으로 비교한다. 전체 2.5km 경계는 호출자가 검사한다."""
     if not _has_xy(p):
         return False
     if not _has_xy(anchor):
         return True
     if phase == "BEFORE":
-        return progress_m(p, prev, anchor) >= -AWAY_SLACK_M
+        return True
     return _dist(p, anchor) <= max(after_max_m, _dist(prev, anchor) + AWAY_SLACK_M)
 
 
-def step_score(p, prev, anchor, relevance):
-    """앞 지점과 가까울수록, 구장에 다가갈수록, 질문과 잘 맞을수록 높다."""
-    return relevance(p) - _dist(prev, p) / HOP_SCALE_M + progress_m(p, prev, anchor) / PROGRESS_SCALE_M
+def step_score(p, prev, anchor, relevance, phase="BEFORE"):
+    """Shortlist by added itinerary distance; stadium proximity itself earns nothing."""
+    hop = _dist(prev, p)
+    extra = max(0, hop + _dist(p, anchor) - _dist(prev, anchor)) if phase == "BEFORE" else hop
+    return relevance(p) - extra / HOP_SCALE_M - hop / 10000

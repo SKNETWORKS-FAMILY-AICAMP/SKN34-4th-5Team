@@ -300,6 +300,7 @@ def search_kbo_documents(query, stadium_code=None, categories=None, _search=None
     return _format_kbo(rows)
 
 def create_knowledge_tools():
+    from .place_rag import create_place_rag_tool
     return (
         search_documents_tool,
         StructuredTool.from_function(
@@ -308,4 +309,5 @@ def create_knowledge_tools():
             handle_validation_error="도구 인자 형식이 올바르지 않습니다. 설명을 보고 다시 부르세요.",
             handle_tool_error=True,
         ),
+        create_place_rag_tool(),
     )

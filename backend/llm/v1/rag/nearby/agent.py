@@ -123,11 +123,19 @@ def _answer(question, history=None, hint_stadium=None):
                 "route": f"nearby:{kind}:no_key", "timing": timing}
     t0 = time.perf_counter()
     with operation("tool", "search_nearby_places", arguments={"stadium_code": code, "kind": kind}):
-        places = narrow(kakao.nearby(code, kind), kind, question)[:SHOW]
+        raw_places = kakao.nearby(code, kind)
+        places = raw_places if kind == "stay" else narrow(raw_places, kind, question)[:SHOW]
     timing["kakao_ms"] = round((time.perf_counter() - t0) * 1000)
     if not places:
         return {"answer": NO_PLACES.format(stadium=stadium_ko, kind_label=kind_label), "sources": [],
                 "route": f"nearby:{kind}:empty", "timing": timing}
+
+    if kind == "stay":
+        from . import lodging
+        result = lodging.verify(places, question, history)
+        return {"answer": lodging.answer_text(result), "sources": [
+            {"doc_id": p["sourceUrl"], "grade": "THIRD_PARTY", "category": "STAY", "stadium": code}
+            for p in result["items"] if p["sourceUrl"]], "route": "nearby:stay:conditions", "timing": timing}
 
     sources = [{"doc_id": f"kakao:{p['placeId']}", "grade": "THIRD_PARTY", "category": kind.upper(), "stadium": code}
                for p in places]

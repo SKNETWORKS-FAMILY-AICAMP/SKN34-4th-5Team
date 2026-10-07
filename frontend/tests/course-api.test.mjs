@@ -8,6 +8,8 @@ const { outputText } = ts.transpileModule(source, { compilerOptions: { target: t
 const lodgingCode = ts.transpileModule(readFileSync(new URL("../lib/google-lodging.ts", import.meta.url), "utf8"), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
 const lodgingModule = { exports: {} };
 new Function("module", "exports", lodgingCode)(lodgingModule, lodgingModule.exports);
+const directionsModule = { exports: {} };
+new Function("module", "exports", ts.transpileModule(readFileSync(new URL("../lib/course-directions.ts", import.meta.url), "utf8"), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText)(directionsModule, directionsModule.exports);
 
 function harness(memberFetch = async () => { throw new Error("unexpected authenticated request"); }) {
   const storage = new Map();
@@ -30,7 +32,7 @@ function harness(memberFetch = async () => { throw new Error("unexpected authent
     ? { ApiError, apiRequest }
     : name === "./member-auth-request"
       ? { memberFetch: (...args) => memberHandler(...args) }
-      : name === "./google-lodging" ? lodgingModule.exports : (() => { throw new Error(`unexpected import: ${name}`); })();
+      : name === "./google-lodging" ? lodgingModule.exports : name === "./course-directions" ? directionsModule.exports : (() => { throw new Error(`unexpected import: ${name}`); })();
   const testModule = { exports: {} };
   new Function("module", "exports", "window", "require", outputText)(testModule, testModule.exports, window, requireDependency);
   return { ...testModule.exports, storage, block: () => { blocked = true; }, member: handler => { memberHandler = handler; } };
@@ -70,12 +72,24 @@ test("create sends ordered stops and stores only the returned edit token", async
     assert.deepEqual(JSON.parse(init.body), {
       title: "잠실 직관 코스", stadium: "잠실야구장", content: "", contentDoc: null, contentFormat: "", duration: "반나절", tags: [],
       startLat: 37.5, startLng: 127.1, stops: [{ name: "카페", category: "카페", placeId: "p1", lat: 37.51, lng: 127.07, position: 0 }],
+      travelMode: "walk", legModes: {},
     });
     return Response.json(apiCourse({ editToken: "edit-secret" }), { status: 201 });
   });
   assert.equal(saved.id, apiCourse({}).id);
   assert.equal(saved.owned, true);
   assert.deepEqual([...api.storage], [[`kbo-course-edit-token:${saved.id}`, "edit-secret"]]);
+});
+
+test("course persistence sends edited visits but leaves transient chat metadata in the draft", async () => {
+  const api = harness();
+  const original = route();
+  const stop = { ...original.stops[0], coursePlace: { name: "카페", phase: "BEFORE", time: "12:13", completed: true }, courseGame: { date: "2026-10-05", time: "14:00" }, courseProgress: { startMinute: 800 } };
+  await api.persistCourse({ ...original, stops: [stop] }, async (_url, init) => {
+    assert.deepEqual(JSON.parse(init.body).stops, [{ ...original.stops[0], position: 0 }]);
+    return Response.json(apiCourse({ editToken: "test-edit-token" }), { status: 201 });
+  });
+  assert.equal(stop.coursePlace.time, "12:13");
 });
 
 test("Google lodging writes ID-only references and reads unresolved coordinates", async () => {
