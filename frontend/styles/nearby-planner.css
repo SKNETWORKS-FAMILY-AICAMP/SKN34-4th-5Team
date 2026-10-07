@@ -238,12 +238,9 @@
 .driver-active .planner-guide-origin, .driver-active .planner-guide-origin * { pointer-events: auto; }
 @keyframes planner-guide-pulse { 50% { transform: scale(1.08); } }
 @media (prefers-reduced-motion: reduce) { .planner-guide-origin { animation: none; } }
-<<<<<<< HEAD
-=======
 .planner-facility-switch { display: flex; gap: 6px; padding: 8px 0 12px; }
 .planner-facility-switch button { flex: 1; padding: 9px; border: 1px solid #b9c7d9; border-radius: 7px; background: #fff; color: #2b4568; cursor: pointer; }
 .planner-facility-switch button[aria-pressed="true"] { background: #eaf2ff; border-color: #2b67bd; color: #164785; font-weight: 700; }
->>>>>>> 35ef353fb5633ca8f7c03ef189c94d9874c1aaf4
 .writer-layout[data-member-tools="false"] {
   grid-template-areas: "planner planner" "chat chat";
 }

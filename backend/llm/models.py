@@ -5,16 +5,13 @@ from django.db import models
 from django.db.models import Q
 from pgvector.django import VectorField, HnswIndex
 
-<<<<<<< HEAD
 
 class GuestChatUsage(models.Model):
-    """Persistent per-IP guest allowance; no time-based reset."""
+    """Legacy v1 usage records, retained for history only; v2 uses usage wallets."""
     identity = models.CharField(max_length=64, primary_key=True)
     used = models.PositiveSmallIntegerField(default=0)
 
 
-=======
->>>>>>> 35ef353fb5633ca8f7c03ef189c94d9874c1aaf4
 class Document(models.Model):
     title = models.CharField(max_length=255)
     source = models.CharField(max_length=255)

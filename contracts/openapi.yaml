@@ -1042,11 +1042,7 @@ paths:
           description: ''
   /api/v1/auth/users/{member_id}/public/:
     get:
-<<<<<<< HEAD
-      operationId: auth_users_public_retrieve
-=======
       operationId: v1_auth_users_public_retrieve
->>>>>>> 35ef353fb5633ca8f7c03ef189c94d9874c1aaf4
       parameters:
       - in: path
         name: member_id
@@ -1054,11 +1050,7 @@ paths:
           type: integer
         required: true
       tags:
-<<<<<<< HEAD
-      - auth
-=======
       - v1
->>>>>>> 35ef353fb5633ca8f7c03ef189c94d9874c1aaf4
       security:
       - jwtAuth: []
       responses:
@@ -5233,297 +5225,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/PaginatedPublicTicketPriceList'
           description: ''
-<<<<<<< HEAD
-  /api/v1/chat/guest/:
-    get:
-      operationId: chat_guest_retrieve
-      parameters:
-      - in: query
-        name: format
-        schema:
-          type: string
-          enum:
-          - json
-          - sse
-      tags:
-      - chat
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GuestChatStatus'
-            text/event-stream:
-              schema:
-                $ref: '#/components/schemas/GuestChatStatus'
-          description: ''
-    post:
-      operationId: chat_guest_create
-      parameters:
-      - in: query
-        name: format
-        schema:
-          type: string
-          enum:
-          - json
-          - sse
-      tags:
-      - chat
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GuestChat'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/GuestChat'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/GuestChat'
-        required: true
-      responses:
-        '200':
-          content:
-            text/event-stream:
-              schema:
-                $ref: '#/components/schemas/GuestChatEventPayload'
-          description: SSE delta, done, or error event payload
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GuestChatLimit'
-            text/event-stream:
-              schema:
-                $ref: '#/components/schemas/GuestChatLimit'
-          description: ''
-        '429':
-          description: Existing per-IP rate limit exceeded
-  /api/v1/chat/sessions/:
-    get:
-      operationId: chat_sessions_list
-      tags:
-      - chat
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ChatSession'
-          description: ''
-    post:
-      operationId: chat_sessions_create
-      tags:
-      - chat
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ChatSession'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/ChatSession'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/ChatSession'
-      security:
-      - jwtAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ChatSession'
-          description: ''
-  /api/v1/chat/sessions/{session_id}/:
-    patch:
-      operationId: chat_sessions_partial_update
-      parameters:
-      - in: path
-        name: session_id
-        schema:
-          type: integer
-        required: true
-      tags:
-      - chat
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedChatSession'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedChatSession'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedChatSession'
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ChatSession'
-          description: ''
-    delete:
-      operationId: chat_sessions_destroy
-      parameters:
-      - in: path
-        name: session_id
-        schema:
-          type: integer
-        required: true
-      tags:
-      - chat
-      security:
-      - jwtAuth: []
-      responses:
-        '204':
-          description: No response body
-  /api/v1/chat/sessions/{session_id}/messages/:
-    get:
-      operationId: chat_sessions_messages_list
-      parameters:
-      - in: query
-        name: format
-        schema:
-          type: string
-          enum:
-          - json
-          - sse
-      - in: path
-        name: session_id
-        schema:
-          type: integer
-        required: true
-      tags:
-      - chat
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ChatMessage'
-            text/event-stream:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ChatMessage'
-          description: ''
-    post:
-      operationId: chat_sessions_messages_create
-      parameters:
-      - in: query
-        name: format
-        schema:
-          type: string
-          enum:
-          - json
-          - sse
-      - in: path
-        name: session_id
-        schema:
-          type: integer
-        required: true
-      tags:
-      - chat
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ChatMessage'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/ChatMessage'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/ChatMessage'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ChatNonStreamResponse'
-          description: ''
-        '200':
-          content:
-            text/event-stream:
-              schema:
-                $ref: '#/components/schemas/MemberChatEventPayload'
-          description: SSE checkpoint, delta, done, or error event payload
-  /api/v1/chat/sessions/{session_id}/turns/:
-    get:
-      operationId: chat_sessions_turns_list
-      parameters:
-      - name: page
-        required: false
-        in: query
-        description: A page number within the paginated result set.
-        schema:
-          type: integer
-      - in: path
-        name: session_id
-        schema:
-          type: integer
-        required: true
-      tags:
-      - chat
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedChatTurnList'
-          description: ''
-  /api/v1/chat/turns/{turn_id}/finalize/:
-    post:
-      operationId: chat_turns_finalize_create
-      parameters:
-      - in: path
-        name: turn_id
-        schema:
-          type: string
-          format: uuid
-        required: true
-      tags:
-      - chat
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ChatFinalize'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/ChatFinalize'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/ChatFinalize'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ChatFinalizeResponse'
-          description: ''
-=======
->>>>>>> 35ef353fb5633ca8f7c03ef189c94d9874c1aaf4
   /api/v1/community/admin/posts/:
     get:
       operationId: v1_community_admin_posts_list
@@ -5626,11 +5327,7 @@ paths:
           description: ''
   /api/v1/community/comments/:
     get:
-<<<<<<< HEAD
-      operationId: community_comments_list
-=======
       operationId: v1_community_comments_list
->>>>>>> 35ef353fb5633ca8f7c03ef189c94d9874c1aaf4
       parameters:
       - in: query
         name: author_id
@@ -5651,11 +5348,7 @@ paths:
           minimum: 1
           maximum: 100
       tags:
-<<<<<<< HEAD
-      - community
-=======
       - v1
->>>>>>> 35ef353fb5633ca8f7c03ef189c94d9874c1aaf4
       security:
       - jwtAuth: []
       responses:
@@ -10672,87 +10365,6 @@ components:
       description: |-
         * `M` - 남성
         * `F` - 여성
-<<<<<<< HEAD
-    GuestChat:
-      type: object
-      properties:
-        messages:
-          type: array
-          items:
-            $ref: '#/components/schemas/GuestChatMessage'
-      required:
-      - messages
-    GuestChatDeltaEvent:
-      type: object
-      properties:
-        text:
-          type: string
-      required:
-      - text
-    GuestChatDoneEvent:
-      type: object
-      properties:
-        places:
-          type: array
-          items:
-            $ref: '#/components/schemas/ChatCoursePlace'
-        coursePayload:
-          allOf:
-          - $ref: '#/components/schemas/ChatCoursePayload'
-          nullable: true
-        route:
-          type: string
-        assistant_message:
-          type: string
-      required:
-      - assistant_message
-    GuestChatEventPayload:
-      oneOf:
-      - $ref: '#/components/schemas/GuestChatDeltaEvent'
-      - $ref: '#/components/schemas/GuestChatDoneEvent'
-      - $ref: '#/components/schemas/ChatProgressEvent'
-      - $ref: '#/components/schemas/ChatErrorEvent'
-    GuestChatLimit:
-      type: object
-      properties:
-        detail:
-          type: string
-        code:
-          type: string
-      required:
-      - code
-      - detail
-    GuestChatMessage:
-      type: object
-      properties:
-        role:
-          $ref: '#/components/schemas/GuestChatMessageRoleEnum'
-        content:
-          type: string
-      required:
-      - content
-      - role
-    GuestChatMessageRoleEnum:
-      enum:
-      - user
-      - assistant
-      type: string
-      description: |-
-        * `user` - user
-        * `assistant` - assistant
-    GuestChatStatus:
-      type: object
-      properties:
-        limit:
-          type: integer
-        remaining:
-          type: integer
-          nullable: true
-      required:
-      - limit
-      - remaining
-=======
->>>>>>> 35ef353fb5633ca8f7c03ef189c94d9874c1aaf4
     HomeContext:
       type: object
       properties:
@@ -11247,11 +10859,7 @@ components:
         results:
           type: array
           items:
-<<<<<<< HEAD
-            $ref: '#/components/schemas/ChatTurn'
-=======
             $ref: '#/components/schemas/ChatSession'
->>>>>>> 35ef353fb5633ca8f7c03ef189c94d9874c1aaf4
     PaginatedCommunityMemberCommentList:
       type: object
       required:

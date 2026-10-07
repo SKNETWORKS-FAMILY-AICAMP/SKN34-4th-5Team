@@ -66,39 +66,7 @@ const hanging = init => new Response(new ReadableStream({
 
 beforeEach(() => { stored.clear(); clearMemberTokens(); });
 
-<<<<<<< HEAD
-test("guest status is server-authoritative and exhausted quota disables sending", async () => {
-  const { getGuestChatStatus } = require("./lib/chat/client.js");
-  const requests = [];
-  global.fetch = async (url, options) => {
-    requests.push({ url, options });
-    return json({ limit: 2, remaining: 0 });
-  };
-  const status = await getGuestChatStatus();
-  assert.equal(status.ready, false);
-  assert.equal(status.remaining, 0);
-  assert.equal(requests[0].url, "/api/v1/chat/guest/");
-  assert.equal(requests[0].options.method, "GET");
-  global.fetch = async () => json({ limit: 2, remaining: 3 });
-  await assert.rejects(getGuestChatStatus(), ChatClientError);
-});
-
-test("guest quota and rate errors are surfaced without retry or member fallback", async () => {
-  for (const status of [403, 429]) {
-    let count = 0;
-    global.fetch = async () => { count++; return json({ detail: "이용 제한" }, status); };
-    await assert.rejects(
-      sendGuestChatMessage({ messages: [{ role: "user", content: "질문" }] }),
-      error => error instanceof ChatClientError && error.status === status && error.message === "이용 제한",
-    );
-    assert.equal(count, 1);
-  }
-});
-
-test("member completion uses protected direct endpoints and observable finalize ids", async () => {
-=======
 test("member send creates a UUID session then streams v2 delta/done with Bearer auth", async () => {
->>>>>>> 35ef353fb5633ca8f7c03ef189c94d9874c1aaf4
   saveMemberTokens("access-token", "refresh-token");
   const calls = [], log = record(calls);
   global.fetch = async (url, init = {}) => {
@@ -318,9 +286,6 @@ test("collected place identities survive chat parsing and route pin conversion",
   assert.equal(stops[1].category, "야구장");
 });
 
-<<<<<<< HEAD
-test("provider separates guest requests and clears state on every identity switch", () => {
-=======
 test("member auth failure never falls back to the guest cookie", async () => {
   global.fetch = async () => { throw new Error("no request may be sent without a member token"); };
   await assert.rejects(getChatStatus("member"), error => error instanceof ChatClientError && error.status === 401);
@@ -328,7 +293,6 @@ test("member auth failure never falls back to the guest cookie", async () => {
 });
 
 test("provider enables guest chat, keeps stop local and clears state on every identity switch", () => {
->>>>>>> 35ef353fb5633ca8f7c03ef189c94d9874c1aaf4
   const provider = readFileSync(join(frontend, "components/chat-provider.tsx"), "utf8");
   const surfaces = ["components/chat-popup.tsx", "components/chat-workspace.tsx"].map(path => readFileSync(join(frontend, path), "utf8"));
   assert.match(provider, /const identity = memberStatus === "authenticated"/);
@@ -342,13 +306,7 @@ test("provider enables guest chat, keeps stop local and clears state on every id
   assert.match(provider, /messages: identityChanged \? \[\] : messages/);
   for (const surface of surfaces) {
     assert.match(surface, /답변 생성 중단/);
-<<<<<<< HEAD
-    assert.match(surface, /로그인하고 계속하기/);
-    assert.ok(surface.includes('chat.status.remaining'));
-    assert.ok(surface.includes('authStatus === "anonymous"'));
-=======
     assert.match(surface, /받던 답변은 저장되지 않아요/);
->>>>>>> 35ef353fb5633ca8f7c03ef189c94d9874c1aaf4
     assert.match(surface, /aria-relevant="additions"/);
     assert.match(surface, /message\.id !== undefined && available && !busy/);
     assert.doesNotMatch(surface, /로그인하고 질문하기|조회만 할 수 있어요|받은 답변까지 보관/);

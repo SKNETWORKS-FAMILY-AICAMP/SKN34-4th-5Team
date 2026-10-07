@@ -489,22 +489,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/auth/users/{member_id}/public/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["auth_users_public_retrieve"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/baseball/games/": {
         parameters: {
             query?: never;
@@ -1385,105 +1369,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-<<<<<<< HEAD
-    "/api/v1/chat/guest/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["chat_guest_retrieve"];
-        put?: never;
-        post: operations["chat_guest_create"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/chat/sessions/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["chat_sessions_list"];
-        put?: never;
-        post: operations["chat_sessions_create"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/chat/sessions/{session_id}/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete: operations["chat_sessions_destroy"];
-        options?: never;
-        head?: never;
-        patch: operations["chat_sessions_partial_update"];
-        trace?: never;
-    };
-    "/api/v1/chat/sessions/{session_id}/messages/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["chat_sessions_messages_list"];
-        put?: never;
-        post: operations["chat_sessions_messages_create"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/chat/sessions/{session_id}/turns/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["chat_sessions_turns_list"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/chat/turns/{turn_id}/finalize/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["chat_turns_finalize_create"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-=======
->>>>>>> 35ef353fb5633ca8f7c03ef189c94d9874c1aaf4
     "/api/v1/community/admin/posts/": {
         parameters: {
             query?: never;
@@ -1564,22 +1449,6 @@ export interface paths {
             cookie?: never;
         };
         get: operations["v1_community_comments_list"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/community/comments/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["community_comments_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3085,40 +2954,6 @@ export interface components {
          * @enum {string}
          */
         GenderEnum: "M" | "F";
-<<<<<<< HEAD
-        GuestChat: {
-            messages: components["schemas"]["GuestChatMessage"][];
-        };
-        GuestChatDeltaEvent: {
-            text: string;
-        };
-        GuestChatDoneEvent: {
-            places?: components["schemas"]["ChatCoursePlace"][];
-            coursePayload?: components["schemas"]["ChatCoursePayload"] | null;
-            route?: string;
-            assistant_message: string;
-        };
-        GuestChatEventPayload: components["schemas"]["GuestChatDeltaEvent"] | components["schemas"]["GuestChatDoneEvent"] | components["schemas"]["ChatProgressEvent"] | components["schemas"]["ChatErrorEvent"];
-        GuestChatLimit: {
-            detail: string;
-            code: string;
-        };
-        GuestChatMessage: {
-            role: components["schemas"]["GuestChatMessageRoleEnum"];
-            content: string;
-        };
-        /**
-         * @description * `user` - user
-         *     * `assistant` - assistant
-         * @enum {string}
-         */
-        GuestChatMessageRoleEnum: "user" | "assistant";
-        GuestChatStatus: {
-            limit: number;
-            remaining: number | null;
-        };
-=======
->>>>>>> 35ef353fb5633ca8f7c03ef189c94d9874c1aaf4
         HomeContext: {
             id: number;
             season: number;
@@ -3350,21 +3185,6 @@ export interface components {
              */
             previous?: string | null;
             results: components["schemas"]["ChatSession"][];
-        };
-        PaginatedCommunityMemberCommentList: {
-            /** @example 123 */
-            count: number;
-            /**
-             * Format: uri
-             * @example http://api.example.org/accounts/?page=4
-             */
-            next?: string | null;
-            /**
-             * Format: uri
-             * @example http://api.example.org/accounts/?page=2
-             */
-            previous?: string | null;
-            results: components["schemas"]["CommunityMemberComment"][];
         };
         PaginatedCommunityMemberCommentList: {
             /** @example 123 */
@@ -4382,7 +4202,6 @@ export interface components {
             season: number;
             team_code: string;
         };
-        /** @description 이메일을 검증합니다. */
         PublicStadium: {
             id: number;
             stadium_code: string;
@@ -5811,11 +5630,7 @@ export interface operations {
             };
         };
     };
-<<<<<<< HEAD
-    auth_users_public_retrieve: {
-=======
     v1_auth_users_public_retrieve: {
->>>>>>> 35ef353fb5633ca8f7c03ef189c94d9874c1aaf4
         parameters: {
             query?: never;
             header?: never;
@@ -5856,11 +5671,7 @@ export interface operations {
             };
         };
     };
-<<<<<<< HEAD
-    baseball_games_list: {
-=======
     v1_baseball_games_list: {
->>>>>>> 35ef353fb5633ca8f7c03ef189c94d9874c1aaf4
         parameters: {
             query?: {
                 /** @description A page number within the paginated result set. */
@@ -10230,281 +10041,7 @@ export interface operations {
             };
         };
     };
-<<<<<<< HEAD
-    chat_guest_retrieve: {
-        parameters: {
-            query?: {
-                format?: "json" | "sse";
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GuestChatStatus"];
-                    "text/event-stream": components["schemas"]["GuestChatStatus"];
-                };
-            };
-        };
-    };
-    chat_guest_create: {
-        parameters: {
-            query?: {
-                format?: "json" | "sse";
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GuestChat"];
-                "application/x-www-form-urlencoded": components["schemas"]["GuestChat"];
-                "multipart/form-data": components["schemas"]["GuestChat"];
-            };
-        };
-        responses: {
-            /** @description SSE delta, done, or error event payload */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/event-stream": components["schemas"]["GuestChatEventPayload"];
-                };
-            };
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GuestChatLimit"];
-                    "text/event-stream": components["schemas"]["GuestChatLimit"];
-                };
-            };
-            /** @description Existing per-IP rate limit exceeded */
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    chat_sessions_list: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ChatSession"][];
-                };
-            };
-        };
-    };
-    chat_sessions_create: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["ChatSession"];
-                "application/x-www-form-urlencoded": components["schemas"]["ChatSession"];
-                "multipart/form-data": components["schemas"]["ChatSession"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ChatSession"];
-                };
-            };
-        };
-    };
-    chat_sessions_destroy: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                session_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    chat_sessions_partial_update: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                session_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["PatchedChatSession"];
-                "application/x-www-form-urlencoded": components["schemas"]["PatchedChatSession"];
-                "multipart/form-data": components["schemas"]["PatchedChatSession"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ChatSession"];
-                };
-            };
-        };
-    };
-    chat_sessions_messages_list: {
-        parameters: {
-            query?: {
-                format?: "json" | "sse";
-            };
-            header?: never;
-            path: {
-                session_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ChatMessage"][];
-                    "text/event-stream": components["schemas"]["ChatMessage"][];
-                };
-            };
-        };
-    };
-    chat_sessions_messages_create: {
-        parameters: {
-            query?: {
-                format?: "json" | "sse";
-            };
-            header?: never;
-            path: {
-                session_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ChatMessage"];
-                "application/x-www-form-urlencoded": components["schemas"]["ChatMessage"];
-                "multipart/form-data": components["schemas"]["ChatMessage"];
-            };
-        };
-        responses: {
-            /** @description SSE checkpoint, delta, done, or error event payload */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/event-stream": components["schemas"]["MemberChatEventPayload"];
-                };
-            };
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ChatNonStreamResponse"];
-                };
-            };
-        };
-    };
-    chat_sessions_turns_list: {
-        parameters: {
-            query?: {
-                /** @description A page number within the paginated result set. */
-                page?: number;
-            };
-            header?: never;
-            path: {
-                session_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PaginatedChatTurnList"];
-                };
-            };
-        };
-    };
-    chat_turns_finalize_create: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                turn_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ChatFinalize"];
-                "application/x-www-form-urlencoded": components["schemas"]["ChatFinalize"];
-                "multipart/form-data": components["schemas"]["ChatFinalize"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ChatFinalizeResponse"];
-                };
-            };
-        };
-    };
-    community_admin_posts_list: {
-=======
     v1_community_admin_posts_list: {
->>>>>>> 35ef353fb5633ca8f7c03ef189c94d9874c1aaf4
         parameters: {
             query?: {
                 page?: number;
@@ -10594,11 +10131,7 @@ export interface operations {
             };
         };
     };
-<<<<<<< HEAD
-    community_comments_list: {
-=======
     v1_community_comments_list: {
->>>>>>> 35ef353fb5633ca8f7c03ef189c94d9874c1aaf4
         parameters: {
             query: {
                 author_id: number;
@@ -10661,11 +10194,7 @@ export interface operations {
             };
         };
     };
-<<<<<<< HEAD
-    community_comments_destroy: {
-=======
     v1_community_comments_destroy: {
->>>>>>> 35ef353fb5633ca8f7c03ef189c94d9874c1aaf4
         parameters: {
             query?: never;
             header?: never;

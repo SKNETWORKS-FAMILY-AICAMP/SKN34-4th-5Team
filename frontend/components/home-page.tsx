@@ -51,11 +51,7 @@ export function HomePage() {
           <h1 id="hero-heading">직관의 하루를, <span>나답게.</span></h1>
           <p className="hero-description">경기 전 맛집부터 경기 후 산책까지.<br />나만의 직관 루트를 만들고, 야구팬들과 함께 나눠보세요.</p>
           <div className="hero-search-row">
-<<<<<<< HEAD
-            {authStatus !== "authenticated" ? <Link className="hero-search" href="/chat" aria-label="직관 도우미 채팅창 열기"><Icon name="search" size={24} /><span className="hero-login-label">직관 도우미 채팅창 열기</span><span className="hero-chat-bot"><CapBot /><span className="hero-chat-ai">AI</span></span></Link> : <form className="hero-search" onSubmit={event => { event.preventDefault(); if (authStatus === "authenticated") openChat(question); }}>
-=======
             <form className="hero-search" onSubmit={event => { event.preventDefault(); if (canOpenChat && !composingRef.current) openChat(question); }}>
->>>>>>> 35ef353fb5633ca8f7c03ef189c94d9874c1aaf4
               <Icon name="search" size={24} />
               <label className="sr-only" htmlFor="hero-query">직관 도우미에게 질문하기</label>
               <input id="hero-query" name="q" value={question} onChange={event => setQuestion(event.target.value)} maxLength={MAX_MESSAGE_LENGTH} placeholder="어느 구장으로 떠나볼까요?" onCompositionStart={() => { composingRef.current = true; }} onCompositionEnd={() => { composingRef.current = false; }} onKeyDown={event => {

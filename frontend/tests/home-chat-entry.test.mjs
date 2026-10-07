@@ -4,18 +4,14 @@ import { readFileSync } from "node:fs";
 
 const home = readFileSync(new URL("../components/home-page.tsx", import.meta.url), "utf8");
 
-test("guest hero search including AI opens chat rather than login", () => {
-  const start = home.indexOf('authStatus !== "authenticated" ? <Link');
-  assert.ok(start >= 0);
-  const guestLink = home.slice(start, home.indexOf("</Link>", start));
-  assert.ok(guestLink.includes('href="/chat"'));
-  assert.ok(guestLink.includes('aria-label="직관 도우미 채팅창 열기"'));
-  assert.ok(guestLink.includes('className="hero-chat-ai">AI'));
-  assert.ok(!guestLink.includes("openChat(question)"));
-  assert.ok(!guestLink.includes('href="/login"'));
+test("guest and member share the v2 hero question form", () => {
+  assert.match(home, /const canOpenChat = authStatus === "anonymous" \|\| authStatus === "authenticated"/);
+  assert.match(home, /if \(canOpenChat && !composingRef.current\) openChat\(question\)/);
+  assert.ok(home.includes('className="hero-chat-ai">AI'));
+  assert.ok(!home.includes('authStatus !== "authenticated" ? <Link'));
 });
 
 test("member hero retains its existing question submission", () => {
-  assert.ok(home.includes('if (authStatus === "authenticated") openChat(question)'));
+  assert.ok(home.includes('if (canOpenChat && !composingRef.current) openChat(question)'));
   assert.ok(home.includes("maxLength={MAX_MESSAGE_LENGTH}"));
 });

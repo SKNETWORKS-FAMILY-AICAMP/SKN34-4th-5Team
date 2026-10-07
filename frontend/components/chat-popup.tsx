@@ -92,11 +92,7 @@ export function ChatPopup({
     }}>
       <header className="chat-popup-header">
         <span className="chat-popup-mark"><Icon name="sparkles" size={21} /></span>
-<<<<<<< HEAD
-        <div className="chat-popup-heading"><h2 id={titleId}>{title}</h2><span className={`chat-popup-connection${available ? " is-ready" : ""}`} aria-live="polite"><i />{guest ? "비회원 체험" : chat.statusLoading ? "연결 확인 중" : demo ? "예시 대화" : available ? "직관 도우미 연결됨" : "연결 확인 필요"}</span></div>
-=======
         <div className="chat-popup-heading"><h2 id={titleId}>{title}</h2><span className={`chat-popup-connection${available ? " is-ready" : ""}`} aria-live="polite"><i />{chat.statusLoading ? "연결 확인 중" : demo ? "예시 대화" : available ? "직관 도우미 연결됨" : "연결 확인 필요"}</span></div>
->>>>>>> 35ef353fb5633ca8f7c03ef189c94d9874c1aaf4
         <div className="chat-popup-header-actions">
           <button type="button" className="chat-popup-icon-button" aria-label="채팅 크게 보기" title="채팅 크게 보기" onClick={chat.onExpand}><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7" /></svg></button>
           {!embedded && <button ref={closeRef} type="button" className="chat-popup-icon-button" aria-label="직관 도우미 닫기" title="직관 도우미 닫기" onClick={chat.onClosePopup}><Icon name="close" size={20} /></button>}
@@ -112,13 +108,8 @@ export function ChatPopup({
         {empty && <div className="chat-popup-welcome">
           <span className="chat-popup-welcome-mark"><Icon name="sparkles" size={24} /></span>
           <h3>{welcomeTitle}</h3>
-<<<<<<< HEAD
-          {guest ? <p>비회원은 IP 기준 누적 2회 질문할 수 있어요. 같은 네트워크에서는 이용 횟수를 공유합니다.</p> : welcomeDescription && <p>{welcomeDescription}</p>}
-          {!guest && <div className="chat-popup-suggestions">{welcomeLink ? <Link href={welcomeLink.href}><Icon name="route" size={17} />{welcomeLink.label}</Link> : SUGGESTIONS.map(item => <button key={item.intent} type="button" onClick={() => { chat.onSuggestion(item.intent === "route" && chat.context?.stadium ? `${chat.context.stadium}에서 첫 직관을 해요. 경기 전후 코스를 추천해 주세요.` : item.text, item.intent); inputRef.current?.focus(); }}><Icon name={item.icon} size={17} />{item.label}</button>)}</div>}
-=======
           {welcomeDescription && <p>{welcomeDescription}</p>}
           {<div className="chat-popup-suggestions">{welcomeLink ? <Link href={welcomeLink.href}><Icon name="route" size={17} />{welcomeLink.label}</Link> : SUGGESTIONS.map(item => <button key={item.intent} type="button" onClick={() => { chat.onSuggestion(item.intent === "route" && chat.context?.stadium ? `${chat.context.stadium}에서 첫 직관을 해요. 경기 전후 코스를 추천해 주세요.` : item.text, item.intent); inputRef.current?.focus(); }}><Icon name={item.icon} size={17} />{item.label}</button>)}</div>}
->>>>>>> 35ef353fb5633ca8f7c03ef189c94d9874c1aaf4
         </div>}
         {chat.context?.stadium && <p className="chat-popup-context"><Icon name="pin" size={13} />{chat.context.stadium}에서의 하루</p>}
         <div className="chat-popup-messages" role="log" aria-label="직관 도우미 대화 내용" aria-live="polite" aria-relevant="additions">
@@ -135,14 +126,9 @@ export function ChatPopup({
         {chat.notice && <p className="chat-popup-notice" role="status">{chat.notice}</p>}
       </div>
 
-<<<<<<< HEAD
-      <div className="chat-popup-composer-area">
-          {guest && <p role="status">{chat.status?.remaining === undefined ? "비회원 이용 횟수 확인 중" : `비회원 질문 ${chat.status.remaining}/2회 남음 · 접수 후 실패·중단도 1회 사용`} · <Link href="/login?next=%2Fchat">로그인하고 계속하기</Link></p>}
-=======
       {<div className="chat-popup-composer-area">
           <ChatSubAgentStatus items={busy ? chat.timeline : []} />
         {chat.editingMessageId !== null && <p className="chat-popup-edit-banner" role="status">질문을 수정하고 있어요. 보내면 이 질문 이후의 대화는 지워져요. <button type="button" onClick={chat.onCancelEdit}>수정 취소</button></p>}
->>>>>>> 35ef353fb5633ca8f7c03ef189c94d9874c1aaf4
         <div className="chat-popup-composer">
           <label className="sr-only" htmlFor={questionId}>직관 도우미에게 질문</label>
           <textarea ref={inputRef} id={questionId} value={chat.draft} maxLength={MAX_MESSAGE_LENGTH} rows={1} placeholder="직관 도우미에게 물어보세요" disabled={busy} onChange={event => chat.onDraftChange(event.target.value)} onCompositionStart={() => { composingRef.current = true; }} onCompositionEnd={() => { composingRef.current = false; }} onKeyDown={event => {
@@ -150,13 +136,8 @@ export function ChatPopup({
           }} />
           <div className="chat-popup-composer-bottom"><span>{chat.draft.length > MAX_MESSAGE_LENGTH * .8 ? `${chat.draft.length}/${MAX_MESSAGE_LENGTH}` : busy ? "답변을 준비하고 있어요" : "야구가 궁금한 모든 순간"}</span>{busy ? <button type="button" className="chat-popup-send chat-popup-stop" aria-label="답변 생성 중단" title="답변 받기 중단 (받던 답변은 저장되지 않아요)" onClick={event => { event.preventDefault(); chat.onCancel(); }}><span /></button> : <button type="button" className="chat-popup-send" aria-label="질문 보내기" title="질문 보내기" disabled={!chat.draft.trim() || !available} onClick={send}><Icon name="arrow" size={19} /></button>}</div>
         </div>
-<<<<<<< HEAD
-        <p className="chat-popup-footnote">{demo ? "예시 답변이에요. 실제 검색 결과는 포함되지 않아요." : "일정과 구장 운영 정보는 방문 전 공식 안내를 확인해 주세요."}</p>
-      </div>
-=======
         <p className="chat-popup-footnote">{guest && !demo ? <><Link href="/login">로그인</Link>하면 계정에 대화가 저장돼요. 비회원 대화는 이 브라우저에서만 이어져요. </> : null}{demo ? "예시 답변이에요. 실제 검색 결과는 포함되지 않아요." : "일정과 구장 운영 정보는 방문 전 공식 안내를 확인해 주세요."}</p>
       </div>}
->>>>>>> 35ef353fb5633ca8f7c03ef189c94d9874c1aaf4
     </section>
   );
 }

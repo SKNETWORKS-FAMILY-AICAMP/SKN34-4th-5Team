@@ -177,10 +177,54 @@ export function recordRouteView(id: string): void {
 
 const likedRoutes = new Set<string>();
 let likesRevision = 0;
-function updateLiked(id: string, liked: boolean) {
-  if (liked) likedRoutes.add(id); else likedRoutes.delete(id);
+let likeUserId: number | null = null;
+let likeGeneration = 0;
+const reactionQueues = new Map<string, Promise<unknown>>();
+const reactionLoads = new Map<string, Promise<void>>();
+
+function notifyLikes() {
   likesRevision += 1;
-  window.dispatchEvent(new Event(CHANGE_EVENT));
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(CHANGE_EVENT));
+}
+
+export function resetRouteLikes(userId: number | null) {
+  if (likeUserId === userId) return;
+  likeUserId = userId;
+  likeGeneration += 1;
+  likedRoutes.clear();
+  reactionQueues.clear();
+  reactionLoads.clear();
+  notifyLikes();
+}
+
+function assertLikeSession(generation: number) {
+  if (likeUserId === null || generation !== likeGeneration) {
+    throw new Error("로그인 상태가 바뀌었어요. 다시 시도해 주세요.");
+  }
+}
+
+function reactionTarget(id: string) {
+  const route = serverRoutes.find(item => item.id === id);
+  if (!route) throw new Error("서버에 저장된 코스만 좋아요를 남길 수 있어요.");
+  return route.apiId ?? route.id;
+}
+
+function applyReaction(id: string, result: { liked: boolean; likes: number }, generation: number) {
+  assertLikeSession(generation);
+  if (result.liked) likedRoutes.add(id); else likedRoutes.delete(id);
+  updateRoute(id, { likes: result.likes });
+  notifyLikes();
+}
+
+function enqueueReaction<T>(id: string, operation: () => Promise<T>): Promise<T> {
+  const previous = reactionQueues.get(id) ?? Promise.resolve();
+  const request = previous.catch(() => undefined).then(operation);
+  reactionQueues.set(id, request);
+  const cleanup = () => {
+    if (reactionQueues.get(id) === request) reactionQueues.delete(id);
+  };
+  void request.then(cleanup, cleanup);
+  return request;
 }
 
 export function useLikedRoutes(): string[] {
@@ -188,20 +232,32 @@ export function useLikedRoutes(): string[] {
   return [...likedRoutes];
 }
 
-export async function loadRouteLike(id: string): Promise<void> {
-  const route = serverRoutes.find(item => item.id === id);
-  if (!route) return;
-  updateLiked(id, false);
-  const result = await fetchCourseReaction(route.apiId ?? route.id);
-  updateLiked(id, result.liked);
-  updateRoute(id, { likes: result.likes });
+export function loadRouteLike(id: string): Promise<void> {
+  const existing = reactionLoads.get(id);
+  if (existing) return existing;
+  const generation = likeGeneration;
+  const request = enqueueReaction(id, async () => {
+    assertLikeSession(generation);
+    const result = await fetchCourseReaction(reactionTarget(id));
+    applyReaction(id, result, generation);
+  });
+  reactionLoads.set(id, request);
+  const cleanup = () => {
+    if (reactionLoads.get(id) === request) reactionLoads.delete(id);
+  };
+  void request.then(cleanup, cleanup);
+  return request;
 }
 
-export async function toggleRouteLike(id: string): Promise<boolean> {
-  const route = serverRoutes.find(item => item.id === id);
-  if (!route) throw new Error("코스를 찾을 수 없어요.");
-  const result = await setCourseReaction(route.apiId ?? route.id, !likedRoutes.has(id));
-  updateLiked(id, result.liked);
-  updateRoute(id, { likes: result.likes });
-  return result.liked;
+export function toggleRouteLike(id: string): Promise<boolean> {
+  const generation = likeGeneration;
+  return enqueueReaction(id, async () => {
+    assertLikeSession(generation);
+    const apiId = reactionTarget(id);
+    const current = await fetchCourseReaction(apiId);
+    assertLikeSession(generation);
+    const result = await setCourseReaction(apiId, !current.liked);
+    applyReaction(id, result, generation);
+    return result.liked;
+  });
 }

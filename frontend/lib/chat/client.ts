@@ -287,27 +287,6 @@ async function streamReply(mode: ChatMode, method: "POST" | "PUT", sessionId: st
   }
 }
 
-<<<<<<< HEAD
-export async function getGuestChatStatus(signal?: AbortSignal): Promise<ChatStatus> {
-  const value = await guestRequest("/api/v1/chat/guest/", { method: "GET" }, signal, readJson);
-  if (!isRecord(value) || value.limit !== 2 || !Number.isInteger(value.remaining) ||
-      Number(value.remaining) < 0 || Number(value.remaining) > 2) {
-    throw new ChatClientError("비회원 이용 횟수를 확인하지 못했어요.", 502);
-  }
-  const remaining = Number(value.remaining);
-  return { ...GUEST_STATUS, ready: remaining > 0, remaining };
-}
-
-export async function sendGuestChatMessage(body: ChatRequest, signal?: AbortSignal, callbacks: ChatStreamCallbacks = {}): Promise<ChatReply> {
-  const input = parseModelRequest(body);
-  const messages = input.messages.map((message, index) => ({
-    ...message,
-    content: index === input.messages.length - 1 ? `${contextPrefix(input.context)}${message.content}` : message.content,
-  }));
-  return guestRequest("/api/v1/chat/guest/", {
-    method: "POST", headers: { "Content-Type": "application/json", Accept: "text/event-stream" }, body: JSON.stringify({ messages }),
-  }, signal, response => readGuestStream(response, callbacks));
-=======
 export async function sendChatMessage(mode: ChatMode, body: ChatSendRequest, signal?: AbortSignal, callbacks: ChatStreamCallbacks = {}): Promise<ChatReply> {
   const input = parseInput(body.content, body.context);
   const sessionId = body.sessionId ?? (await createChatSession(mode, input.content.slice(0, 80), signal)).id;
@@ -318,5 +297,4 @@ export async function sendChatMessage(mode: ChatMode, body: ChatSendRequest, sig
 export async function editChatMessage(mode: ChatMode, body: ChatEditRequest, signal?: AbortSignal, callbacks: ChatStreamCallbacks = {}): Promise<ChatReply> {
   if (!isMessageId(body.messageId)) throw new ChatClientError("메시지 번호를 확인해 주세요.", 400);
   return streamReply(mode, "PUT", body.sessionId, { message_id: body.messageId, ...parseInput(body.content, body.context) }, signal, callbacks);
->>>>>>> 35ef353fb5633ca8f7c03ef189c94d9874c1aaf4
 }

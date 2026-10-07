@@ -13,7 +13,6 @@ import {
   editChatMessage,
   fetchChatHistory,
   getChatStatus,
-  getGuestChatStatus,
   listChatSessions,
   sendChatMessage,
   saveAnswerFeedback,
@@ -224,10 +223,6 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     syncRequestRef.current = null;
   }, []);
 
-<<<<<<< HEAD
-  const loadStatus = useCallback((controller: AbortController) => {
-    return (memberStatus === "anonymous" ? getGuestChatStatus(controller.signal) : getChatStatus(controller.signal)).then(
-=======
   const changeDraft = useCallback((value: string) => {
     stayHere();
     if (!loadingConversationRef.current) invalidateHistory();
@@ -237,7 +232,6 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
   const loadStatus = useCallback((chatMode: ChatMode, controller: AbortController) => {
     return getChatStatus(chatMode, controller.signal).then(
->>>>>>> 35ef353fb5633ca8f7c03ef189c94d9874c1aaf4
       nextStatus => {
         if (!controller.signal.aborted) { setStatus(nextStatus); setStatusError(""); }
       },
@@ -250,15 +244,11 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     ).finally(() => {
       if (!controller.signal.aborted) setStatusLoading(false);
     });
-  }, [memberStatus]);
+  }, []);
 
   const refreshStatus = useCallback(() => {
     statusRequestRef.current?.abort();
-<<<<<<< HEAD
-    if (memberStatus !== "authenticated" && memberStatus !== "anonymous") {
-=======
     if (!mode) {
->>>>>>> 35ef353fb5633ca8f7c03ef189c94d9874c1aaf4
       setStatus(null); setStatusLoading(memberStatus === "loading");
       setStatusError(memberStatus === "unavailable" ? "로그인 상태를 확인하지 못했어요." : "");
       return;
@@ -558,17 +548,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     if (editId !== null && !window.confirm("이 질문 이후의 대화는 모두 지워지고 답변을 새로 받아요. 계속할까요?")) return "rejected";
     const controller = new AbortController();
     const version = ++requestVersion.current;
-<<<<<<< HEAD
-    if (memberStatus !== "authenticated" && memberStatus !== "anonymous") { setError("로그인 상태를 확인한 뒤 다시 시도해 주세요."); return; }
-    const mode = memberStatus === "authenticated" ? "member" : "guest";
-    invalidateHistory();
-    const active = { controller, identityController, version, mode: mode as "member" | "guest", checkpoint: null as ChatCheckpoint | null, stop: null as ChatCheckpoint | null, wantsStop: false };
-=======
     const conversationId = activeConversationId, expectedIdentity = identity;
     invalidateHistory();
     invalidateSync();
     const active = { controller, version, stopped: false };
->>>>>>> 35ef353fb5633ca8f7c03ef189c94d9874c1aaf4
     requestRef.current = active;
     options?.onAccepted?.();
     offerCancelledRef.current = false;
@@ -650,13 +633,6 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         pendingRef.current = "";
         setPending("");
         setStreaming("");
-<<<<<<< HEAD
-        streamingRef.current = "";
-        if (mode === "guest") refreshStatus();
-      }
-    }
-  }, [activeConversationId, applyChatCourse, context, draft, identity, invalidateHistory, memberStatus, uncertain, refreshStatus]);
-=======
         setTimeline([]);
         if (knownSession) syncConversation(conversationId, knownSession, expectedIdentity, content);
       }
@@ -754,7 +730,6 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     const stored = target.messageId !== null && historyRef.current.some(message => message.id === target.messageId);
     void send(target.content, { context: target.context, editId: stored ? target.messageId : null });
   }, [send]);
->>>>>>> 35ef353fb5633ca8f7c03ef189c94d9874c1aaf4
 
   const openCourseInWriter = useCallback((course: ChatCourse) => {
     pendingCourseRef.current = course;
@@ -790,11 +765,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!isChatPage && !popupOpen && !hasEmbeddedChat) return;
     statusRequestRef.current?.abort();
-<<<<<<< HEAD
-    if (memberStatus !== "authenticated" && memberStatus !== "anonymous") return;
-=======
     if (!mode) return;
->>>>>>> 35ef353fb5633ca8f7c03ef189c94d9874c1aaf4
     const controller = new AbortController();
     statusRequestRef.current = controller;
     void loadStatus(mode, controller);
@@ -809,16 +780,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     syncRequestRef.current?.abort();
   }, []);
 
-<<<<<<< HEAD
-  const chatAllowed = memberStatus === "authenticated" || memberStatus === "anonymous";
-  const visibleStatus = chatAllowed && !identityChanged ? status : null;
-  const visibleStatusLoading = memberStatus === "loading" || (chatAllowed && (statusLoading || identityChanged));
-  const visibleStatusError = memberStatus === "unavailable" ? "로그인 상태를 확인하지 못했어요." : chatAllowed ? statusError : "";
-=======
   const visibleStatus = mode ? status : null;
   const visibleStatusLoading = memberStatus === "loading" || (Boolean(mode) && statusLoading);
   const visibleStatusError = memberStatus === "unavailable" ? "로그인 상태를 확인하지 못했어요." : mode ? statusError : "";
->>>>>>> 35ef353fb5633ca8f7c03ef189c94d9874c1aaf4
 
   return (
     <ChatControlsContext.Provider value={{
