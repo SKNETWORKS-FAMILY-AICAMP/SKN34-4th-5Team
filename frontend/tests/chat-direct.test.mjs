@@ -29,7 +29,31 @@ global.sessionStorage = {
 const require = createRequire(join(scratch, "entry.cjs"));
 const { clearMemberTokens, saveMemberTokens } = require("./lib/member-auth-request.js");
 const { saveAnswerFeedback, fetchAdminFeedback, fetchAdminFeedbackDetail, ChatClientError, deleteChatMessages, deleteChatSession, editChatMessage, fetchChatHistory, getChatStatus, listChatSessions, renameChatSession, sendChatMessage } = require("./lib/chat/client.js");
+const { projectChatRequests, fetchChatRequestHistory, listChatRequests } = require("./lib/chat/client.js");
 const { restoreChatMessages } = require("./lib/chat/history.js");
+
+test("durable foreground projection separates preparation, running, recovery and terminal transitions", () => {
+  const first = { id: "first", status: "queued", content: "first", error: "" };
+  const second = { id: "second", status: "queued", content: "second", error: "" };
+  const blocked = { id: "blocked", status: "queued", error: "recovery_required" };
+  const project = (rows, active) => {
+    const { foreground, waiting } = projectChatRequests(rows, active);
+    return [foreground?.id, waiting.map(row => row.id)];
+  };
+  assert.deepEqual(project([first, second], "first"), ["first", ["second"]]);
+  assert.deepEqual(project([first, second]), ["first", ["second"]]);
+  assert.deepEqual(project([{ ...first, status: "running" }, second]), ["first", ["second"]]);
+  assert.deepEqual(project([blocked, first, second]), ["first", ["blocked", "second"]]);
+  assert.deepEqual(project([blocked], "blocked"), [undefined, ["blocked"]]);
+  assert.deepEqual(project([first, second], "admitting"), [undefined, ["first", "second"]]);
+  assert.deepEqual(project([first, { ...second, status: "running" }], "first"), ["second", []]);
+  for (const status of ["completed", "failed", "cancelled"]) {
+    const rows = [{ ...first, status }, second];
+    assert.deepEqual(project(rows, "first"), [undefined, ["second"]]);
+    assert.deepEqual(project(rows), ["second", []]);
+  }
+  assert.deepEqual(project([{ ...first, status: "completed" }]), [undefined, []]);
+});
 const { courseToStops, parseChatCourse } = require("./lib/chat/course.js");
 const { currentCourse } = require("./lib/chat/current-course.js");
 const { parseChatRequest } = require("./lib/chat/validation.js");
@@ -413,12 +437,117 @@ test("session rename/delete/history use UUID paths, stopped status and tool call
   await assert.rejects(listChatSessions("member"), error => error instanceof ChatClientError && error.status === 502);
   global.fetch = async () => json([{ ...row(USER_MSG, "human", "옛 역할") }]);
   await assert.rejects(fetchChatHistory("member", SESSION), error => error instanceof ChatClientError && error.status === 502);
-  global.fetch = async () => json([{ ...row(USER_MSG, "user", "내부 상태", "cancelled") }]);
-  await assert.rejects(fetchChatHistory("member", SESSION), error => error instanceof ChatClientError && error.status === 502);
+  global.fetch = async () => json([{ ...row(USER_MSG, "user", "예약 취소", "cancelled") }]);
+  assert.equal((await fetchChatHistory("member", SESSION))[0].status, "cancelled");
   global.fetch = async () => json([{ ...row("42", "user", "숫자 ID") }]);
   await assert.rejects(fetchChatHistory("member", SESSION), error => error instanceof ChatClientError && error.status === 502);
   global.fetch = async () => json([{ ...row("not-a-uuid", "user", "잘못된 ID") }]);
   await assert.rejects(fetchChatHistory("member", SESSION), error => error instanceof ChatClientError && error.status === 502);
+});
+
+test("history reconciliation refreshes canonical request state after stale queued/running lists", async () => {
+  const request = { id: OTHER_SESSION, session_id: SESSION, order: 1, revision: 0, content: "same question", attachment_ids: [], tool_group_ids: [], error: "" };
+  for (const staleStatus of ["queued", "running"]) for (const status of ["completed", "failed", "cancelled"]) {
+    const calls = [];
+    global.fetch = async url => {
+      calls.push(String(url));
+      if (calls.length === 1) return json([{ ...request, status: staleStatus }]);
+      if (String(url).endsWith("messages/")) return json([row(1, "user", request.content, status), ...(status === "completed" ? [row(2, "assistant", "saved answer")] : [])]);
+      return json([{ ...request, status }]);
+    };
+    assert.equal(projectChatRequests(await listChatRequests("guest", SESSION)).foreground.id, request.id);
+    const result = await fetchChatRequestHistory("guest", SESSION, undefined, [{ role: "user", content: request.content }]);
+    assert.equal(result.foreground, undefined);
+    assert.equal(result.pending, "");
+    assert.deepEqual(result.messages.map(message => [message.id, message.content, message.status]), status === "completed" ? [[1, request.content, status], [2, "saved answer", "completed"]] : [[1, request.content, status]]);
+    assert.deepEqual(calls.map(url => url.split("/").at(-2)), ["requests", "messages", "requests"]);
+  }
+  // Identical old question text must not hide a different, still-queued UUID.
+  global.fetch = async url => String(url).endsWith("messages/") ? json([row(1, "user", request.content), row(2, "assistant", "old answer")]) : json([{ ...request, status: "queued" }]);
+  const next = await fetchChatRequestHistory("guest", SESSION);
+  assert.equal(next.foreground.id, request.id);
+  assert.equal(next.pending, request.content);
+  assert.deepEqual(next.messages.map(message => message.id), [1, 2, undefined]);
+  global.fetch = async url => String(url).endsWith("messages/") ? json([row(3, "user", request.content, "pending")]) : json([{ ...request, status: "running" }]);
+  const pending = await fetchChatRequestHistory("guest", SESSION);
+  assert.equal(pending.messages.length, 1);
+  assert.equal(pending.messages[0].id, 3);
+  assert.equal(pending.messages[0].status, undefined);
+});
+
+test("queue capacity counts hidden preparation and blocked rows but not confirmed running", () => {
+  const first = { id: "first", status: "queued", error: "" }, second = { id: "second", status: "queued", error: "" };
+  const preparing = projectChatRequests([first, second]);
+  assert.equal(preparing.waiting.length, 1);
+  assert.equal(preparing.queuedCount, 2);
+  assert.equal(preparing.queuedCount < 2, false);
+  assert.equal(projectChatRequests([{ ...first, status: "running" }]).queuedCount, 0);
+  assert.equal(projectChatRequests([{ ...first, status: "running" }, second]).queuedCount < 2, true);
+  const full = projectChatRequests([{ ...first, status: "running" }, second, { id: "third", status: "queued", error: "recovery_required" }]);
+  assert.equal(full.queuedCount, 2);
+  assert.equal(full.waiting.length, 2);
+  assert.equal(full.queuedCount < 2, false);
+});
+
+test("enqueue intent survives refresh matching retry and clears across identities", () => {
+  const { enqueueIntent, clearEnqueueIntent } = require("./lib/chat/client.js");
+  const first = enqueueIntent("member-qa", "payload-qa");
+  const second = enqueueIntent("member-qa", "other-payload");
+  enqueueIntent("member-qa");
+  assert.equal(enqueueIntent("member-qa", "payload-qa"), first);
+  assert.equal(enqueueIntent("member-qa", "other-payload"), second);
+  clearEnqueueIntent(first);
+  assert.equal(enqueueIntent("member-qa", "other-payload"), second);
+  enqueueIntent("other-qa");
+  assert.notEqual(enqueueIntent("other-qa", "payload-qa"), first);
+  clearEnqueueIntent();
+  assert.equal(sessionStorage.getItem("chat-enqueue-intent"), null);
+});
+
+test("lost committed admission is retried with same UUID before early cancellation", async () => {
+  const { enqueueChatRequest, cancelChatRequest } = require("./lib/chat/client.js");
+  const calls = [];
+  global.fetch = async (url, init) => {
+    calls.push([String(url), init.method, init.body]);
+    if (calls.length === 1) throw new TypeError("QA response lost after commit");
+    return json({ id: OTHER_SESSION, session_id: SESSION, order: 1, revision: 0, status: init.method === "DELETE" ? "cancelled" : "queued", content: "QA", attachment_ids: [], tool_group_ids: [], error: "" });
+  };
+  await enqueueChatRequest("guest", SESSION, { content: "QA" }, OTHER_SESSION);
+  await cancelChatRequest("guest", SESSION, OTHER_SESSION);
+  assert.equal(JSON.parse(calls[0][2]).request_id, OTHER_SESSION);
+  assert.equal(JSON.parse(calls[1][2]).request_id, OTHER_SESSION);
+  assert.equal(calls[2][1], "DELETE");
+  const provider = readFileSync(join(frontend, "components/chat-provider.tsx"), "utf8");
+  assert.match(provider, /enqueueChatRequest\(mode, knownSession, payload, requestId\);[\s\S]*controller.signal.aborted[\s\S]*await cancelChatRequest/);
+});
+
+test("queued map continuation and recovered planning use generation fences", () => {
+  const provider = readFileSync(join(frontend, "components/chat-provider.tsx"), "utf8");
+  assert.match(provider, /continuation: Boolean\(durableActiveRef.current && courseTargetVersionRef.current === queuedCourseVersionRef.current && courseTargetRef.current\?\.getVersion\?\.\(\) === queuedMapVersionRef.current\)/);
+  assert.match(provider, /onPlanning: payload =>[\s\S]*!current\(\)/);
+  assert.match(provider, /current\(\) && reply.course && courseTargetVersionRef.current === targetVersion/);
+});
+
+test("queued edit closes only on successful server CAS", () => {
+  const provider = readFileSync(join(frontend, "components/chat-provider.tsx"), "utf8");
+  const branch = provider.slice(provider.indexOf("if (editingId !== null)"), provider.indexOf("if (editingMessageId !== null) { void send();"));
+  assert.match(branch, /updateChatRequest[\s\S]*\.then\([\s\S]*cancelQueuedEdit\(\)/);
+  assert.doesNotMatch(branch.slice(branch.indexOf(".catch")), /cancelQueuedEdit\(\)/);
+});
+
+test("durable observer reconnects after last event without repeating deltas", async () => {
+  const { observeChatRequest } = require("./lib/chat/client.js");
+  const urls = [], pieces = [];
+  global.fetch = async url => {
+    urls.push(String(url));
+    const frame = urls.length === 1 ? 'id: 17\nevent: delta\ndata: {"text":"QA"}\n\n' : 'id: 18\nevent: done\ndata: {"message_id":"2","assistant_message":"QA answer","tools":[]}\n\n';
+    return new Response(frame, { headers: { "Content-Type": "text/event-stream" } });
+  };
+  const reply = await observeChatRequest("guest", SESSION, OTHER_SESSION, undefined, { onDelta: piece => pieces.push(piece) });
+  assert.equal(reply.reply, "QA answer");
+  assert.deepEqual(pieces, ["QA"]);
+  assert.ok(urls[0].endsWith("?after=0"));
+  assert.ok(urls[1].endsWith("?after=17"));
 });
 
 test("tool SSE events are accepted and reach onTool with id/tool_name/status; done carries the final tools array", async () => {
@@ -538,13 +667,13 @@ test("member auth failure never falls back to the guest cookie", async () => {
   await assert.rejects(sendChatMessage("member", { sessionId: SESSION, content: "질문" }), error => error instanceof ChatClientError && error.status === 401);
 });
 
-test("provider enables guest chat, keeps stop local and clears state on every identity switch", () => {
+test("provider enables guest chat, cancels server requests and clears state on every identity switch", () => {
   const provider = readFileSync(join(frontend, "components/chat-provider.tsx"), "utf8");
   const surfaces = ["components/chat-popup.tsx", "components/chat-workspace.tsx"].map(path => readFileSync(join(frontend, path), "utf8"));
   assert.match(provider, /const identity = memberStatus === "authenticated"/);
   assert.match(provider, /memberStatus === "authenticated" \? "member" : memberStatus === "anonymous" \? "guest" : null/);
   for (const cleanup of ["controller.abort()", "backendSessions.current.clear()", "archivedConversations.current.clear()", "historyRef.current = []", "syncRequestRef.current?.abort()"]) assert.ok(provider.includes(cleanup));
-  assert.match(provider, /받던 답변은 저장되지 않아요/);
+  assert.match(provider, /이미 저장된 답변은 기록에 남을 수 있어요/);
   assert.match(provider, /이 질문 이후의 대화는 모두 지워지고/);
   assert.match(provider, /이 질문과 이후 대화를 모두 지울까요/);
   assert.doesNotMatch(provider, /localStorage|sessionStorage|document\.cookie|credentials/);
@@ -552,7 +681,7 @@ test("provider enables guest chat, keeps stop local and clears state on every id
   assert.match(provider, /messages: identityChanged \? \[\] : messages/);
   for (const surface of surfaces) {
     assert.match(surface, /답변 생성 중단/);
-    assert.match(surface, /받던 답변은 저장되지 않아요/);
+    assert.match(surface, /서버 답변 생성 취소/);
     assert.match(surface, /aria-relevant="additions"/);
     assert.match(surface, /message\.id !== undefined && available && !busy/);
     assert.doesNotMatch(surface, /로그인하고 질문하기|조회만 할 수 있어요|받은 답변까지 보관/);

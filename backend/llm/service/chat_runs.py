@@ -35,7 +35,8 @@ class Stopped(Exception):
 
 
 class Run:
-    def __init__(self, session_id):
+    def __init__(self, session_id, guard=None):
+        self.guard = guard
         self.session_id = str(session_id)
         self.cancelled = False
         self._inbox = queue.Queue(MAX_PENDING)
@@ -69,7 +70,13 @@ class Run:
             return False
 
         def work():
-            token = _cancelled.set(lambda: self.cancelled or stop.is_set())
+            def cancelled():
+                if self.cancelled or stop.is_set():
+                    return True
+                if self.guard:
+                    self.guard()
+                return False
+            token = _cancelled.set(cancelled)
             try:
                 for item in frames:
                     if not put(("item", item)):
@@ -185,6 +192,9 @@ def stream_turn(thread, prefix, turns, human, produce, run, on_stop=None, label=
         meter, source = usage.Meter(), produce
         produce = lambda: usage.metered(source, meter, charge)  # noqa: E731
     owner = register(thread.thread_id)
+    if getattr(thread, "queue_request", None):
+        from llm.service.chat_queue import fence
+        owner.guard = lambda: fence(thread.queue_request, thread.queue_attempt)
     try:
         final, failure = None, error_payload()
         try:
@@ -194,7 +204,7 @@ def stream_turn(thread, prefix, turns, human, produce, run, on_stop=None, label=
             answer = run["answer"]
             if not isinstance(answer, str) or not answer:
                 raise ValueError("agent returned no answer")
-            final = AIMessage(answer, id=str(uuid.uuid4()),
+            final = AIMessage(answer, id=getattr(thread, "answer_id", None) or str(uuid.uuid4()),
                               response_metadata={**({"chain_version": label} if label in ("v1", "v2") else {}),
                                                  **({"course_history_reset": True} if run.get("course_history_reset") else {})})
             if owner.cancelled:  # 최종 저장(소유권) 전에 이긴 취소는 stopped

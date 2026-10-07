@@ -4,7 +4,7 @@
 import type { ChatPlanning } from "./planning";
 import type { AnswerFeedback, ChatContext } from "./types";
 
-export type ChatMessageStatus = "pending" | "completed" | "failed" | "stopped";
+export type ChatMessageStatus = "pending" | "completed" | "failed" | "stopped" | "cancelled";
 export type ChatToolStatus = "running" | "completed" | "failed";
 
 export type ChatSessionDto = { id: string; title: string; created_at: string; updated_at: string };

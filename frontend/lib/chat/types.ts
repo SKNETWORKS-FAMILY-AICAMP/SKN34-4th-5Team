@@ -39,7 +39,7 @@ export type ChatToolCall = {
   id: string; toolName: string; status: ChatToolStatus; kind: "tool" | "sub_agent"; parentId: string | null;
   title?: string; summary?: string; detail?: { args: Record<string, unknown>; result: string; messages?: Record<string, unknown>[] };
 };
-export type ChatMessageStatus = "pending" | "completed" | "failed" | "stopped";
+export type ChatMessageStatus = "pending" | "completed" | "failed" | "stopped" | "cancelled";
 // id·status·tools 는 서버에 저장된 메시지에만 있다 (id 는 서버가 만든 양의 정수). course 는 화면 표시용이다.
 export type AnswerFeedback = { rating: "up" | "down"; reason: string; comment: string };
 export type ChatAttachment = { id: string; kind: "image" | "text" | "url"; name: string; contentType: string; size: number; width: number | null; height: number | null; url: string | null; createdAt: string };

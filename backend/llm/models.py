@@ -162,3 +162,35 @@ class UsageCharge(models.Model):
 
     class Meta:
         indexes = [models.Index(fields=["wallet", "status"], name="usage_charge_wallet_status")]
+
+
+class ChatRequest(models.Model):
+    """Durable admission; accepted_payload remains an idempotency tombstone after edits/cancellation."""
+    id = models.UUIDField(unique=True, default=uuid.uuid4, editable=False)
+    order = models.BigAutoField(primary_key=True)
+    session = models.ForeignKey(ChatSession, null=True, on_delete=models.SET_NULL, related_name="requests")
+    accepted_payload = models.JSONField()
+    payload = models.JSONField()
+    status = models.CharField(max_length=24, default="queued", db_index=True)
+    revision = models.PositiveIntegerField(default=0)
+    attempt = models.UUIDField(null=True)
+    charge = models.OneToOneField(UsageCharge, null=True, on_delete=models.SET_NULL, related_name="request")
+    human_id = models.UUIDField(default=uuid.uuid4)
+    answer_id = models.UUIDField(default=uuid.uuid4)
+    worker = models.JSONField(default=dict)
+    heartbeat_at = models.DateTimeField(null=True)
+    lease_expires_at = models.DateTimeField(null=True)
+    cancel_requested = models.BooleanField(default=False)
+    error = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class ChatRequestEvent(models.Model):
+    request = models.ForeignKey(ChatRequest, on_delete=models.CASCADE, related_name="events")
+    event = models.CharField(max_length=16)
+    data = models.JSONField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["request", "id"], name="chat_request_event_cursor")]

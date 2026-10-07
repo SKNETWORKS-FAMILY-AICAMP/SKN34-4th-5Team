@@ -2,9 +2,9 @@ import { parsePlanning, type ChatPlanning } from "./planning";
 import { parseChatCourse, parseCoursePreferences } from "./course";
 import { memberError, memberFetch } from "../member-auth-request";
 import { isRecord, parseChatRequest } from "./validation";
-import type { AnswerFeedback, ChatContext, ChatCourse, ChatReply, ChatStatus, CoursePreferences } from "./types";
-import { MAX_REPLY_LENGTH, buildTimeline } from "./types";
-import { fromAttachmentDto, fromToolDto } from "./history";
+import type { AnswerFeedback, ChatContext, ChatCourse, ChatMessage, ChatReply, ChatStatus, CoursePreferences } from "./types";
+import { MAX_MESSAGE_LENGTH, MAX_REPLY_LENGTH, buildTimeline } from "./types";
+import { fromAttachmentDto, fromToolDto, restoreChatMessages } from "./history";
 import type { ChatAttachment, ChatToolGroup } from "./types";
 import type { ChatAttachmentDto } from "./wire";
 import type { ChatMessageDto, ChatSessionDto, ChatStepDto, ChatToolCallDto } from "./wire";
@@ -135,7 +135,7 @@ const isGroups = (value: unknown): value is string[] => Array.isArray(value) && 
 const isAttachment = (value: unknown): value is ChatAttachmentDto => isRecord(value) && typeof value.id === "string" && UUID.test(value.id) && ["image", "text", "url"].includes(String(value.kind)) && typeof value.name === "string" && typeof value.content_type === "string" && isCount(value.size) && (value.width === null || isCount(value.width)) && (value.height === null || isCount(value.height)) && typeof value.created_at === "string" && (value.kind === "url" ? typeof value.url === "string" && /^https?:\/\//.test(value.url) : value.url === null || typeof value.url === "string" && new RegExp(`^/api/v2/chat/sessions/[0-9a-f-]{36}/attachments/${value.id}/$`, "i").test(value.url));
 const isMessage = (value: unknown): value is ChatMessageDto => isRecord(value) && isMessageId(value.id) && isMessageId(value.sequence_no) &&
   (value.role === "user" || value.role === "assistant") && typeof value.content === "string" &&
-  ["pending", "completed", "failed", "stopped"].includes(String(value.status)) &&
+  ["pending", "completed", "failed", "stopped", "cancelled"].includes(String(value.status)) &&
   Array.isArray(value.tools) && value.tools.every(isTool) && isSteps(value.steps) && typeof value.created_at === "string" && typeof value.updated_at === "string" &&
   (value.feedback === undefined || value.feedback === null || isAnswerFeedback(value.feedback)) &&
   (value.tool_group_ids === undefined || isGroups(value.tool_group_ids)) && (value.attachments === undefined || (Array.isArray(value.attachments) && value.attachments.every(isAttachment)));
@@ -145,7 +145,7 @@ const readEmpty = async (response: Response) => { await response.text(); };
 // Frames are `event: <name>\ndata: <json>\n\n` (backend/llm/views/sse.py): delta{text}* / tool{id,
 // tool_name, status}* then exactly one terminal event: done{message_id, assistant_message, tools},
 // error{detail}, or stopped{}. A stream that closes with none is a dropped connection.
-async function readStream(response: Response, sessionId: string, callbacks: ChatStreamCallbacks): Promise<{ reply: string; assistantMessageId: number; tools: ChatToolCallDto[]; steps: ChatStepDto[]; planning?: ChatPlanning; course?: ChatCourse; coursePreferences?: CoursePreferences }> {
+async function readStream(response: Response, sessionId: string, callbacks: ChatStreamCallbacks, onFrame?: (id: number, event: string) => void): Promise<{ reply: string; assistantMessageId: number; tools: ChatToolCallDto[]; steps: ChatStepDto[]; planning?: ChatPlanning; course?: ChatCourse; coursePreferences?: CoursePreferences }> {
   if (!response.body || !response.headers.get("Content-Type")?.toLowerCase().startsWith("text/event-stream")) {
     throw new ChatClientError("스트림 응답을 확인하지 못했어요.", 502, true, sessionId);
   }
@@ -153,7 +153,7 @@ async function readStream(response: Response, sessionId: string, callbacks: Chat
   let buffer = "", streamed = 0, result: { reply: string; assistantMessageId: number; tools: ChatToolCallDto[]; steps: ChatStepDto[]; planning?: ChatPlanning; course?: ChatCourse; coursePreferences?: CoursePreferences } | null = null;
   const consume = (frame: string) => {
     // SSE 주석은 연결 유지 신호다. 답변/도구/완료 이벤트로 취급하지 않는다.
-    const fields = frame.split(/\r?\n/).filter(line => !line.startsWith(":"));
+    const fields = frame.split(/\r?\n/).filter(line => !line.startsWith(":") && !line.startsWith("id:"));
     if (fields.every(line => !line.trim())) return;
     const [eventLine, ...lines] = fields;
     const event = eventLine?.startsWith("event:") ? eventLine.slice(6).trim() : "";
@@ -161,6 +161,8 @@ async function readStream(response: Response, sessionId: string, callbacks: Chat
     let value: unknown;
     try { value = JSON.parse(raw); } catch { throw new ChatClientError("스트림 응답 형식이 올바르지 않아요.", 502, true, sessionId); }
     if (!isRecord(value) || result) throw new ChatClientError("스트림 응답 순서가 올바르지 않아요.", 502, true, sessionId);
+    const id = frame.split(/\r?\n/).find(line => line.startsWith("id:"))?.slice(3).trim();
+    if (id && /^\d+$/.test(id) && Number.isSafeInteger(Number(id))) onFrame?.(Number(id), event);
     if (event === "delta") {
       // Deltas carry pre-tool and sub-agent text too, so they get the looser stream cap; done.assistant_message keeps MAX_REPLY_LENGTH.
       if (typeof value.text !== "string" || !isParent(value.parent_id) || streamed + value.text.length > MAX_STREAM_LENGTH) throw new ChatClientError("답변이 너무 길어요.", 502, true, sessionId);
@@ -311,6 +313,100 @@ function inputOptions(body: ChatInputOptions) {
   if (body.toolGroupIds !== undefined && !isGroups(body.toolGroupIds)) throw new ChatClientError("선택한 기능을 확인해 주세요.", 400);
   if (body.attachmentIds !== undefined && (!Array.isArray(body.attachmentIds) || body.attachmentIds.length > 10 || body.attachmentIds.some(id => !UUID.test(id)) || new Set(body.attachmentIds).size !== body.attachmentIds.length)) throw new ChatClientError("첨부 자료를 확인해 주세요.", 400);
   return { ...(body.toolGroupIds !== undefined ? { tool_group_ids: body.toolGroupIds } : {}), ...(body.attachmentIds !== undefined ? { attachment_ids: body.attachmentIds } : {}) };
+}
+
+export function enqueueIntent(identity: string, fingerprint?: string): string | null {
+  const key = "chat-enqueue-intent";
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(key) ?? "null");
+    const intents: Record<string, string> = saved?.identity === identity && isRecord(saved.intents) ? saved.intents : {};
+    if (!fingerprint) {
+      if (saved?.identity !== identity) sessionStorage.removeItem(key);
+      return null;
+    }
+    const old = intents[fingerprint];
+    const requestId = typeof old === "string" && UUID.test(old) ? old : crypto.randomUUID();
+    intents[fingerprint] = requestId;
+    sessionStorage.setItem(key, JSON.stringify({ identity, intents }));
+    return requestId;
+  } catch { return fingerprint ? crypto.randomUUID() : null; }
+}
+export function clearEnqueueIntent(requestId?: string): void {
+  try {
+    const key = "chat-enqueue-intent";
+    if (!requestId) { sessionStorage.removeItem(key); return; }
+    const saved = JSON.parse(sessionStorage.getItem(key) ?? "null");
+    if (!isRecord(saved?.intents)) return;
+    saved.intents = Object.fromEntries(Object.entries(saved.intents).filter(([, id]) => id !== requestId));
+    sessionStorage.setItem(key, JSON.stringify(saved));
+  } catch {}
+}
+
+export type ChatRequestDto = { id: string; session_id: string; order: number; status: "queued" | "running" | "completed" | "failed" | "cancelled"; revision: number; content: string; context?: ChatContext; attachment_ids: string[]; tool_group_ids: string[]; error: string };
+const isChatRequest = (row: unknown): row is ChatRequestDto => isRecord(row) && typeof row.id === "string" && UUID.test(row.id) && typeof row.session_id === "string" && UUID.test(row.session_id) && isMessageId(row.order) && isCount(row.revision) && typeof row.content === "string" && row.content.length <= MAX_MESSAGE_LENGTH && ["queued", "running", "completed", "failed", "cancelled"].includes(String(row.status)) && typeof row.error === "string" && Array.isArray(row.attachment_ids) && row.attachment_ids.every(id => typeof id === "string" && UUID.test(id)) && isGroups(row.tool_group_ids);
+export function projectChatRequests(rows: ChatRequestDto[], activeId?: string) {
+  const foreground = rows.find(row => row.status === "running")
+    ?? rows.find(row => row.id === activeId && row.status === "queued" && !row.error)
+    ?? (activeId ? undefined : rows.find(row => row.status === "queued" && !row.error));
+  const waiting = rows.filter(row => row.status === "queued" && (row.error || row.id !== activeId && row.id !== foreground?.id));
+  return { foreground, waiting, queuedCount: rows.filter(row => row.status === "queued").length };
+}
+
+// History can finish a turn after the first request-list read. Refresh canonical UUID states
+// before projecting a synthetic foreground; question text is not a turn identity.
+export async function fetchChatRequestHistory(mode: ChatMode, sessionId: string, signal?: AbortSignal, previous: ChatMessage[] = []) {
+  const history = await fetchChatHistory(mode, sessionId, signal);
+  const rows = await listChatRequests(mode, sessionId, signal);
+  const projection = projectChatRequests(rows), { foreground } = projection;
+  const messages = restoreChatMessages(history, previous).map(message => foreground && message.role === "user" && message.status === "pending" ? { ...message, status: undefined } : message);
+  if (foreground && !history.some(message => message.role === "user" && message.status === "pending")) {
+    messages.push({ role: "user", content: foreground.content, toolGroupIds: foreground.tool_group_ids });
+  }
+  return { rows, messages, pending: foreground?.content ?? "", ...projection };
+}
+
+export async function listChatRequests(mode: ChatMode, sessionId: string, signal?: AbortSignal): Promise<ChatRequestDto[]> {
+  const rows = await request(mode, `${sessionPath(sessionId)}requests/`, { method: "GET" }, signal, readJson);
+  if (!Array.isArray(rows) || !rows.every(row => isChatRequest(row) && row.session_id === sessionId)) throw new ChatClientError("예약 응답을 확인하지 못했어요.", 502);
+  return rows as ChatRequestDto[];
+}
+export async function enqueueChatRequest(mode: ChatMode, sessionId: string, input: unknown, requestId: string, signal?: AbortSignal): Promise<ChatRequestDto> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const row = await request(mode, `${sessionPath(sessionId)}requests/`, json("POST", { ...(input as object), request_id: requestId }), signal, readJson);
+      if (!isChatRequest(row) || row.id !== requestId || row.session_id !== sessionId) throw new ChatClientError("예약 응답을 확인하지 못했어요.", 502, true, sessionId);
+      return row;
+    } catch (cause) {
+      if (signal?.aborted || !(cause instanceof ChatClientError) || !cause.uncertain) throw cause;
+      if (attempt >= 2) throw new ChatClientError("예약·취소 여부를 확인하지 못했어요. 연결을 복구한 뒤 같은 질문으로 다시 확인해 주세요.", 503, true, sessionId);
+      await new Promise(resolve => setTimeout(resolve, 250 * (attempt + 1)));
+    }
+  }
+}
+export async function updateChatRequest(mode: ChatMode, sessionId: string, row: ChatRequestDto, content: string): Promise<void> {
+  await request(mode, `${sessionPath(sessionId)}requests/${row.id}/`, json("PATCH", { content, revision: row.revision, context: row.context, attachment_ids: row.attachment_ids, tool_group_ids: row.tool_group_ids }), undefined, readJson);
+}
+export async function cancelChatRequest(mode: ChatMode, sessionId: string, requestId: string): Promise<void> {
+  if (!UUID.test(requestId)) throw new ChatClientError("예약 번호를 확인해 주세요.", 400);
+  await request(mode, `${sessionPath(sessionId)}requests/${requestId}/`, { method: "DELETE" }, undefined, readJson);
+}
+export async function observeChatRequest(mode: ChatMode, sessionId: string, requestId: string, signal?: AbortSignal, callbacks: ChatStreamCallbacks = {}): Promise<ChatReply> {
+  if (!UUID.test(requestId)) throw new ChatClientError("예약 번호를 확인해 주세요.", 400);
+  let cursor = 0, terminal = false;
+  for (let retry = 0; ; retry++) {
+    try {
+      const result = await request(mode, `${sessionPath(sessionId)}requests/${requestId}/events/?after=${cursor}`, { method: "GET", headers: { Accept: "text/event-stream" } }, signal, response => readStream(response, sessionId, callbacks, (id, event) => {
+        cursor = id;
+        terminal = ["done", "error", "stopped"].includes(event);
+      }), null);
+      const { steps, ...rest } = result, tools = result.tools.map(fromToolDto);
+      return { ...STATUS[mode], ...rest, tools, timeline: buildTimeline(steps, tools), sessionId };
+    } catch (cause) {
+      const dropped = cause instanceof TypeError || cause instanceof ChatClientError && ["답변이 끝나기 전에 연결이 끊겼어요.", "연결이 끊겨 서버 처리 여부를 확인할 수 없어요."].includes(cause.message);
+      if (signal?.aborted || terminal || !dropped || retry >= 3) throw cause;
+      await new Promise(resolve => setTimeout(resolve, 500 * (retry + 1)));
+    }
+  }
 }
 
 export async function fetchChatToolGroups(mode: ChatMode, signal?: AbortSignal): Promise<ChatToolGroup[]> {

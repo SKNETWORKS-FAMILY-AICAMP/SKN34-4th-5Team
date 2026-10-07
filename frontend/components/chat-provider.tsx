@@ -9,6 +9,7 @@ import type { ChatPlanning } from "@/lib/chat/planning";
 import { MAX_MESSAGE_LENGTH, appendTimeline } from "@/lib/chat/types";
 import {
   createChatSession, uploadChatAttachment, deleteChatAttachment, validateChatFile,
+  enqueueChatRequest, listChatRequests, projectChatRequests, fetchChatRequestHistory, observeChatRequest, cancelChatRequest, updateChatRequest, enqueueIntent, clearEnqueueIntent, type ChatRequestDto,
   ChatClientError,
   ChatStreamStoppedError,
   deleteChatMessages,
@@ -32,7 +33,7 @@ import { ChatPopup } from "./chat-popup";
 
 import type { ChatAttachmentDraft } from "@/lib/chat/types";
 
-export type QueuedQuestion = { id: number; content: string; context?: ChatContext; attachments?: ChatAttachmentDraft[]; toolGroupIds?: string[]; edit?: { messageId: number; historyStamp: string } };
+export type QueuedQuestion = { id: number; request?: ChatRequestDto; content: string; context?: ChatContext; attachments?: ChatAttachmentDraft[]; toolGroupIds?: string[]; edit?: { messageId: number; historyStamp: string } };
 const QUEUE_LIMIT = 2;
 function editHistoryStamp(messages: ChatMessage[], messageId: number) {
   const index = messages.findIndex(message => message.role === "user" && message.id === messageId);
@@ -74,6 +75,7 @@ type ChatControls = ConversationSnapshot & {
   onRetryAttachment: (key: string) => void;
   onCancelAttachment: (key: string) => void;
   queued: QueuedQuestion[];
+  queuedCount: number;
   queuePaused: boolean;
   queueSendingId: number | null;
   queueWaitingForServer: boolean;
@@ -147,7 +149,7 @@ export function ChatSampleProvider({ children }: { children: React.ReactNode }) 
     messages: [], draft: "", context: undefined,
     failed: "", error: "", notice: "",
     pending: "", streaming: "", timeline: [], editingMessageId: null,
-    queued: [], queuePaused: false, queueSendingId: null, queueWaitingForServer: false, editingQueuedId: null,
+    queued: [], queuedCount: 0, queuePaused: false, queueSendingId: null, queueWaitingForServer: false, editingQueuedId: null,
     onEditQueued: noop, onRemoveQueued: noop, onCancelQueuedEdit: noop, onResumeQueue: noop,
     conversations: [{ id: "guide-sample", title: "새 대화" }], activeConversationId: "guide-sample",
     openChat: noop, onExpand: noop, onMinimize: noop, onClosePopup: noop,
@@ -213,6 +215,11 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [queued, setQueued] = useState<QueuedQuestion[]>([]);
   const queuedRef = useRef<QueuedQuestion[]>([]);
   const queueSequenceRef = useRef(0);
+  const durableActiveRef = useRef<{ sessionId: string; requestId: string } | null>(null);
+  const durableRowsRef = useRef<ChatRequestDto[]>([]);
+  const queuedCourseVersionRef = useRef<number | null>(null);
+  const queuedMapVersionRef = useRef<unknown>(null);
+  const admissionRetryRef = useRef<{ fingerprint: string; requestId: string } | null>(null);
   const [queuePaused, setQueuePaused] = useState(false);
   const [queueSendingId, setQueueSendingId] = useState<number | null>(null);
   const [serverBusyQueueId, setServerBusyQueueId] = useState<number | null>(null);
@@ -398,14 +405,20 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isChatPage, pathname, router]);
 
-  // 서버에는 중단을 저장하는 API 가 없다. 연결만 끊고, 받던 답변은 보관하지 않는다.
+  // Admission finishes independently; early stop cancels its known UUID after confirmation.
   const cancelRequest = useCallback(() => {
     stayHere();
     const active = requestRef.current;
-    if (!active || active.stopped) return;
+    const durable = durableActiveRef.current;
+    if (!active) {
+      if (durable && mode) void cancelChatRequest(mode, durable.sessionId, durable.requestId).catch(cause => setError(String(cause)));
+      return;
+    }
+    if (active.stopped) return;
     active.stopped = true;
+    if (durable && mode) void cancelChatRequest(mode, durable.sessionId, durable.requestId).catch(cause => setError(String(cause)));
     active.controller.abort();
-  }, [stayHere]);
+  }, [stayHere, mode]);
 
   const runUpload = useCallback(async (item: ChatAttachmentDraft) => {
     if (!mode || requestRef.current || loadingConversationRef.current) return;
@@ -540,6 +553,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
   const resetChat = useCallback(() => {
     if (requestRef.current) return;
+    durableActiveRef.current = null; durableRowsRef.current = [];
     setEditingMessageId(null);
     stopUploads();
     if (!historyRef.current.length && !draft.trim() && !failed && !queuedRef.current.length && !attachmentRef.current.length && !toolGroupIds.length && !backendSessions.current.has(activeConversationId)) {
@@ -717,6 +731,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     preEditComposer.current = null;
     archivedConversations.current.forEach(saved => saved.attachments?.forEach(item => { if (item.preview && !sentPreviews.current.has(item.preview)) URL.revokeObjectURL(item.preview); }));
     updateAttachments(() => []); setToolGroupIds([]); sessionCreation.current = null;
+    enqueueIntent(identity);
+    admissionRetryRef.current = null;
     setChatIdentity(identity);
     requestVersion.current += 1;
     requestRef.current?.controller.abort();
@@ -725,6 +741,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     syncRequestRef.current?.abort();
     loadingConversationRef.current = null;
     requestRef.current = null;
+    durableActiveRef.current = null; durableRowsRef.current = [];
     updateQueue([]); setQueuePaused(false); setQueueSendingId(null); queueSendingRef.current = null;
     setEditingQueuedId(null); editingQueuedRef.current = null; queueEditDraftRef.current = "";
     statusRequestRef.current = null;
@@ -814,12 +831,13 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       setNotice("예약은 최대 2개까지 가능해요. 기존 예약을 수정하거나 취소해 주세요.");
       return false;
     }
-    const item = { id: ++queueSequenceRef.current, content: content.trim(), context: selectedContext, ...input, ...(edit ? { edit } : {}) };
-    updateQueue(first ? [item, ...queuedRef.current] : [...queuedRef.current, item]);
+    const session = backendSessions.current.get(activeConversationId);
+    if (!session || !mode || edit) { setNotice("대화 상태를 확인한 뒤 다시 보내 주세요."); return false; }
+    void enqueueChatRequest(mode, session, { content: content.trim(), context: selectedContext, attachment_ids: input?.attachments.map(item => item.attachment!.id) ?? [], tool_group_ids: input?.toolGroupIds ?? [] }, crypto.randomUUID()).catch(cause => setError(String(cause)));
     stayHere();
     setNotice("");
     return true;
-  }, [identity, stayHere, updateQueue]);
+  }, [activeConversationId, mode, identity, stayHere]);
 
   const cancelQueuedEdit = useCallback(() => {
     if (editingQueuedRef.current === null) return;
@@ -837,9 +855,11 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   }, [draft, stayHere]);
   const removeQueued = useCallback((id: number) => {
     if (queueSendingRef.current === id) return;
-    updateQueue(queuedRef.current.filter(item => item.id !== id));
+    const item = queuedRef.current.find(item => item.id === id);
+    const session = backendSessions.current.get(activeConversationId);
+    if (item?.request && session && mode) void cancelChatRequest(mode, session, item.request.id).catch(cause => setError(String(cause)));
     if (editingQueuedRef.current === id) cancelQueuedEdit();
-  }, [cancelQueuedEdit, updateQueue]);
+  }, [activeConversationId, mode, cancelQueuedEdit]);
 
   const send = useCallback(async (text: string | undefined = undefined, options?: { context?: ChatContext; editId?: number | null; confirmedEdit?: string; preserveDraft?: boolean; queueId?: number; attachments?: ChatAttachmentDraft[]; toolGroupIds?: string[]; onAccepted?: () => void }): Promise<"rejected" | "failed" | "succeeded"> => {
     stayHere();
@@ -893,6 +913,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     if (sessionCreation.current?.conversation === activeConversationId) { setNotice("첨부 대화를 준비한 뒤 보내 주세요."); return "rejected"; }
     const sessionId = backendSessions.current.get(activeConversationId);
     const editIndex = editId === null ? -1 : historyRef.current.findIndex(message => message.id === editId && message.role === "user");
+    if (editId !== null && durableActiveRef.current) return "rejected";
     if (editId !== null && (!sessionId || editIndex < 0)) { setEditingMessageId(null); setError("수정할 질문을 찾지 못했어요."); return "rejected"; }
     const historyStamp = editId === null ? "" : editHistoryStamp(historyRef.current, editId);
     if (editId !== null && options?.confirmedEdit !== historyStamp && !window.confirm("이 질문 이후의 대화는 모두 지워지고 답변을 새로 받아요. 계속할까요?")) return "rejected";
@@ -967,9 +988,31 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         setWriterSeconds(20);
         setWriterAnnouncement("20초 후 루트 작성 화면으로 자동 이동해요. 여기 머무르기를 누르면 자동 이동을 취소할 수 있어요.");
       };
-      const response = editId !== null && sessionId
-        ? await editChatMessage(mode, { sessionId, messageId: editId, content, context: selectedContext, ...inputOptions }, controller.signal, { onDelta, onTool, onPlanning })
-        : await sendChatMessage(mode, { sessionId, content, context: selectedContext, ...inputOptions }, controller.signal, { onDelta, onTool, onPlanning });
+      let response;
+      if (editId !== null && sessionId) {
+        response = await editChatMessage(mode, { sessionId, messageId: editId, content, context: selectedContext, ...inputOptions }, controller.signal, { onDelta, onTool, onPlanning });
+      } else {
+        knownSession = sessionId ?? (await createChatSession(mode, content.slice(0, 80), controller.signal)).id;
+        backendSessions.current.set(conversationId, knownSession);
+        const payload = { content, context: selectedContext, tool_group_ids: inputOptions.toolGroupIds, attachment_ids: inputOptions.attachmentIds };
+        const fingerprint = JSON.stringify([identity, knownSession, payload]);
+        const requestId = admissionRetryRef.current?.fingerprint === fingerprint ? admissionRetryRef.current.requestId : enqueueIntent(identity, fingerprint)!;
+        admissionRetryRef.current = { fingerprint, requestId };
+        queuedCourseVersionRef.current = courseTargetVersionRef.current;
+        queuedMapVersionRef.current = courseTargetRef.current?.getVersion?.();
+        durableActiveRef.current = { sessionId: knownSession, requestId };
+        const accepted = await enqueueChatRequest(mode, knownSession, payload, requestId);
+        if (controller.signal.aborted) {
+          await cancelChatRequest(mode, knownSession, requestId);
+          clearEnqueueIntent(requestId);
+          if (admissionRetryRef.current?.requestId === requestId) admissionRetryRef.current = null;
+          return "rejected";
+        }
+        clearEnqueueIntent(requestId);
+        if (admissionRetryRef.current?.requestId === requestId) admissionRetryRef.current = null;
+        durableActiveRef.current = { sessionId: knownSession, requestId: accepted.id };
+        response = await observeChatRequest(mode, knownSession, accepted.id, controller.signal, { onDelta, onTool, onPlanning });
+      }
       if (version !== requestVersion.current) return "rejected";
       const reply = { ...response, course: response.course ? inheritCourseState(response.course, previous.findLast(item => item.course)?.course) : undefined };
       acknowledgeQueue();
@@ -1025,13 +1068,13 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         updateAttachments(items => [...selectedAttachments.filter(sent => !items.some(item => item.key === sent.key)), ...items]);
       }
       retryRef.current = { content, context: selectedContext, messageId: editId, attachments: selectedAttachments, toolGroupIds: selectedGroups, conversation: conversationId, identity: expectedIdentity };
-      if (active.stopped || cause instanceof ChatStreamStoppedError) {
+      if (cause instanceof ChatStreamStoppedError || active.stopped && !admissionRetryRef.current) {
         if (!preserveDraft && composerVersion.current === acceptedComposerVersion && draftVersion.current !== acceptedDraftVersion) {
           selectedAttachments.forEach(item => { if (item.inlineText) retiredInlineText.current.get(urlScope())?.delete(item.inlineText); });
         updateAttachments(items => [...selectedAttachments.filter(sent => !items.some(item => item.key === sent.key)), ...items]);
         }
         // 중단은 이 화면의 연결만 끊는다. 서버에는 답변 없는 질문이 남을 수 있어 기록을 다시 읽는다.
-        setNotice(cause instanceof ChatStreamStoppedError ? cause.message : "답변 받기를 중단했어요. 받던 답변은 저장되지 않아요.");
+        setNotice(cause instanceof ChatStreamStoppedError ? cause.message : "취소를 요청했어요. 이미 저장된 답변은 기록에 남을 수 있어요.");
       } else {
         setFailed(content);
         failedContextRef.current = selectedContext;
@@ -1041,6 +1084,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     } finally {
       if (version === requestVersion.current) {
         requestRef.current = null;
+        durableActiveRef.current = null;
         queueSendingRef.current = null; setQueueSendingId(null);
         pendingRef.current = "";
         setPending("");
@@ -1057,59 +1101,109 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     if (!content || content.length > MAX_MESSAGE_LENGTH || identityRef.current !== identity) return;
     const editingId = editingQueuedRef.current;
     if (editingId !== null) {
-      updateQueue(queuedRef.current.map(item => item.id === editingId ? { ...item, content } : item));
-      cancelQueuedEdit();
+      const item = queuedRef.current.find(item => item.id === editingId);
+      const session = backendSessions.current.get(activeConversationId);
+      if (item?.request && mode && session) {
+        const conversation = activeConversationId, owner = identity;
+        void updateChatRequest(mode, session, item.request, content).then(() => {
+          if (identityRef.current === owner && activeConversationRef.current === conversation && editingQueuedRef.current === editingId) cancelQueuedEdit();
+        }).catch(cause => { if (identityRef.current === owner && activeConversationRef.current === conversation) setError(String(cause)); });
+      }
       return;
     }
     if (editingMessageId !== null) { void send(); return; }
-    if (requestRef.current || queuedRef.current.length) {
+    if (requestRef.current || durableActiveRef.current || queuedRef.current.length) {
+      if (projectChatRequests(durableRowsRef.current).queuedCount >= QUEUE_LIMIT) { setNotice("예약은 최대 2개까지 가능해요. 기존 예약을 수정하거나 취소해 주세요."); return; }
       if (attachmentRef.current.some(item => item.state !== "ready")) { setNotice("첨부 업로드를 완료한 뒤 예약해 주세요."); return; }
-      if (enqueue(content, context, false, undefined, { attachments: attachmentRef.current, toolGroupIds })) { setDraft(""); draftRef.current = ""; updateAttachments(() => []); }
+      const session = backendSessions.current.get(activeConversationId);
+      if (!session || !mode) { setNotice("대화를 준비한 뒤 다시 보내 주세요."); return; }
+      const submitted = attachmentRef.current, conversation = activeConversationId, submittedDraft = draftRef.current;
+      const payload = { content, context, continuation: Boolean(durableActiveRef.current && courseTargetVersionRef.current === queuedCourseVersionRef.current && courseTargetRef.current?.getVersion?.() === queuedMapVersionRef.current), attachment_ids: submitted.map(item => item.attachment!.id), tool_group_ids: toolGroupIds };
+      const fingerprint = JSON.stringify([identity, session, payload]);
+      const requestId = admissionRetryRef.current?.fingerprint === fingerprint ? admissionRetryRef.current.requestId : enqueueIntent(identity, fingerprint)!;
+      admissionRetryRef.current = { fingerprint, requestId };
+      void enqueueChatRequest(mode, session, payload, requestId).then(() => {
+        if (identityRef.current !== identity || activeConversationRef.current !== conversation) return;
+        clearEnqueueIntent(requestId);
+        if (admissionRetryRef.current?.requestId === requestId) admissionRetryRef.current = null;
+        if (draftRef.current === submittedDraft) { setDraft(""); draftRef.current = ""; }
+        updateAttachments(items => items.filter(item => !submitted.includes(item)));
+      }).catch(cause => { if (identityRef.current === identity && activeConversationRef.current === conversation) setError(String(cause)); });
     } else void send();
   }, [cancelQueuedEdit, context, editingMessageId, enqueue, identity, send, updateQueue, stayHere, toolGroupIds, updateAttachments]);
 
   useEffect(() => {
-    if (!queued.length || pending || requestRef.current || queuePaused || editingQueuedId !== null || editingMessageId !== null
-        || !mode || !status?.ready || statusLoading || identityChanged || loadingConversationRef.current) return;
+    if (!mode || identityChanged) return;
     const controller = new AbortController();
-    const item = queued[0], conversation = activeConversationId, owner = identity;
     let timer: number | undefined;
-    const current = () => !controller.signal.aborted && identityRef.current === owner && activeConversationRef.current === conversation
-      && queuedRef.current[0] === item && editingQueuedRef.current === null && !requestRef.current;
-    async function advance() {
+    let observing: string | undefined;
+    const conversation = activeConversationId, owner = identity;
+    const current = () => !controller.signal.aborted && identityRef.current === owner && activeConversationRef.current === conversation;
+    async function reconcile() {
+      const session = backendSessions.current.get(conversation);
       try {
-        const usage = await fetchChatUsage(mode!, controller.signal);
-        if (!current()) return;
-        if (usage.active_turn) {
-          setServerBusyQueueId(item.id);
-          timer = window.setTimeout(() => void advance(), 1200); return;
-        }
-        setServerBusyQueueId(null);
-        if (!usage.can_send) {
-          setQueuePaused(true); setNotice("사용 가능한 제공량이 없어 예약을 멈췄어요. 예약 내용은 남겨뒀어요."); return;
-        }
-        if (item.edit) {
-          const sessionId = backendSessions.current.get(conversation);
-          if (!sessionId) { setQueuePaused(true); setNotice("수정할 대화를 찾지 못했어요. 예약을 취소하고 다시 선택해 주세요."); return; }
-          const history = await fetchChatHistory(mode!, sessionId, controller.signal);
+        if (session) {
+          const rows = await listChatRequests(mode!, session, controller.signal);
           if (!current()) return;
-          historyRef.current = restoreChatMessages(history, historyRef.current);
-          setMessages(historyRef.current);
-          if (editHistoryStamp(historyRef.current, item.edit.messageId) !== item.edit.historyStamp) {
-            setQueuePaused(true); setNotice("예약을 기다리는 동안 대화가 바뀌었어요. 내용을 확인한 뒤 예약 계속을 눌러 주세요."); return;
+          const previousRows = durableRowsRef.current;
+          durableRowsRef.current = rows;
+          const failedRequest = rows.find(row => row.status === "failed" && previousRows.some(old => old.id === row.id && old.status !== "failed"));
+          if (failedRequest) setNotice(failedRequest.error || "예약한 답변을 완료하지 못했어요.");
+          const blockedRequest = rows.find(row => row.status === "queued" && row.error);
+          if (blockedRequest) setNotice(blockedRequest.error);
+          const activeId = durableActiveRef.current?.sessionId === session && (requestRef.current || observing) ? durableActiveRef.current.requestId : undefined;
+          let { foreground, waiting } = projectChatRequests(rows, activeId);
+          updateQueue(waiting.map(row => ({ id: row.order, content: row.content, context: row.context, request: row })));
+          if (editingQueuedRef.current !== null && !waiting.some(row => row.order === editingQueuedRef.current)) cancelQueuedEdit();
+          setQueuePaused(false);
+          if (!requestRef.current && !observing) {
+            const refreshed = await fetchChatRequestHistory(mode!, session, controller.signal, historyRef.current);
+            if (!current() || requestRef.current) return;
+            durableRowsRef.current = refreshed.rows;
+            ({ foreground, waiting } = refreshed);
+            updateQueue(waiting.map(row => ({ id: row.order, content: row.content, context: row.context, request: row })));
+            if (editingQueuedRef.current !== null && !waiting.some(row => row.order === editingQueuedRef.current)) cancelQueuedEdit();
+            historyRef.current = refreshed.messages;
+            setMessages(historyRef.current);
+            pendingRef.current = refreshed.pending;
+            setPending(pendingRef.current);
+            durableActiveRef.current = foreground ? { sessionId: session, requestId: foreground.id } : null;
+            if (foreground?.status === "running") {
+              observing = foreground.id;
+              const targetVersion = courseTargetVersionRef.current, target = courseTargetRef.current, mapVersion = target?.getVersion?.();
+              setStreaming(""); setTimeline([]);
+              void observeChatRequest(mode!, session, foreground.id, controller.signal, {
+                onDelta: (piece, parentId) => { if (current()) { setStreaming(text => text + piece); setTimeline(items => appendTimeline(items, piece, parentId)); } },
+                onTool: tool => { if (current()) setTimeline(items => appendTimeline(items, fromToolDto(tool))); },
+                onPlanning: payload => {
+                  if (!current() || !payload.offer_writer || hasEmbeddedChat || offerCancelledRef.current || offeredConversations.current.has(conversation)) return;
+                  offeredConversations.current.add(conversation);
+                  writerOfferRef.current = { deadline: Date.now() + 20_000, conversation, path: pathname, identity: owner };
+                  setWriterSeconds(20);
+                  setWriterAnnouncement("20초 후 루트 작성 화면으로 자동 이동해요. 여기 머무르기를 누르면 자동 이동을 취소할 수 있어요.");
+                },
+              }).then(reply => {
+                if (current() && reply.course && courseTargetVersionRef.current === targetVersion && courseTargetRef.current === target && target?.getVersion?.() === mapVersion) applyChatCourse(reply.course, "replace");
+              }).catch(cause => { if (current()) setNotice(cause instanceof Error ? cause.message : "답변 연결을 다시 확인하고 있어요."); }).finally(() => {
+                observing = undefined;
+                if (current()) {
+                  durableActiveRef.current = null;
+                  pendingRef.current = ""; setPending("");
+                  setStreaming(""); setTimeline([]);
+                }
+              });
+            }
           }
         }
-        // 지도는 직전 답변의 적용 결과를 사용하고, 지도 없는 화면은 서버의 최신 코스를 이어받는다.
-        const nextContext = item.context ? { ...item.context, currentCourse: undefined } : undefined;
-        void send(item.content, { context: nextContext, editId: item.edit?.messageId ?? null,
-          confirmedEdit: item.edit?.historyStamp, preserveDraft: true, queueId: item.id, attachments: item.attachments, toolGroupIds: item.toolGroupIds ?? [] });
-      } catch {
-        if (current()) { setQueuePaused(true); setNotice("연결을 확인하지 못해 예약을 잠시 멈췄어요. 예약 계속을 눌러 주세요."); }
+      } catch (cause) {
+        if (current()) setNotice(cause instanceof Error ? cause.message : "예약 연결을 다시 확인하고 있어요.");
+      } finally {
+        if (current()) timer = window.setTimeout(() => void reconcile(), 1000);
       }
     }
-    void advance();
+    void reconcile();
     return () => { controller.abort(); window.clearTimeout(timer); };
-  }, [queued, pending, queuePaused, editingQueuedId, editingMessageId, mode, status?.ready, statusLoading, identityChanged, activeConversationId, identity, send]);
+  }, [mode, identityChanged, activeConversationId, identity, updateQueue, cancelQueuedEdit]);
 
   const resumeQueue = useCallback(() => {
     const first = queuedRef.current[0];
@@ -1124,17 +1218,6 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     setQueuePaused(false); setNotice("");
   }, [updateQueue]);
 
-  // 이 탭의 대기 질문은 페이지 이동에는 유지되지만 창을 닫으면 전송할 수 없다.
-  useEffect(() => {
-    const warn = (event: BeforeUnloadEvent) => {
-      if (queuedRef.current.length || [...archivedConversations.current.values()].some(saved => saved.queued?.length)) {
-        event.preventDefault(); event.returnValue = "";
-      }
-    };
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, []);
-
   const submitQuestions = useCallback(async (messageId: number, text: string, onAccepted?: () => void) => {
     const index = historyRef.current.findIndex(m => m.id === messageId && m.role === "assistant" && m.planning);
     if (index < 0 || index !== historyRef.current.length - 1 || requestRef.current || queuedRef.current.length || !text.trim() || text.length > MAX_MESSAGE_LENGTH) return "rejected" as const;
@@ -1143,7 +1226,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
   const editMessage = useCallback((id: number) => {
     stayHere();
-    if (requestRef.current || loadingConversationRef.current) return;
+    if (requestRef.current || durableActiveRef.current || loadingConversationRef.current) return;
     const target = historyRef.current.find(message => message.id === id && message.role === "user");
     if (!target) return;
     invalidateSync();
@@ -1169,7 +1252,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const deleteMessage = useCallback(async (id: number) => {
     stayHere();
     const sessionId = backendSessions.current.get(activeConversationId);
-    if (requestRef.current || loadingConversationRef.current || !mode || !sessionId) return;
+    if (requestRef.current || durableActiveRef.current || loadingConversationRef.current || !mode || !sessionId) return;
     const target = historyRef.current.find(message => message.id === id);
     if (!target || (target.role === "assistant" && target.status !== "completed")) return;
     const answerOnly = target.role === "assistant";
@@ -1232,7 +1315,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     const target = retryRef.current;
     if (!target || target.conversation !== activeConversationRef.current || target.identity !== identityRef.current) return;
     // 서버에 실패한 질문이 남아 있으면 같은 자리에서 다시 받는다 (질문이 겹쳐 쌓이지 않게).
-    const stored = target.messageId !== null && historyRef.current.some(message => message.id === target.messageId);
+    const stored = admissionRetryRef.current === null && target.messageId !== null && historyRef.current.some(message => message.id === target.messageId);
     const restored = restoredDraftRef.current;
     const preserveDraft = editingMessageId !== null || restored?.content !== target.content || draft !== restored.draft
       || draftVersion.current !== restored.draftVersion || composerVersion.current !== restored.composerVersion
@@ -1255,7 +1338,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const openChat = useCallback((initialMessage?: string, nextContext?: ChatContext) => {
     expandChat();
     if (nextContext) setContext(nextContext);
-    if (requestRef.current || queuedRef.current.length) {
+    if (requestRef.current || durableActiveRef.current || queuedRef.current.length) {
       if (initialMessage?.trim()) {
         if (!enqueue(initialMessage.slice(0, MAX_MESSAGE_LENGTH), nextContext ?? context)) changeDraft(initialMessage.slice(0, MAX_MESSAGE_LENGTH));
       }
@@ -1322,6 +1405,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       timeline: identityChanged ? [] : timeline,
       editingMessageId: identityChanged ? null : editingMessageId,
       queued: identityChanged ? [] : queued,
+      queuedCount: identityChanged ? 0 : projectChatRequests(durableRowsRef.current).queuedCount,
       queuePaused: identityChanged ? false : queuePaused,
       queueSendingId: identityChanged ? null : queueSendingId,
       queueWaitingForServer: !identityChanged && queued.length > 0 && queued[0].id === serverBusyQueueId,

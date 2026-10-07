@@ -12,7 +12,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./data/staging/stadium_places:/data/staging/stadium_places:ro
-    environment:
+    environment: &chat-prod-env
       OPENAI_API_KEY: ${OPENAI_API_KEY:?Set OPENAI_API_KEY}
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY}
       CHAT_CHECKPOINT_SIGNING_KEY: ${CHAT_CHECKPOINT_SIGNING_KEY:?Set CHAT_CHECKPOINT_SIGNING_KEY}
@@ -73,12 +73,32 @@ services:
       minio:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz/', timeout=3)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/healthz/', timeout=3)"]
       interval: 10s
       timeout: 5s
       retries: 12
       start_period: 30s
     logging: *default-logging
+
+  chat-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    environment: *chat-prod-env
+    volumes:
+      - ./data/staging/stadium_places:/data/staging/stadium_places:ro
+      - chat_queue_state:/var/lib/chat-queue
+    command: python manage.py run_chat_queue
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import pathlib,time; assert time.time()-float(pathlib.Path('/var/lib/chat-queue/heartbeat').read_text()) < 30"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   frontend:
     build:
@@ -143,3 +163,4 @@ services:
 
 volumes:
   minio_data:
+  chat_queue_state:

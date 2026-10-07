@@ -22,6 +22,6 @@ export function ChatQueue({ focusInput }: { focusInput: () => void }) {
     {chat.editingQueuedId !== null
       ? <p>입력창에서 고친 뒤 저장해 주세요. <button type="button" onClick={chat.onCancelQueuedEdit}>수정 취소</button></p>
       : <p>{chat.queuePaused ? "예약 내용은 유지돼요. 준비되면 계속해 주세요." : chat.queueWaitingForServer
-        ? "이전 요청이 서버에서 아직 처리 중이에요. 끝나면 자동으로 전송해요." : "답변이 끝나면 순서대로 전송해요."}</p>}
+        ? "이전 요청이 서버에서 아직 처리 중이에요. 끝나면 자동으로 전송해요." : "서버에 예약했어요. 창을 닫아도 순서대로 답변을 만들어요."}</p>}
   </section>;
 }

@@ -53,7 +53,7 @@ export function ChatWorkspace() {
   const available = (authStatus === "authenticated" || authStatus === "anonymous") && Boolean(chat.status?.ready) && !chat.statusLoading && !chat.statusError;
   const reserving = busy || chat.queued.length > 0;
   const sendLabel = chat.editingQueuedId !== null ? "예약 수정 저장" : chat.editingMessageId !== null ? "수정한 질문 보내기" : reserving ? "질문 예약" : "질문 보내기";
-  const canSubmit = available && Boolean(chatComposerContent(chat.draft, chat.attachments)) && (chat.editingQueuedId !== null || chat.editingMessageId !== null || !reserving || chat.queued.length < 2);
+  const canSubmit = available && Boolean(chatComposerContent(chat.draft, chat.attachments)) && (chat.editingQueuedId !== null || chat.editingMessageId !== null || !reserving || chat.queuedCount < 2);
   const empty = chat.messages.length === 0 && !chat.pending && !chat.failed;
   const demo = chat.status?.provider === "demo";
   const guest = authStatus === "anonymous";
@@ -235,7 +235,7 @@ export function ChatWorkspace() {
           <ChatQueue focusInput={() => inputRef.current?.focus()} />
           {chat.editingMessageId !== null && <p className="workspace-edit-banner" role="status">질문을 수정하고 있어요. 보내면 이 질문 이후의 대화는 지워져요. <button type="button" onClick={chat.onCancelEdit}>수정 취소</button></p>}
           <div className="workspace-composer" onDragOver={event => { if (event.dataTransfer.types.includes("Files")) event.preventDefault(); }} onDrop={event => { if (!event.dataTransfer.files.length) return; event.preventDefault(); event.stopPropagation(); if (!busy && available) chat.onAttach(Array.from(event.dataTransfer.files)); }} onPaste={event => { const images = Array.from(event.clipboardData.files).filter(file => file.type.startsWith("image/")); if (images.length && !busy && available) { event.preventDefault(); chat.onAttach(images); } }}>
-          <ChatComposerTools disabled={false} available={available} hint={busy ? "답변을 준비하고 있어요" : "야구가 궁금한 모든 순간"} actions={<>{busy && <button type="button" className="workspace-send workspace-stop" aria-label="답변 생성 중단" title="답변 받기 중단 (받던 답변은 저장되지 않아요)" onClick={event => { event.preventDefault(); chat.onCancel(); }}><span /></button>}<button type="button" onClick={send} className="workspace-send" aria-label={sendLabel} title={sendLabel} disabled={!canSubmit}><Icon name="arrow" size={20} /></button></>}>
+          <ChatComposerTools disabled={false} available={available} hint={busy ? "답변을 준비하고 있어요" : "야구가 궁금한 모든 순간"} actions={<>{busy && <button type="button" className="workspace-send workspace-stop" aria-label="답변 생성 중단" title="서버 답변 생성 취소" onClick={event => { event.preventDefault(); chat.onCancel(); }}><span /></button>}<button type="button" onClick={send} className="workspace-send" aria-label={sendLabel} title={sendLabel} disabled={!canSubmit}><Icon name="arrow" size={20} /></button></>}>
             <label className="sr-only" htmlFor="workspace-question">직관 도우미에게 질문</label>
             <ChatInlineInput id="workspace-question" inputRef={inputRef} disabled={false} available={available} onSend={send} onCompositionChange={value => { composingRef.current = value; }} />
           </ChatComposerTools>

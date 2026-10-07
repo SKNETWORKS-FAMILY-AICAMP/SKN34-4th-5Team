@@ -102,13 +102,20 @@ def _apply(wallet, charge, tokens):
         wallet.save(update_fields=["used_tokens", "updated_at"])
 
 
-def reserve(session):
+def reserve(session, *, queued=False, editing=False):
     """양수 잔액으로 한 턴을 시작한다. provider 호출은 transaction 밖에서만."""
     owner = _owner(session)
     with transaction.atomic():
         wallet = _locked_wallet(owner)
         if wallet.charges.filter(status=UsageCharge.RESERVED).exists():
             raise WalletBusy
+        if not queued:
+            from llm.models import ChatRequest, ChatSession
+            requests = ChatRequest.objects.filter(session__in=ChatSession.objects.filter(**owner), status__in=("queued", "running"))
+            if editing:
+                requests = requests.exclude(session=session, status="queued")
+            if requests.exists():
+                raise WalletBusy
         available = _limit("user_id" in owner) - wallet.used_tokens
         if available <= 0:
             raise InsufficientCredits
@@ -118,11 +125,14 @@ def reserve(session):
         )
 
 
-def settle(charge, meter=None, *, unknown=False):
+def settle(charge, meter=None, *, unknown=False, queue_attempt=None):
     """예약을 실제 토큰으로 정산하고 남은 예약을 푼다. 멱등(이미 정산됐으면 아무것도 안 한다)."""
     with transaction.atomic():
         wallet = UsageWallet.objects.select_for_update().get(pk=charge.wallet_id)
         charge = UsageCharge.objects.select_for_update().get(pk=charge.pk)
+        if queue_attempt is not None:
+            from llm.service.chat_queue import fence
+            fence(charge.request.id, queue_attempt, lock=True, allow_cancel=True)
         if charge.status != UsageCharge.RESERVED:
             return charge
         if meter is not None:
@@ -193,12 +203,17 @@ class Meter(BaseCallbackHandler):
         with self._lock:
             if run_id is not None and run_id not in self._done:
                 self._inflight[run_id] = None
+                self._persist()
 
     def on_chat_model_start(self, serialized, messages, *, run_id=None, **kwargs):
         params = kwargs.get("invocation_params") or {}
         limit = params.get("max_completion_tokens", params.get("max_tokens", params.get("max_output_tokens")))
         if not _valid(limit) or limit <= 0 or limit > _conf("USAGE_MAX_CALL_OUTPUT_TOKENS", 4000):
             raise UnsafeOutputLimit
+        charge = getattr(self, "charge", None)
+        if charge is not None:
+            from llm.service.chat_queue import fence
+            fence(charge.queue_request, charge.queue_attempt)
         self.check(run_id=run_id)
 
     def on_llm_start(self, serialized, prompts, *, run_id=None, **kwargs):
@@ -226,6 +241,18 @@ class Meter(BaseCallbackHandler):
                 self._unknown += 1
             self._in += incoming if _valid(incoming) else 0
             self._out += outgoing if _valid(outgoing) else 0
+            self._persist()
+
+    def _persist(self):
+        charge = getattr(self, "charge", None)
+        if charge is None:
+            return
+        from llm.service.chat_queue import fence
+        with transaction.atomic():
+            fence(charge.queue_request, charge.queue_attempt, lock=True, allow_cancel=True)
+            UsageCharge.objects.filter(pk=charge.pk, status=UsageCharge.RESERVED).update(
+                input_tokens=self._in, output_tokens=self._out,
+                calls=self._calls + len(self._inflight), unknown_calls=self._unknown + len(self._inflight))
 
     def totals(self):
         with self._lock:
@@ -274,6 +301,8 @@ def metered(produce, meter, charge):
     """produce() 를 Meter 를 켠 채로 돌린다(chat_runs.Run.pump 의 worker 스레드). 원본이 닫혀 provider 작업이 멈추면 meter.finished.
 
     요청 스레드(finish)가 기다리다 포기했으면 여기서 정산한다."""
+    if getattr(charge, "queue_request", None):
+        meter.charge = charge
     token = _meter.set(meter)
     inner = None
     try:
@@ -285,6 +314,12 @@ def metered(produce, meter, charge):
                 inner.close()  # v1 은 여기서 파이프라인 스레드가 끝날 때까지 기다린다
         finally:
             _meter.reset(token)
+            if getattr(charge, "queue_request", None):
+                from llm.service.chat_queue import fence
+                with transaction.atomic():
+                    row = fence(charge.queue_request, charge.queue_attempt, lock=True, allow_cancel=True)
+                    row.worker = {**row.worker, "meter_finished": True}
+                    row.save(update_fields=["worker"])
             with meter._lock:
                 meter.finished.set()
                 late = meter.abandoned
@@ -301,6 +336,8 @@ def finish(charge, meter):
     끊김·중단 뒤에도 worker 는 다음 청크/timeout 까지 돌 수 있다. USAGE_SETTLE_WAIT_SECONDS 안에 안 끝나면
     worker(metered) 가 끝날 때 실제 사용량으로 정산한다.
     """
+    if getattr(charge, "queue_request", None):
+        return  # Queue supervisor settles only after the entire subprocess has exited/joined.
     meter.finished.wait(_conf("USAGE_SETTLE_WAIT_SECONDS", 60))
     with meter._lock:
         if not meter.finished.is_set():

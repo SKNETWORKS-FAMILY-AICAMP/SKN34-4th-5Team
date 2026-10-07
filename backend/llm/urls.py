@@ -10,7 +10,12 @@ from llm.views.sesstion import ChatRoomDetailView, ChatRoomListView
 그대로 넘긴다 (llm/service/chat.py 의 send_message/message_update).
 """
 
+from llm.views.queue import ChatQueueView, ChatQueueDetailView, ChatQueueEventsView
+
 _session_patterns = [
+    path("sessions/<uuid:session_id>/requests/", ChatQueueView.as_view()),
+    path("sessions/<uuid:session_id>/requests/<uuid:request_id>/", ChatQueueDetailView.as_view()),
+    path("sessions/<uuid:session_id>/requests/<uuid:request_id>/events/", ChatQueueEventsView.as_view()),
     path("usage/", ChatUsageView.as_view(), name="chat-usage"),
     path("sessions/<uuid:session_id>/feedback/", ChatFeedbackView.as_view(), name="chat-feedback"),
     path("admin/feedback/", AdminFeedbackListView.as_view(), name="admin-chat-feedback"),

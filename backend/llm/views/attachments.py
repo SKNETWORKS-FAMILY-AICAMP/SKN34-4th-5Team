@@ -126,6 +126,9 @@ class ChatAttachmentDetailView(APIView):
                 row = ChatAttachment.objects.filter(session=session, pk=attachment_id).first()
                 if row is None:
                     raise Http404
+                from llm.models import ChatRequest
+                if ChatRequest.objects.filter(session=session, status__in=("queued", "running"), payload__attachment_ids__contains=[str(row.id)]).exists():
+                    return Response({"detail": "예약에 사용한 첨부는 삭제할 수 없습니다."}, status=409)
                 thread = ChatThread(session.id)
                 # Historical checkpoints retain edit/retry references. Never delete their bytes.
                 for snapshot in thread.history():

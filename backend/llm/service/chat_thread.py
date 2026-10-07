@@ -172,6 +172,9 @@ class ChatThread:
         with transaction.atomic():
             if not ChatSession.objects.select_for_update().filter(id=self.thread_id).exists():
                 return False
+            if getattr(self, "queue_request", None):
+                from llm.service.chat_queue import fence
+                fence(self.queue_request, self.queue_attempt, lock=True, allow_cancel=getattr(self, "queue_allow_cancel", False))
             from llm.service.attachments import resolve
             for message in messages:
                 if isinstance(message, HumanMessage) and message.additional_kwargs.get("attachment_ids"):
@@ -180,6 +183,9 @@ class ChatThread:
                 latest = graph.get_state(self.root).values
                 if latest.get("revision", 0) != self.revision:
                     return False
+                if revision is not None:
+                    from llm.service.chat_queue import invalidate_waiting
+                    invalidate_waiting(self.thread_id)
                 values = {"messages": messages, "turns": turns}
                 if revision is None:
                     # 일반 질문·답변은 잠금 안의 최신에 이어 쓴다(같은 base 의 동시 질문이 branch 로 갈라져 사라지지 않게).
@@ -267,10 +273,10 @@ class ChatThread:
         kept = {m.id for m in prefix if isinstance(m, HumanMessage)}
         return prefix, {key: turn for key, turn in turns.items() if key in kept}, human
 
-    def ask(self, content, input_options=None):
+    def ask(self, content, input_options=None, human_id=None):
         """새 질문(pending)을 덧붙인다. 반환은 edit 와 같다."""
         messages, turns = self.state()
-        human = HumanMessage(content, id=str(uuid.uuid4()), additional_kwargs=input_options or {})
+        human = HumanMessage(content, id=human_id or str(uuid.uuid4()), additional_kwargs=input_options or {})
         self._write([human], {human.id: _pending_turn()})
         return messages, turns, human
 
