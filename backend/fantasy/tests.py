@@ -82,21 +82,42 @@ class FantasyFlowTests(APITestCase):
 
         self.assertEqual(batters.status_code, 200)
         self.assertEqual(
-            {player["external_code"] for player in batters.data},
+            {player["external_code"] for player in batters.data["results"]},
             {"hitter-1", "hitter-2"},
         )
         all_batters = self.client.get("/api/v1/fantasy/players/?fantasy_type=batter")
         self.assertEqual(all_batters.status_code, 200)
-        self.assertEqual(len(all_batters.data), 3)
+        self.assertEqual(len(all_batters.data["results"]), 3)
         self.assertEqual(pitchers.status_code, 200)
         self.assertEqual(
-            {player["external_code"] for player in pitchers.data},
+            {player["external_code"] for player in pitchers.data["results"]},
             {"pitcher-1", "pitcher-2"},
         )
         self.assertEqual(
-            [player["external_code"] for player in searched.data],
+            [player["external_code"] for player in searched.data["results"]],
             ["hitter-2"],
         )
+
+    def test_player_api_paginates_and_rejects_invalid_page_values(self):
+        for index in range(7):
+            Player.objects.create(
+                external_code=f"page-player-{index}", team=self.team,
+                name=f"페이지선수{index}", positions=["외야수"],
+            )
+        first = self.client.get("/api/v1/fantasy/players/?fantasy_type=batter&page=1")
+        second = self.client.get("/api/v1/fantasy/players/?fantasy_type=batter&page=2")
+        self.assertEqual(first.data["count"], 10)
+        self.assertEqual(len(first.data["results"]), 8)
+        self.assertIsNotNone(first.data["next"])
+        self.assertEqual(len(second.data["results"]), 2)
+        for page in ("abc", "0", "999999999999999999999999", "1&page=2"):
+            response = self.client.get(f"/api/v1/fantasy/players/?page={page}")
+            self.assertIn(response.status_code, (400, 404))
+
+    def test_selection_api_rejects_malformed_and_overflow_week_query(self):
+        for query in ("abc", "0", "9223372036854775808", "1&week=2", "9" * 5000):
+            response = self.client.get(f"/api/v1/fantasy/selections/?week={query}")
+            self.assertEqual(response.status_code, 400)
 
     def test_point_api_returns_empty_wallet_without_creating_one(self):
         response = self.client.get("/api/v1/fantasy/points/")
@@ -128,6 +149,7 @@ class FantasyFlowTests(APITestCase):
             player=self.pitcher,
             stat_weights={key: NEUTRAL_WEIGHT for key in PITCHER_STATS},
             is_confirmed=True,
+            fantasy_type=FantasySelection.PITCHER,
         )
         FantasyPitchingGameStat.objects.create(
             game=game,
@@ -139,6 +161,28 @@ class FantasyFlowTests(APITestCase):
             pitch_count=90,
         )
 
+        self.assertEqual(score_selection(selection), Decimal("77"))
+
+    def test_selection_type_snapshot_survives_player_position_changes(self):
+        week = FantasyWeek.objects.create(
+            week_start=date(2040, 5, 7), week_end=date(2040, 5, 13),
+            settlement_date=date(2040, 5, 15),
+        )
+        game = Game.objects.create(
+            id=919, game_code="fantasy-position-snapshot", game_date=date(2040, 5, 8),
+            game_time="18:30", home_team=self.other_team, away_team=self.team,
+            status_code="final", game_type="REGULAR", collected_at=timezone.now(),
+        )
+        selection = FantasySelection.objects.create(
+            week=week, user=self.user, player=self.pitcher, fantasy_type=FantasySelection.PITCHER,
+            stat_weights={key: NEUTRAL_WEIGHT for key in PITCHER_STATS}, is_confirmed=True,
+        )
+        self.pitcher.positions = ["외야수"]
+        self.pitcher.save(update_fields=("positions",))
+        FantasyPitchingGameStat.objects.create(
+            game=game, player=self.pitcher, team=self.team, saves=1, batters_faced=20,
+            strikeouts=6, pitch_count=90,
+        )
         self.assertEqual(score_selection(selection), Decimal("77"))
 
     @override_settings(FANTASY_LOCAL_REQUEST_JOBS_ENABLED=True)
@@ -528,14 +572,14 @@ class FantasyFlowTests(APITestCase):
             week=week, user=self.user, player=self.hitter, stat_weights={}
         )
 
-        with patch("fantasy.management.commands.confirm_fantasy_selections.randbelow", return_value=3):
+        with patch("fantasy.management.commands.confirm_fantasy_selections.fantasy_today", return_value=date(2043, 5, 10)), patch("fantasy.management.commands.confirm_fantasy_selections.randbelow", return_value=3):
             call_command("confirm_fantasy_selections", week_start=start, stdout=StringIO())
         selection.refresh_from_db()
         confirmed_weights = selection.stat_weights
         self.assertTrue(selection.is_confirmed)
         self.assertEqual(confirmed_weights, {"at_bats": 4, "hits": 4, "rbi": 4, "runs": 4})
 
-        with patch("fantasy.management.commands.confirm_fantasy_selections.randbelow", return_value=8):
+        with patch("fantasy.management.commands.confirm_fantasy_selections.fantasy_today", return_value=date(2043, 5, 10)), patch("fantasy.management.commands.confirm_fantasy_selections.randbelow", return_value=8):
             call_command("confirm_fantasy_selections", week_start=start, stdout=StringIO())
         selection.refresh_from_db()
         self.assertEqual(selection.stat_weights, confirmed_weights)
@@ -553,8 +597,19 @@ class FantasyFlowTests(APITestCase):
             call_command("confirm_fantasy_selections", week_start=date(2044, 5, 3))
         with self.assertRaisesRegex(CommandError, "주차가 없습니다"):
             call_command("confirm_fantasy_selections", week_start=date(2044, 4, 25))
-        with self.assertRaisesRegex(CommandError, "이미 결산된"):
-            call_command("confirm_fantasy_selections", week_start=week.week_start)
+        output = StringIO()
+        call_command("confirm_fantasy_selections", week_start=week.week_start, stdout=output)
+        self.assertIn("건너뜁니다", output.getvalue())
+
+    def test_confirmation_command_rejects_future_week(self):
+        start = date(2045, 5, 1)
+        FantasyWeek.objects.create(
+            week_start=start, week_end=start + timedelta(days=6),
+            settlement_date=start + timedelta(days=8),
+        )
+        with patch("fantasy.management.commands.confirm_fantasy_selections.fantasy_today", return_value=date(2045, 4, 30)):
+            with self.assertRaisesRegex(CommandError, "미래 주차"):
+                call_command("confirm_fantasy_selections", week_start=start)
 
 
 class FantasyAdminStatImportTests(APITestCase):
@@ -617,7 +672,44 @@ class FantasyAdminStatImportTests(APITestCase):
             "선수명\t등판\t결과\t승\t패\t세\t이닝\t타자\t투구수\t타수\t피안타\t홈런\t4사구\t삼진\t실점\t자책\tERA\n"
             "홈투수\t선발\t승\t2\t1\t0\t2/3\t8\t30\t7\t2\t0\t1\t2\t1\t1\t2.50\n"
         )
-        return {"game_id": self.game.pk, "batting": batting, "pitching": pitching}
+        return {"game_id": self.game.pk, "source_game_id": self.game.pk, "batting": batting, "pitching": pitching}
+
+    def test_import_rejects_stale_game_draft_and_integer_overflow(self):
+        payload = self._payload()
+        payload["source_game_id"] = self.game.pk + 1
+        stale = self.client.post("/api/v1/fantasy/admin/stats/", payload, format="json")
+        self.assertEqual(stale.status_code, 400)
+        payload = self._payload()
+        payload["batting"] = payload["batting"].replace("4\t2\t1\t1", "2147483648\t1\t1\t1")
+        overflow = self.client.post("/api/v1/fantasy/admin/stats/", payload, format="json")
+        self.assertEqual(overflow.status_code, 400)
+        self.assertFalse(FantasyBattingGameStat.objects.filter(game=self.game).exists())
+
+    def test_import_requires_unique_name_or_matching_external_player_code(self):
+        Player.objects.create(
+            external_code="import-away-hitter-duplicate", team=self.away_team,
+            name=self.away_hitter.name, positions=["유격수"],
+        )
+        payload = self._payload()
+        payload["batting"] = payload["batting"].replace("원정타자", self.away_hitter.name)
+        ambiguous = self.client.post("/api/v1/fantasy/admin/stats/", payload, format="json")
+        self.assertEqual(ambiguous.status_code, 400)
+        self.assertIn("여러 명", ambiguous.data["errors"][0])
+
+        payload["batting"] = payload["batting"].replace(
+            "선수명\t타수", "선수코드\t선수명\t타수"
+        ).replace(
+            f"{self.away_hitter.name}\t4", f"{self.away_hitter.external_code}\t{self.away_hitter.name}\t4"
+        )
+        identified = self.client.post("/api/v1/fantasy/admin/stats/", payload, format="json")
+        self.assertEqual(identified.status_code, 200)
+
+        mismatch = self._payload()
+        mismatch["batting"] = mismatch["batting"].replace(
+            "선수명\t타수", "선수코드\t선수명\t타수"
+        ).replace("원정타자\t4", "잘못된코드\t원정타자\t4")
+        mismatch_response = self.client.post("/api/v1/fantasy/admin/stats/", mismatch, format="json")
+        self.assertEqual(mismatch_response.status_code, 400)
 
     def test_staff_can_import_late_live_game_records_and_reset_finalized_flag(self):
         response = self.client.post(
@@ -843,13 +935,21 @@ class FantasyAdminTestSettlementTests(APITestCase):
         self.assertEqual(FantasyWeek.objects.get(pk=self.week.pk).status, FantasyWeek.SETTLED)
 
     def test_staff_can_cancel_test_payment_and_reopen_week_with_ledger_reversal(self):
-        with patch("fantasy.admin_views.current_week", return_value=self.week):
-            paid = self.client.post(self.endpoint)
-            cancelled = self.client.delete(self.endpoint)
-            repeated_cancel = self.client.delete(self.endpoint)
+        next_week = FantasyWeek.objects.create(
+            week_start=date(2026, 5, 11), week_end=date(2026, 5, 17),
+            settlement_date=date(2026, 5, 19),
+        )
+        target = f"{self.endpoint}?week_id={self.week.pk}"
+        with patch("fantasy.admin_views.current_week", return_value=next_week):
+            paid = self.client.post(target)
+            state = self.client.get(target)
+            cancelled = self.client.delete(target)
+            repeated_cancel = self.client.delete(target)
 
         self.assertEqual(paid.status_code, 200)
         self.assertEqual(cancelled.status_code, 200)
+        self.assertEqual(state.data["week_id"], self.week.pk)
+        self.assertEqual(cancelled.data["week_id"], self.week.pk)
         self.assertEqual(cancelled.data["reversed_points"], 10)
         self.assertEqual(repeated_cancel.status_code, 409)
         self.assertEqual(FantasyWeek.objects.get(pk=self.week.pk).status, FantasyWeek.OPEN)

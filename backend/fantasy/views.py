@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import Q
+from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.utils import timezone
 from rest_framework import permissions, status
 from rest_framework.response import Response
@@ -11,7 +12,7 @@ from drf_spectacular.utils import extend_schema
 from accounts.models import PointTransaction, PointWallet
 from baseball.models import Player
 from fantasy.models import FantasySelection, FantasyWeek
-from fantasy.serializers import PlayerSerializer, SelectionCreateSerializer, SelectionSerializer, WeekSerializer
+from fantasy.serializers import PlayerPageSerializer, PlayerSerializer, SelectionCreateSerializer, SelectionSerializer, WeekSerializer
 from fantasy.services.schedule import week_has_games
 from fantasy.services.local_scheduler import run_local_jobs_if_needed
 from fantasy.services.scoring import BATTER_STATS, PITCHER_STATS, player_fantasy_type, score_user_week
@@ -34,10 +35,11 @@ class WeekView(APIView):
 
 class PlayerListView(APIView):
     permission_classes = (permissions.IsAuthenticated,)
+    PAGE_SIZE = 8
 
-    @extend_schema(responses=PlayerSerializer)
+    @extend_schema(responses=PlayerPageSerializer)
     def get(self, request):
-        qs = Player.objects.select_related("team").order_by("name")
+        qs = Player.objects.select_related("team").order_by("name", "pk")
         if request.query_params.get("team"):
             qs = qs.filter(team__team_code=request.query_params["team"])
         if request.query_params.get("q"):
@@ -47,7 +49,28 @@ class PlayerListView(APIView):
             qs = qs.filter(Q(positions__contains=["pitcher"]) | Q(positions__contains=["투수"]))
         elif fantasy_type == "batter":
             qs = qs.exclude(Q(positions__contains=["pitcher"]) | Q(positions__contains=["투수"]))
-        return Response(PlayerSerializer(qs[:200], many=True).data)
+        page_values = request.query_params.getlist("page")
+        if len(page_values) > 1:
+            return Response({"detail": "page는 한 번만 지정할 수 있습니다."}, status=status.HTTP_400_BAD_REQUEST)
+        page_value = page_values[0] if page_values else "1"
+        if (
+            not page_value.isascii()
+            or not page_value.isdecimal()
+            or len(page_value) > 10
+            or int(page_value) < 1
+        ):
+            return Response({"detail": "page는 1 이상의 정수여야 합니다."}, status=status.HTTP_400_BAD_REQUEST)
+        paginator = Paginator(qs, self.PAGE_SIZE)
+        try:
+            page = paginator.page(int(page_value))
+        except (EmptyPage, PageNotAnInteger):
+            return Response({"detail": "요청한 page 범위에 선수가 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+        return Response({
+            "count": paginator.count,
+            "next": page.next_page_number() if page.has_next() else None,
+            "previous": page.previous_page_number() if page.has_previous() else None,
+            "results": PlayerSerializer(page.object_list, many=True).data,
+        })
 
 
 class SelectionListCreateView(APIView):
@@ -55,7 +78,18 @@ class SelectionListCreateView(APIView):
 
     @extend_schema(responses=SelectionSerializer)
     def get(self, request):
-        week_id = request.query_params.get("week")
+        week_values = request.query_params.getlist("week")
+        if len(week_values) > 1:
+            return Response({"detail": "week은 한 번만 지정할 수 있습니다."}, status=status.HTTP_400_BAD_REQUEST)
+        week_id = week_values[0] if week_values else None
+        if week_id is not None and (
+            not week_id.isascii()
+            or not week_id.isdecimal()
+            or len(week_id) > 19
+            or int(week_id) < 1
+            or int(week_id) > 9_223_372_036_854_775_807
+        ):
+            return Response({"detail": "week는 양의 정수여야 합니다."}, status=status.HTTP_400_BAD_REQUEST)
         qs = FantasySelection.objects.filter(user=request.user).select_related("player", "week")
         if week_id:
             qs = qs.filter(week_id=week_id)
@@ -87,7 +121,7 @@ class SelectionListCreateView(APIView):
 
         selections_to_replace = [
             selection.pk for selection in selections
-            if player_fantasy_type(selection.player) == fantasy_type
+            if selection.fantasy_type == fantasy_type
         ]
         if selections_to_replace:
             FantasySelection.objects.filter(pk__in=selections_to_replace).delete()
@@ -97,6 +131,7 @@ class SelectionListCreateView(APIView):
             week=week,
             user=request.user,
             player=player,
+            fantasy_type=fantasy_type,
             stat_weights={key: None for key in stats},
         )
         return Response(SelectionSerializer(selection).data, status=status.HTTP_201_CREATED)
@@ -105,9 +140,13 @@ class SelectionListCreateView(APIView):
 class SelectionDetailView(APIView):
     permission_classes = (permissions.IsAuthenticated,)
 
+    @transaction.atomic
     @extend_schema(responses=OpenApiTypes.OBJECT)
     def delete(self, request, pk):
-        selection = FantasySelection.objects.filter(pk=pk, user=request.user).select_related("week").first()
+        get_user_model().objects.select_for_update().get(pk=request.user.pk)
+        selection = FantasySelection.objects.select_for_update().filter(
+            pk=pk, user=request.user
+        ).select_related("week").first()
         if not selection:
             return Response(status=status.HTTP_404_NOT_FOUND)
         if not _confirmable(selection.week):

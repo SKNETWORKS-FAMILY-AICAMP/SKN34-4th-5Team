@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { memberFetch } from "@/lib/member-auth-request";
 import { useMemberAuth } from "@/lib/member-auth";
 import styles from "./prediction-board.module.css";
@@ -17,12 +17,16 @@ type Player = {
 type Team = { team_code: string; team_name_ko: string };
 type Selection = {
   id: number;
+  week: number;
+  fantasy_type: "BATTER" | "PITCHER";
   player: Player;
   is_confirmed: boolean;
   weights: Record<string, number | null>;
 };
 type Week = { id: number; week_start: string; week_end: string; has_games: boolean };
+type PlayerPage = { count: number; next: number | null; previous: number | null; results: Player[] };
 type AdminTestSettlement = {
+  week_id: number;
   week_start: string;
   week_end: string;
   status: "OPEN" | "SETTLED";
@@ -81,6 +85,7 @@ export function PredictionBoard() {
   const [currentWeek, setCurrentWeek] = useState<Week | null>(null);
   const [nextWeek, setNextWeek] = useState<Week | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
+  const [playerCount, setPlayerCount] = useState(0);
   const [teams, setTeams] = useState<Team[]>([]);
   const [currentSelections, setCurrentSelections] = useState<Selection[]>([]);
   const [nextSelections, setNextSelections] = useState<Selection[]>([]);
@@ -92,6 +97,9 @@ export function PredictionBoard() {
   const [loadedPlayersQuery, setLoadedPlayersQuery] = useState("");
   const [pendingPlayer, setPendingPlayer] = useState("");
   const [pendingRemoval, setPendingRemoval] = useState<number | null>(null);
+  const [selectionBusy, setSelectionBusy] = useState(false);
+  const selectionMutationInFlight = useRef(false);
+  const [dashboardRevision, setDashboardRevision] = useState(0);
   const [adminSettlement, setAdminSettlement] = useState<AdminTestSettlement | null>(null);
   const [adminSettlementBusy, setAdminSettlementBusy] = useState(false);
   const [adminSettlementMessage, setAdminSettlementMessage] = useState("");
@@ -102,6 +110,7 @@ export function PredictionBoard() {
   const playerQuery = new URLSearchParams({ fantasy_type: fantasyType.toLowerCase() });
   if (team) playerQuery.set("team", team);
   if (searchTerm) playerQuery.set("q", searchTerm);
+  playerQuery.set("page", String(playerPage));
   const playerQueryString = playerQuery.toString();
   const playersLoading = authenticated && loadedPlayersQuery !== playerQueryString;
 
@@ -147,7 +156,24 @@ export function PredictionBoard() {
     return () => {
       cancelled = true;
     };
-  }, [authenticated]);
+  }, [authenticated, dashboardRevision]);
+
+  useEffect(() => {
+    if (!authenticated) return;
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Seoul",
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+    }).formatToParts(new Date());
+    const part = (type: string) => Number(parts.find(value => value.type === type)?.value);
+    const midnightUtc = Date.UTC(part("year"), part("month") - 1, part("day") + 1) - 9 * 60 * 60 * 1000;
+    const timer = window.setTimeout(
+      () => setDashboardRevision(revision => revision + 1),
+      Math.max(1000, midnightUtc - Date.now() + 1000),
+    );
+    return () => window.clearTimeout(timer);
+  }, [authenticated, dashboardRevision]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -168,15 +194,17 @@ export function PredictionBoard() {
     if (!authenticated) return;
     let cancelled = false;
     const timer = setTimeout(() => {
-      json<Player[]>(`/api/v1/fantasy/players/?${playerQueryString}`)
-        .then(list => {
+      json<PlayerPage>(`/api/v1/fantasy/players/?${playerQueryString}`)
+        .then(page => {
           if (cancelled) return;
-          setPlayers(list);
+          setPlayers(page.results);
+          setPlayerCount(page.count);
           setLoadedPlayersQuery(playerQueryString);
         })
         .catch(value => {
           if (cancelled) return;
           setPlayers([]);
+          setPlayerCount(0);
           setLoadedPlayersQuery(playerQueryString);
           setError(value instanceof Error ? value.message : "선수 목록을 불러오지 못했어요.");
         });
@@ -188,6 +216,9 @@ export function PredictionBoard() {
   }, [authenticated, playerQueryString, searchTerm]);
 
   async function select(player: Player) {
+    if (selectionMutationInFlight.current) return;
+    selectionMutationInFlight.current = true;
+    setSelectionBusy(true);
     setError("");
     setPendingPlayer(player.external_code);
     try {
@@ -196,20 +227,29 @@ export function PredictionBoard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ player: player.external_code }),
       });
-      setNextSelections(current => [
-        ...current.filter(value =>
-          value.id !== item.id && value.player.fantasy_type !== item.player.fantasy_type,
-        ),
-        item,
-      ]);
+      if (item.week !== nextWeek?.id) {
+        setDashboardRevision(revision => revision + 1);
+      } else {
+        setDashboardRevision(revision => revision + 1);
+        try {
+          setNextSelections(await json<Selection[]>(`/api/v1/fantasy/selections/?week=${item.week}`));
+        } catch {
+          // The write succeeded; the dashboard reload will retry the authoritative read.
+        }
+      }
     } catch (value) {
       setError(value instanceof Error ? value.message : "선택하지 못했어요.");
     } finally {
       setPendingPlayer("");
+      selectionMutationInFlight.current = false;
+      setSelectionBusy(false);
     }
   }
 
   async function remove(id: number) {
+    if (selectionMutationInFlight.current) return;
+    selectionMutationInFlight.current = true;
+    setSelectionBusy(true);
     setError("");
     setPendingRemoval(id);
     try {
@@ -220,10 +260,20 @@ export function PredictionBoard() {
       });
       if (!response.ok) throw new Error("선택을 취소하지 못했어요.");
       setNextSelections(current => current.filter(value => value.id !== id));
+      if (nextWeek) {
+        setDashboardRevision(revision => revision + 1);
+        try {
+          setNextSelections(await json<Selection[]>(`/api/v1/fantasy/selections/?week=${nextWeek.id}`));
+        } catch {
+          // The delete succeeded; the dashboard reload will retry the authoritative read.
+        }
+      }
     } catch (value) {
       setError(value instanceof Error ? value.message : "선택을 취소하지 못했어요.");
     } finally {
       setPendingRemoval(null);
+      selectionMutationInFlight.current = false;
+      setSelectionBusy(false);
     }
   }
 
@@ -238,7 +288,10 @@ export function PredictionBoard() {
     setAdminSettlementMessage("");
     setAdminSettlementBusy(true);
     try {
-      const response = await memberFetch("/api/v1/fantasy/admin/test-settlement/", {
+      const settlementPath = method === "DELETE" && adminSettlement?.week_id
+        ? `/api/v1/fantasy/admin/test-settlement/?week_id=${adminSettlement.week_id}`
+        : "/api/v1/fantasy/admin/test-settlement/";
+      const response = await memberFetch(settlementPath, {
         method,
         cache: "no-store",
         signal: AbortSignal.timeout(15000),
@@ -248,6 +301,7 @@ export function PredictionBoard() {
         throw new Error(result.detail || "테스트 결산을 처리하지 못했어요.");
       }
       setAdminSettlement({
+        week_id: result.week_id,
         week_start: result.week_start,
         week_end: result.week_end,
         status: result.status,
@@ -268,12 +322,9 @@ export function PredictionBoard() {
 
   const selectedPlayerCodes = new Set(nextSelections.map(item => item.player.external_code));
   const filteredPlayers = players.filter(player => !selectedPlayerCodes.has(player.external_code));
-  const pageCount = Math.ceil(filteredPlayers.length / PLAYERS_PER_PAGE);
-  const currentPlayerPage = Math.min(playerPage, Math.max(pageCount, 1));
-  const visiblePlayers = filteredPlayers.slice(
-    (currentPlayerPage - 1) * PLAYERS_PER_PAGE,
-    currentPlayerPage * PLAYERS_PER_PAGE,
-  );
+  const pageCount = Math.ceil(playerCount / PLAYERS_PER_PAGE);
+  const currentPlayerPage = playerPage;
+  const visiblePlayers = filteredPlayers;
 
   return (
     <main className={`container ${styles.page} header-aligned-content`}>
@@ -314,7 +365,7 @@ export function PredictionBoard() {
                 {currentSelections.map(item => (
                   <article className={styles.selectionCard} key={item.id}>
                     <div className={styles.playerIdentity}>
-                      <span className={styles.playerMark}>{PLAYER_TYPE_LABELS[item.player.fantasy_type]}</span>
+                      <span className={styles.playerMark}>{PLAYER_TYPE_LABELS[item.fantasy_type]}</span>
                       <div><strong>{item.player.name}</strong><span>{item.player.team_name} · {item.player.positions.map(positionLabel).join(", ") || "포지션 미상"}</span></div>
                     </div>
                     <div className={styles.weights}>
@@ -386,7 +437,7 @@ export function PredictionBoard() {
               </div>
               <div className={styles.slotSummary}>
                 {(["BATTER", "PITCHER"] as const).map(type => {
-                  const selection = nextSelections.find(item => item.player.fantasy_type === type);
+                  const selection = nextSelections.find(item => item.fantasy_type === type);
                   return (
                     <div className={styles.slotCard} key={type}>
                       <span>{type === "BATTER" ? "타자" : "투수"}</span>
@@ -400,7 +451,7 @@ export function PredictionBoard() {
                   {nextSelections.map(item => (
                     <li className={styles.upcomingSelectionCard} key={item.id}>
                       <div className={styles.playerIdentity}>
-                        <span className={styles.playerMark}>{PLAYER_TYPE_LABELS[item.player.fantasy_type]}</span>
+                        <span className={styles.playerMark}>{PLAYER_TYPE_LABELS[item.fantasy_type]}</span>
                         <div>
                           <strong>{item.player.name}</strong>
                           <span>
@@ -411,7 +462,7 @@ export function PredictionBoard() {
                       <button
                         className={styles.removeButton}
                         type="button"
-                        disabled={pendingRemoval === item.id}
+                        disabled={selectionBusy || pendingRemoval === item.id}
                         onClick={() => void remove(item.id)}
                       >
                         {pendingRemoval === item.id ? "취소 중…" : "선택 취소"}
@@ -479,7 +530,7 @@ export function PredictionBoard() {
                 />
               </label>
               <div className={styles.resultsHeading}>
-                <span>{playersLoading ? "선수 목록을 불러오는 중…" : `선택 가능한 선수 ${filteredPlayers.length}명`}</span>
+                <span>{playersLoading ? "선수 목록을 불러오는 중…" : `선수 ${playerCount}명`}</span>
               </div>
               {playersLoading ? (
                 <div className={styles.emptyState} role="status"><strong>선수 목록을 불러오는 중이에요</strong></div>
@@ -499,12 +550,12 @@ export function PredictionBoard() {
                         </div>
                         <button
                           type="button"
-                          disabled={!nextWeek?.has_games || pendingPlayer === player.external_code}
+                          disabled={!nextWeek?.has_games || selectionBusy}
                           onClick={() => void select(player)}
                         >
                           {pendingPlayer === player.external_code
                             ? "저장 중…"
-                            : nextSelections.some(item => item.player.fantasy_type === player.fantasy_type)
+                            : nextSelections.some(item => item.fantasy_type === player.fantasy_type)
                               ? "교체"
                               : "선택"}
                         </button>

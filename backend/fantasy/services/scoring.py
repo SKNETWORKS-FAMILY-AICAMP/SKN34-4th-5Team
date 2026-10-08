@@ -3,6 +3,7 @@ from decimal import Decimal
 from django.db.models import Sum
 
 from fantasy.models import FantasyBattingGameStat, FantasyPitchingGameStat
+from fantasy.services.schedule import NON_SCORING_GAME_STATUSES
 
 BASE_SCORE = {
     "at_bats": Decimal("1"), "hits": Decimal("4"), "rbi": Decimal("5"), "runs": Decimal("5"),
@@ -21,23 +22,35 @@ def player_fantasy_type(player):
 
 def _score_values(selection):
     week = selection.week
-    games = {"game__game_date__gte": week.week_start, "game__game_date__lte": week.week_end, "player": selection.player}
-    if player_fantasy_type(selection.player) == "PITCHER":
-        rows = FantasyPitchingGameStat.objects.filter(**games).aggregate(
+    filters = {
+        "game__game_date__gte": week.week_start,
+        "game__game_date__lte": week.week_end,
+        "player": selection.player,
+    }
+    if selection.fantasy_type == "PITCHER":
+        queryset = FantasyPitchingGameStat.objects.filter(**filters)
+        rows = _exclude_non_scoring_games(queryset).aggregate(
             saves=Sum("saves"),
             batters_faced=Sum("batters_faced"),
             strikeouts=Sum("strikeouts"),
             pitch_count=Sum("pitch_count"),
         )
         return rows
-    return FantasyBattingGameStat.objects.filter(**games).aggregate(**{key: Sum(key) for key in BATTER_STATS})
+    queryset = FantasyBattingGameStat.objects.filter(**filters)
+    return _exclude_non_scoring_games(queryset).aggregate(**{key: Sum(key) for key in BATTER_STATS})
+
+
+def _exclude_non_scoring_games(queryset):
+    for status in NON_SCORING_GAME_STATUSES:
+        queryset = queryset.exclude(game__status_code__iexact=status)
+    return queryset
 
 
 def score_selection(selection):
     if not selection.is_confirmed:
         return Decimal("0")
     values = _score_values(selection)
-    stats = PITCHER_STATS if player_fantasy_type(selection.player) == "PITCHER" else BATTER_STATS
+    stats = PITCHER_STATS if selection.fantasy_type == "PITCHER" else BATTER_STATS
     return sum(
         Decimal(values.get(stat) or 0) * BASE_SCORE[stat] * Decimal(selection.stat_weights[stat]) / NEUTRAL_WEIGHT
         for stat in stats

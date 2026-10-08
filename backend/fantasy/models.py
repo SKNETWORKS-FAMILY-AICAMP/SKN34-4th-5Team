@@ -27,9 +27,14 @@ class FantasyWeek(models.Model):
 
 
 class FantasySelection(models.Model):
+    BATTER = "BATTER"
+    PITCHER = "PITCHER"
+    FANTASY_TYPE_CHOICES = ((BATTER, "Batter"), (PITCHER, "Pitcher"))
+
     week = models.ForeignKey(FantasyWeek, on_delete=models.CASCADE, related_name="selections")
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="fantasy_selections")
     player = models.ForeignKey(Player, on_delete=models.PROTECT, related_name="fantasy_selections")
+    fantasy_type = models.CharField(max_length=8, choices=FANTASY_TYPE_CHOICES, default=BATTER)
     stat_weights = models.JSONField(default=dict)
     is_confirmed = models.BooleanField(default=False)
     confirmed_at = models.DateTimeField(null=True, blank=True)

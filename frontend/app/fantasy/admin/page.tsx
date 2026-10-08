@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ApiError, readApiResponse } from "@/lib/api/client";
 import { memberFetch } from "@/lib/member-auth-request";
 import { useMemberAuth } from "@/lib/member-auth";
@@ -11,12 +11,12 @@ const inputSections = [
   {
     key: "batting",
     title: "타자 기록",
-    description: "문서의 타자 기록 표를 구단명과 열 제목을 포함해 붙여 넣어 주세요.",
+    description: "구단명과 열 제목을 포함해 붙여 넣으세요. 같은 이름의 선수는 선수코드를 함께 입력해야 합니다.",
   },
   {
     key: "pitching",
     title: "투수 기록",
-    description: "문서의 투수 기록 표를 구단명과 열 제목을 포함해 붙여 넣어 주세요.",
+    description: "구단명과 열 제목을 포함해 붙여 넣으세요. 같은 이름의 선수는 선수코드를 함께 입력해야 합니다.",
   },
 ] as const;
 
@@ -32,6 +32,7 @@ type AdminGame = {
 };
 type GameStats = {
   batting: {
+    external_code: string;
     player_name: string;
     team_name: string;
     at_bats: number;
@@ -40,6 +41,7 @@ type GameStats = {
     runs: number;
   }[];
   pitching: {
+    external_code: string;
     player_name: string;
     team_name: string;
     saves: number;
@@ -79,11 +81,15 @@ function gameLabel(game: AdminGame) {
 
 export default function FantasyAdminPage() {
   const { status, user } = useMemberAuth();
-  const [values, setValues] = useState<Record<InputKey, string>>({ batting: "", pitching: "" });
+  const emptyValues: Record<InputKey, string> = { batting: "", pitching: "" };
+  const [drafts, setDrafts] = useState<Record<string, Record<InputKey, string>>>({});
   const [period, setPeriod] = useState<AdminContext | null>(null);
   const [gameDate, setGameDate] = useState("");
   const [gamesForDate, setGamesForDate] = useState<{ date: string; items: AdminGame[] } | null>(null);
   const [gameId, setGameId] = useState("");
+  const gameIdRef = useRef(gameId);
+  gameIdRef.current = gameId;
+  const values = gameId ? drafts[gameId] ?? emptyValues : emptyValues;
   const [loadedGameStats, setLoadedGameStats] = useState<LoadedGameStats | null>(null);
   const [statsRefresh, setStatsRefresh] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -166,13 +172,15 @@ export default function FantasyAdminPage() {
       }>("/api/v1/fantasy/admin/stats/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      body: JSON.stringify({
           game_id: gameId,
+          source_game_id: gameId,
           batting: values.batting,
           pitching: values.pitching,
         }),
       }, "선수 기록을 저장하지 못했습니다.");
       setMessage(`${result.detail} 타자 ${result.batting_count}명, 투수 ${result.pitching_count}명 기록이 반영되었습니다. 기록을 수정했으므로 주차 기록 완료 확인을 다시 해야 합니다.`);
+      setDrafts(current => ({ ...current, [gameId]: emptyValues }));
       setStatsRefresh(current => current + 1);
     } catch (requestError) {
       setError(errorText(requestError));
@@ -183,6 +191,7 @@ export default function FantasyAdminPage() {
 
   async function deleteStats() {
     if (!gameId) return;
+    const targetGameId = gameId;
     setError("");
     setMessage("");
     setDeleting(true);
@@ -191,17 +200,16 @@ export default function FantasyAdminPage() {
         detail: string;
         batting_count: number;
         pitching_count: number;
-      }>(`/api/v1/fantasy/admin/stats/?game_id=${encodeURIComponent(gameId)}`, {
+      }>(`/api/v1/fantasy/admin/stats/?game_id=${encodeURIComponent(targetGameId)}`, {
         method: "DELETE",
       }, "선택한 경기 기록을 삭제하지 못했습니다.");
-      setLoadedGameStats({
-        gameId,
-        data: { batting: [], pitching: [] },
-      });
-      setConfirmDelete(false);
-      setMessage(`${result.detail} 타자 ${result.batting_count}명, 투수 ${result.pitching_count}명 기록을 삭제했습니다.`);
+      if (gameIdRef.current === targetGameId) {
+        setLoadedGameStats({ gameId: targetGameId, data: { batting: [], pitching: [] } });
+        setConfirmDelete(false);
+        setMessage(`${result.detail} 타자 ${result.batting_count}명, 투수 ${result.pitching_count}명 기록을 삭제했습니다.`);
+      }
     } catch (requestError) {
-      setError(errorText(requestError));
+      if (gameIdRef.current === targetGameId) setError(errorText(requestError));
     } finally {
       setDeleting(false);
     }
@@ -251,6 +259,7 @@ export default function FantasyAdminPage() {
               disabled={loadingPeriod || !period}
               onChange={event => {
                 setGameDate(event.target.value);
+                gameIdRef.current = "";
                 setGameId("");
                 setLoadedGameStats(null);
                 setConfirmDelete(false);
@@ -266,7 +275,9 @@ export default function FantasyAdminPage() {
               value={gameId}
               disabled={loadingGames || games.length === 0}
               onChange={event => {
-                setGameId(event.target.value);
+                const selectedGameId = event.target.value;
+                gameIdRef.current = selectedGameId;
+                setGameId(selectedGameId);
                 setLoadedGameStats(null);
                 setConfirmDelete(false);
                 setError("");
@@ -295,7 +306,10 @@ export default function FantasyAdminPage() {
                   className={styles.clearButton}
                   type="button"
                   disabled={!values[section.key]}
-                  onClick={() => setValues(current => ({ ...current, [section.key]: "" }))}
+                  onClick={() => setDrafts(current => ({
+                    ...current,
+                    [gameId]: { ...(current[gameId] ?? emptyValues), [section.key]: "" },
+                  }))}
                 >
                   비우기
                 </button>
@@ -305,8 +319,11 @@ export default function FantasyAdminPage() {
                 <textarea
                   id={`fantasy-${section.key}`}
                   value={values[section.key]}
-                  onChange={event => setValues(current => ({ ...current, [section.key]: event.target.value }))}
-                  placeholder="구단명과 표의 열 제목을 포함해 붙여 넣으세요."
+                  onChange={event => setDrafts(current => ({
+                    ...current,
+                    [gameId]: { ...(current[gameId] ?? emptyValues), [section.key]: event.target.value },
+                  }))}
+                  placeholder="구단 | 선수코드 | 선수명 | 타수 | 안타 | 타점 | 득점"
                   spellCheck={false}
                 />
               </label>
@@ -373,10 +390,10 @@ export default function FantasyAdminPage() {
                     <h3>타자 기록 <span>{loadedGameStats.data.batting.length}명</span></h3>
                     <div className={styles.tableScroll}>
                       <table>
-                        <thead><tr><th>선수</th><th>구단</th><th>타수</th><th>안타</th><th>타점</th><th>득점</th></tr></thead>
+                        <thead><tr><th>선수</th><th>선수코드</th><th>구단</th><th>타수</th><th>안타</th><th>타점</th><th>득점</th></tr></thead>
                         <tbody>{loadedGameStats.data.batting.map((row, index) => (
                           <tr key={`${row.team_name}-${row.player_name}-${index}`}>
-                            <th scope="row">{row.player_name}</th><td>{row.team_name}</td>
+                            <th scope="row">{row.player_name}</th><td>{row.external_code}</td><td>{row.team_name}</td>
                             <td>{row.at_bats}</td><td>{row.hits}</td><td>{row.rbi}</td><td>{row.runs}</td>
                           </tr>
                         ))}</tbody>
@@ -389,10 +406,10 @@ export default function FantasyAdminPage() {
                     <h3>투수 기록 <span>{loadedGameStats.data.pitching.length}명</span></h3>
                     <div className={styles.tableScroll}>
                       <table>
-                        <thead><tr><th>선수</th><th>구단</th><th>세이브</th><th>타자</th><th>삼진</th><th>투구 수</th></tr></thead>
+                        <thead><tr><th>선수</th><th>선수코드</th><th>구단</th><th>세이브</th><th>타자</th><th>삼진</th><th>투구 수</th></tr></thead>
                         <tbody>{loadedGameStats.data.pitching.map((row, index) => (
                           <tr key={`${row.team_name}-${row.player_name}-${index}`}>
-                            <th scope="row">{row.player_name}</th><td>{row.team_name}</td>
+                            <th scope="row">{row.player_name}</th><td>{row.external_code}</td><td>{row.team_name}</td>
                             <td>{row.saves}</td><td>{row.batters_faced}</td>
                             <td>{row.strikeouts}</td><td>{row.pitch_count}</td>
                           </tr>

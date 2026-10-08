@@ -23,12 +23,19 @@ from fantasy.services.stat_import import StatImportError, parse_stat_table
 from fantasy.services.weeks import current_week, fantasy_today, week_bounds
 
 
+def _positive_id(value):
+    text = str(value or "")
+    return text if text.isascii() and text.isdecimal() and 0 < len(text) <= 19 and int(text) > 0 else None
+
+
 class FantasyAdminTestSettlementView(APIView):
     permission_classes = (permissions.IsAdminUser,)
 
     @extend_schema(responses=OpenApiTypes.OBJECT)
     def get(self, request):
-        week = current_week()
+        week, error = self._get_week(request)
+        if error:
+            return error
         settlement = FantasySettlement.objects.filter(week=week).first()
         is_test_settlement = False
         if settlement:
@@ -39,6 +46,7 @@ class FantasyAdminTestSettlementView(APIView):
                 source_key=f"{settlement.pk}:{first_result.user_id}",
             ).exists()
         return Response({
+            "week_id": week.pk,
             "week_start": week.week_start,
             "week_end": week.week_end,
             "status": week.status,
@@ -48,7 +56,9 @@ class FantasyAdminTestSettlementView(APIView):
     @transaction.atomic
     @extend_schema(request=OpenApiTypes.OBJECT, responses=OpenApiTypes.OBJECT)
     def post(self, request):
-        week = current_week()
+        week, error = self._get_week(request)
+        if error:
+            return error
         try:
             settlement = settle_week_for_testing(week.pk)
         except FantasySettlementNotReady as error:
@@ -58,6 +68,7 @@ class FantasyAdminTestSettlementView(APIView):
 
         results = list(settlement.results.all())
         return Response({
+            "week_id": week.pk,
             "detail": "현재 점수 기준으로 테스트 포인트를 지급했습니다.",
             "week_start": week.week_start,
             "week_end": week.week_end,
@@ -70,7 +81,9 @@ class FantasyAdminTestSettlementView(APIView):
     @transaction.atomic
     @extend_schema(responses=OpenApiTypes.OBJECT)
     def delete(self, request):
-        week = current_week()
+        week, error = self._get_week(request)
+        if error:
+            return error
         try:
             user_count, reversed_points = cancel_test_settlement(week.pk)
         except FantasyTestSettlementNotFound as error:
@@ -79,6 +92,7 @@ class FantasyAdminTestSettlementView(APIView):
             return Response({"detail": str(error)}, status=status.HTTP_409_CONFLICT)
 
         return Response({
+            "week_id": week.pk,
             "detail": "테스트 포인트를 회수하고 주차를 미결산으로 되돌렸습니다.",
             "week_start": week.week_start,
             "week_end": week.week_end,
@@ -87,6 +101,27 @@ class FantasyAdminTestSettlementView(APIView):
             "user_count": user_count,
             "reversed_points": reversed_points,
         })
+
+    @staticmethod
+    def _get_week(request):
+        values = request.query_params.getlist("week_id")
+        if len(values) > 1:
+            return None, Response({"detail": "week_id는 한 번만 지정할 수 있습니다."}, status=400)
+        if not values:
+            return current_week(), None
+        value = values[0]
+        if (
+            not value.isascii()
+            or not value.isdecimal()
+            or len(value) > 19
+            or int(value) < 1
+            or int(value) > 9_223_372_036_854_775_807
+        ):
+            return None, Response({"detail": "유효한 week_id를 지정해 주세요."}, status=400)
+        week = FantasyWeek.objects.filter(pk=int(value)).first()
+        if week is None:
+            return None, Response({"detail": "주차를 찾을 수 없습니다."}, status=404)
+        return week, None
 
 
 class FantasyAdminContextView(APIView):
@@ -161,7 +196,7 @@ class FantasyAdminStatImportView(APIView):
     @extend_schema(responses=OpenApiTypes.OBJECT)
     def delete(self, request):
         game_id = request.query_params.get("game_id")
-        if not str(game_id or "").isdigit():
+        if _positive_id(game_id) is None:
             return Response(
                 {"detail": "경기 일정을 선택해 주세요."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -170,7 +205,7 @@ class FantasyAdminStatImportView(APIView):
         game = Game.objects.select_for_update(of=("self",)).filter(pk=int(game_id)).first()
         if game is None:
             return Response({"detail": "선택한 경기를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
-        if game.game_date > fantasy_today() or not scheduled_games_on(game_date=game.game_date).filter(pk=game.pk).exists():
+        if game.game_date > fantasy_today():
             return Response(
                 {"detail": "선택한 경기의 기록을 삭제할 수 없습니다."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -202,7 +237,7 @@ class FantasyAdminStatImportView(APIView):
     @extend_schema(responses=OpenApiTypes.OBJECT)
     def get(self, request):
         game_id = request.query_params.get("game_id")
-        if not str(game_id or "").isdigit():
+        if _positive_id(game_id) is None:
             return Response(
                 {"detail": "경기 일정을 선택해 주세요."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -211,7 +246,7 @@ class FantasyAdminStatImportView(APIView):
         game = Game.objects.select_related("home_team", "away_team").filter(pk=int(game_id)).first()
         if game is None:
             return Response({"detail": "선택한 경기를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
-        if game.game_date > fantasy_today() or not scheduled_games_on(game_date=game.game_date).filter(pk=game.pk).exists():
+        if game.game_date > fantasy_today():
             return Response(
                 {"detail": "선택한 경기의 기록을 조회할 수 없습니다."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -261,9 +296,15 @@ class FantasyAdminStatImportView(APIView):
     @extend_schema(request=OpenApiTypes.OBJECT, responses=OpenApiTypes.OBJECT)
     def post(self, request):
         game_id = request.data.get("game_id")
-        if not str(game_id or "").isdigit():
+        source_game_id = request.data.get("source_game_id")
+        if _positive_id(game_id) is None:
             return Response(
                 {"detail": "경기 일정을 선택해 주세요."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if str(source_game_id or "") != str(game_id):
+            return Response(
+                {"detail": "입력 기록이 작성된 경기와 저장 대상 경기가 다릅니다. 다시 선택해 주세요."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 

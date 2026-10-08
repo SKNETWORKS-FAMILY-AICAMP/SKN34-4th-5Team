@@ -35,6 +35,7 @@ class PlayerSerializer(serializers.ModelSerializer):
 
 class SelectionSerializer(serializers.ModelSerializer):
     player = PlayerSerializer(read_only=True)
+    fantasy_type = serializers.CharField(read_only=True)
     weights = serializers.SerializerMethodField()
 
     @extend_schema_field(serializers.DictField)
@@ -43,7 +44,14 @@ class SelectionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = FantasySelection
-        fields = ("id", "week", "player", "is_confirmed", "weights", "selected_at")
+        fields = ("id", "week", "player", "fantasy_type", "is_confirmed", "weights", "selected_at")
+
+
+class PlayerPageSerializer(serializers.Serializer):
+    count = serializers.IntegerField()
+    next = serializers.IntegerField(allow_null=True)
+    previous = serializers.IntegerField(allow_null=True)
+    results = PlayerSerializer(many=True)
 
 
 class SelectionCreateSerializer(serializers.Serializer):

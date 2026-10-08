@@ -1,7 +1,15 @@
 from baseball.models import Game
 
 
-CANCELLED_GAME_STATUSES = {"cancel", "cancelled", "canceled", "취소"}
+NON_SCORING_GAME_STATUSES = (
+    "cancel", "cancelled", "canceled", "취소",
+    "postpone", "postponed", "연기",
+    "suspended", "중단",
+)
+
+
+def is_scoring_eligible(game):
+    return (game.status_code or "").strip().lower() not in NON_SCORING_GAME_STATUSES
 
 
 def scheduled_games(week):
@@ -14,8 +22,8 @@ def scheduled_games_on(*, game_date=None, week_start=None, week_end=None):
         games = games.filter(game_date=game_date)
     else:
         games = games.filter(game_date__gte=week_start, game_date__lte=week_end)
-    for cancelled_status in CANCELLED_GAME_STATUSES:
-        games = games.exclude(status_code__iexact=cancelled_status)
+    for excluded_status in NON_SCORING_GAME_STATUSES:
+        games = games.exclude(status_code__iexact=excluded_status)
     return games
 
 
