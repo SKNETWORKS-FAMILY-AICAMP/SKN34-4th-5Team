@@ -5,6 +5,16 @@ x-logging: &default-logging
     max-file: "3"
 
 services:
+  qdrant:
+    image: qdrant/qdrant:v1.19.2
+    restart: unless-stopped
+    environment:
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:?Set QDRANT_API_KEY}
+    volumes:
+      - qdrant_data:/qdrant/storage
+    # No host ports: only backend services on the Compose network can connect.
+    logging: *default-logging
+
   backend:
     build:
       context: ./backend
@@ -22,7 +32,10 @@ services:
       USAGE_GUEST_TOKENS: ${USAGE_GUEST_TOKENS:-500000}
       USAGE_MEMBER_MONTHLY_TOKENS: ${USAGE_MEMBER_MONTHLY_TOKENS:-999999000}
       DEBUG: ${DEBUG:-false}
-      EMBEDDING_MODEL: ${EMBEDDING_MODEL:?Set EMBEDDING_MODEL}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+      QDRANT_API_KEY: ${QDRANT_API_KEY:?Set QDRANT_API_KEY}
+      QDRANT_DOCUMENT_COLLECTION: ${QDRANT_DOCUMENT_COLLECTION:-kbo_documents_openai}
       LLM_MODEL: ${LLM_MODEL:-gpt-6-luna}
       COURSE_WEB_VERIFICATION_ENABLED: ${COURSE_WEB_VERIFICATION_ENABLED:-false}
       PLACE_EVIDENCE_STORAGE_POLICIES: ${PLACE_EVIDENCE_STORAGE_POLICIES:-[]}
@@ -70,6 +83,8 @@ services:
              python manage.py setup_chat_checkpoints &&
              gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2 --worker-class gthread --threads 4 --timeout 120"
     depends_on:
+      qdrant:
+        condition: service_started
       minio:
         condition: service_healthy
     healthcheck:
@@ -143,3 +158,4 @@ services:
 
 volumes:
   minio_data:
+  qdrant_data:

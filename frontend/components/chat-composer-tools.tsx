@@ -32,12 +32,14 @@ function AttachmentImage({ attachment, preview }: { attachment?: ChatAttachment;
 }
 
 const toolPresentation: Record<string, { icon: Parameters<typeof Icon>[0]["name"]; description: string }> = {
+  web_research: { icon: "book", description: "웹" },
   schedule: { icon: "calendar", description: "야구" },
   standings: { icon: "trophy", description: "야구" },
   players: { icon: "userPlus", description: "야구" },
   baseball_stats: { icon: "chart", description: "야구" },
   rules: { icon: "book", description: "야구" },
   stadium_info: { icon: "stadium", description: "구장" },
+  carry_in: { icon: "stadium", description: "구장" },
   parking_transport: { icon: "car", description: "교통" },
   community: { icon: "chat", description: "커뮤니티" },
   nearby_places: { icon: "pin", description: "구장" },

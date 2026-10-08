@@ -33,7 +33,7 @@ class AttachmentBoundaryTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, [{"id": key, "label": label} for key, label in TOOL_GROUP_LABELS.items()])
         self.assertEqual([group["label"] for group in response.data], [
-            "경기 일정", "순위", "선수 정보", "야구 기록", "규정", "구장 정보", "주차·교통",
+            "웹 조사", "경기 일정", "순위", "선수 정보", "야구 기록", "규정", "구장 정보", "반입 규정", "주차·교통",
             "커뮤니티", "주변 장소", "관광", "길찾기", "기존 코스", "날씨", "직관 코스 계획",
         ])
 
@@ -228,8 +228,8 @@ class AttachmentBoundaryTests(SimpleTestCase):
             read.assert_not_called()
 
     def test_url_revalidation_blocks_private_source(self):
-        row = SimpleNamespace(kind="url", source_url="https://example.com/", extracted_text="")
-        with patch.object(socket, "getaddrinfo", side_effect=AssertionError("no DNS")), self.assertRaises(ValueError):
+        row = SimpleNamespace(kind="url", source_url="http://127.0.0.1/", extracted_text="")
+        with patch.object(socket, "getaddrinfo", side_effect=AssertionError("no DNS")), self.assertRaises(ValidationError):
             attachments.source_text(row)
 
 
@@ -453,11 +453,11 @@ class AttachmentApiTests(TestCase):
         calls = []
         graph = build_graph(ScriptedModel(script=[AIMessage("ok")], calls=calls), fake_tools([]))
         with patch("llm.v2.middleware.jev_guidelines.classify", return_value={"allowed": True, "capabilities": []}), \
-                patch.object(attachments, "source_text", side_effect=AssertionError("no URL source")):
+                patch("llm.v2.agent.browser_research.web_body", side_effect=AssertionError("cached URL must not refetch")):
             graph.invoke({"messages": [human], "attachment_session_id": str(self.session.id)})
         self.assertIn(row.source_url, next(m for m in calls[0]["messages"] if isinstance(m, HumanMessage)).text)
-        self.assertIn("web_search", calls[0]["tools"])
-        self.assertEqual(calls[0]["tool_choice"], {"type": "web_search"})
+        self.assertNotIn("web_search", calls[0]["tools"])
+        self.assertIn("cached untouched", next(m for m in calls[0]["messages"] if isinstance(m, HumanMessage)).text)
         row.refresh_from_db()
         self.assertEqual(row.extracted_text, "cached untouched")
 
@@ -489,7 +489,7 @@ class AttachmentApiTests(TestCase):
         self.assertEqual(self.client.get(f"/api/v2/chat/sessions/{owned.id}/attachments/").status_code, 404)
         self.client.force_authenticate(member)
         self.assertEqual(self.client.get(f"/api/v2/chat/sessions/{owned.id}/attachments/").status_code, 200)
-        with patch.object(socket, "getaddrinfo", side_effect=AssertionError("no DNS")), self.assertRaises(ValueError):
+        with patch("llm.v2.agent.browser_research.web_body", return_value={"status": "blocked"}), self.assertRaises(ValueError):
             attachments.source_text(row)
         row.refresh_from_db()
         self.assertEqual(row.extracted_text, "")

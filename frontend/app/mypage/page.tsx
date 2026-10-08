@@ -6,7 +6,7 @@ import { ProfilePhotoEditor } from "@/components/profile-photo-editor";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useMemberAuth, type MemberUser } from "@/lib/member-auth";
-import { deleteRoute, retryRoutes, toggleRouteLike, useRoutes, useLikedRoutes, useRoutesError, useRoutesReady, type TripRoute } from "@/lib/routes";
+import { deleteRoute, retryRoutes, setRouteLike, useRoutes, useLikedRoutes, useRoutesError, useRoutesReady, type TripRoute } from "@/lib/routes";
 import { teamBoards } from "@/lib/team-community";
 import { memberRoleLabel, nextNicknameChangeAt } from "@/lib/member-policy";
 import { updateMemberUser, type MemberUserUpdate } from "@/lib/api/auth";
@@ -78,7 +78,7 @@ function MyPageContent() {
     if (!window.confirm(question)) return;
     setRemoving(route.id); setCourseNotice("");
     try {
-      if (liked) await toggleRouteLike(route.id);
+      if (liked) await setRouteLike(route.id, false);
       else await deleteRoute(route.id);
       setCourseNotice(liked ? "찜한 코스에서 삭제했어요." : "코스를 삭제했어요.");
     } catch (cause) {

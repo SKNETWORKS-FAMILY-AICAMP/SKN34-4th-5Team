@@ -253,8 +253,7 @@ class CourseEvidenceTests(TestCase):
                        ("open_page", "completed", "https://example.com/menu"), ("find_in_page", "completed", "https://example.com/menu"))]
         response = SimpleNamespace(status="completed", usage=None, output_text='{"items":[]}',
                                    output=[Mock(model_dump=Mock(return_value=a)) for a in actions])
-        with patch.object(evidence, "OpenAI") as client, patch.object(evidence.usage, "record_external"):
-            client.return_value.responses.create.return_value = response
+        with patch.object(evidence, "structured_search", return_value=response):
             _, opened, calls = evidence.search([PLACE], [self.requirement])
         self.assertEqual(calls, 1)
         self.assertEqual(opened, {"https://example.com/menu"})

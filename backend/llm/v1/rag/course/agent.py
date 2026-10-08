@@ -32,7 +32,6 @@ from contextlib import nullcontext
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from django.db import connection, transaction
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from django.conf import settings
 from langchain_openai import ChatOpenAI
@@ -108,11 +107,9 @@ def stadium_anchor(code):
                 "lat": _f(stadium["latitude"]), "lng": _f(stadium["longitude"]), "category": "STADIUM", "detail": "",
                 "placeId": None, "address": stadium.get("address") or "", "placeUrl": "", "distance": 0,
                 "doc_id": f"stadium:{code}"}
-    with connection.cursor() as cur:
-        cur.execute("""SELECT metadata FROM llm_documentchunk
-                       WHERE metadata->>'category' = 'STADIUM' AND metadata->>'stadium_code' = %s LIMIT 1""", [code])
-        row = cur.fetchone()
-    m = _meta(row[0]) if row else {}
+    from llm.vector_store import iter_documents
+    row = next(iter_documents(stadium=code, categories=["STADIUM"], include_common=False), None)
+    m = row["metadata"] if row else {}
     from baseball.stadium_locations import reviewed_venue
     point = reviewed_venue(code)
     return {"key": "STADIUM", "phase": "GAME", "name": m.get("stadium_name_ko") or STADIUM_KO.get(code, code),
@@ -122,16 +119,9 @@ def stadium_anchor(code):
 
 def search_places(qvec, code, category, k):
     """구장·카테고리 선필터 → 벡터 상위 k (metadata 통째로 — 좌표·주소·kakao id 가 거기 있다)"""
-    sql = """SELECT metadata, embedding <=> %(v)s::vector AS dist
-             FROM llm_documentchunk
-             WHERE metadata->>'stadium_code' = %(st)s AND metadata->>'category' = %(cat)s
-             ORDER BY embedding <=> %(v)s::vector LIMIT %(k)s"""
-    params = {"v": "[" + ",".join(map(str, qvec)) + "]", "st": code, "cat": category, "k": k}
-    with transaction.atomic(), connection.cursor() as cur:
-        cur.execute(f"SET LOCAL hnsw.ef_search = {int(EF_SEARCH)}")
-        cur.execute(sql, params)
-        rows = cur.fetchall()
-    rows = [(_meta(m), d) for m, d in rows]
+    from llm.vector_store import search
+    rows = [(doc["metadata"], doc["dist"]) for doc in search(
+        qvec, k=k, stadium=code, categories=[category], include_common=False)]
     return [{"dist": float(d), "category": category, "name": m.get("name") or "",
              "detail": m.get("category_detail") or "", "distance": int(_f(m.get("distance_m")) or 0),
              "lat": _f(m.get("lat_y")), "lng": _f(m.get("lng_x")), "address": m.get("address") or "",

@@ -137,7 +137,7 @@ class LodgingConditionsTest(SimpleTestCase):
         response.output = [Mock(model_dump=lambda: {"type": "web_search_call", "action": {"type": "open_page", "url": URL}})]
         client = Mock()
         client.responses.create.return_value = response
-        with patch.object(lodging, "OpenAI", return_value=client), patch.object(lodging.usage, "record_external") as meter, \
+        with patch("openai.OpenAI", return_value=client), patch.object(lodging.usage, "record_external") as meter, \
                 patch.object(lodging, "_read_details", return_value=([], set())):
             raw, sources = lodging.search([CANDIDATE], "금연 호텔", [])
         args = client.responses.create.call_args.kwargs

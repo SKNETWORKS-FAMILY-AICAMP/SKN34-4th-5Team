@@ -18,7 +18,7 @@ from urllib.parse import urlsplit
 from django.conf import settings
 from django.utils import timezone
 from django.core.cache import cache
-from openai import OpenAI
+from llm.v2.agent.browser_research import structured_search, read_evidence
 from pydantic import BaseModel, ConfigDict, Field
 from typing import Literal
 
@@ -222,13 +222,11 @@ def search_schema():
 
 def _search(candidates, question, history, context, detail_pages=None):
     remaining = max(1, min(45, context.get("deadline", time.monotonic() + 45) - time.monotonic()))
-    client = OpenAI(timeout=remaining, max_retries=0)
     try:
-        response = client.responses.create(
+        response = structured_search(timeout=remaining,
             model=os.getenv("LODGING_SEARCH_MODEL") or os.getenv("LLM_MODEL") or "gpt-6-luna",
             reasoning={"effort": "low"}, max_output_tokens=min(6000, settings.USAGE_MAX_CALL_OUTPUT_TOKENS),
-            tools=[{"type": "web_search", "filters": {"allowed_domains": ["nol.yanolja.com"]}, "search_context_size": "medium"}],
-            tool_choice="required", max_tool_calls=8, include=["web_search_call.action.sources"], store=False,
+            allowed_domains=["nol.yanolja.com"],
             instructions=RULES + ("\n이번에는 검색을 반복하지 말고 detail_pages_to_open의 정확한 URL을 먼저 열어 읽는다. "
                                   "각 URL에서 숙소 주소, 요구 조건, 최근 후기, 평점·평가 수를 확인한다." if detail_pages else ""),
             input=json.dumps({"request": question[:2000], "recent_user_requests": history,
@@ -238,10 +236,7 @@ def _search(candidates, question, history, context, detail_pages=None):
                              "strict": True, "schema": search_schema()}},
         )
     except BaseException:
-        usage.record_external(None, None)
         raise
-    reported = response.usage
-    usage.record_external(getattr(reported, "input_tokens", None), getattr(reported, "output_tokens", None))
     if response.status != "completed":
         raise ValueError("incomplete lodging search")
     sources = set()
@@ -308,7 +303,7 @@ def _read_details(candidates, urls, fixed, context):
     for url in urls[:MAX_CANDIDATES]:
         if time.monotonic() + 25 >= context["deadline"]:
             break
-        page = reader.read(url, [], complete_text=True)
+        page = read_evidence(reader, url, [])
         if page.get("status") != "read":
             continue
         from ..course.availability import observe

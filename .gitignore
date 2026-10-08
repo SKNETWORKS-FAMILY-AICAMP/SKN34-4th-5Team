@@ -253,11 +253,11 @@ nginx/ssl/
 # 4차 후반 DVC 도입 시 dvc add 대상으로 전환 예정
 data/raw/rules/*.pdf
 
-# Local Impeccable installation (skills, bundled binaries, agents and hooks)
+# Local Impeccable skills, binaries, agents, hooks and generated configuration
+/.agents/skills/impeccable/
 /.github/skills/impeccable/
 /.github/agents/impeccable-*.agent.md
 /.github/hooks/impeccable.json
-/.impeccable/
-/frontend/.impeccable/
+**/.impeccable/
 /PRODUCT.md
 /DESIGN.md

@@ -492,6 +492,11 @@ class ClassifierTest(unittest.TestCase):
             "get_ticket_policies", "get_ticket_policy", "get_food_stores", "get_facilities", "get_stadium_contents",
             "get_transport", "search_kbo_documents"))
 
+    def test_carry_in_capability_opens_kbo_documents(self):
+        self.assertEqual(CAPABILITY_TOOLS["carry_in"], ("get_stadium", "search_kbo_documents"))
+        self.assertIn("반입", classifier.CAPABILITY_INSTRUCTIONS["carry_in"])
+        self.assertIn("되묻지 않는다", classifier.CONTENT_RULES)
+
     def test_final_text_flattens_responses_blocks(self):
         msg = AIMessage(content=[{"type": "reasoning", "id": "rs_1", "summary": []},
                                  {"type": "text", "text": "답변"}])
