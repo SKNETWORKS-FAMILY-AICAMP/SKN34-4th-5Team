@@ -5,6 +5,7 @@
 """
 import threading
 import unittest
+from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 
@@ -135,6 +136,60 @@ class MigratedToolsTest(unittest.TestCase):
             graph.invoke({"messages": [HumanMessage("SQL 짜줘")], "tool_group_ids": ["day_plan"]})
         engine.assert_not_called()
         self.assertEqual(calls, [])
+
+    def test_relative_pin_request_preserves_selection_and_history_when_classifier_says_new_or_none(self):
+        from llm.tests.test_course_editing import CURRENT, PLACES
+
+        current = {**CURRENT, "places": [], "selectedPlace": PLACES[1],
+                   "writerState": {"title": "", "origin": None, "completed": False}}
+        context = {"stadium": "JAMSIL", "intent": "route", "currentCourse": current}
+        original = deepcopy(context)
+        question = "가기 전에 식사하고 다녀온 뒤에는 산책하는 코스 짜줘"
+        for request in ("NEW", "NONE"):
+            with self.subTest(course_request=request):
+                calls = []
+                graph = chain.build_graph(ScriptedModel(script=[call("ask_course", {"task": question}, "c"),
+                                                               AIMessage("완성")], calls=calls), tools_with_real_migrated([]))
+                verdict = {"allowed": True, "capabilities": [], "course_request": request}
+                with patch.object(classifier, "classify", return_value=verdict), \
+                        patch("llm.v1.rag.course.agent.answer", return_value={"answer": "앞뒤 코스 완성"}) as engine:
+                    graph.invoke({"messages": [HumanMessage("카페를 골랐어"), AIMessage("네"), HumanMessage(question)],
+                                  "context": context})
+                engine.assert_called_once()
+                self.assertEqual(engine.call_args.args[0], question)
+                self.assertEqual(engine.call_args.kwargs["course_request"], "EDIT")
+                self.assertEqual(engine.call_args.kwargs["current_course"], current)
+                self.assertEqual(len(engine.call_args.kwargs["history"]), 2)
+                self.assertIn("ask_course", calls[0]["tools"])
+                self.assertEqual(verdict["course_request"], request)
+                self.assertEqual(context, original)
+
+        with patch.object(classifier, "classify", return_value=decision(allowed=False)), \
+                patch("llm.v1.rag.course.agent.answer") as engine:
+            graph.invoke({"messages": [HumanMessage(question)], "context": context})
+        engine.assert_not_called()
+
+    def test_dated_manual_course_reaches_engine_without_losing_pin_or_date(self):
+        from llm.tests.test_course_editing import PLACES
+
+        for request, preview in (("NEW", True), ("NONE", True), ("NEW", False), ("NONE", False)):
+            with self.subTest(course_request=request, preview=preview):
+                current = {"places": [] if preview else [PLACES[0]], "stadiumCode": "JAMSIL",
+                           "travelMode": "walk", "legModes": {}}
+                if preview:
+                    current["selectedPlace"] = PLACES[0]
+                context = {"stadium": "JAMSIL", "intent": "route", "currentCourse": current}
+                question = "10월 16일 코스 짜줘"
+                graph = chain.build_graph(ScriptedModel(script=[call("ask_course", {"task": "코스 생성"}, "c"),
+                                                               AIMessage("완성")], calls=[]), tools_with_real_migrated([]))
+                verdict = {"allowed": True, "capabilities": [], "course_request": request}
+                with patch.object(classifier, "classify", return_value=verdict), \
+                        patch("llm.v1.rag.course.agent.answer", return_value={"answer": "코스 완성"}) as engine:
+                    graph.invoke({"messages": [HumanMessage(question)], "context": context})
+                engine.assert_called_once()
+                self.assertEqual(engine.call_args.args[0], question)
+                self.assertEqual(engine.call_args.kwargs["course_request"], "EDIT")
+                self.assertEqual(engine.call_args.kwargs["current_course"], current)
 
     def test_course_tool_selection_is_scoped_to_current_request(self):
         calls = []
