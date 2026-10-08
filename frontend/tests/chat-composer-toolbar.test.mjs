@@ -10,7 +10,7 @@ const read = path => readFileSync(new URL(`../${path}`, import.meta.url), "utf8"
 const source = read("components/chat-composer-tools.tsx");
 const ast = ts.createSourceFile("tools.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 const body = ast.statements.filter(node => !ts.isImportDeclaration(node)).map(node => node.getText(ast)).join("\n");
-const groupIds = ["web_research", "schedule", "standings", "players", "baseball_stats", "rules", "stadium_info", "parking_transport", "community", "nearby_places", "tourism", "directions", "courses", "weather", "day_plan"];
+const groupIds = ["web_research", "schedule", "standings", "players", "baseball_stats", "rules", "stadium_info", "carry_in", "parking_transport", "community", "nearby_places", "tourism", "directions", "courses", "weather", "day_plan"];
 let menuGroups = groupIds.map(id => ({ id, label: id }));
 let menuError = "";
 let stateIndex = 0;
@@ -135,7 +135,7 @@ const render = props => {
   return flatten(exports.ChatComposerTools({ disabled: false, available: true, children, hint: "", actions, ...props }));
 };
 
-test("manual menu and chips show exactly fourteen visible server groups with category nouns and distinct capability icons", () => {
+test("manual menu and chips show exactly fifteen visible server groups with category nouns and distinct capability icons", () => {
   const server = readFileSync(new URL("../../backend/llm/views/attachments.py", import.meta.url), "utf8");
   const serverIds = [...server.split("TOOL_GROUP_LABELS = {")[1].split("}")[0].matchAll(/"([a-z_]+)":/g)].map(match => match[1]);
   assert.deepEqual(groupIds, serverIds);
@@ -147,10 +147,10 @@ test("manual menu and chips show exactly fourteen visible server groups with cat
   const visibleIds = groupIds.filter(id => id !== "weather");
   assert.deepEqual(Array.from(rows, row => row.key), visibleIds);
   assert.equal(chips.length, 0);
-  assert.equal(rows.length, 14);
+  assert.equal(rows.length, 15);
   assert.equal(chips.length, 0);
-  assert.deepEqual(Array.from(rows, row => row.props.children[1].props.children[1].props.children), ["웹", "야구", "야구", "야구", "야구", "야구", "구장", "교통", "커뮤니티", "구장", "여행", "교통", "코스", "코스"]);
-  assert.deepEqual(Array.from(rows, row => row.props.children[0].props.name), ["book", "calendar", "trophy", "userPlus", "chart", "book", "stadium", "car", "chat", "pin", "map", "route", "heart", "clock"]);
+  assert.deepEqual(Array.from(rows, row => row.props.children[1].props.children[1].props.children), ["웹", "야구", "야구", "야구", "야구", "야구", "구장", "구장", "교통", "커뮤니티", "구장", "여행", "교통", "코스", "코스"]);
+  assert.deepEqual(Array.from(rows, row => row.props.children[0].props.name), ["book", "calendar", "trophy", "userPlus", "chart", "book", "stadium", "stadium", "car", "chat", "pin", "map", "route", "heart", "clock"]);
   rows.forEach((row, index) => {
     const [icon, copy] = row.props.children;
     assert.notEqual(icon.props.name, "sparkles");
