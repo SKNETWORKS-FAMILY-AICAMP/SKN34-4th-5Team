@@ -11,13 +11,15 @@ import { googleLodgingId, isLodgingReference, kakaoLodgingReference } from "@/li
 import { GoogleLodgingPanel } from "./google-lodging-panel";
 import { KakaoLodgingPanel } from "./kakao-lodging-panel";
 import type { NearbyStadium } from "@/lib/nearby-places";
+import type { LegModes, TravelMode, TravelPoint } from "@/lib/course-directions";
 
-type Props = { stops: RouteStop[]; stadium?: NearbyStadium; searchable?: boolean; allowOriginSelection?: boolean; mapFirst?: boolean; children?: ReactNode; travelAside?: ReactNode; onAddStop?: (stop: RouteStop) => void };
+type Props = { stops: RouteStop[]; stadium?: NearbyStadium; searchable?: boolean; allowOriginSelection?: boolean; mapFirst?: boolean; children?: ReactNode; travelAside?: ReactNode; onAddStop?: (stop: RouteStop) => void; travelMode?: TravelMode; legModes?: LegModes; start?: TravelPoint };
 
-export function RouteMap({ stops: storedStops, stadium, searchable = false, allowOriginSelection = true, mapFirst = false, children, travelAside, onAddStop }: Props) {
+export function RouteMap({ stops: storedStops, stadium, searchable = false, allowOriginSelection = true, mapFirst = false, children, travelAside, onAddStop, travelMode, legModes: initialLegModes, start }: Props) {
   const [resolved, setResolved] = useState<Record<string, RouteStop>>({});
   const stops = useMemo(() => storedStops.map(stop => isLodgingReference(stop) && resolved[stop.placeId!] ? { ...stop, name: resolved[stop.placeId!].name, lat: resolved[stop.placeId!].lat, lng: resolved[stop.placeId!].lng } : stop), [storedStops, resolved]);
-  const travel = useCourseDirections(stops);
+  const [legModes, setLegModes] = useState(initialLegModes ?? {});
+  const travel = useCourseDirections(stops, true, start, undefined, travelMode, undefined, undefined, legModes, setLegModes);
   const [fitRequest, setFitRequest] = useState(0);
   const [mapState, setMapState] = useState<KakaoMap | null>(null);
   const mapNode = useRef<HTMLDivElement>(null);

@@ -19,7 +19,6 @@ from urllib.parse import urlencode, unquote
 from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[2]
-SBIZ = "https://apis.data.go.kr/B553077/api/open/sdsc2/storeListInRadius"
 PARK = "https://api.data.go.kr/openapi/tn_pubr_public_cty_park_info_api"
 TOUR = "https://apis.data.go.kr/B551011/KorService2/locationBasedList2"
 KAKAO = "https://dapi.kakao.com/v2/local/search/category.json"
@@ -89,26 +88,8 @@ def record(source, ident, name, kind, address, lat, lng, stadium, raw):
 
 
 def collect_sbiz(key, stadium):
-    header = {}
-    rows = all_pages(SBIZ, {"serviceKey": unquote(key), "radius":2500,
-                           "cx":stadium[1], "cy":stadium[0], "type":"json"},header_out=header)
-    result = []
-    for r in rows:
-        group, small = r.get("indsLclsCd"), r.get("indsSclsNm", "")
-        kind = "other"
-        if group == "I2":
-            kind = "cafe" if "커피" in small or "카페" in small else "restaurant"
-            if "주점" in small or "주점" in r.get("indsMclsNm", ""):
-                kind = "bar"
-        elif group == "I1":
-            kind = "lodging"
-        elif group == "G2" and small == "편의점":
-            kind = "convenience_store"
-        p = record("SBIZ",r.get("bizesId")," ".join(filter(None,[r.get("bizesNm"),r.get("brchNm")])),kind,
-                   r.get("rdnmAdr") or r.get("lnoAdr"),r.get("lat"),r.get("lon"),stadium,r)
-        if p:
-            result.append(p)
-    return result, {"api_rows":len(rows),"unique_ids":len({r["source_id"] for r in result}),"reference_month":header.get("stdrYm")}
+    """The retired source must never be collected again through legacy callers."""
+    raise RuntimeError("SBIZ collection was removed; use the current PARK/TOUR collector")
 
 
 def collect_parks(key, stadium):
@@ -394,12 +375,16 @@ def main():
     sys.stdout.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser()
     parser.add_argument("--probe", action="store_true")
-    parser.add_argument("--sources", nargs="+", default=["SBIZ","PARK","TOUR"])
+    parser.add_argument("--sources", nargs="+", choices=["PARK", "TOUR"], default=["PARK", "TOUR"])
     parser.add_argument("--compare-kakao", action="store_true")
     parser.add_argument("--output-dir", type=Path, help="Resume selected sources into an existing pilot directory")
     parser.add_argument("--comparison-only", action="store_true", help="Use the complete saved SBIZ snapshot")
     parser.add_argument("--rebuild-report", action="store_true", help="Reclassify saved data and rebuild places/report without API calls")
     args = parser.parse_args()
+    if args.compare_kakao or args.comparison_only:
+        parser.error("SBIZ comparison was retired with the collected data")
+    if args.output_dir and (args.output_dir / "sbiz.json").exists():
+        parser.error("Remove retired SBIZ data before resuming a pilot directory")
     if args.rebuild_report:
         if not args.output_dir:
             parser.error("--rebuild-report requires --output-dir")
@@ -452,7 +437,6 @@ def main():
         print("OUTPUT",out,flush=True)
         return
     probes = [
-        ("SBIZ", SBIZ, "SBIZ_API_KEY", {"radius": 2500, "cx": lng, "cy": lat, "pageNo": 1, "numOfRows": 1, "type": "json"}),
         ("PARK", PARK, "PARK_API_KEY", {"pageNo": 0, "numOfRows": 1, "type": "json"}),
         ("TOUR", TOUR, "TOUR_API_KEY", {"mapX": lng, "mapY": lat, "radius": 2500, "pageNo": 1, "numOfRows": 1, "MobileOS": "ETC", "MobileApp": "KBORoute", "_type": "json"}),
     ]

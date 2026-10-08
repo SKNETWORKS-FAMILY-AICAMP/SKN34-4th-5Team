@@ -5,6 +5,13 @@ from django.db import models
 from django.db.models import Q
 from pgvector.django import VectorField, HnswIndex
 
+
+class GuestChatUsage(models.Model):
+    """Legacy v1 usage records, retained for history only; v2 uses usage wallets."""
+    identity = models.CharField(max_length=64, primary_key=True)
+    used = models.PositiveSmallIntegerField(default=0)
+
+
 class Document(models.Model):
     title = models.CharField(max_length=255)
     source = models.CharField(max_length=255)
@@ -68,6 +75,27 @@ class ChatSession(models.Model):
                 name="chat_session_has_one_owner",
             )
         ]
+
+
+class ChatAttachment(models.Model):
+    """비공개 파일/명시적 URL. 소유권은 세션과 같고 원본은 공용 private object storage 에 둔다."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    session = models.ForeignKey(ChatSession, on_delete=models.CASCADE, related_name="attachments")
+    kind = models.CharField(max_length=5, choices=[("image", "image"), ("text", "text"), ("url", "url")])
+    name = models.CharField(max_length=255)
+    object_key = models.CharField(max_length=255, blank=True)
+    content_type = models.CharField(max_length=64, blank=True)
+    size = models.PositiveIntegerField(default=0)
+    width = models.PositiveIntegerField(null=True)
+    height = models.PositiveIntegerField(null=True)
+    source_url = models.URLField(max_length=2048, blank=True)
+    extracted_text = models.TextField(blank=True)  # URL 캐시만. 파일은 private storage 에서 읽는다
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class ChatAttachmentDeletion(models.Model):
+    object_key = models.CharField(max_length=255, primary_key=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
 
 class ChatThreadDeletion(models.Model):

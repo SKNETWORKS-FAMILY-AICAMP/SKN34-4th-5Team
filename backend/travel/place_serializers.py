@@ -112,6 +112,7 @@ class PlaceSerializer(serializers.ModelSerializer):
 class KakaoPlaceSerializer(serializers.Serializer):
     id = serializers.CharField()
     place_name = serializers.CharField()
+    place_url = serializers.URLField(required=False, allow_blank=True)
     road_address_name = serializers.CharField()
     address_name = serializers.CharField()
     category_group_name = serializers.CharField()

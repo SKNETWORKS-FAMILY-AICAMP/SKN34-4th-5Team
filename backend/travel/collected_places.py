@@ -15,8 +15,8 @@ from baseball.stadium_locations import reviewed_locations
 from .stadium_affiliation import stadium_affiliation_hint
 
 
-DEFAULT_SNAPSHOT = "20260927T092810Z"
-SOURCES = {"SBIZ": "소상공인 상가정보", "PARK": "전국도시공원 표준데이터", "TOUR": "한국관광공사"}
+DEFAULT_SNAPSHOT = "20260927T092810Z-no-sbiz"
+SOURCES = {"PARK": "전국도시공원 표준데이터", "TOUR": "한국관광공사"}
 KINDS = {"restaurant": "food", "bar": "food", "cafe": "cafe", "convenience_store": "store", "play_facility": "indoor", "walk_candidate": "walk"}
 LABELS = {"food": "먹거리", "cafe": "카페·디저트", "store": "편의점", "indoor": "실내 놀거리", "walk": "산책"}
 GROUPS = {"FD6": {"food"}, "CE7": {"cafe"}, "CS2": {"store"}, "CT1": {"indoor"}, "AT4": {"walk"}, "AD5": set()}
@@ -54,7 +54,7 @@ def distance(a_lat, a_lng, b_lat, b_lng):
 @lru_cache(maxsize=2)
 def _manifest(folder, version):
     data = json.loads((Path(folder) / "manifest.json").read_bytes())
-    if data["schema_version"] != 1 or data["radius_m"] != 2500 or data["distance_type"] != "straight_line":
+    if data["schema_version"] != 2 or data["radius_m"] != 2500 or data["distance_type"] != "straight_line":
         raise ValueError("Unsupported snapshot")
     if not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", data["snapshot_id"]) or not data["stadiums"]:
         raise ValueError("Invalid snapshot")

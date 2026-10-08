@@ -3,6 +3,7 @@ import type { CourseCreateRequestDto, CourseCreateResultDto, CourseDto, CoursePa
 import { ApiError, apiRequest } from "./api/client";
 import { memberFetch } from "./member-auth-request";
 import { referenceOnlyStop } from "./google-lodging";
+import { activeLegModes, isLegModes } from "./course-directions";
 
 const TOKEN_PREFIX = "kbo-course-edit-token:";
 const sessionTokens = new Map<string, string>();
@@ -27,6 +28,7 @@ function routeFromApi(value: CourseDto, owned = Boolean(token(value.id)), saveWa
     id: value.sampleId ?? value.id, ...(value.sampleId ? { apiId: value.id } : {}), routeNumber: value.routeNumber, title: value.title, stadium: value.stadium, description, content: value.content ?? "",
     ...(value.contentFormat ? { contentFormat: value.contentFormat } : {}), ...(value.contentDoc ? { contentDoc: value.contentDoc } : {}), tags: value.tags, duration: value.duration,
     cover: value.cover || "/images/stadium-night.jpg", stops, ...(value.startLat !== undefined && value.startLng !== undefined ? { start: { lat: value.startLat, lng: value.startLng } } : {}),
+    travelMode: value.travelMode ?? "walk", legModes: isLegModes(value.legModes) ? value.legModes : {},
     author: value.author, likes: value.likes ?? 0, views: value.views ?? 0, isSample: value.isSample ?? false, owned: value.isSample ? false : owned, createdAt: value.createdAt, ...(saveWarning ? { saveWarning } : {}),
   };
 }
@@ -35,7 +37,13 @@ function payload(route: TripRoute, editing: boolean): CourseCreateRequestDto | C
   return {
     title: route.title, stadium: route.stadium, content: route.content, contentDoc: route.contentDoc ?? null, contentFormat: route.contentFormat ?? "",
     duration: route.duration, tags: route.tags, ...(route.start ? { startLat: route.start.lat, startLng: route.start.lng } : editing ? { startLat: null, startLng: null } : {}),
-    stops: route.stops.map((stop, position) => ({ ...referenceOnlyStop(stop), position })),
+    travelMode: route.travelMode ?? "walk", legModes: activeLegModes(route.start ? [route.start, ...route.stops] : route.stops, route.legModes),
+    stops: route.stops.map((stop, position) => {
+      const item = { ...referenceOnlyStop(stop), position };
+      // 챗봇의 편집용 시간표는 작성 화면/초안에만 보관한다.
+      delete item.coursePlace; delete item.courseGame; delete item.courseProgress;
+      return item;
+    }),
   };
 }
 

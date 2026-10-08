@@ -34,7 +34,8 @@ LABEL = {"walk": "도보", "car": "자동차", "transit": "대중교통"}
 
 # ── 이동수단 판별 ─────────────────────────────────────────────────────────────
 # "차" 한 글자는 녹차·차이 같은 말에도 걸리니 "차 타고 / 차로 가 / 차 끌고" 처럼 동사와 붙은 경우만 본다.
-CAR = re.compile(r"자가용|자차|자동차|승용차|차량|렌터카|렌트카|쏘카|운전|드라이브|주차|"
+# Parking is a venue amenity, not an instruction to drive between course stops.
+CAR = re.compile(r"자가용|자차|자동차|승용차|차량|렌터카|렌트카|쏘카|운전|드라이브|"
                  r"차\s*(를|로)?\s*(타고|끌고|가지고|몰고|갖고)|차로\s*(가|갈|이동|움직)|"
                  r"차\s*타고|차\s*있어|택시")
 TRANSIT = re.compile(r"대중교통|지하철|전철|버스|[0-9]호선|기차|KTX|SRT|ITX|셔틀|뚜벅")
@@ -56,7 +57,7 @@ def mode_of(question: str):
 
 
 def is_taxi(question: str) -> bool:
-    return bool(re.search(r"택시", question or "")) and not re.search(r"자가용|자차|자동차|운전|주차|차\s*끌고", question or "")
+    return bool(re.search(r"택시", question or "")) and not re.search(r"자가용|자차|자동차|운전|차\s*끌고", question or "")
 
 
 def ban_words(mode, taxi=False) -> list[str]:
@@ -66,9 +67,7 @@ def ban_words(mode, taxi=False) -> list[str]:
 
 def after_hint(mode, evening: bool, taxi=False) -> str:
     """경기 후 후보 종류 안내 (LLM 프롬프트 <after_hint> 용)."""
-    if mode == "car" and not taxi:
-        return "카페·야식(술집 제외 — 운전)" if evening else "카페·명소·산책"
-    return "야식·술집·카페" if evening else "카페·명소·산책"
+    return "카페·명소·산책 (저녁 경기라는 이유로 야식·술집을 추가하지 않는다)"
 
 
 # ── 구간 계산 ────────────────────────────────────────────────────────────────
@@ -117,7 +116,12 @@ def summary(legs_, mode, taxi=False) -> str:
         if not car_min:
             first = "택시에서 내린 뒤엔 걸어 다니면 돼요" if taxi else "장소끼리 가까워서 한 번 주차하고 걸어 다니면 돼요"
             return f"{first} · 도보 약 {_km(total)} · {walk_min}분"
-        parts = [f"{'택시' if taxi else '차량'} 약 {car_min}분{'' if taxi else '(주차 포함)'}"] + ([f"도보 {walk_min}분"] if walk_min else [])
+        parking = "(주차 별도)" if any("seconds" in x for x in known if x["by"] == "car") else "(주차 포함)"
+        parts = [f"{'택시' if taxi else '차량'} 약 {car_min}분{'' if taxi else parking}"] + ([f"도보 {walk_min}분"] if walk_min else [])
+        return f"이동 약 {_km(total)} · " + " + ".join(parts)
+    transit_min = sum(x["minutes"] for x in known if x["by"] == "transit")
+    if transit_min:
+        parts = [f"대중교통 {transit_min}분"] + ([f"도보 {walk_min}분"] if walk_min else [])
         return f"이동 약 {_km(total)} · " + " + ".join(parts)
     return f"총 도보 약 {_km(total)} · {walk_min}분"
 
@@ -220,11 +224,8 @@ def _meta(m):
 
 def fetch_rows(code) -> list[dict]:
     """구장의 TRANSPORT 청크 metadata 전부 (많아야 10행 안팎)."""
-    from django.db import connection                 # 순수 함수 테스트를 위해 지연 import
-    with connection.cursor() as cur:
-        cur.execute("""SELECT metadata FROM llm_documentchunk
-                       WHERE metadata->>'category' = 'TRANSPORT' AND metadata->>'stadium_code' = %s""", [code])
-        return [_meta(r[0]) for r in cur.fetchall()]
+    from llm.vector_store import iter_documents
+    return [doc["metadata"] for doc in iter_documents(stadium=code, categories=["TRANSPORT"], include_common=False)]
 
 
 def info(code, mode, question="") -> dict:

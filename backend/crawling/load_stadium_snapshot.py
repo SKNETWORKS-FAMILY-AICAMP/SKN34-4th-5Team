@@ -45,7 +45,7 @@ def load(connection, manifest, records, manifest_hash):
                 [(snapshot_id, code, source, meta["completed_at"], meta.get("reference_month"), Jsonb(meta))
                  for code, stadium in manifest["stadiums"].items() for source, meta in stadium["sources"].items()])
             for code in manifest["stadiums"]:
-                for filename, status in (("public_places.jsonl", "selected"), ("convenience_review.jsonl", "needs_review")):
+                for filename, status in (("public_places.jsonl", "selected"),):
                     rows = records[f"{code}/{filename}"]
                     insert_rows(cursor, "public_places", "snapshot_id stadium_code source source_run source_id selection_status "
                                 "name address kind lat lng distance_m category_large category_middle category_small payload",
@@ -62,7 +62,7 @@ def load(connection, manifest, records, manifest_hash):
 def verify_counts(cursor, snapshot_id, manifest):
     # Detect a partial/manual load instead of incorrectly reporting a successful no-op.
     for code in manifest["stadiums"]:
-        for filename, status in (("public_places.jsonl", "selected"), ("convenience_review.jsonl", "needs_review")):
+        for filename, status in (("public_places.jsonl", "selected"),):
             cursor.execute("SELECT count(*) FROM place_staging.public_places WHERE snapshot_id=%s AND stadium_code=%s AND selection_status=%s",
                            (snapshot_id, code, status))
             if cursor.fetchone()[0] != manifest["files"][f"{code}/{filename}"]["rows"]:
@@ -71,8 +71,11 @@ def verify_counts(cursor, snapshot_id, manifest):
         if cursor.fetchone()[0] != manifest["files"][f"{code}/google_lodging_ids.jsonl"]["rows"]:
             raise ValueError("Loaded Google row count mismatch")
     cursor.execute("SELECT count(*) FROM place_staging.source_runs WHERE snapshot_id=%s", (snapshot_id,))
-    if cursor.fetchone()[0] != len(manifest["stadiums"]) * 4:
+    if cursor.fetchone()[0] != sum(len(stadium["sources"]) for stadium in manifest["stadiums"].values()):
         raise ValueError("Loaded source run count mismatch")
+    cursor.execute("SELECT count(*) FROM place_staging.public_places WHERE snapshot_id=%s", (snapshot_id,))
+    if cursor.fetchone()[0] != manifest["totals"]["public_places.jsonl"]:
+        raise ValueError("Unexpected public records in snapshot")
 
 
 def main():

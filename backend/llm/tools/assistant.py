@@ -44,14 +44,17 @@ STATUS = {"upcoming": "PREV", "finished": "END", "canceled": "CANCEL"}
 _STATE: contextvars.ContextVar[dict] = contextvars.ContextVar("assistant_state")
 
 
-def _new_state(hint_stadium=None, question="", history=None):
+def _new_state(hint_stadium=None, question="", history=None, origin=None, route_path=None, current_course=None):
     return {"hint": hint_stadium, "question": question, "history": history or [], "schema_seen": False,
+            "origin": dict(origin) if isinstance(origin, dict) else None,
+            "route_path": route_path,
+            "current_course": current_course,
             "tools": [], "sources": [], "course": None}
 
 
-def new_state(hint_stadium=None, question="", history=None) -> dict:
+def new_state(hint_stadium=None, question="", history=None, origin=None, route_path=None, current_course=None) -> dict:
     """테스트/직접 도구 호출용 상태를 만든다. 답변 진입점은 request_state를 쓴다."""
-    st = _new_state(hint_stadium, question, history)
+    st = _new_state(hint_stadium, question, history, origin, route_path, current_course)
     _STATE.set(st)
     from .knowledge import assistant_context
     assistant_context.set(st)
@@ -59,9 +62,9 @@ def new_state(hint_stadium=None, question="", history=None) -> dict:
 
 
 @contextmanager
-def request_state(hint_stadium=None, question="", history=None):
+def request_state(hint_stadium=None, question="", history=None, origin=None, route_path=None, current_course=None):
     """한 답변 요청 동안만 assistant 도구 상태를 공유하고 부모 상태를 복원한다."""
-    st = _new_state(hint_stadium, question, history)
+    st = _new_state(hint_stadium, question, history, origin, route_path, current_course)
     token = _STATE.set(st)
     from .knowledge import assistant_context
     knowledge_token = assistant_context.set(st)
@@ -343,7 +346,7 @@ def search_kbo_documents(query, stadium_code=None, categories=None, _search=None
 class NearbyInput(BaseModel):
     kind: Literal["stay", "walk", "indoor", "store"] = Field(description="stay 숙박 · walk 산책/공원 · indoor 실내놀거리 · store 편의점")
     stadium_code: str | None = Field(default=None, description="구장 코드나 이름. 모르면 비운다")
-    keyword: str | None = Field(default=None, description="세부 종류 (예: 호텔, 게스트하우스, 볼링장)")
+    keyword: str | None = Field(default=None, description="세부 종류/숙박 조건 (예: 호텔, 금연 객실, 주차, 반려동물 동반, 볼링장)")
 
 
 def search_nearby_places(kind, stadium_code=None, keyword=None, _nearby=None) -> str:
@@ -356,7 +359,17 @@ def search_nearby_places(kind, stadium_code=None, keyword=None, _nearby=None) ->
     from llm.v1.rag.nearby import agent as nearby_agent, kakao
     if _nearby is None and not kakao.enabled():
         return "카카오 장소 조회가 설정되지 않았습니다. 옆 지도의 해당 카테고리에서 확인하라고 안내하세요."
-    places = nearby_agent.narrow((_nearby or kakao.nearby)(code, kind), kind, keyword or "")[:8]
+    places = (_nearby or kakao.nearby)(code, kind)
+    if kind == "stay":
+        from llm.v1.rag.nearby import lodging
+        # 모델이 축약한 keyword보다 실제 요청과 사용자 대화의 조건을 우선한다.
+        result = lodging.verify(places, s.get("question") or keyword or "숙소", s.get("history"))
+        for p in result["items"]:
+            if p["sourceUrl"]:
+                s["sources"].append({"doc_id": p["sourceUrl"], "grade": "THIRD_PARTY", "category": "STAY", "stadium": code})
+        return _dumps({"policy": "숙소 가격과 예약 가능 여부는 답변하지 않는다. recommendations만 추천한다. match는 이름과 출처 링크만 쓰고 조건 근거를 추가 설명하지 않는다. rating_fallback은 조건 미확인인 평점·후기 수 대안임을 한 번 알리고 링크를 붙인다. 평점을 조건 충족으로 바꾸지 않는다.",
+                       **result, "recommendations": lodging.recommendations(result), "answer": lodging.answer_text(result)})
+    places = nearby_agent.narrow(places, kind, keyword or "")[:8]
     for p in places:
         s["sources"].append({"doc_id": f"kakao:{p['placeId']}", "grade": "THIRD_PARTY", "category": kind.upper(), "stadium": code})
     if not places:
@@ -378,8 +391,28 @@ def plan_course(request, _course=None) -> str:
         return "현재 코스 생성 중에는 plan_course를 다시 호출할 수 없습니다. 주어진 후보로 답하세요."
     if _course is None:
         from llm.v1.rag.course import agent as _course
-    question = request if request and len(request) >= len(s.get("question") or "") else (s.get("question") or request)
-    result = _course.answer(question, history=s.get("history"), hint_stadium=s.get("hint"))
+    # 도구 인자는 모델의 요약일 뿐이다. 실제 사용자 원문이 있으면 길이와 관계없이 우선한다.
+    question = s.get("question") or request
+    from llm.v1.rag.club.router import detect_stadium
+    original = s.get("question") or ""
+    preferred = detect_stadium(original) or to_stadium_code(s.get("hint") or "")
+    # 모델이 과거 구장을 새 요청에 덧붙여도 실제 사용자 입력·현재 화면 선택을 덮어쓰지 못하게 한다.
+    if preferred and detect_stadium(question) not in (None, preferred):
+        question = original or question
+    origin = s.get("origin")
+    route_path = s.get("route_path")
+    current_course = s.get("current_course")
+    # 지도에서 구장을 바꾸면 출발지도 초기화된다. 채팅으로 바꿀 때도 이전 구장의 좌표를 섞지 않는다.
+    if s.get("hint") and preferred != to_stadium_code(s["hint"]):
+        origin = None
+        route_path = None
+        current_course = None
+    result = _course.answer(question, history=s.get("history"), hint_stadium=preferred or s.get("hint"),
+                            **({"origin": origin} if origin else {}),
+                            **({"route_path": route_path} if route_path else {}),
+                            **({"current_course": current_course} if current_course else {}),
+                            **({"course_request": s["course_request"]} if s.get("course_request") else {}),
+                            **({"course_memory": s["course_memory"]} if "course_memory" in s else {}))
     s["course"] = result
     s["sources"].extend(result.get("sources") or [])
     return result.get("answer") or "코스를 짜지 못했습니다."

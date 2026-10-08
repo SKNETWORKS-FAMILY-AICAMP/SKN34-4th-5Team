@@ -11,8 +11,9 @@ from pathlib import Path
 
 from collect_stadium_pilot import distance
 
-FILES = ("public_places.jsonl", "convenience_review.jsonl", "google_lodging_ids.jsonl")
-SOURCE_RUN = {"SBIZ": "SBIZ", "PARK": "PARK", "TOUR": "TOUR_WALK"}
+SCHEMA_VERSION = 2
+FILES = ("public_places.jsonl", "google_lodging_ids.jsonl")
+SOURCE_RUN = {"PARK": "PARK", "TOUR": "TOUR_WALK"}
 KINDS = {"restaurant", "bar", "cafe", "convenience_store", "play_facility", "walk_candidate"}
 
 
@@ -42,7 +43,7 @@ def validate(folder):
     """Return fully checked data in memory so files cannot change during DB import."""
     raw_manifest = (folder / "manifest.json").read_bytes()
     manifest = json.loads(raw_manifest)
-    require(manifest.get("schema_version") == 1, "Unsupported snapshot version")
+    require(manifest.get("schema_version") == SCHEMA_VERSION, "Unsupported snapshot version")
     require(re.fullmatch(r"[A-Za-z0-9_-]{1,80}", manifest.get("snapshot_id", "")), "Invalid snapshot ID")
     require(manifest.get("radius_m") == 2500 and manifest.get("distance_type") == "straight_line",
             "Expected a 2500m straight-line collection")
@@ -56,7 +57,7 @@ def validate(folder):
         require(stadium["code"] == code and valid_coordinate(stadium["lat"], stadium["lng"]),
                 "Invalid stadium location")
         sources = stadium["sources"]
-        require(set(sources) == {"SBIZ", "PARK", "TOUR_WALK", "GOOGLE"}, "Incomplete sources")
+        require(set(sources) == {*SOURCE_RUN.values(), "GOOGLE"}, "Incomplete sources")
         for meta in sources.values():
             require(meta.get("status") == "ok", "Source collection did not complete")
             require(datetime.fromisoformat(meta["completed_at"]).tzinfo is not None, "Missing collection timezone")
@@ -87,14 +88,7 @@ def validate(folder):
                     require(actual <= 2500 and math.isfinite(row["distance_m"])
                             and abs(actual - row["distance_m"]) <= 1, "Place outside radius or incorrect distance")
                     identity = (row["source"], row["source_id"])
-                    if filename == "convenience_review.jsonl":
-                        require(row["source"] == "SBIZ" and row["kind"] == "convenience_store"
-                                and row.get("brand_status") in {"unidentified", "needs_review", "legacy_name"},
-                                "Review file must contain only unselected convenience stores")
-                    else:
-                        if row["kind"] == "convenience_store":
-                            require(row.get("brand_status") == "name_identified", "Unreviewed convenience store selected")
-                        selected_by_source[row["source"]] += 1
+                    selected_by_source[row["source"]] += 1
                 require(identity not in seen, f"Duplicate source ID in {code}")
                 seen.add(identity)
             totals[filename] += len(rows)
@@ -102,8 +96,6 @@ def validate(folder):
             require(selected_by_source[source] == sources[run]["selected_records"], "Source count mismatch")
         require(len(records[f"{code}/google_lodging_ids.jsonl"]) == sources["GOOGLE"]["within_radius_ids"],
                 "Google ID count mismatch")
-        require(len(records[f"{code}/convenience_review.jsonl"]) == sources["SBIZ"]["convenience_needs_review"],
-                "Convenience review count mismatch")
     require(dict(totals) == manifest["totals"], "Snapshot total mismatch")
     return manifest, records, digest(raw_manifest)
 
@@ -121,16 +113,13 @@ def build(source, output):
 
 def write_snapshot(source, output):
     summary = read_json(source / "summary.json")
-    manifest = {**summary, "snapshot_id": summary["started_at"], "files": {}, "totals": {}}
+    manifest = {**summary, "snapshot_id": summary.get("snapshot_id", summary["started_at"]), "files": {}, "totals": {}}
     totals = Counter()
     for code in summary["stadiums"]:
         require(re.fullmatch(r"[A-Z0-9_]+", code), "Invalid stadium code")
         public = read_json(source / code / "public_places.json")
-        selected = {(r["source"], r["source_id"]) for r in public}
-        review = [r for r in read_json(source / code / "convenience_review.json")
-                  if (r["source"], r["source_id"]) not in selected]
         google = read_json(source / code / "google_lodging_ids.json")
-        for filename, rows in zip(FILES, (public, review, google)):
+        for filename, rows in zip(FILES, (public, google)):
             rows.sort(key=lambda r: (r["source"], r.get("source_id", r.get("place_id"))))
             data = "".join(encode(r) + "\n" for r in rows).encode("utf-8")
             path = output / code / filename

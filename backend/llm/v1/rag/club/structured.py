@@ -1,6 +1,6 @@
 """[club] 순위·일정은 RAG 대신 DB 직접 조회 (노션 설계의 SCHEDULE_RANK 인텐트).
 
-rag_test/structured.py 를 Django 용으로 옮긴 것 (DB 접속 인자 대신 django.db.connection 사용).
+rag_test/structured.py의 정형 응답을 Qdrant 문서에서 읽는다.
 
 검색으로 찾으면 "다음 홈경기"처럼 오늘 날짜로 계산해야 하는 질문을 못 푼다.
 여기서는 청크 본문을 정규식으로 구조화한 뒤, 파이썬이 직접 고르고 정렬한다.
@@ -8,7 +8,6 @@ rag_test/structured.py 를 Django 용으로 옮긴 것 (DB 접속 인자 대신 
 import re
 from datetime import date, datetime, timedelta
 
-from django.db import connection
 
 from .router import PLACE_ALIAS
 
@@ -88,8 +87,11 @@ def team_in(question):
 
 
 def date_in(question, today):
-    """질문 속 날짜 → 'YYYY-MM-DD' (오늘/내일/모레/N월 N일). 없으면 None"""
+    """질문 속 날짜 → 'YYYY-MM-DD'. 명시한 연도를 보존한다."""
     t = date.fromisoformat(today)
+    full = re.search(r"(?<!\d)(\d{4})\s*(?:년\s*|[-/.])\s*(\d{1,2})\s*(?:월\s*|[-/.])\s*(\d{1,2})(?:\s*일)?(?!\d)", question)
+    if full:
+        return date(*map(int, full.groups())).isoformat()
     if "오늘" in question:
         return today
     if "그제" in question or "그저께" in question:
@@ -105,11 +107,9 @@ def date_in(question, today):
 
 
 def _rows(category):
-    with connection.cursor() as cur:
-        cur.execute(
-            """SELECT content, left(coalesce(metadata->'metadata'->>'updated_at', metadata->>'updated_at', ''), 10) AS updated_at
-               FROM llm_documentchunk WHERE metadata->>'category' = %s""", [category])
-        return [{"content": c, "updated_at": u} for c, u in cur.fetchall()]
+    from llm.vector_store import iter_documents, legacy_row
+    return [{"content": row["content"], "updated_at": row["updated_at"]}
+            for row in map(legacy_row, iter_documents(categories=[category]))]
 
 
 def standings():

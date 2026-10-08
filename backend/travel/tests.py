@@ -42,6 +42,21 @@ def course_data(**changes):
 
 
 class CourseApiTests(TestCase):
+    def test_travel_modes_default_to_walk_and_survive_create_edit_read(self):
+        created = self.create_course()
+        self.assertEqual(created.data["travelMode"], "walk")
+        self.assertEqual(created.data["legModes"], {})
+        key = "37.500000,127.100000>37.510000,127.070000"
+        url = f"/api/v1/courses/{created.data['id']}/"
+        response = self.client.patch(url, {"travelMode": "walk", "legModes": {key: "transit"}},
+                                     format="json", HTTP_X_COURSE_EDIT_TOKEN=created.data["editToken"])
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(self.client.get(url).data["legModes"], {key: "transit"})
+        for value in ({key: "flight"}, {"bad": "car"}, {"99.000000,127.100000>37.510000,127.070000": "walk"}):
+            response = self.client.patch(url, {"legModes": value}, format="json", HTTP_X_COURSE_EDIT_TOKEN=created.data["editToken"])
+            self.assertEqual(response.status_code, 400)
+        self.assertEqual(self.client.get(url).data["legModes"], {key: "transit"})
+
     def setUp(self):
         cache.clear()
         self.client = APIClient()
@@ -470,6 +485,8 @@ class CourseConcurrencyTests(TransactionTestCase):
 
 class CourseSampleMigrationTests(TransactionTestCase):
     def test_reverse_noop_and_reapply_preserve_custom_rows_and_do_not_duplicate_samples(self):
+        latest = MigrationExecutor(connection).loader.graph.leaf_nodes()
+        self.addCleanup(lambda: MigrationExecutor(connection).migrate(latest))
         custom = Course.objects.create(
             title="사용자 코스", stadium="잠실야구장", duration="반나절", tags=[], author="익명", edit_token_hash="custom-hash"
         )
@@ -479,9 +496,15 @@ class CourseSampleMigrationTests(TransactionTestCase):
             ("travel", "0006_merge_course_engagement_content_doc"),
             ("community", "0005_communitypostimage_course"),
         ])
-        custom.refresh_from_db()
+        historical = MigrationExecutor(connection).loader.project_state([
+            ("travel", "0006_merge_course_engagement_content_doc"),
+            ("community", "0005_communitypostimage_course"),
+        ]).apps
+        HistoricalCourse = historical.get_model("travel", "Course")
+        HistoricalStop = historical.get_model("travel", "CourseStop")
+        custom = HistoricalCourse.objects.get(pk=custom.pk)
         self.assertEqual(custom.edit_token_hash, "custom-hash")
         self.assertEqual(list(custom.stops.values_list("name", flat=True)), ["사용자 장소"])
-        self.assertEqual(Course.objects.filter(is_sample=True).count(), 19)
-        self.assertEqual(CourseStop.objects.filter(course__is_sample=True).count(), 58)
-        MigrationExecutor(connection).migrate([("travel", "0009_tourismplace_use_common_place")])
+        self.assertEqual(HistoricalCourse.objects.filter(is_sample=True).count(), 19)
+        self.assertEqual(HistoricalStop.objects.filter(course__is_sample=True).count(), 58)
+        MigrationExecutor(connection).migrate(latest)

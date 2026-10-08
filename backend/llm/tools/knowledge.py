@@ -4,7 +4,6 @@ import functools
 import json
 import os
 import re
-from django.db import connection, transaction
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import StructuredTool, ToolException, tool
@@ -46,22 +45,9 @@ def vector_search(query: str, stadium: str | None, categories: list[str] | None,
     """구장·카테고리·안팎 조건을 적용한 벡터 검색."""
     from ..v1.rag.club.retrieval import embed
     qvec = embed(query)
-    conds = ["metadata->>'category' = ANY(%(cats)s)"]
-    params: dict = {"cats": categories or VENUE_CATEGORIES, "v": "[" + ",".join(map(str, qvec)) + "]", "k": TOP_K}
-    if stadium:
-        conds.append("(metadata->>'stadium_code' = %(st)s OR metadata->>'stadium_code' IS NULL)")
-        params["st"] = stadium
-    if in_stadium_flag:
-        conds.append("metadata->>'in_stadium_flag' = %(flag)s")
-        params["flag"] = in_stadium_flag
-    sql = f"""
-        SELECT content, metadata, embedding <=> %(v)s::vector AS dist
-        FROM llm_documentchunk WHERE {' AND '.join(conds)}
-        ORDER BY embedding <=> %(v)s::vector LIMIT %(k)s"""
-    with transaction.atomic(), connection.cursor() as cur:
-        cur.execute("SET LOCAL hnsw.ef_search = 200")
-        cur.execute(sql, params)
-        rows = cur.fetchall()
+    from llm import vector_store
+    rows = [(doc["content"], doc["metadata"], doc["dist"]) for doc in vector_store.search(
+        qvec, k=TOP_K, stadium=stadium, categories=categories or VENUE_CATEGORIES, flag=in_stadium_flag)]
     out = []
     for content, meta, dist in rows:
         if float(dist) > MAX_DISTANCE:
@@ -82,25 +68,17 @@ def keyword_fallback_search(query: str, stadium: str | None, categories: list[st
     patterns = _keyword_patterns(query)
     if not patterns:
         return []
-    conds, params = ["(content ILIKE ANY(%s) OR metadata::text ILIKE ANY(%s))"], [patterns, patterns]
-    conds.append("metadata->>'category' = ANY(%s)")
-    params.append(categories or VENUE_CATEGORIES)
-    if in_stadium_flag:
-        conds.append("metadata->>'in_stadium_flag' = %s")
-        params.append(in_stadium_flag)
-    if stadium:
-        conds.append("(metadata->>'stadium_code' = %s OR metadata->>'stadium_code' IS NULL)")
-        params.append(stadium)
-    params.append(max(top_k * 100, 500))
-    with connection.cursor() as cur:
-        cur.execute(f"SELECT content, metadata FROM llm_documentchunk WHERE {' AND '.join(conds)} ORDER BY id LIMIT %s", params)
-        rows = cur.fetchall()
+    from llm import vector_store
+    import heapq
 
     def score(row):
         text = f"{row[0]} {json.dumps(row[1] or {}, ensure_ascii=False)}".lower()
         return sum(p.strip("%").lower() in text for p in patterns)
 
-    rows = sorted(rows, key=score, reverse=True)[:top_k]
+    # ponytail: bounded-memory corpus scan; use an indexed text field if latency grows.
+    candidates = ((doc["content"], doc["metadata"]) for doc in vector_store.iter_documents(
+        stadium, categories or VENUE_CATEGORIES, in_stadium_flag))
+    rows = heapq.nlargest(top_k, (row for row in candidates if score(row)), key=score)
     return [{"content": c, "metadata": {**_metadata_dict(m), "distance": None, "match_type": "keyword_fallback"}}
             for c, m in rows]
 
@@ -136,7 +114,7 @@ CATEGORIES = {'OPERATION', 'CAFE', 'FOOD_IN', 'FOOD_OUT', 'TRANSPORT', 'STADIUM'
 DOC_K = 5
 
 def search_kbo_rows(query, stadium=None, categories=None, k=DOC_K, _search=None, _embed=None) -> list[dict]:
-    """pgvector 검색 + 키워드 재정렬. 카테고리로 0건이면 카테고리를 풀고 한 번 더."""
+    """Qdrant 검색 + 키워드 재정렬. 카테고리로 0건이면 카테고리를 풀고 한 번 더."""
     cats = [c.upper() for c in (categories or []) if c and c.upper() in CATEGORIES] or None
     if _search is None:
         from ..v1.rag.club.retrieval import embed, keyword_rerank, search
@@ -300,6 +278,7 @@ def search_kbo_documents(query, stadium_code=None, categories=None, _search=None
     return _format_kbo(rows)
 
 def create_knowledge_tools():
+    from .place_rag import create_place_rag_tool
     return (
         search_documents_tool,
         StructuredTool.from_function(
@@ -308,4 +287,5 @@ def create_knowledge_tools():
             handle_validation_error="도구 인자 형식이 올바르지 않습니다. 설명을 보고 다시 부르세요.",
             handle_tool_error=True,
         ),
+        create_place_rag_tool(),
     )

@@ -15,15 +15,17 @@ const scratch = mkdtempSync(join(tmpdir(), "kbo-chat-test-"));
 after(() => rmSync(scratch, { recursive: true, force: true }));
 mkdirSync(join(scratch, "node_modules", "server-only"), { recursive: true });
 writeFileSync(join(scratch, "node_modules", "server-only", "index.js"), "module.exports = {};\n");
-for (const name of ["types", "validation", "demo", "prompt", "server"]) {
+mkdirSync(join(scratch, "chat"));
+writeFileSync(join(scratch, "course-directions.js"), ts.transpileModule(readFileSync(join(frontend, "lib/course-directions.ts"), "utf8"), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText);
+for (const name of ["types", "course", "validation", "demo", "prompt", "server"]) {
   const source = readFileSync(join(frontend, "lib", "chat", `${name}.ts`), "utf8");
   const { outputText } = ts.transpileModule(source, {
     fileName: `${name}.ts`,
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
   });
-  writeFileSync(join(scratch, `${name}.js`), outputText);
+  writeFileSync(join(scratch, "chat", `${name}.js`), outputText);
 }
-const requireTestModule = createRequire(join(scratch, "entry.cjs"));
+const requireTestModule = createRequire(join(scratch, "chat", "entry.cjs"));
 const { parseChatRequest, ChatError } = requireTestModule("./validation.js");
 const { createChatReply, getChatStatus, extractOpenAIReply } = requireTestModule("./server.js");
 const { MAX_HISTORY_MESSAGES, MAX_MESSAGE_LENGTH, MAX_REPLY_LENGTH } = requireTestModule("./types.js");

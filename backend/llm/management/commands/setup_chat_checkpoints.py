@@ -11,6 +11,8 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         ChatThread.setup()
         purge_deleted_threads()  # 실패·누락된 세션 삭제 후속 처리 재시도
+        from llm.service.attachments import purge_deleted_attachments
+        purge_deleted_attachments()
         erase_legacy_rows()  # 이 수정 전에 지워진 세션이 남긴 고아 옛 행
         converted = convert_legacy_threads()  # 옛 행은 롤백 대비로 남긴다(세션 삭제 때 지운다)
         self.stdout.write(f"legacy chat sessions converted: {converted}")

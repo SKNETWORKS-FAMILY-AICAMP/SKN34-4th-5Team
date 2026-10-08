@@ -45,7 +45,7 @@ export function ChatUsage({ mode, refreshKey }: { mode: ChatMode | null; refresh
           <meter className="workspace-usage-meter" min={0} max={100} value={remainingPercent} aria-label="남은 제공량" aria-valuetext={balanceDetail}>{remainingPercent}%</meter>
           <p className="workspace-usage-policy">{usage.resets_at ? `다음 충전: ${new Date(usage.resets_at).toLocaleDateString("ko-KR", { timeZone: usage.timezone || "Asia/Seoul" })}` : "비회원 제공량은 다시 채워지지 않아요."}</p>
           {usage.accounting_state === "unknown" && <p role="status">일부 호출의 사용량을 확인하지 못했어요. 표시된 사용량은 확인된 토큰만 포함해요.</p>}
-          {!usage.can_send && <p role="status">{usage.active_turn ? "진행 중인 답변이 끝나면 다시 시도해 주세요." : "사용 가능한 제공량이 없어요."}</p>}
+          {!usage.can_send && <p role="status">{usage.active_turn ? "답변 중에도 입력창에서 다음 질문을 예약할 수 있어요." : "사용 가능한 제공량이 없어요."}</p>}
         </>}
       </>}
     </section>

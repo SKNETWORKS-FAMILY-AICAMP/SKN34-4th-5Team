@@ -138,7 +138,6 @@ def _load_prices(now):
 
 def _deduplicate_ticket_rows():
     from baseball.models import TicketPolicy, TicketPrice
-    from llm.models import DocumentChunk
     removed_prices = 0
     price_fields = ("seat_zone_id", "price_tier", "day_type", "customer_type", "group_size", "price_krw", "valid_from", "valid_to", "discount_condition")
     seen = {}
@@ -158,16 +157,8 @@ def _deduplicate_ticket_rows():
             removed_policies += 1
         else:
             seen[key] = item.id
-    removed_vectors = 0
-    seen = {}
-    for item in DocumentChunk.objects.filter(metadata__category="TICKET_POLICY").order_by("id"):
-        key = hashlib.sha256(item.content.encode()).hexdigest()
-        if key in seen:
-            item.delete()
-            removed_vectors += 1
-        else:
-            seen[key] = item.id
-    return removed_prices, removed_policies, removed_vectors
+    # PostgreSQL vectors are preserved as migration input; Qdrant upserts use stable IDs.
+    return removed_prices, removed_policies, 0
 
 
 def collect_tickets():

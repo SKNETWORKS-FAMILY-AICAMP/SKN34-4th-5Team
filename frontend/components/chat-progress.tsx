@@ -32,7 +32,12 @@ const TOOL_LABELS: Record<string, string> = {
   search_documents_tool: "규칙·안내 문서 검색",
   ask_baseball: "야구 정보 확인",
   ask_travel_research: "여행 정보 조사",
+  ask_web_research: "웹 정보 조사",
+  jev_browse: "웹 근거 확인",
+  jev_read_body: "웹 원문 확인",
   ask_place_data: "장소 정보 확인",
+  ask_course: "코스 생성·수정",
+  plan_course: "코스 검증",
 };
 
 const plain = (value: unknown) => typeof value === "string" ? value : JSON.stringify(value, null, 2);

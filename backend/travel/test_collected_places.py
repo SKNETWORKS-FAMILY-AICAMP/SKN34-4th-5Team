@@ -18,12 +18,12 @@ class CollectedPlaceTests(SimpleTestCase):
         self.folder = Path(self.temporary.name)
         (self.folder / "JAMSIL").mkdir()
         self.path = self.folder / "JAMSIL/public_places.jsonl"
-        self.row = {"source": "SBIZ", "source_id": "cafe-1", "name": "수집 카페", "address": "서울",
-                    "kind": "cafe", "category_small": "카페", "lat": 37.5, "lng": 127.0,
+        self.row = {"source": "PARK", "source_id": "park-1", "name": "수집 공원", "address": "서울",
+                    "kind": "walk_candidate", "category_small": "근린공원", "lat": 37.5, "lng": 127.0,
                     "distance_m": 0, "cafe_type": "unverified", "source_fields": {"private_raw": "not exposed"}}
-        self.meta = {"schema_version": 1, "snapshot_id": "fixture", "radius_m": 2500, "distance_type": "straight_line",
+        self.meta = {"schema_version": 2, "snapshot_id": "fixture", "radius_m": 2500, "distance_type": "straight_line",
                      "stadiums": {"JAMSIL": {"code": "JAMSIL", "lat": 37.5, "lng": 127.0, "sources": {
-                         "SBIZ": {"status": "ok", "completed_at": "2026-09-27T09:30:00Z", "reference_month": "202606"},
+                         "PARK": {"status": "ok", "completed_at": "2026-09-27T09:30:00Z", "reference_month": "202606"},
                      }}}, "files": {}}
         self.write([self.row])
         self.override = override_settings(COLLECTED_PLACES_DIR=self.folder)
@@ -47,7 +47,7 @@ class CollectedPlaceTests(SimpleTestCase):
         response = self.request({"stadium": "JAMSIL"})
         self.assertEqual(response.status_code, 200)
         place = response.data["places"][0]
-        self.assertEqual(place["placeId"], "collected:SBIZ:cafe-1")
+        self.assertEqual(place["placeId"], "collected:PARK:park-1")
         self.assertEqual(place["referenceMonth"], "202606")
         self.assertEqual(place["verificationStatus"], "unverified")
         self.assertNotIn("source_fields", place)
@@ -78,6 +78,7 @@ class CollectedPlaceTests(SimpleTestCase):
     def test_review_google_duplicate_and_bad_coordinates_fail_closed(self):
         invalid = (
             {**self.row, "source": "GOOGLE_PLACES"},
+            {**self.row, "source": "SBIZ"},
             {**self.row, "kind": "convenience_store", "brand_status": "needs_review"},
             {**self.row, "lat": 0}, {**self.row, "lat": True},
         )
@@ -88,12 +89,12 @@ class CollectedPlaceTests(SimpleTestCase):
         self.assertEqual(self.request({"stadium": "JAMSIL"}).status_code, 503)
 
     def test_search_is_bounded_filters_and_keeps_stable_ids(self):
-        self.write([{**self.row, "source_id": str(i), "name": f"수집 카페 {i:02d}"} for i in range(20)])
-        query = {"method": "category", "category": "CE7", "lat": 37.5, "lng": 127.0, "stadium": "JAMSIL"}
+        self.write([{**self.row, "source_id": str(i), "name": f"수집 공원 {i:02d}"} for i in range(20)])
+        query = {"method": "category", "category": "AT4", "lat": 37.5, "lng": 127.0, "stadium": "JAMSIL"}
         with patch("travel.place_service._request_kakao", side_effect=AssertionError("external search")) as kakao:
             first = service.search_collected_places(query)
             second = service.search_collected_places({**query, "page": 2})
-            no_match = service.search_collected_places({**query, "keyword": "없는카페"})
+            no_match = service.search_collected_places({**query, "keyword": "없는공원"})
         kakao.assert_not_called()
         self.assertEqual((len(first["places"]), len(second["places"])), (15, 5))
         self.assertTrue(first["hasNextPage"])
@@ -112,7 +113,7 @@ class CollectedPlaceTests(SimpleTestCase):
             service.search_collected_places({"lat": 35.0, "lng": 129.0})
 
     def test_bounded_tourism_uses_only_saved_walk_candidates(self):
-        self.write([self.row, {**self.row, "source_id": "park", "name": "공원", "kind": "walk_candidate"}])
+        self.write([{**self.row, "source_id": "park", "name": "공원", "kind": "walk_candidate"}])
         result = service.search_collected_tourism({"stadium": "JAMSIL", "lat": 37.5, "lng": 127.0})
         self.assertEqual([p["name"] for p in result["places"]], ["공원"])
 
@@ -124,9 +125,9 @@ class CheckedInSnapshotTests(SimpleTestCase):
             _, _, manifest = service._metadata()
             results = [service.catalogue(code) for code in manifest["stadiums"]]
         self.assertEqual(len(results), 9)
-        # Snapshot remains immutable; only the served circle is re-centered.
+        # The revised snapshot excludes SBIZ; serving still re-centers its circle.
         raw_count = sum(meta["rows"] for name, meta in manifest["files"].items() if name.endswith("/public_places.jsonl"))
-        self.assertEqual(raw_count, 37027)
+        self.assertEqual(raw_count, 527)
         self.assertGreater(sum(result["count"] for result in results), 0)
         self.assertLessEqual(sum(result["count"] for result in results), raw_count)
         self.assertTrue(all(p["source"] in service.SOURCES and p["kind"] != "stay" for result in results for p in result["places"]))

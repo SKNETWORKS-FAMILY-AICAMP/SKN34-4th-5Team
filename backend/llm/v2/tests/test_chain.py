@@ -33,16 +33,17 @@ class ScriptedModel(BaseChatModel):
     script: Any  # Any: pydantic 이 list 를 복사하지 않게 해서 bind_tools 복사본과 공유한다
     calls: Any
     bound: tuple = ()
+    choice: Any = None
 
     @property
     def _llm_type(self):
         return "scripted"
 
     def bind_tools(self, tools, **kwargs):
-        return self.model_copy(update={"bound": tuple(t.name for t in tools)})
+        return self.model_copy(update={"bound": tuple(t.get("type") if isinstance(t, dict) else t.name for t in tools), "choice": kwargs.get("tool_choice")})
 
     def _generate(self, messages, stop=None, run_manager=None, **kwargs):
-        self.calls.append({"tools": self.bound, "system": messages[0].content, "messages": messages})
+        self.calls.append({"tools": self.bound, "system": messages[0].content, "messages": messages, "tool_choice": self.choice})
         while self.script:
             head = self.script[0]
             if not callable(head):
@@ -101,6 +102,27 @@ class ChainTest(unittest.TestCase):
         self.assertEqual(out["messages"][-1].content, SCOPE_MESSAGE)
         self.assertEqual(self.model_calls, [])
         self.assertEqual(self.executed, [])
+
+    def test_course_destination_stays_authoritative_across_model_tool_rounds(self):
+        for question, expected, source in (
+            ("같은 식사 카페 산책 조건으로 다시 짜줘", "잠실 (JAMSIL)", "현재 지도에서 선택한 구장"),
+            ("이번엔 롯데로 짜줘", "사직 (SAJIK)", "이번 사용자 질문의 팀·구장"),
+            ("사직 말고 고척으로", "고척 (GOCHEOK)", "이번 사용자 질문의 팀·구장"),
+        ):
+            with self.subTest(question=question):
+                out = self.run_graph([call("ask_course", {"task": "새 코스"}, "c"), AIMessage("완성")], PLAN,
+                               [HumanMessage("롯데 직관 코스"), AIMessage("사직 일정 안내"), HumanMessage(question)],
+                               {"stadium": "JAMSIL", "intent": "route"})
+                for entry in self.model_calls:
+                    self.assertIn(f"확정한 코스 구장: {expected}. 기준: {source}", entry["system"])
+                    latest = [message for message in entry["messages"] if isinstance(message, HumanMessage)][-1]
+                    self.assertIn(f"확정한 코스 구장: {expected}", latest.content)
+                self.assertEqual([message.content for message in out["messages"] if isinstance(message, HumanMessage)][-1], question)
+
+    def test_multiple_stadium_choices_are_not_forced_to_the_selected_map(self):
+        self.run_graph([AIMessage("어느 구장으로 갈까요?")], PLAN,
+                       [HumanMessage("잠실과 사직 중에서 어디로 갈까?")], {"stadium": "JAMSIL", "intent": "route"})
+        self.assertNotIn("<current_course_destination>", self.model_calls[0]["system"])
 
     def test_simple_exposes_capability_tools_with_prerequisite_and_blocks_hidden(self):
         script = [
@@ -200,7 +222,7 @@ class ChainTest(unittest.TestCase):
         self.assertEqual(out["messages"][-1].content, "16:00 카페 A → 17:30 잠실 도착")
         self.assertEqual(self.executed, ["get_games", "search_places", "get_directions"])
         self.assertEqual(set(self.model_calls[0]["tools"]),
-                         {"ask_baseball", "ask_travel_research", "ask_place_data", "get_directions", "plan_course", "present_planning_questions"})
+                         {"ask_baseball", "ask_travel_research", "ask_place_data", "get_directions", "ask_course", "present_planning_questions"})
         baseball_call = self.model_calls[1]
         self.assertIn("get_games", baseball_call["tools"])
         self.assertNotIn("ask_travel_research", baseball_call["tools"])  # 전문 Agent 간 직접 위임 없음
@@ -469,6 +491,11 @@ class ClassifierTest(unittest.TestCase):
             "get_stadiums", "get_stadium", "get_seat_zones", "get_seat_views", "get_seat_maps", "get_ticket_prices",
             "get_ticket_policies", "get_ticket_policy", "get_food_stores", "get_facilities", "get_stadium_contents",
             "get_transport", "search_kbo_documents"))
+
+    def test_carry_in_capability_opens_kbo_documents(self):
+        self.assertEqual(CAPABILITY_TOOLS["carry_in"], ("get_stadium", "search_kbo_documents"))
+        self.assertIn("반입", classifier.CAPABILITY_INSTRUCTIONS["carry_in"])
+        self.assertIn("되묻지 않는다", classifier.CONTENT_RULES)
 
     def test_final_text_flattens_responses_blocks(self):
         msg = AIMessage(content=[{"type": "reasoning", "id": "rs_1", "summary": []},

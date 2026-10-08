@@ -57,7 +57,7 @@ COMPANION = {
         ban=[],
         boost=["카페", "디저트", "베이커리", "양식", "파스타", "관광,명소", "테마거리"],
         radius=None,
-        note="데이트라 분위기 괜찮은 곳과 카페를 섞었어요.",
+        note="",
     ),
     "solo": dict(
         re=r"혼자|혼밥|나홀로|1인|혼자서|솔로",
@@ -103,11 +103,11 @@ _PREV_TIME = re.compile(r"^\s*(?:익일\s*)?\d{1,2}:\d{2}\s{1,4}(.+?)\s*(?:\(\d+
 # "산책 좀 하고 구장에 가고 싶어" 처럼 사이에 말이 끼거나 조사(에·으로)가 붙어도 경기 전만으로 본다.
 BOTH = re.compile(r"전\s*후|앞\s*뒤|하루\s*종일|처음부터\s*끝까지")
 BEFORE_ONLY = re.compile(
-    r"경기\s*(보기|시작)?\s*전(에|에만|만)|경기\s*전\s*코스|(구장|경기장|야구장)\s*(가기|들어가기)\s*전|"
+    r"경기\s*(보기|시작)?\s*전(?!후|반)(에만|에|만)?|(구장|경기장|야구장)\s*(가기|들어가기)\s*전|"
     r"(먹고|마시고|들렀다가?|갔다가?|구경하고|놀다가?|산책하고|하고)\s*(나서\s*)?(\S{1,6}\s+){0,2}([가-힣A-Za-z]{1,6}\s*)?"
     r"(경기장|야구장|구장|경기|직관|야구)(에|으로|로)?\s*(보러\s*)?(갈|가|들어|입장)")
-AFTER_ONLY = re.compile(
-    r"(경기|야구|직관)\s*(끝나고|끝난\s*(뒤|후)|후(?!기)에?만?|마치고|보고\s*나서|본\s*(뒤|후))|끝나고|뒤풀이")
+_AFTER_TIME = r"(?:경기|야구|직관)\s*(?:끝나고|끝난\s*(?:뒤|후|다음)|후(?!기)에?만?|마치고|보고\s*(?:나서|난\s*뒤)|본\s*(?:뒤|후|다음)|관람\s*후)|끝나고"
+AFTER_ONLY = re.compile(_AFTER_TIME + r"|뒤풀이")
 
 
 def scope_of(question: str) -> str:
@@ -123,6 +123,158 @@ def scope_of(question: str) -> str:
     return "both"
 
 
+def extra_phases(question):
+    """식사와 산책을 각각 경기 전·후로 말한 요청에서 활동별 시점을 보존한다."""
+    phases = {}
+    for kind, words in (("walk", r"산책|공원|둘레길"), ("indoor", r"실내|박물관|미술관|볼링|방탈출")):
+        for activity in re.finditer(words, question):
+            prefix = question[:activity.start()]
+            before = max((m.start() for m in BEFORE_ONLY.finditer(prefix)), default=-1)
+            after = max((m.start() for m in AFTER_ONLY.finditer(prefix)), default=-1)
+            if max(before, after) >= 0:
+                phases[kind] = "AFTER" if after > before else "BEFORE"
+    return phases
+
+
+AFTER_ACTIVITY = {
+    "FOOD": r"야식|식사|식당|맛집|밥|저녁(?!\s*(?:\d|경기))|치킨|국밥|고기|분식|먹(?:고|을|으|는|기)",
+    "CAFE": r"카페|커피|디저트|베이커리",
+    "BAR": r"술집|술|맥주|소주|치맥|한잔|뒤풀이|호프|이자카야",
+    "WALK": r"산책|공원|둘레길",
+    "INDOOR": r"실내|박물관|미술관|볼링|방탈출",
+    "SPOT": r"명소|관광|구경",
+    "STAY": r"숙박|숙소|호텔|모텔",
+}
+ACTIVITY_LABEL = {"FOOD": "식사", "CAFE": "카페", "BAR": "술집", "WALK": "산책",
+                  "INDOOR": "실내 활동", "SPOT": "명소", "STAY": "숙박"}
+_ACTIVITY_NO = re.compile(r"\s*(?:은|는|을|를|도)?\s*(?:빼|제외|말고|없이|안\s*|필요\s*없|원하지\s*않|싫)")
+_ACTIVITY_NOUN = r"(?:추가\s*)?(?:" + "|".join(AFTER_ACTIVITY.values()) + r")"
+_EXCLUDED_ACTIVITIES = re.compile(
+    _ACTIVITY_NOUN + r"(?:\s*(?:[·ㆍ,/]|와|과|이랑|랑|이나|나|또는|및)\s*" + _ACTIVITY_NOUN + r")*"
+    r"\s*(?:은|는|을|를|도)?\s*(?:(?:코스|일정)(?:에|에서)\s*)?"
+    r"(?:빼|제외|말고|없이|필요\s*없|원하지\s*않|싫|안\s*(?:가|먹|마시|넣|하)|"
+    r"(?:넣|추가하|포함하|추천하|가|먹|마시|하)지\s*(?:말|마|않))"
+)
+
+
+def after_activities(question):
+    """명시한 경기 후 활동만 반환. None은 미정, 빈 목록은 경기 후 방문을 원하지 않음."""
+    q = question or ""
+    if scope_of(q) == "before":
+        return []
+    markers = sorted([(m.start(), m.start() if m.group() == "뒤풀이" else m.end(), phase)
+                      for regex, phase in ((BEFORE_ONLY, "BEFORE"), (AFTER_ONLY, "AFTER"))
+                      for m in regex.finditer(q)])
+    segments = [q[end:markers[i + 1][0] if i + 1 < len(markers) else len(q)]
+                for i, (_, end, phase) in enumerate(markers) if phase == "AFTER"]
+    # 시점을 생략한 야식·뒤풀이도 경기 후 요청이다. 경기 전에 명시한 활동은 넘겨받지 않는다.
+    if not markers and re.search(r"야식|뒤풀이", q):
+        segments = [q]
+    found, specified = [], False
+    for segment in segments:
+        specified |= bool(re.search(r"귀가|집(?:에|으로)|바로\s*돌아", segment))
+        # '야식·술집·식사나 카페는 넣지 말라'는 목록 전체를 제외한다.
+        # 긍정 요청을 검사하기 전에 지워 부정문의 명사를 방문 요청으로 세지 않는다.
+        segment, excluded = _EXCLUDED_ACTIVITIES.subn(" ", segment)
+        specified |= bool(excluded)
+        hits = sorted((m.start(), m.end(), kind) for kind, words in AFTER_ACTIVITY.items()
+                      for m in re.finditer(words, segment))
+        for _, end, kind in hits:
+            specified = True
+            if not _ACTIVITY_NO.match(segment[end:]) and kind not in found:
+                found.append(kind)
+    return found if specified else None
+
+
+# 범위 판별 정규식은 '먹고 구장 가기' 전체를 포함한다. 활동 추출에는 시점 표지만 쓴다.
+_PHASE_MARKER = re.compile(
+    r"(?P<before>(?:경기|야구|직관)\s*(?:보기|시작)?\s*전(?!후|반)|(?:구장|경기장|야구장)\s*가기\s*전)"
+    r"|(?P<both>(?:경기\s*)?전\s*후)"
+    r"|(?P<after>" + _AFTER_TIME + r")"
+)
+_COUNT = re.compile(r"\s*(?:를|을)?\s*(한|두|세|네|다섯|[1-5])\s*(?:곳|군데)")
+_COUNT_VALUE = {"한": 1, "두": 2, "세": 3, "네": 4, "다섯": 5}
+
+
+def requested_itinerary(question):
+    """사용자가 명시한 활동의 구간·순서·개수를 고정한다. None일 때만 기본 코스를 허용한다."""
+    q = question or ""
+    clean, excluded = _EXCLUDED_ACTIVITIES.subn(lambda m: " " * len(m.group()), q)
+    markers = list(_PHASE_MARKER.finditer(clean))
+    result = {"BEFORE": [], "AFTER": []}
+    hits = sorted((m.start(), -m.end(), kind, m.group()) for kind, pattern in AFTER_ACTIVITY.items()
+                  for m in re.finditer(pattern, clean))
+    last_end, last_kind, last_phases = -1, None, None
+    for start, negative_end, kind, word in hits:
+        end = -negative_end
+        if start < last_end or _ACTIVITY_NO.match(clean[end:]):
+            continue
+        marker = next((m for m in reversed(markers) if m.end() <= start), None)
+        phases = ["AFTER"] if marker and marker.lastgroup == "after" else ["BEFORE"]
+        if marker and marker.lastgroup == "both":
+            phases = ["BEFORE", "AFTER"]
+        elif marker is None and (kind == "STAY" or word in ("야식", "뒤풀이")):
+            phases = ["AFTER"]
+        # '카페에서 디저트 먹고'의 먹고는 별도 식사 요청이 아니다.
+        if kind == "FOOD" and word.startswith("먹") and last_kind in ("CAFE", "BAR"):
+            if not re.search(r"(?:하고|마시고|갔다가|들렀다가)|[,.]", clean[last_end:start]):
+                continue
+        if ((word == "한잔" and last_kind == "CAFE")
+                or (word == "구경" and last_kind in ("WALK", "INDOOR"))):
+            if not re.search(r"(?:하고|마시고|갔다가|들렀다가)|[,.]", clean[last_end:start]):
+                continue
+        between = clean[last_end:start]
+        repeat = bool(re.search(r"또|다시|다른|한\s*번\s*더", between))
+        count_match = _COUNT.match(clean[end:])
+        count_text = count_match.group(1) if count_match else "1"
+        count = _COUNT_VALUE.get(count_text) or int(count_text)
+        for phase in phases:
+            # '식당에서 밥 먹고', '카페에서 커피'는 한 방문이다. 명시적 반복·개수는 보존한다.
+            if kind != last_kind or phases != last_phases or repeat:
+                result[phase].extend([kind] * count)
+        last_end, last_kind, last_phases = end, kind, phases
+    specified = any(result.values()) or excluded or re.search(r"귀가|집(?:에|으로)|바로\s*돌아", clean)
+    return result if specified else None
+
+
+def itinerary_of(question, history=None):
+    """이전 코스의 활동은 사용자 발화에서만 상속한다. 봇이 추가한 활동은 근거가 아니다."""
+    current = requested_itinerary(question)
+    prior = None
+    for message in history or []:
+        if message.get("role") != "user":
+            continue
+        text = message.get("content") or ""
+        parsed = requested_itinerary(text)
+        if parsed is not None:
+            prior = _revise_itinerary(prior, parsed, text)
+    if current is not None:
+        return _revise_itinerary(prior, current, question)
+    # 새 일반 요청은 기본 코스, 구장 변경·재추천·같은 조건 요청만 이전 활동을 잇는다.
+    followup = RETRY.search(question) or re.search(r"이번엔|이번에는|그대로|같은|거기|그럼|으로\s*(?:해|짜)", question)
+    return prior if followup else None
+
+
+def _revise_itinerary(prior, current, question):
+    if prior is None or not re.search(r"바꿔|추가|빼|제외|대신|말고", question):
+        return current
+    result = {phase: list(kinds) for phase, kinds in prior.items()}
+    markers = list(_PHASE_MARKER.finditer(question))
+    phases = list(current) if not markers or markers[0].lastgroup == "both" else [
+        "AFTER" if markers[0].lastgroup == "after" else "BEFORE"]
+    for excluded in _EXCLUDED_ACTIVITIES.finditer(question):
+        kinds = {kind for kind, pattern in AFTER_ACTIVITY.items() if re.search(pattern, excluded.group())}
+        for phase in phases:
+            result[phase] = [kind for kind in result[phase] if kind not in kinds]
+    for phase in phases:
+        if current[phase]:
+            if "추가" in question:
+                result[phase] += current[phase]
+            else:
+                result[phase] = list(current[phase])
+    return result
+
+
 def companion_of(question: str):
     """동행 키 (없으면 None). 여러 개 걸리면 제약이 센 쪽(아이 > 부모님 > 나머지)을 쓴다."""
     hits = [k for k, rx in _COMPANION_RE.items() if rx.search(question)]
@@ -132,8 +284,26 @@ def companion_of(question: str):
     return None
 
 
+_FOOD_TERMS = tuple(k for k in PREFERENCE if k not in {"카페", "커피", "디저트", "빵", "술", "맥주", "치맥", "소주", "야식", "안주", "산책", "공원", "명소", "구경", "사진", "조용", "면"})
+_FOOD_NAME = "(?:" + "|".join(re.escape(k) for k in sorted(_FOOD_TERMS, key=len, reverse=True)) + ")"
+_FOOD_EXCLUSION = re.compile(
+    rf"(?P<foods>{_FOOD_NAME}(?:\s*(?:,|·|/|와|과|이나|랑|하고|및)\s*{_FOOD_NAME})*)"
+    r"\s*(?:은|는|이|가|을|를|도)?\s*(?:말고|제외(?!하지\s*마|하지\s*않)|빼(?!지\s*마)|싫(?:어|다|은)(?!하지\s*않|하지\s*는\s*않)|안\s*먹)"
+)
+
+
+def food_exclusions(question: str):
+    """현재 요청의 명시적 음식 제외. 지속 저장 여부는 대화 해석기가 별도로 결정한다."""
+    excluded = []
+    for match in _FOOD_EXCLUSION.finditer(question or ""):
+        for name in re.findall(_FOOD_NAME, match["foods"]):
+            # A specific dish exclusion must not reject its entire cuisine.
+            excluded.extend({"고기": ["육류", "고기"], "삼겹": ["삼겹"], "버거": ["햄버거"]}.get(name, [name]))
+    return list(dict.fromkeys(excluded))
+
+
 def preferences(question: str):
-    q = question.replace(" ", "")
+    q = _FOOD_EXCLUSION.sub(" ", _EXCLUDED_ACTIVITIES.sub(" ", question)).replace(" ", "")
     return [w for words in (v for k, v in PREFERENCE.items() if k in q) for w in words]
 
 
@@ -159,6 +329,25 @@ def previous_places(history) -> set:
     return names
 
 
+def apply_requested_visits(sl, visits, question):
+    """Reuse the conversational interpreter's grounded activities, without another model call."""
+    if visits is None:
+        return sl
+    itinerary = {"BEFORE": [], "AFTER": []}
+    compact = lambda value: re.sub(r"\s+", "", value)
+    for visit in visits:
+        if (not isinstance(visit, dict) or visit.get("kind") not in ACTIVITY_LABEL
+                or visit.get("phase") not in itinerary or not visit.get("expression")
+                or compact(visit["expression"]) not in compact(question)):
+            return sl
+        if (visit["kind"] == "SPOT" and re.search(r"구장|경기장|야구장", visit["expression"])
+                and not re.search(r"투어|박물관|기념관|관광", visit["expression"])):
+            continue
+        itinerary[visit["phase"]].append(visit["kind"])
+    return {**sl, "itinerary": itinerary, "after_kinds": itinerary["AFTER"],
+            "extras": [k.lower() for k in ("STAY", "WALK", "INDOOR") if any(k in v for v in itinerary.values())]}
+
+
 def parse(question: str, history=None) -> dict:
     """질문 → 슬롯 묶음. agent 는 이 결과만 보고 후보를 거른다."""
     key = companion_of(question)
@@ -170,7 +359,8 @@ def parse(question: str, history=None) -> dict:
             if m.get("role") == "user" and (mode := transport.mode_of(m.get("content") or "")):
                 break
     taxi = transport.is_taxi(question)
-    ban = list(dict.fromkeys(list(comp.get("ban") or []) + transport.ban_words(mode, taxi)))
+    ban = list(dict.fromkeys(list(comp.get("ban") or []) + transport.ban_words(mode, taxi) + food_exclusions(question)))
+    itinerary = itinerary_of(question, history)
     return {
         "prefs": preferences(question),
         "companion": key,
@@ -183,8 +373,12 @@ def parse(question: str, history=None) -> dict:
         "retry": retry,
         "exclude": previous_places(history) if retry else set(),
         "scope": scope_of(question),
+        "extra_phases": extra_phases(question),
+        "after_kinds": after_activities(question),
+        "itinerary": itinerary,
         # RAG 에 없는 종류 — 카카오 실시간 후보를 더한다 (편의점은 코스에 넣지 않는다)
-        "extras": [k for k in _nearby_kinds(question) if k in ("stay", "walk", "indoor")],
+        "extras": ([k.lower() for k in ("STAY", "WALK", "INDOOR") if any(k in v for v in itinerary.values())]
+                   if itinerary is not None else [k for k in _nearby_kinds(question) if k in ("stay", "walk", "indoor")]),
         "mode": mode,
         "taxi": taxi,
     }
@@ -193,17 +387,27 @@ def parse(question: str, history=None) -> dict:
 def prompt_line(slots: dict) -> str:
     """LLM 에 넘길 상황 한 줄 (없으면 빈 문자열)."""
     bits = []
+    if slots.get("itinerary") is not None:
+        for phase, label in (("BEFORE", "경기 전"), ("AFTER", "경기 후")):
+            sequence = " → ".join(ACTIVITY_LABEL[k] for k in slots["itinerary"][phase]) or "방문 없음"
+            bits.append(f"확정 구성 {label}: {sequence} (활동·순서·개수 고정, 후보가 없으면 생략 사유만 안내)")
+    if slots.get("itinerary") is None and slots.get("after_kinds") is not None:
+        labels = " → ".join(ACTIVITY_LABEL[k] for k in slots["after_kinds"])
+        bits.append(f"경기 후 요청: {labels or '방문 없음'} (명시한 활동만 배치하고 식사·야식·술집 등을 임의로 추가하지 않는다)")
+    for kind, phase in (slots.get("extra_phases") or {}).items():
+        label = "산책" if kind == "walk" else "실내 활동"
+        bits.append(f"{label}: {'경기 후' if phase == 'AFTER' else '경기 전'}({phase})에 배치")
     if slots["prefs"]:
         bits.append(f"취향: {', '.join(dict.fromkeys(slots['prefs']))}")
     if slots["companionLabel"]:
         bits.append(f"동행: {slots['companionLabel']}")
     if slots["spare"] == "tight":
-        bits.append("여유: 촉박함 (경기 전은 한 곳만, 구장 가까운 곳으로)")
-    elif slots["spare"] == "long":
+        bits.append("여유: 촉박함 (가까운 곳으로 고르되 요청한 식사·카페 등 코스는 유지한다. 방문 가능 시간은 프로그램이 따로 안내한다)")
+    elif slots["spare"] == "long" and slots.get("itinerary") is None:
         bits.append("여유: 넉넉함 (경기 전에 명소·산책을 한 곳 넣어도 좋음)")
-    if slots.get("scope") == "before":
+    if slots.get("itinerary") is None and slots.get("scope") == "before":
         bits.append("범위: 경기 전만 (AFTER 는 고르지 말고, BEFORE 를 취향 개수만큼 1~3곳)")
-    elif slots.get("scope") == "after":
+    elif slots.get("itinerary") is None and slots.get("scope") == "after":
         bits.append("범위: 경기 후만 (BEFORE 는 고르지 말고, AFTER 를 1~3곳)")
     if slots.get("mode") == "car" and slots.get("taxi"):
         bits.append("이동: 택시")
