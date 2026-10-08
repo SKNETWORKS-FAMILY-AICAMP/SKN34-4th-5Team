@@ -178,23 +178,40 @@ class URLPageAnalysis(str):
     """Untrusted generated page analysis, not a cacheable original body."""
 
 
+class URLObservedBody(str):
+    """Original DOM evidence with transient provenance; failures are never cached."""
+
+    def __new__(cls, body, evidence):
+        value = super().__new__(cls, body)
+        value.evidence = evidence
+        return value
+
+
 def source_text(row, question=""):
     if row.kind == "url":
         from llm.service.chat_runs import check_cancelled
-        from llm.v2.agent.browser_research import web_page_analysis
+        from llm.v2.agent.browser_research import web_body, validate_body_evidence
         check_cancelled()
         reference_url(row.source_url)
-        # Legacy extracted_text is raw source, never a page-analysis cache.
-        result = web_page_analysis(row.source_url, question)
+        if row.extracted_text:
+            if len(row.extracted_text.encode("utf-8")) > MAX_TEXT:
+                raise AttachmentProcessingLimit()
+            return URLObservedBody(row.extracted_text, {"status": "ok", "source_kind": "original_body_cache",
+                                                       "provenance": "legacy_or_observed_original"})
+        result = validate_body_evidence(web_body(row.source_url), row.source_url)
         if result.get("status") == "overflow":
             raise AttachmentProcessingLimit()
         check_cancelled()
-        if result.get("status") in {"blocked", "busy", "timeout", "error", "partial"}:
-            raise URLBodyUnavailable(result["status"])
-        if result.get("status") != "ok":
-            raise ValueError("Unexpected URL body status: " + str(result.get("status")))
-        check_cancelled()
-        return URLPageAnalysis(result["analysis"])
+        status = result.get("status")
+        if status not in {"ok", "partial"} or not result.get("body"):
+            raise URLBodyUnavailable(status)
+        evidence = {key: result[key] for key in ("status", "source_kind", "source_url", "requested_url",
+                    "final_url", "title", "schema_version", "extractor_version", "collected_at", "limitations", "frames") if key in result}
+        if status == "ok":
+            # No migration: cache only original successful text, never incomplete/generated answers.
+            ChatAttachment.objects.filter(pk=row.pk, session_id=row.session_id, extracted_text="").update(extracted_text=result["body"])
+            row.extracted_text = result["body"]
+        return URLObservedBody(result["body"], evidence)
     if row.kind != "text":
         raise ValueError("only text/URL attachments have source text")
     return read_file(row).decode("utf-8")

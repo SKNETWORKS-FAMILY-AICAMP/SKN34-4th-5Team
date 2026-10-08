@@ -56,7 +56,12 @@ class DynamicToolMiddleware(AgentMiddleware):
         if decision.get("allowed") is not True:
             return frozenset()
         capabilities = set(decision.get("capabilities") or ()) | set(state.get("tool_group_ids") or ())
-        return self.role_tools & {n for c in capabilities for n in self.capability_tools.get(c, ())}
+        allowed = self.role_tools & {n for c in capabilities for n in self.capability_tools.get(c, ())}
+        if state.get("attachment_web_call_id") and not state.get("attachment_web_done"):
+            allowed = allowed | (self.role_tools & {"ask_web_research"})
+        if state.get("attachment_web_done"):
+            allowed = allowed - {"ask_web_research"}
+        return allowed
 
     def wrap_model_call(self, request, handler):
         allowed = self.allowed(request.state)

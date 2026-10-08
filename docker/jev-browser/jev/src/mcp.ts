@@ -1,0 +1,212 @@
+#!/usr/bin/env node
+
+import { createInterface } from "node:readline";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { join } from "node:path";
+
+import { parseExpectation } from "./completion.ts";
+import { runOnce } from "./cli.ts";
+import { loadDotEnv } from "./env.ts";
+import { isFiniteNumber, isString } from "./json.ts";
+import type { JsonObject, JsonValue } from "./types.ts";
+
+interface JsonRpcRequest {
+  id?: JsonValue;
+  method?: string;
+  params?: {
+    name?: string;
+    arguments?: JsonObject;
+  };
+}
+
+const PROTOCOL_VERSION = "2024-11-05";
+
+const PKG_VERSION = (() => {
+  try {
+    const pkg = JSON.parse(
+      readFileSync(join(fileURLToPath(new URL("..", import.meta.url)), "package.json"), "utf8"),
+    );
+
+    return isString(pkg.version) ? pkg.version : "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+})();
+
+const ALLOWED_ARGS = new Set(["goal", "url", "engine", "max_steps", "expect", "stop_at_challenge"]);
+
+const TOOL = {
+  name: "jev_browse",
+  description:
+    "Drive a real browser autonomously toward a goal. TypeSafe Jev picks each operation and target " +
+    "from the live page; a small helper model writes text for fields. Returns the final status, URL, " +
+    "and action history. Prefer this over step-by-step browsing when a task is a bounded web goal " +
+    "(search, filter, navigate, fill a form). The agent stops itself when done or blocked. There is " +
+    "no purchase/credential guardrail — scope goals accordingly and verify the outcome independently; " +
+    "the agent's DONE claim is not proof.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      goal: {
+        type: "string",
+        description:
+          "One natural-language goal, e.g. 'Find one-way flights Zurich to London on Sep 20 2026 and stop when results are visible.'",
+      },
+      url: {
+        type: "string",
+        description:
+          "Starting page URL (http/https). Pick the site the goal is about — the agent navigates in-page, it cannot type in the address bar.",
+      },
+      engine: {
+        type: "string",
+        enum: ["cdp", "agent-browser"],
+        description:
+          "Browser backend. cdp launches/attaches Chrome directly; agent-browser uses the agent-browser CLI session.",
+      },
+      expect: {
+        type: "object",
+        description: "Required completion evidence. Every supplied regex must match the terminal observation.",
+        properties: Object.fromEntries(["url_match", "text_match", "state_match", "frames_match"].map(key => [key, { type: "string", minLength: 1 }])),
+        additionalProperties: false,
+        minProperties: 1,
+      },
+      stop_at_challenge: {
+        type: "boolean",
+        description: "Stop as blocked when visible verification is detected, without interacting with it.",
+      },
+      max_steps: {
+        type: "number",
+        description: "Action budget, default 60.",
+      },
+    },
+    required: ["goal", "url"],
+    additionalProperties: false,
+  },
+};
+
+function respond(id: JsonValue, result: JsonValue): void {
+  process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id, result }) + "\n");
+}
+
+function respondError(id: JsonValue, code: number, message: string): void {
+  process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id, error: { code, message } }) + "\n");
+}
+
+function toolResult(id: JsonValue, text: string, isError = false): void {
+  respond(id, { content: [{ type: "text", text }], isError });
+}
+
+let queue: Promise<void> = Promise.resolve();
+
+function enqueue<T>(fn: () => Promise<T>): Promise<T> {
+  const next = queue.then(fn, fn);
+  queue = next.then(
+    () => undefined,
+    () => undefined,
+  );
+
+  return next;
+}
+
+async function callJevBrowse(id: JsonValue, args: JsonObject): Promise<void> {
+  const unknown = Object.keys(args).filter((k) => !ALLOWED_ARGS.has(k));
+
+  if (unknown.length) {
+    respondError(id, -32602, `jev_browse: unknown arguments: ${unknown.join(", ")}`);
+
+    return;
+  }
+
+  if (!isString(args.goal) || !isString(args.url)) {
+    respondError(id, -32602, "jev_browse requires { goal: string, url: string }");
+
+    return;
+  }
+
+  try {
+    const result = await runOnce(
+      {
+        url: args.url,
+        goals: [args.goal],
+        engine: args.engine === "agent-browser" ? "agent-browser" : "cdp",
+        headed: false,
+        cdpUrl: process.env.JEV_CDP_URL,
+        maxSteps: isFiniteNumber(args.max_steps) ? args.max_steps : undefined,
+        expectation: args.expect === undefined ? undefined : parseExpectation(args.expect),
+        stopAtChallenge: args.stop_at_challenge === true ? true : undefined,
+      },
+      (event) =>
+        process.stderr.write(JSON.stringify({ call: id, ...event }) + "\n"),
+    );
+
+    toolResult(id, JSON.stringify(result), result.status === "error");
+  } catch (error) {
+    toolResult(
+      id,
+      `jev_browse failed before completing: ${error instanceof Error ? error.message : error}`,
+      true,
+    );
+  }
+}
+
+async function handle(request: JsonRpcRequest): Promise<void> {
+  const { id, method, params } = request;
+
+  switch (method) {
+    case "initialize":
+      respond(id, {
+        protocolVersion: PROTOCOL_VERSION,
+        capabilities: { tools: {} },
+        serverInfo: { name: "jev-browse", version: PKG_VERSION },
+      });
+
+      return;
+    case "notifications/initialized":
+    case "initialized":
+      return;
+    case "ping":
+      respond(id, {});
+
+      return;
+    case "tools/list":
+      respond(id, { tools: [TOOL] });
+
+      return;
+    case "tools/call": {
+      if (params?.name !== "jev_browse") {
+        respondError(id, -32602, `Unknown tool: ${params?.name}`);
+
+        return;
+      }
+
+      await enqueue(() => callJevBrowse(id, params?.arguments ?? {}));
+
+      return;
+    }
+
+    default:
+      if (id !== undefined) respondError(id, -32601, `Method not found: ${method}`);
+  }
+}
+
+loadDotEnv();
+
+const rl = createInterface({ input: process.stdin, terminal: false });
+
+rl.on("line", (line) => {
+  if (!line.trim()) return;
+  let request: JsonRpcRequest;
+
+  try {
+    request = JSON.parse(line);
+  } catch {
+    respondError(null, -32700, "Parse error");
+
+    return;
+  }
+
+  handle(request).catch((error) =>
+    respondError(request.id ?? null, -32603, error instanceof Error ? error.message : String(error)),
+  );
+});

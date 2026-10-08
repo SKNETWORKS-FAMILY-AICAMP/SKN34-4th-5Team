@@ -14,6 +14,14 @@ from llm.v2.agent import browser_research, chain, travel_sub_agent
 from llm.v2.tests.test_chain import ScriptedModel, fake_tools, call
 
 
+def observed(body, status="ok", **extra):
+    return {"schema_version": 1, "extractor_version": "jev-dom-v1", "status": status,
+            "requested_url": "https://example.com/article", "final_url": "https://example.com/article",
+            "source_url": "https://example.com/article", "title": "Fixture", "body": body,
+            "source_kind": "rendered_dom_snapshot", "collected_at": "2026-10-08T00:00:00Z",
+            "frames": [], "limitations": [], **extra}
+
+
 class WebOwnershipTests(SimpleTestCase):
     def test_keyword_delegation_and_denied_assignment(self):
         for allowed in (True, False):
@@ -134,46 +142,130 @@ class URLContextTests(TransactionTestCase):
         if older:
             messages.extend([AIMessage("previous"), HumanMessage("잠실 첨부", id="followup")])
         with patch("llm.v2.middleware.jev_guidelines.classify", return_value={"allowed": True, "capabilities": []}):
-            graph = chain.build_graph(ScriptedModel(script=[AIMessage("main")], calls=calls), fake_tools([]))
+            graph = chain.build_graph(ScriptedModel(script=[AIMessage("findings"), AIMessage("main")], calls=calls), fake_tools([]))
             graph.invoke({"messages": messages,
                           "attachment_session_id": str(self.session.id)})
-        return next(m for m in calls[0]["messages"] if isinstance(m, HumanMessage)).text
+        return next(m for m in calls[-1]["messages"] if isinstance(m, HumanMessage)).text
 
     def test_generated_analysis_reaches_main_without_original_or_cache_claims(self):
-        body = "BEGIN " + "baseball " * 1500 + " MIDDLE " + "seats " * 1500 + " END"
-        self.row.extracted_text = "legacy raw body"
-        self.row.save()
-        with patch.object(browser_research, "web_page_analysis", return_value={"status": "ok", "analysis": body}) as fetch:
+        from llm.v2.middleware.attachment_context import direct_context
+        analysis = attachments.URLPageAnalysis("generated legacy analysis")
+        context = direct_context([self.row], {str(self.row.id): analysis})
+        self.assertIn("generated legacy analysis", context)
+        self.assertIn('"original_body": false', context)
+        self.assertNotIn('"chars"', context)
+        with patch.object(browser_research, "web_body", return_value={"status": "ok", "analysis": str(analysis)}):
+            self.assertRaises(attachments.URLBodyUnavailable, attachments.source_text, self.row)
+        self.row.refresh_from_db()
+        self.assertEqual(self.row.extracted_text, "")
+
+    def test_observed_body_reaches_main_and_success_is_reused(self):
+        body = "BEGIN " + "baseball " * 1500 + " MIDDLE 14:00 ~ 15:00 " + "seats " * 1500 + " END"
+        with patch.object(browser_research, "web_body", return_value=observed(body)) as fetch:
             for older in (False, True):
                 context = self.invoke(older)
                 self.assertIn(body, context)
-                self.assertIn('"source_kind": "generated_page_analysis"', context)
-                self.assertNotIn('"chars"', context)
-                self.assertNotIn("legacy raw body", context)
-            self.assertEqual(fetch.call_count, 2)
-            self.assertEqual(fetch.call_args.args[1], "잠실 첨부")
+                self.assertIn('"original_body": true', context)
+                self.assertIn('"chars"', context)
+                self.assertNotIn("14:15:00", context)
+            self.assertEqual(fetch.call_count, 1)
         self.row.refresh_from_db()
-        self.assertEqual(self.row.extracted_text, "legacy raw body")
+        self.assertEqual(self.row.extracted_text, body)
+
+    def test_current_success_survives_prior_transport_timeout_in_model_request(self):
+        old = ChatAttachment.objects.create(session=self.session, kind="url", name="old",
+                                             source_url="https://example.com/old")
+        calls = []
+        messages = [HumanMessage("고척", id="old", additional_kwargs={"attachment_ids": [str(old.id)]}),
+                    AIMessage("previous"), HumanMessage("현재 잠실", id="current",
+                    additional_kwargs={"attachment_ids": [str(self.row.id)]})]
+        async def browse(url, *args, **kwargs):
+            if url == old.source_url:
+                raise TimeoutError()
+            return observed("CURRENT_ORIGINAL 14:00 ~ 15:00")
+        with patch.object(browser_research, "browse", side_effect=browse), patch(
+                "llm.v2.middleware.jev_guidelines.classify", return_value={"allowed": True, "capabilities": []}):
+            graph = chain.build_graph(ScriptedModel(script=[AIMessage("findings"), AIMessage("main")], calls=calls), fake_tools([]))
+            graph.invoke({"messages": messages, "attachment_session_id": str(self.session.id)})
+        self.assertIn("CURRENT_ORIGINAL", next(m for m in calls[-1]["messages"] if m.id == "current").text)
+        self.assertIn('"status": "timeout"', next(m for m in calls[-1]["messages"] if m.id == "old").text)
+
+    def test_malformed_metadata_never_cache_or_abort_model(self):
+        malformed = {"source_url": 123, "frames": {}, "limitations": {}, "requested_url": {},
+                     "final_url": [], "title": {}, "extractor_version": [], "collected_at": [], "schema_version": []}
+        for key, value in malformed.items():
+            with self.subTest(key=key), patch.object(browser_research, "browse", AsyncMock(return_value=observed("DO_NOT_CACHE", **{key: value}))):
+                context = self.invoke()
+                self.assertIn('"status": "error"', context)
+                self.assertNotIn("DO_NOT_CACHE", context)
+            self.row.refresh_from_db()
+            self.assertEqual(self.row.extracted_text, "")
+
+    def test_transport_recovers_but_programming_security_and_stop_propagate(self):
+        import httpx
+        import anyio
+        from llm.service.chat_runs import Stopped
+        for error, status in ((TimeoutError(), "timeout"), (httpx.ConnectError("fixture"), "error"),
+                              (ExceptionGroup("nested", [anyio.EndOfStream()]), "error")):
+            with patch.object(browser_research, "browse", AsyncMock(side_effect=error)):
+                self.assertIn(f'"status": "{status}"', self.invoke())
+        for error in (RuntimeError("programmer"), Stopped(), ExceptionGroup("mixed", [TimeoutError(), ValueError("bug")])):
+            with patch.object(browser_research, "browse", AsyncMock(side_effect=error)):
+                self.assertRaises(type(error), self.invoke)
+        with patch.object(browser_research, "browse", AsyncMock(return_value=observed("private", source_url="http://127.0.0.1/"))):
+            from rest_framework.exceptions import ValidationError
+            self.assertRaises(ValidationError, self.invoke)
+
+    def test_success_prompt_keeps_exact_url_destination_and_no_paste_request(self):
+        with patch.object(browser_research, "web_body", return_value=observed("CURRENT_BODY")):
+            context = self.invoke()
+        self.assertIn("링크 destination에는 정확한 URL만", context)
+        self.assertIn("링크 밖 일반 텍스트", context)
+        self.assertNotIn("본문을 붙여", context)
+
+    def test_current_observed_partial_survives_previous_busy_source(self):
+        old = ChatAttachment.objects.create(session=self.session, kind="url", name="old Gocheok",
+                                             source_url="https://example.com/old")
+        calls = []
+        messages = [HumanMessage("고척", id="old", additional_kwargs={"attachment_ids": [str(old.id)]}),
+                    AIMessage("previous failure"), HumanMessage("현재 잠실 파오파오 휴게시간?", id="current",
+                    additional_kwargs={"attachment_ids": [str(self.row.id)]})]
+        def read(url):
+            if url == old.source_url:
+                return {"status": "busy"}
+            return observed("파오파오 휴게시간 14:00 ~ 15:00", "partial", limitations=["material_article_frame_missing"])
+        with patch.object(browser_research, "web_body", side_effect=read), patch(
+                "llm.v2.middleware.jev_guidelines.classify", return_value={"allowed": True, "capabilities": []}):
+            graph = chain.build_graph(ScriptedModel(script=[AIMessage("findings"), AIMessage("main")], calls=calls), fake_tools([]))
+            graph.invoke({"messages": messages, "attachment_session_id": str(self.session.id)})
+        current = next(m for m in calls[-1]["messages"] if m.id == "current").text
+        previous = next(m for m in calls[-1]["messages"] if m.id == "old").text
+        self.assertIn("파오파오 휴게시간 14:00 ~ 15:00", current)
+        self.assertIn('"status": "partial"', current)
+        self.assertIn('"status": "busy"', previous)
+        self.assertNotIn("고척", current)
+        self.row.refresh_from_db()
+        self.assertEqual(self.row.extracted_text, "")
 
     def test_failed_cancelled_and_overflow_never_cache_body(self):
         from llm.v2.middleware.attachment_context import DirectContextLimit
         for status in ("blocked", "partial", "busy", "timeout", "error"):
-            with patch.object(browser_research, "web_page_analysis", return_value={"status": status, "body": "fabricated"}) as fetch:
+            with patch.object(browser_research, "web_body", return_value={"status": status}) as fetch:
                 for _ in range(2):
                     context = self.invoke()
-                    self.assertIn('"status": "unavailable"', context)
-                    self.assertIn(f'"reason": "{status}"', context)
+                    self.assertIn('"available_body": false', context)
+                    self.assertIn(f'"status": "{status}"', context)
                     self.assertNotIn("fabricated", context)
                 self.assertEqual(fetch.call_count, 2)
             self.row.refresh_from_db()
             self.assertEqual(self.row.extracted_text, "")
         for result, error in (({"status": "overflow"}, attachments.AttachmentProcessingLimit),
-                              ({"status": "ok", "analysis": "word " * 21000}, DirectContextLimit)):
-            with patch.object(browser_research, "web_page_analysis", return_value=result), self.assertRaises(error):
+                              (observed("word " * 21000, "partial"), DirectContextLimit)):
+            with patch.object(browser_research, "web_body", return_value=result), self.assertRaises(error):
                 self.invoke()
             self.row.refresh_from_db()
             self.assertEqual(self.row.extracted_text, "")
-        with patch.object(browser_research, "web_page_analysis", side_effect=RuntimeError("cancelled")), self.assertRaises(RuntimeError):
+        with patch.object(browser_research, "web_body", side_effect=RuntimeError("cancelled")), self.assertRaises(RuntimeError):
             self.invoke()
         self.row.refresh_from_db()
         self.assertEqual(self.row.extracted_text, "")

@@ -1,0 +1,210 @@
+[
+  {
+    "id": "sts-hockey-form",
+    "url": "https://www.scrapethissite.com/pages/forms/",
+    "goal": "Search for \"Boston\" using the team search form and stop when the results list shows Boston teams.",
+    "expect": {
+      "text_match": "Bruins"
+    }
+  },
+  {
+    "id": "sts-ajax-films",
+    "url": "https://www.scrapethissite.com/pages/ajax-javascript/",
+    "goal": "Click the 2010 year link, wait for the film list to load, and stop when it is visible.",
+    "expect": {
+      "text_match": "King's Speech"
+    }
+  },
+  {
+    "id": "tin-status-codes",
+    "url": "https://the-internet.herokuapp.com/status_codes",
+    "goal": "Click the \"200\" link and stop when the status page shows.",
+    "expect": {
+      "text_match": "200 status code"
+    }
+  },
+  {
+    "id": "tin-js-prompt",
+    "url": "https://the-internet.herokuapp.com/javascript_alerts",
+    "goal": "Click the JS Prompt button and stop when the result line appears.",
+    "expect": {
+      "text_match": "You entered"
+    }
+  },
+  {
+    "id": "wikipedia-lang-switch",
+    "url": "https://en.wikipedia.org/wiki/Turing_machine",
+    "goal": "Open the German-language version of this article and stop.",
+    "expect": {
+      "url_match": "de\\.wikipedia\\.org"
+    }
+  },
+  {
+    "id": "pypi-search",
+    "url": "https://pypi.org",
+    "goal": "Search PyPI for \"requests\" and stop on the results page.",
+    "expect": {
+      "url_match": "search",
+      "status": "blocked"
+    }
+  },
+  {
+    "id": "quotes-js-next",
+    "url": "https://quotes.toscrape.com/js/",
+    "goal": "Go to page 2 of the quotes using the Next link and stop.",
+    "expect": {
+      "url_match": "page/2"
+    }
+  },
+  {
+    "id": "tin-disappearing",
+    "url": "https://the-internet.herokuapp.com/disappearing_elements",
+    "goal": "Click the About link in the navigation and stop when the about page loads.",
+    "expect": {
+      "url_match": "about"
+    }
+  },
+  {
+    "id": "ddg-lite-search",
+    "url": "https://lite.duckduckgo.com/lite/",
+    "goal": "Search for \"devin ai cognition\" and stop on the results page.",
+    "expect": {
+      "status": "blocked"
+    }
+  },
+  {
+    "id": "sauce-sort",
+    "url": "https://www.saucedemo.com/",
+    "goal": "Log in with username \"standard_user\" and password \"secret_sauce\", then sort products by \"Price (low to high)\" and stop when the sorted inventory shows.",
+    "expect": {
+      "url_match": "inventory",
+      "action_match": "SELECT"
+    }
+  },
+  {
+    "id": "todomvc-complete",
+    "url": "https://demo.playwright.dev/todomvc/",
+    "goal": "Add the todo \"buy oat milk\", mark it complete, and stop.",
+    "expect": {
+      "text_match": "items? left"
+    }
+  },
+  {
+    "id": "jqueryui-sortable-drag",
+    "url": "https://jqueryui.com/sortable/",
+    "goal": "In the sortable demo, drag \"Item 7\" to the top of the list and stop.",
+    "expect": {
+      "action_match": "DRAG",
+      "state_match": "Item 7 \\S+ position=1 of 7"
+    }
+  },
+  {
+    "id": "demoqa-upload",
+    "url": "https://demoqa.com/upload-download",
+    "goal": "Upload the file {{UPLOAD_FIXTURE}} using the Choose File input and stop when the uploaded path shows.",
+    "expect": {
+      "text_match": "upload.txt"
+    }
+  },
+  {
+    "id": "react-select-single",
+    "url": "https://react-select.com/home",
+    "goal": "In the first dropdown on the page, select the option \"Ocean\" and stop.",
+    "expect": {
+      "action_match": "Ocean"
+    }
+  },
+  {
+    "id": "apg-tabs-auto",
+    "url": "https://www.w3.org/WAI/ARIA/apg/patterns/tabs/examples/tabs-automatic/",
+    "goal": "Activate the \"Ida da Fonseca\" tab and stop when its panel shows.",
+    "expect": {
+      "state_match": "Ida da Fonseca selected=true"
+    }
+  },
+  {
+    "id": "practice-shop-search",
+    "url": "https://practicesoftwaretesting.com/",
+    "goal": "Search for \"pliers\" and open the first product in the results.",
+    "expect": {
+      "url_match": "product"
+    }
+  },
+  {
+    "id": "github-repo-search",
+    "url": "https://github.com",
+    "goal": "Search GitHub for \"0x7067/jev-browse\" and open the 0x7067/jev-browse repository page.",
+    "expect": {
+      "url_match": "0x7067/jev-browse"
+    }
+  },
+  {
+    "id": "flights-boston-denver",
+    "url": "https://www.google.com/travel/flights?hl=en",
+    "goal": "Find one-way flights from Boston to Denver on {{DATE+30d}}, for one adult in economy. Stop when matching flight options are visible.",
+    "expect": {
+      "url_match": "tfs="
+    }
+  },
+  {
+    "id": "tin-download",
+    "url": "fixture-interactions.html",
+    "file_url": true,
+    "goal": "Download the file \"fixture-report.txt\" and stop once it has downloaded.",
+    "expect": {
+      "download_match": "fixture-report\\.txt"
+    }
+  },
+  {
+    "id": "books-price-answer",
+    "url": "https://books.toscrape.com/",
+    "goal": "Open the book \"A Light in the Attic\" and report its price.",
+    "expect": {
+      "answer_match": "\u00a351.77"
+    }
+  },
+  {
+    "id": "guide-anchor-broad",
+    "url": "https://ravnhq.github.io/claude-certified-architect/guides/en.html",
+    "goal": "Check whether this public Claude Certified Architect guide has a shareable section heading. Click a visible heading anchor or section link and stop when the URL has a section fragment and the matching section is visible, or when no such control is available. Do not submit forms.",
+    "max_steps": 10,
+    "expect": {
+      "url_match": "#.+",
+      "text_match": "Claude Certified Architect",
+      "action_match": "CLICK"
+    }
+  },
+  {
+    "id": "guide-anchor-precise",
+    "url": "https://ravnhq.github.io/claude-certified-architect/guides/en.html",
+    "goal": "Click exactly one visible # anchor beside a heading. The task is DONE immediately when the URL gains any # fragment. Stop there without clicking another link.",
+    "max_steps": 4,
+    "expect": {
+      "url_match": "#.+",
+      "action_match": "^CLICK:#[^ ]*$"
+    }
+  },
+  {
+    "id": "gallery-frame-readiness",
+    "url": "https://gallery-production-e6fd.up.railway.app/",
+    "goal": "Wait until both comparison preview frames report data-loaded=true. Do not vote, skip, or advance. Stop when both previews have that readiness signal.",
+    "max_steps": 8,
+    "expect": {
+      "frames_match": "\"attribute\":\"data-loaded\",\"value\":\"true\".*\"attribute\":\"data-loaded\",\"value\":\"true\""
+    }
+  },
+  {
+    "id": "certsafari-verification",
+    "url": "https://www.certsafari.com/anthropic/claude-certified-architect-foundations",
+    "goal": "Open Start quiz, then submit the Set up your quiz dialog using its Start quiz button with the default settings. Stop immediately if a verification challenge is visible; do not interact with verification. Do not answer any question.",
+    "max_steps": 8,
+    "expect": {
+      "status": "blocked",
+      "challenge_match": "visible_widget|verification_message|interstitial_text",
+      "action_not_match": "CLICK:(?!Start quiz)"
+    },
+    "completion": {
+      "text_match": "Question [0-9]+|Please complete verification to continue|Verifying with Cloudflare"
+    }
+  }
+]
