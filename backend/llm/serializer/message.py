@@ -107,7 +107,7 @@ class ChatMessageInputSerializer(serializers.Serializer):
     """POST /messages/ 요청 바디 검증 (content + 선택 사항 context)."""
     content = serializers.CharField(max_length=2200, allow_blank=False)
     context = serializers.DictField(required=False, allow_null=True)
-    tool_group_ids = serializers.ListField(child=serializers.CharField(), required=False, max_length=15)
+    tool_group_ids = serializers.ListField(child=serializers.CharField(), required=False, max_length=16)
     attachment_ids = serializers.ListField(child=serializers.UUIDField(), required=False)
 
     def validate_tool_group_ids(self, value):

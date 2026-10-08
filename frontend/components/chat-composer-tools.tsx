@@ -39,6 +39,7 @@ const toolPresentation: Record<string, { icon: Parameters<typeof Icon>[0]["name"
   baseball_stats: { icon: "chart", description: "야구" },
   rules: { icon: "book", description: "야구" },
   stadium_info: { icon: "stadium", description: "구장" },
+  carry_in: { icon: "stadium", description: "구장" },
   parking_transport: { icon: "car", description: "교통" },
   community: { icon: "chat", description: "커뮤니티" },
   nearby_places: { icon: "pin", description: "구장" },

@@ -26,6 +26,7 @@ TOOL_GROUP_LABELS = {
     "baseball_stats": "야구 기록",
     "rules": "규정",
     "stadium_info": "구장 정보",
+    "carry_in": "반입 규정",
     "parking_transport": "주차·교통",
     "community": "커뮤니티",
     "nearby_places": "주변 장소",

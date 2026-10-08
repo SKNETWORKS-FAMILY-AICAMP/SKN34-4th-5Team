@@ -31,6 +31,7 @@ CAPABILITY_TOOLS = {
         "get_stadiums", "get_stadium", "get_seat_zones", "get_seat_views", "get_seat_maps", "get_ticket_prices",
         "get_ticket_policies", "get_ticket_policy", "get_food_stores", "get_facilities", "get_stadium_contents", "get_transport", "search_kbo_documents",
     ),
+    "carry_in": ("get_stadium", "search_kbo_documents"),
     "parking_transport": ("get_stadium", "get_transport", "search_kbo_documents"),
     "community": ("search_community_posts", "get_prediction_games", "get_games"),
     "nearby_places": ("get_stadium", "search_places", "search_documents_tool", "ask_travel_research"),
