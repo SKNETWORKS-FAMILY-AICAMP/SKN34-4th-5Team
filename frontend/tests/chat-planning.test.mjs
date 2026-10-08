@@ -32,7 +32,7 @@ async function harness(count = 2, run) {
       .replace('from "./chat-inline-input"', 'from "./inline.cjs"')
       .replace('from "@/lib/chat/inline-urls"', 'from "./inline.cjs"')
       .replace('from "@/lib/chat/planning"', 'from "./helper.cjs"');
-    writeFileSync(join(scratch, "inline.cjs"), "exports.ChatInlineContent = () => null; exports.normalizeChatUrl = value => value; exports.inlineChatUrls = () => [];");
+    writeFileSync(join(scratch, "inline.cjs"), ts.transpileModule(readFileSync(join(frontend, "lib/chat/inline-urls.ts"), "utf8"), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText + "\nexports.ChatInlineContent = () => null;");
     writeFileSync(join(scratch, "helper.cjs"), ts.transpileModule(readFileSync(join(frontend, "lib/chat/planning.ts"), "utf8"), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText);
     writeFileSync(join(scratch, "planning.cjs"), ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText);
     const { ChatQuestions } = require("./planning.cjs");
@@ -111,6 +111,20 @@ test("manual composer pending collapses latest wizard without pretending it was 
   assert.equal(ChatUserContent({content:"시간: 18:30? 자유 답변", planning:h.props.message.planning}).props.text, "시간: 18:30? 자유 답변");
 }));
 
+test("history attachment fallback normalizes identity without repeating inline URLs or merging queries", () => harness(1, h => {
+  const { ChatUserContent } = h.require("./planning.cjs");
+  const content = "앞 https://BLOG.naver.com/post?id=42#section 뒤";
+  const attachments = [
+    { kind: "url", url: "https://blog.naver.com/post?id=42" },
+    { kind: "url", url: "https://blog.naver.com/post?id=43" },
+    { kind: "url", url: "https://blog.naver.com/post?id=43" },
+    { kind: "url", url: "javascript:alert(1)" },
+  ];
+  const tree = ChatUserContent({ content, attachments });
+  assert.equal(tree.props.text, content + "\nhttps://blog.naver.com/post?id=43");
+  assert.equal(tree.props.attachments, attachments);
+}));
+
 test("structured answer formatting preserves semantic values and ordinary colon text", () => harness(1, h => {
   const { planningAnswers } = h.require("./helper.cjs");
   const { ChatUserContent } = h.require("./planning.cjs");
@@ -120,7 +134,7 @@ test("structured answer formatting preserves semantic values and ordinary colon 
   const tree = ChatUserContent({content:text, planning});
   assert.equal(nodes(tree).find(n=>n.type==="span").props.children, "잠실 · 혼자 · 경기 전후 모두 · 대중교통·숙박 없음");
   assert.equal(nodes(tree).find(n=>n.type==="details").props.open, undefined);
-  assert.equal(nodes(tree).find(n=>n.type==="div").props.children, text);
+  assert.equal(nodes(tree).find(n=>n.type==="div").props.children.props.text, text);
   for (const ordinary of ["시간: 18:30? 숙박: 없음", "구장?: 잠실", "자유롭게 답해요"]) assert.equal(planningAnswers(ordinary, planning), undefined);
   assert.equal(planningAnswers(text), undefined);
   const multiline = {questions:[{question:"상세?"},{question:"이동?"}]};

@@ -38,13 +38,39 @@ test("sent and history URLs are safe real links without turning references into 
     const tree = flatten(exports.ChatInlineContent({ text, attachments, toolTags: ["@규칙"] }));
     const links = tree.filter(node => node.type === "a");
     assert.equal(links.length, 1);
-    assert.equal(links[0].props.href, "https://blog.naver.com/post?id=42");
+    assert.equal(links[0].props.href, attachments.length ? "https://BLOG.naver.com/post?id=42#section" : "https://blog.naver.com/post?id=42");
     assert.equal(links[0].props.target, "_blank");
     assert.equal(links[0].props.rel, "noopener noreferrer");
-    assert.equal(links[0].props.children, "https://BLOG.naver.com/post?id=42#section");
+    if (attachments.length) {
+      assert.equal(links[0].props.title, "https://BLOG.naver.com/post?id=42#section");
+      assert.equal(tree.find(node => node.props?.className === "chat-inline-chip-label").props.children, "blog.naver.com");
+    } else assert.equal(links[0].props.children, "https://BLOG.naver.com/post?id=42#section");
     assert.equal(tree.filter(node => node.type === "span" && node.props.children === "@규칙").length, 1);
   }
   assert.equal(flatten(exports.ChatInlineContent({ text: "javascript:alert(1) data:text/html,test https://localhost/x https://example.com:999/x [[ Text 99 ]]" })).filter(node => node.type === "a").length, 0);
+});
+
+test("only explicit URL attachments become read-only domain chips in surrounding prose", () => {
+  const attached = "https://fresh-play-life.tistory.com/46?item=1#details";
+  const other = "https://fresh-play-life.tistory.com/46?item=2";
+  const text = `앞 (${attached}), 중간 ${other} 뒤`;
+  const attachments = [{ kind: "url", url: attached }, { kind: "image", url: other }];
+  const result = exports.ChatInlineContent({ text, attachments });
+  const tree = flatten(result), links = tree.filter(node => node.type === "a");
+  const visible = node => typeof node === "string" ? node : Array.isArray(node) ? node.map(visible).join("") : node?.props ? visible(node.props.children) : "";
+  assert.equal(visible(result), `앞 (fresh-play-life.tistory.com), 중간 ${other} 뒤`);
+  assert.equal(links[0].props.href, attached);
+  assert.equal(links[0].props["aria-label"], `${attached} 새 탭에서 열기`);
+  assert.equal(links[1].props.children, other);
+  assert.equal(tree.filter(node => node.props?.className === "chat-inline-chip").length, 1);
+  assert.equal(tree.filter(node => node.type === "button").length, 0);
+  for (const url of ["javascript:alert(1)", "data:text/html,test", "https://user:pass@example.com/a", "https://localhost/a", "https://example.com:999/a", "https://example.com\\\\evil/a"]) {
+    assert.equal(flatten(exports.ChatInlineContent({ text: url, attachments: [{ kind: "url", url }] })).filter(node => node.type === "a").length, 0);
+  }
+  for (const file of ["chat-workspace.tsx", "chat-popup.tsx"]) {
+    assert.match(readFileSync(new URL(`../components/${file}`, import.meta.url), "utf8"), /ChatUserContent attachments=\{message.attachments\} content=\{message.content\}/);
+  }
+  assert.match(readFileSync(new URL("../components/chat-composer-tools.tsx", import.meta.url), "utf8"), /items = items.filter\(item => item.kind !== "url"/);
 });
 
 test("composer URL navigation is a safe sibling of removal, not a disclosure or submit control", () => {

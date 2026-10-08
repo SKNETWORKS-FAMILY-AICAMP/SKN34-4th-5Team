@@ -10,6 +10,7 @@ import { useMemberAuth } from "@/lib/member-auth";
 
 export function ChatInlineContent({ text, attachments = [], toolTags = [] }: { text: string; attachments?: (ChatAttachment | ChatAttachmentDraft)[]; toolTags?: string[] }) {
   const tokens = chatUrlTokens(text);
+  const attachedUrls = new Set(attachments.filter(item => item.kind === "url").map(item => normalizeChatUrl(("key" in item ? item.sourceUrl ?? item.attachment?.url : item.url) ?? "")));
   const references = [...attachments.flatMap(item => "key" in item && item.inlineText ? [item.inlineText] : []), ...toolTags];
   for (const marker of references) for (const match of text.matchAll(new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"))) tokens.push({ start: match.index!, end: match.index! + marker.length, literal: marker, url: "" });
   tokens.sort((left, right) => left.start - right.start);
@@ -17,7 +18,9 @@ export function ChatInlineContent({ text, attachments = [], toolTags = [] }: { t
   for (const token of tokens) {
     if (token.start < cursor) continue;
     parts.push(text.slice(cursor, token.start), token.url
-      ? <a className="chat-inline-url" key={token.start} href={token.url} target="_blank" rel="noopener noreferrer">{token.literal}</a>
+      ? attachedUrls.has(token.url)
+        ? <span className="chat-inline-chip" key={token.start} title={token.literal}><a className="chat-inline-chip-link" href={token.literal} title={token.literal} aria-label={`${token.literal} 새 탭에서 열기`} target="_blank" rel="noopener noreferrer"><Icon name="link" size={13} /><span className="chat-inline-chip-label">{new URL(token.url).hostname}</span></a></span>
+        : <a className="chat-inline-url" key={token.start} href={token.url} target="_blank" rel="noopener noreferrer">{token.literal}</a>
       : <span className="chat-inline-url" key={token.start}>{token.literal}</span>);
     cursor = token.end;
   }
