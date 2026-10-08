@@ -1,0 +1,941 @@
+[
+  {
+    "id": "example-link",
+    "url": "https://example.com",
+    "goal": "Open the 'More information' link. Stop once the page about example domains on iana.org is visible.",
+    "expect": {
+      "url_match": "iana\\.org"
+    }
+  },
+  {
+    "id": "hn-comments",
+    "url": "https://news.ycombinator.com",
+    "goal": "Open the comments page of the top story.",
+    "expect": {
+      "url_match": "news\\.ycombinator\\.com/item\\?id=\\d+"
+    }
+  },
+  {
+    "id": "algolia-search",
+    "url": "https://hn.algolia.com/",
+    "goal": "Search for \"openai codex\" and open the first story result.",
+    "expect": {
+      "url_not_match": "hn\\.algolia\\.com"
+    }
+  },
+  {
+    "id": "wikipedia-godel",
+    "url": "https://en.wikipedia.org/wiki/Main_Page",
+    "goal": "Find and open the Wikipedia article about Gödel's incompleteness theorems.",
+    "expect": {
+      "url_match": "incompleteness"
+    }
+  },
+  {
+    "id": "httpbin-form",
+    "url": "https://httpbin.org/forms/post",
+    "goal": "Fill the customer name field with \"Ada Lovelace\" and submit the form.",
+    "expect": {
+      "url_match": "httpbin\\.org/post"
+    }
+  },
+  {
+    "id": "tin-login",
+    "url": "https://the-internet.herokuapp.com/login",
+    "goal": "Log in with username \"tomsmith\" and password \"SuperSecretPassword!\" and stop when the secure area is visible.",
+    "expect": {
+      "url_match": "/secure",
+      "text_match": "You logged into a secure area"
+    }
+  },
+  {
+    "id": "tin-dropdown",
+    "url": "https://the-internet.herokuapp.com/dropdown",
+    "goal": "Select \"Option 2\" from the dropdown and stop.",
+    "expect": {
+      "action_match": "SELECT[\\s\\S]*Option 2"
+    }
+  },
+  {
+    "id": "tin-dynamic-loading",
+    "url": "https://the-internet.herokuapp.com/dynamic_loading/2",
+    "goal": "Click Start, wait for \"Hello World!\" to appear, and stop when it is visible.",
+    "expect": {
+      "text_match": "Hello World!"
+    }
+  },
+  {
+    "id": "tin-dynamic-controls",
+    "url": "https://the-internet.herokuapp.com/dynamic_controls",
+    "goal": "Click the Enable button, wait for the text input to become enabled, type \"hello\" into it, and stop.",
+    "expect": {
+      "text_match": "It's enabled"
+    }
+  },
+  {
+    "id": "fx-shadow",
+    "url": "fixture-interactions.html",
+    "file_url": true,
+    "goal": "Scroll to the shadow DOM section, click the \"Shadow action\" button inside the shadow root, and stop when DONE is visible.",
+    "expect": {
+      "text_match": "DONE\\(shadow\\)"
+    }
+  },
+  {
+    "id": "fx-hover-menu",
+    "url": "fixture-interactions.html",
+    "file_url": true,
+    "goal": "Open the Destinations menu and pick \"Alpine stays\". Stop when DONE is shown.",
+    "expect": {
+      "text_match": "DONE: alpine picked"
+    }
+  },
+  {
+    "id": "fx-iframe",
+    "url": "fixture-interactions.html",
+    "file_url": true,
+    "goal": "Scroll to the iframe section, click the button inside the frame, and stop when DONE is visible.",
+    "expect": {
+      "text_match": "DONE\\(frame\\)"
+    }
+  },
+  {
+    "id": "fx-modal",
+    "url": "fixture-interactions.html",
+    "file_url": true,
+    "goal": "Open the modal dialog and confirm deleting the draft. Stop when DONE is shown.",
+    "expect": {
+      "text_match": "DONE: draft deleted"
+    }
+  },
+  {
+    "id": "fx-new-tab",
+    "url": "fixture-interactions.html",
+    "file_url": true,
+    "goal": "Open the help page in a new tab and stop when the help page is visible.",
+    "expect": {
+      "text_match": "DONE: help visible"
+    }
+  },
+  {
+    "id": "fx-disabled-redeem",
+    "url": "fixture-interactions.html",
+    "file_url": true,
+    "goal": "Enter a code in the code field, click Redeem, and stop when DONE is shown.",
+    "expect": {
+      "text_match": "DONE: code redeemed"
+    }
+  },
+  {
+    "id": "fx-composer",
+    "url": "fixture-interactions.html",
+    "file_url": true,
+    "goal": "Write a note in the Message composer and send it. Stop when DONE is shown.",
+    "expect": {
+      "text_match": "DONE:"
+    }
+  },
+  {
+    "id": "fx-drag",
+    "url": "fixture-interactions.html",
+    "file_url": true,
+    "goal": "Drag the Postcard onto the Drop zone and stop when DONE is shown.",
+    "expect": {
+      "text_match": "DONE: postcard dropped"
+    }
+  },
+  {
+    "id": "fx-context",
+    "url": "fixture-interactions.html",
+    "file_url": true,
+    "goal": "Right-click the tile that says 'Right-click this tile' and stop when DONE is shown.",
+    "expect": {
+      "text_match": "DONE: context menu opened"
+    }
+  },
+  {
+    "id": "fx-range",
+    "url": "fixture-interactions.html",
+    "file_url": true,
+    "goal": "Move the Guests slider to 6 or more and stop when DONE is shown.",
+    "expect": {
+      "text_match": "DONE: guests="
+    }
+  },
+  {
+    "id": "fx-covered-click",
+    "url": "fixture-interactions.html",
+    "file_url": true,
+    "goal": "Click the \"Claim the prize\" button and stop when DONE is shown.",
+    "expect": {
+      "text_match": "DONE: prize claimed"
+    }
+  },
+  {
+    "id": "fx-slow-reveal",
+    "url": "fixture-interactions.html",
+    "file_url": true,
+    "goal": "Click \"Load the report\", wait for the report to finish loading, and stop when DONE is shown.",
+    "expect": {
+      "text_match": "DONE: report ready"
+    }
+  },
+  {
+    "id": "fx-below-fold-next",
+    "url": "fixture-interactions.html",
+    "file_url": true,
+    "goal": "Go to page 2 using the Next link and stop when DONE is shown.",
+    "expect": {
+      "text_match": "DONE: page 2"
+    }
+  },
+  {
+    "id": "tin-checkboxes",
+    "url": "https://the-internet.herokuapp.com/checkboxes",
+    "goal": "Check both checkboxes and stop.",
+    "expect": {
+      "state_match": "checked=true[\\s\\S]*checked=true"
+    }
+  },
+  {
+    "id": "tin-hovers",
+    "url": "https://the-internet.herokuapp.com/hovers",
+    "goal": "Hover over the first user avatar, click its \"View profile\" link, and stop once the user1 profile page is visible.",
+    "expect": {
+      "url_match": "users/1"
+    }
+  },
+  {
+    "id": "tin-file-upload",
+    "url": "https://the-internet.herokuapp.com/upload",
+    "goal": "Upload the file {{UPLOAD_FIXTURE}} using the file chooser and submit the form.",
+    "expect": {
+      "text_match": "File Uploaded"
+    }
+  },
+  {
+    "id": "tin-key-press",
+    "url": "https://the-internet.herokuapp.com/key_presses",
+    "goal": "Click into the target field and press the Tab key, then stop.",
+    "expect": {
+      "text_match": "You entered: TAB"
+    }
+  },
+  {
+    "id": "sauce-checkout",
+    "url": "https://www.saucedemo.com/",
+    "goal": "Log in with username \"standard_user\" and password \"secret_sauce\", add the Sauce Labs Backpack to the cart, and complete checkout with first name \"Ada\", last name \"Lovelace\", postal code \"12345\". Stop when the order confirmation is visible.",
+    "expect": {
+      "url_match": "checkout-complete",
+      "text_match": "Thank you for your order"
+    }
+  },
+  {
+    "id": "todomvc-add",
+    "url": "https://todomvc.com/examples/react/dist/",
+    "goal": "Add two todos: \"buy milk\" and \"walk dog\", then mark \"buy milk\" as completed.",
+    "expect": {
+      "text_match": "buy milk[\\s\\S]*walk dog"
+    }
+  },
+  {
+    "id": "tin-infinite-scroll",
+    "url": "https://the-internet.herokuapp.com/infinite_scroll",
+    "goal": "Scroll down twice to load more content and stop.",
+    "expect": {
+      "action_match": "(SCROLL_DOWN|PRESS_PAGEDOWN|PRESS_END)[\\s\\S]*(SCROLL_DOWN|PRESS_PAGEDOWN|PRESS_END)"
+    }
+  },
+  {
+    "id": "tin-sortable",
+    "url": "https://the-internet.herokuapp.com/tables",
+    "goal": "Sort the first table by the \"Last Name\" column header.",
+    "expect": {
+      "status": "done"
+    }
+  },
+  {
+    "id": "tin-nested-frames",
+    "url": "https://the-internet.herokuapp.com/nested_frames",
+    "goal": "Click any button or link inside the nested frames and stop.",
+    "expect": {
+      "status": "blocked"
+    }
+  },
+  {
+    "id": "tin-jquery-menu",
+    "url": "https://the-internet.herokuapp.com/jqueryui/menu",
+    "goal": "Hover through the menu and click any file-format option under Downloads.",
+    "expect": {
+      "action_match": "PDF|CSV|Excel"
+    }
+  },
+  {
+    "id": "tin-horizontal-slider",
+    "url": "https://the-internet.herokuapp.com/horizontal_slider",
+    "goal": "Move the slider to 4 or higher and stop.",
+    "expect": {
+      "text_match": "\\b(4(\\.5)?|5) Powered by"
+    }
+  },
+  {
+    "id": "tin-entry-ad",
+    "url": "https://the-internet.herokuapp.com/entry_ad",
+    "goal": "Close the modal ad that appears and stop.",
+    "expect": {
+      "text_match": "^(?!.*[Tt]his is a modal window).*To re-enable it"
+    }
+  },
+  {
+    "id": "tin-windows",
+    "url": "https://the-internet.herokuapp.com/windows",
+    "goal": "Open the new window via the link and stop when the new page is visible.",
+    "expect": {
+      "url_match": "windows/new",
+      "text_match": "New Window"
+    }
+  },
+  {
+    "id": "demoqa-autocomplete",
+    "url": "https://demoqa.com/auto-complete",
+    "goal": "Type \"re\" in the multiple-color field and pick a suggestion, then stop.",
+    "expect": {
+      "text_match": "option (Red|Green), selected"
+    }
+  },
+  {
+    "id": "jqueryui-datepicker",
+    "url": "https://jqueryui.com/datepicker/",
+    "goal": "Open the date picker in the demo frame and click a day, then stop.",
+    "expect": {
+      "action_match": "CLICK:\\d{1,2}(?: |$)"
+    }
+  },
+  {
+    "id": "tin-challenging-dom",
+    "url": "https://the-internet.herokuapp.com/challenging_dom",
+    "goal": "Click any of the three colored buttons at the top of the page and stop.",
+    "expect": {
+      "action_match": "CLICK:(foo|bar|baz|qux)"
+    }
+  },
+  {
+    "id": "hn-paginate",
+    "url": "https://news.ycombinator.com/",
+    "goal": "Go to the second page of stories via the More link and stop.",
+    "expect": {
+      "url_match": "p=2"
+    }
+  },
+  {
+    "id": "tin-redirector",
+    "url": "https://the-internet.herokuapp.com/redirector",
+    "goal": "Follow the redirect link and stop when the status codes page loads.",
+    "expect": {
+      "url_match": "status_codes"
+    }
+  },
+  {
+    "id": "tin-notification",
+    "url": "https://the-internet.herokuapp.com/notification_message_rendered",
+    "goal": "Click the link to load a notification message and stop.",
+    "expect": {
+      "text_match": "Action"
+    }
+  },
+  {
+    "id": "tin-dynamic-content",
+    "url": "https://the-internet.herokuapp.com/dynamic_content",
+    "goal": "Click the \"click here\" link that makes some of the content static, and stop.",
+    "expect": {
+      "url_match": "with_content=static"
+    }
+  },
+  {
+    "id": "tin-slow",
+    "url": "https://the-internet.herokuapp.com/slow",
+    "goal": "Wait for the page to finish loading its external resources and stop.",
+    "expect": {
+      "url_match": "/slow$",
+      "action_match": "WAIT"
+    }
+  },
+  {
+    "id": "wikipedia-search-nav",
+    "url": "https://en.wikipedia.org/",
+    "goal": "Search Wikipedia for \"Turing machine\", open the article, then stop on the article page.",
+    "expect": {
+      "url_match": "wiki/Turing"
+    }
+  },
+  {
+    "id": "lobsters-comments",
+    "url": "https://lobste.rs/",
+    "goal": "Open the comments page of the top story and stop.",
+    "expect": {
+      "url_match": "lobste.rs/s/"
+    }
+  },
+  {
+    "id": "crates-search",
+    "url": "https://crates.io/",
+    "goal": "Search crates.io for \"serde\" and stop on the results page.",
+    "expect": {
+      "url_match": "q=serde|search"
+    }
+  },
+  {
+    "id": "europa-consent",
+    "url": "https://european-union.europa.eu/",
+    "goal": "Dismiss the cookie consent banner if one appears, then stop.",
+    "expect": {
+      "text_match": "^(?!.*Accept all cookies).*Your gateway to the European Union"
+    }
+  },
+  {
+    "id": "mdn-search",
+    "url": "https://developer.mozilla.org/",
+    "goal": "Search MDN for \"fetch api\" and stop when results or the article shows.",
+    "expect": {
+      "url_match": "developer\\.mozilla\\.org/.*(search\\?q=fetch|docs/Web/API/Fetch)"
+    }
+  },
+  {
+    "id": "books-toscrape",
+    "url": "https://books.toscrape.com/",
+    "goal": "Open any book's detail page and stop.",
+    "expect": {
+      "url_match": "catalogue"
+    }
+  },
+  {
+    "id": "tin-large-dom",
+    "url": "https://the-internet.herokuapp.com/large",
+    "goal": "Scroll the page down to reach content below the fold, then stop.",
+    "expect": {
+      "action_match": "SCROLL_DOWN"
+    }
+  },
+  {
+    "id": "tin-context-menu",
+    "url": "https://the-internet.herokuapp.com/context_menu",
+    "goal": "Right-click the hot-spot box to trigger the alert, then stop.",
+    "expect": {
+      "action_match": "CONTEXT_CLICK"
+    }
+  },
+  {
+    "id": "tin-js-alerts",
+    "url": "https://the-internet.herokuapp.com/javascript_alerts",
+    "goal": "Click the JS Alert button and stop.",
+    "expect": {
+      "text_match": "clicked an alert"
+    }
+  },
+  {
+    "id": "tin-drag-drop",
+    "url": "https://the-internet.herokuapp.com/drag_and_drop",
+    "goal": "Drag element A onto element B and stop.",
+    "expect": {
+      "action_match": "DRAG",
+      "text_match": "Drag and Drop B A"
+    }
+  },
+  {
+    "id": "parabank-login",
+    "url": "https://parabank.parasoft.com/parabank/index.htm",
+    "goal": "Log in with username \"john\" and password \"demo\" and stop when the accounts page shows.",
+    "expect": {
+      "url_match": "overview",
+      "text_match": "Accounts Overview"
+    }
+  },
+  {
+    "id": "parabank-transfer",
+    "url": "https://parabank.parasoft.com/parabank/index.htm",
+    "goal": "Log in with username \"john\" and password \"demo\", open Transfer Funds, transfer 50 dollars between the first two accounts, and stop when the transfer confirmation shows.",
+    "expect": {
+      "url_match": "transfer",
+      "text_match": "Transfer Complete"
+    }
+  },
+  {
+    "id": "github-issues",
+    "url": "https://github.com/nodejs/node",
+    "goal": "Open the Issues tab of this repository.",
+    "expect": {
+      "url_match": "/issues"
+    }
+  },
+  {
+    "id": "flights-zurich-london",
+    "url": "https://www.google.com/travel/flights?hl=en",
+    "goal": "Find one-way flights from Zurich to London on {{DATE+30d}}, for one adult in economy. Stop when matching flight options are visible.",
+    "expect": {
+      "url_match": "tfs="
+    }
+  },
+  {
+    "id": "fx-quiz-setup",
+    "file_url": true,
+    "url": "evals/fixtures/replay.html?scenario=setup",
+    "goal": "Start the practice quiz. Stop when the first actual question is visible. Do not answer it.",
+    "max_steps": 8,
+    "expect": {
+      "text_match": "Question 1.*red planet",
+      "action_match": "CLICK.*CLICK"
+    }
+  },
+  {
+    "id": "fx-quiz-challenge",
+    "file_url": true,
+    "url": "evals/fixtures/replay.html?scenario=challenge",
+    "goal": "Start the practice quiz. Stop at a verification challenge without interacting with verification.",
+    "max_steps": 8,
+    "expect": {
+      "text_match": "Please complete verification to continue",
+      "status": "blocked",
+      "challenge_match": "visible_widget|verification_message",
+      "action_not_match": "CLICK:(?!Start quiz)"
+    }
+  },
+  {
+    "id": "fx-hidden-challenge",
+    "file_url": true,
+    "url": "evals/fixtures/replay.html?scenario=hidden-challenge",
+    "goal": "Read the public article. Stop when Article ready to read is visible.",
+    "expect": {
+      "text_match": "Article ready to read"
+    }
+  },
+  {
+    "id": "fx-guide-anchor",
+    "file_url": true,
+    "url": "evals/fixtures/replay.html?scenario=anchors",
+    "goal": "Click exactly one visible # anchor beside a heading. Stop immediately when the URL gains any # fragment. Do not click another link.",
+    "max_steps": 4,
+    "expect": {
+      "url_match": "#(foundations|developer)$",
+      "action_match": "^CLICK:#[^ ]*$"
+    }
+  },
+  {
+    "id": "fx-frame-readiness",
+    "file_url": true,
+    "url": "evals/fixtures/replay.html?scenario=frames",
+    "goal": "Wait until both Preview A and Preview B report data-loaded=true. Stop when both previews have that readiness signal.",
+    "max_steps": 12,
+    "expect": {
+      "frames_match": "(?=.*\"title\":\"Preview A\")(?=.*\"title\":\"Preview B\")(?=.*\"accessibility\":\"inaccessible\").*\"value\":\"true\".*\"value\":\"true\""
+    }
+  },
+  {
+    "id": "fx-quiz-explicit",
+    "file_url": true,
+    "url": "evals/fixtures/replay.html?scenario=setup",
+    "goal": "Start the practice quiz. Stop when the first actual question is visible. Do not answer it.",
+    "completion": {
+      "text_match": "Question 1.*red planet"
+    },
+    "expect": {
+      "text_match": "Question 1.*red planet",
+      "action_match": "CLICK.*CLICK"
+    }
+  },
+  {
+    "id": "fx-completion-missing",
+    "file_url": true,
+    "url": "evals/fixtures/replay.html?scenario=hidden-challenge",
+    "goal": "Read the public article. Stop when Article ready to read is visible.",
+    "completion": {
+      "text_match": "ARTICLE APPROVED BY EDITOR"
+    },
+    "max_steps": 4,
+    "expect": {
+      "status": "blocked",
+      "text_match": "Article ready to read"
+    }
+  },
+  {
+    "id": "fx-goal-open-ended",
+    "file_url": true,
+    "url": "evals/fixtures/replay.html?scenario=setup",
+    "goal": "Get the practice quiz ready for me to answer. Leave the answers untouched.",
+    "max_steps": 8,
+    "expect": {
+      "text_match": "Question 1.*red planet",
+      "action_match": "CLICK.*CLICK",
+      "action_not_match": "CLICK:(Mars|Venus)"
+    }
+  },
+  {
+    "id": "fx-goal-already-satisfied",
+    "file_url": true,
+    "url": "evals/fixtures/replay.html?scenario=hidden-challenge",
+    "goal": "Read the public article.",
+    "max_steps": 4,
+    "expect": {
+      "text_match": "Article ready to read",
+      "action_not_match": "."
+    }
+  },
+  {
+    "id": "fx-goal-history",
+    "file_url": true,
+    "url": "evals/fixtures/replay.html?scenario=progress",
+    "goal": "Enable email updates, then proceed to the dashboard.",
+    "max_steps": 8,
+    "expect": {
+      "text_match": "Dashboard.*Email updates enabled",
+      "action_match": "CLICK.*CLICK"
+    }
+  },
+  {
+    "id": "fx-goal-action-only",
+    "file_url": true,
+    "url": "evals/fixtures/replay.html?scenario=action-only",
+    "goal": "Click Ping exactly once, then stop.",
+    "max_steps": 3,
+    "expect": {
+      "action_match": "^CLICK:Ping$",
+      "text_match": "Connection panel"
+    }
+  },
+  {
+    "id": "fx-goal-unobservable",
+    "file_url": true,
+    "url": "evals/fixtures/replay.html?scenario=hidden-challenge",
+    "goal": "Verify that the editor approved this article. Do not assume that publication means approval. If the page provides no approval evidence and no way to inspect it, report blocked.",
+    "max_steps": 4,
+    "expect": {
+      "status": "blocked",
+      "action_not_match": "CLICK|TYPE_TEXT|SELECT"
+    }
+  },
+  {
+    "id": "fx-answer-summary",
+    "file_url": true,
+    "url": "evals/fixtures/answer-evidence.html",
+    "goal": "Summarize the station report, including each station sensor count and the maintenance window.",
+    "max_steps": 4,
+    "expect": {
+      "answer_match": "(?=[\\s\\S]*North)(?=[\\s\\S]*18)(?=[\\s\\S]*South)(?=[\\s\\S]*12)(?=[\\s\\S]*Tuesday)(?=[\\s\\S]*14:00)(?=[\\s\\S]*16:00)"
+    }
+  },
+  {
+    "id": "fx-answer-comparison",
+    "file_url": true,
+    "url": "evals/fixtures/answer-evidence.html",
+    "goal": "Read the report and tell me if both stations have the same number of active sensors. Provide the two counts.",
+    "max_steps": 4,
+    "expect": {
+      "answer_match": "(?=[\\s\\S]*18)(?=[\\s\\S]*12)(?=[\\s\\S]*(?:[Nn]o|different|not|unequal))"
+    }
+  },
+  {
+    "id": "fx-delegated-blue",
+    "file_url": true,
+    "url": "evals/fixtures/delegated-controls.html",
+    "goal": "Select blue using its control. Stop when the page confirms Selected blue.",
+    "max_steps": 5,
+    "expect": {
+      "text_match": "Selected blue",
+      "action_not_match": "CLICK:Delegated control panel"
+    }
+  },
+  {
+    "id": "fx-delegated-amber",
+    "file_url": true,
+    "url": "evals/fixtures/delegated-controls.html",
+    "goal": "Select amber using its control. Stop when the page confirms Selected amber.",
+    "max_steps": 5,
+    "expect": {
+      "text_match": "Selected amber",
+      "action_not_match": "CLICK:Delegated control panel"
+    }
+  },
+  {
+    "id": "fx-delegated-purple",
+    "file_url": true,
+    "url": "evals/fixtures/delegated-controls.html",
+    "goal": "Select purple using its control. Stop when the page confirms Selected purple.",
+    "max_steps": 5,
+    "expect": {
+      "text_match": "Selected purple",
+      "action_not_match": "CLICK:Delegated control panel"
+    }
+  },
+  {
+    "id": "fx-nested-frame-form",
+    "file_url": true,
+    "url": "evals/fixtures/nested-controls.html",
+    "goal": "Enter 4826 as the access code, select High priority, and apply the settings. Stop when Submitted 4826 High is visible.",
+    "max_steps": 12,
+    "expect": {
+      "text_match": "Submitted 4826 High",
+      "action_match": "TYPE_TEXT.*SELECT.*CLICK"
+    }
+  },
+  {
+    "id": "fx-shadow-form",
+    "file_url": true,
+    "url": "evals/fixtures/nested-controls.html",
+    "goal": "Enter Copper moon as the shadow note and save it. Stop when Saved Copper moon is visible.",
+    "max_steps": 8,
+    "expect": {
+      "text_match": "Saved Copper moon",
+      "action_match": "TYPE_TEXT.*CLICK"
+    }
+  },
+  {
+    "id": "fx-current-date",
+    "file_url": true,
+    "url": "evals/fixtures/current-date.html",
+    "goal": "Enter today’s UTC date in YYYY-MM-DD format in Reference date, then click Check date. Stop once verified.",
+    "max_steps": 6,
+    "expect": {
+      "text_match": "Current UTC date verified",
+      "action_match": "TYPE_TEXT.*CLICK"
+    }
+  },
+  {
+    "id": "fx-answer-recovery",
+    "file_url": true,
+    "url": "evals/fixtures/answer-recovery.html",
+    "goal": "Summarize both stations sensor counts and the maintenance window.",
+    "max_steps": 8,
+    "expect": {
+      "url_match": "answer-evidence\\.html$",
+      "answer_match": "(?=[\\s\\S]*18)(?=[\\s\\S]*12)(?=[\\s\\S]*Tuesday)(?=[\\s\\S]*14:00)(?=[\\s\\S]*16:00)"
+    }
+  },
+  {
+    "id": "fx-clipped-search",
+    "file_url": true,
+    "url": "evals/fixtures/clipped-controls.html",
+    "goal": "Search for marine biology using the search panel.",
+    "max_steps": 8,
+    "expect": {
+      "text_match": "Search completed: marine biology",
+      "action_match": "CLICK.*TYPE_TEXT.*CLICK"
+    }
+  },
+  {
+    "id": "fx-clipped-scroll",
+    "file_url": true,
+    "url": "evals/fixtures/clipped-controls.html",
+    "goal": "Confirm the bottom item in the scrollable notes.",
+    "max_steps": 8,
+    "expect": {
+      "text_match": "Bottom item confirmed"
+    }
+  },
+  {
+    "id": "fx-tab-roundtrip",
+    "file_url": true,
+    "url": "evals/fixtures/tab-start.html",
+    "goal": "Read the report code in the dispatch report tab, then return to the dispatch dashboard and submit that code.",
+    "max_steps": 12,
+    "expect": {
+      "text_match": "Dispatch verified",
+      "url_match": "tab-start\\.html$",
+      "action_match": "FOCUS_TAB.*TYPE_TEXT.*CLICK"
+    }
+  },
+  {
+    "id": "fx-link-destination",
+    "file_url": true,
+    "url": "evals/fixtures/navigation-links.html",
+    "goal": "Open the delivery reference and stop once it is visible.",
+    "max_steps": 5,
+    "expect": {
+      "url_match": "navigation-delivery\\.html$",
+      "text_match": "Delivery reference"
+    }
+  },
+  {
+    "id": "fx-delayed-menu",
+    "url": "evals/fixtures/delayed-menu.html",
+    "file_url": true,
+    "goal": "Open Reports and export the quarterly report. Stop when export is confirmed.",
+    "expect": {
+      "text_match": "Quarterly report exported"
+    }
+  },
+  {
+    "id": "fx-large-controls",
+    "url": "evals/fixtures/large-controls.html",
+    "file_url": true,
+    "goal": "Export the quarterly report and stop when export is confirmed.",
+    "expect": {
+      "text_match": "Quarterly report exported"
+    }
+  },
+  {
+    "id": "fx-styled-select",
+    "url": "evals/fixtures/styled-select.html",
+    "file_url": true,
+    "goal": "Set Sort inventory to Price: Low to High and stop when the inventory is sorted.",
+    "expect": {
+      "text_match": "Inventory sorted by ascending price"
+    }
+  },
+  {
+    "id": "fx-double-main",
+    "url": "evals/fixtures/double-click.html",
+    "file_url": true,
+    "goal": "Double-click Open main report and stop when its preview opens.",
+    "expect": {
+      "text_match": "Main preview opened with two clicks"
+    }
+  },
+  {
+    "id": "fx-double-shadow",
+    "url": "evals/fixtures/double-click.html",
+    "file_url": true,
+    "goal": "Double-click Open shadow report and stop when its preview opens.",
+    "expect": {
+      "text_match": "Shadow preview opened with two clicks"
+    }
+  },
+  {
+    "id": "fx-double-covered",
+    "url": "evals/fixtures/double-click.html",
+    "file_url": true,
+    "goal": "Double-click Open covered report and stop when its preview opens.",
+    "expect": {
+      "text_match": "Covered preview opened with two clicks"
+    }
+  },
+  {
+    "id": "fx-double-frame",
+    "url": "evals/fixtures/double-click.html",
+    "file_url": true,
+    "goal": "Double-click Open framed report and stop when its preview opens.",
+    "expect": {
+      "text_match": "Frame preview opened with two clicks"
+    }
+  },
+  {
+    "id": "fx-table-answer",
+    "url": "evals/fixtures/table-evidence.html",
+    "file_url": true,
+    "goal": "Sort Current staff by given name ascending, then report only the family name of its first data row.",
+    "expect": {
+      "answer_match": "^Quinn$"
+    }
+  },
+  {
+    "id": "fx-pagination",
+    "url": "evals/fixtures/pagination.html",
+    "file_url": true,
+    "goal": "Advance through the inventory pages until the inventory review is complete.",
+    "expect": {
+      "text_match": "Inventory review complete"
+    }
+  },
+  {
+    "id": "fx-countdown-controls",
+    "url": "evals/fixtures/countdown-controls.html",
+    "file_url": true,
+    "goal": "Open the operations report and stop when it is open.",
+    "expect": {
+      "text_match": "Operations report opened"
+    }
+  },
+  {
+    "id": "fx-evidence-role",
+    "url": "evals/fixtures/evidence-coverage.html",
+    "file_url": true,
+    "goal": "Find a workshop costing under $50 and give its name and instructor.",
+    "expect": {
+      "answer_match": "River Mapping[\\s\\S]*Kai Reed|Kai Reed[\\s\\S]*River Mapping",
+      "text_match": "Instructor: Kai Reed"
+    }
+  },
+  {
+    "id": "fx-evidence-options",
+    "url": "evals/fixtures/evidence-coverage.html",
+    "file_url": true,
+    "goal": "What is the maximum battery capacity available for the Touring bicycle?",
+    "expect": {
+      "answer_match": "750",
+      "text_match": "All supported battery configurations"
+    }
+  },
+  {
+    "id": "fx-reload-recovery",
+    "url": "evals/fixtures/reload-loop.html",
+    "file_url": true,
+    "goal": "Open the station report and report only North station's sensor count.",
+    "expect": {
+      "answer_match": "^18$",
+      "url_match": "answer-evidence\\.html$"
+    }
+  },
+  {
+    "id": "fx-field-recovery",
+    "url": "evals/fixtures/field-recovery.html",
+    "file_url": true,
+    "goal": "Verify this inspection using the code from its sealed report.",
+    "max_steps": 8,
+    "expect": {
+      "text_match": "Inspection verified"
+    }
+  },
+  {
+    "id": "fx-field-unavailable",
+    "url": "evals/fixtures/field-recovery.html?missing",
+    "file_url": true,
+    "goal": "Verify this inspection using the code from its sealed report.",
+    "max_steps": 8,
+    "expect": {
+      "status": "blocked",
+      "text_match": "Inspection pending"
+    }
+  },
+  {
+    "id": "fx-evidence-retention",
+    "url": "evals/fixtures/evidence-retention.html",
+    "file_url": true,
+    "goal": "Open Pricing, then scroll down to Plan guide chapter 12 and read it. Finally report the Team plan price per seat.",
+    "max_steps": 20,
+    "expect": {
+      "answer_match": "\\b14\\b",
+      "action_match": "CLICK:Pricing(?:[\\s\\S]*SCROLL_DOWN){11}"
+    }
+  },
+  {
+    "id": "fx-persistent-challenge",
+    "url": "evals/fixtures/persistent-challenge.html",
+    "file_url": true,
+    "goal": "Find the iOS version AirDrop over the internet requires.",
+    "max_steps": 12,
+    "expect": {
+      "status": "blocked",
+      "challenge_match": "visible_widget|interstitial_text",
+      "action_not_match": "(CLICK:I'm not a robot[\\s\\S]*){3}"
+    }
+  },
+  {
+    "id": "fx-clearing-challenge",
+    "url": "evals/fixtures/persistent-challenge.html?clears",
+    "file_url": true,
+    "goal": "Find the iOS version AirDrop over the internet requires.",
+    "max_steps": 12,
+    "expect": {
+      "answer_match": "17\\.1"
+    }
+  },
+  {
+    "id": "fx-control-label-answer",
+    "url": "evals/fixtures/control-label-answer.html",
+    "file_url": true,
+    "goal": "Report the lowest listed price for this 2 year protection plan.",
+    "max_steps": 6,
+    "expect": {
+      "status": "done",
+      "answer_match": "37\\.49"
+    }
+  }
+]

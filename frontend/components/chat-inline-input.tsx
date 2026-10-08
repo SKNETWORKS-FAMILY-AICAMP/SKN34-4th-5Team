@@ -9,14 +9,19 @@ import { Icon } from "./icons";
 import { useMemberAuth } from "@/lib/member-auth";
 
 export function ChatInlineContent({ text, attachments = [], toolTags = [] }: { text: string; attachments?: (ChatAttachment | ChatAttachmentDraft)[]; toolTags?: string[] }) {
-  const tokens = chatUrlTokens(text).filter(token => attachments.some(item => item.kind === "url" && normalizeChatUrl("key" in item ? item.sourceUrl ?? item.attachment?.url ?? item.name : item.url ?? "") === token.url));
+  const tokens = chatUrlTokens(text);
+  const attachedUrls = new Set(attachments.filter(item => item.kind === "url").map(item => normalizeChatUrl(("key" in item ? item.sourceUrl ?? item.attachment?.url : item.url) ?? "")));
   const references = [...attachments.flatMap(item => "key" in item && item.inlineText ? [item.inlineText] : []), ...toolTags];
   for (const marker of references) for (const match of text.matchAll(new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"))) tokens.push({ start: match.index!, end: match.index! + marker.length, literal: marker, url: "" });
   tokens.sort((left, right) => left.start - right.start);
   const parts = []; let cursor = 0;
   for (const token of tokens) {
     if (token.start < cursor) continue;
-    parts.push(text.slice(cursor, token.start), <span className="chat-inline-url" key={token.start}>{token.literal}</span>);
+    parts.push(text.slice(cursor, token.start), token.url
+      ? attachedUrls.has(token.url)
+        ? <span className="chat-inline-chip" key={token.start} title={token.literal}><a className="chat-inline-chip-link" href={token.literal} title={token.literal} aria-label={`${token.literal} 새 탭에서 열기`} target="_blank" rel="noopener noreferrer"><Icon name="link" size={13} /><span className="chat-inline-chip-label">{new URL(token.url).hostname}</span></a></span>
+        : <a className="chat-inline-url" key={token.start} href={token.url} target="_blank" rel="noopener noreferrer">{token.literal}</a>
+      : <span className="chat-inline-url" key={token.start}>{token.literal}</span>);
     cursor = token.end;
   }
   parts.push(text.slice(cursor));
@@ -160,14 +165,14 @@ export function ChatInlineInput({ id, inputRef, disabled, available, onSend, onC
     const focused = document.activeElement === root;
     // External restoration/identity changes are not additional undo entries.
     previous.current = chat.draft;
-    const atoms: { start: number; end: number; marker: string; label: string; title: string; key?: string; group?: ChatToolGroup; state?: string }[] = [];
+    const atoms: { start: number; end: number; marker: string; label: string; title: string; key?: string; url?: string; group?: ChatToolGroup; state?: string }[] = [];
     for (const item of chat.attachments) {
       if (item.inlineText) {
         const start = chat.draft.indexOf(item.inlineText);
         if (start >= 0) atoms.push({ start, end: start + item.inlineText.length, marker: item.inlineText, label: item.inlineText, title: item.error ?? item.name, key: item.key, state: item.state });
       } else if (item.kind === "url") for (const token of chatUrlTokens(chat.draft).filter(token => token.url === normalizeChatUrl(item.sourceUrl ?? item.attachment?.url ?? item.name))) {
         const url = new URL(token.url);
-        atoms.push({ start: token.start, end: token.end, marker: token.literal, label: url.hostname, title: token.url, key: item.key, state: item.state });
+        atoms.push({ start: token.start, end: token.end, marker: token.literal, label: url.hostname, title: token.url, url: token.url, key: item.key, state: item.state });
       }
     }
     for (const group of groups.filter(group => chat.toolGroupIds.includes(group.id))) {
@@ -185,14 +190,16 @@ export function ChatInlineInput({ id, inputRef, disabled, available, onSend, onC
       const chip = document.createElement("span"); chip.contentEditable = "false"; chip.dataset.marker = atom.marker; chip.className = "chat-inline-chip"; chip.title = atom.title;
       const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg"); icon.setAttribute("viewBox", "0 0 24 24"); icon.setAttribute("aria-hidden", "true");
       // Copy the incumbent icon path rendered below, rather than maintain a second icon library.
-      const template = root.parentElement?.querySelector(`[data-chip-icon="${atom.group?.id ?? (atom.key && atom.marker.startsWith("http") ? "url" : "text")}"] svg`);
+      const template = root.parentElement?.querySelector(`[data-chip-icon="${atom.group?.id ?? (atom.url ? "url" : "text")}"] svg`);
       if (template) icon.innerHTML = template.innerHTML;
       const label = document.createElement("span"); label.className = "chat-inline-chip-label"; label.textContent = atom.label;
-      chip.append(icon, label);
-      if (atom.state && atom.state !== "ready") { const status = document.createElement("span"); status.textContent = atom.state === "uploading" ? "등록 중" : "등록 실패"; status.setAttribute("role", "status"); chip.append(status); }
-      if (atom.key && atom.marker.startsWith("http")) {
-        const disclosure = document.createElement("button"); disclosure.type = "button"; disclosure.className = "chat-inline-disclosure"; disclosure.textContent = "주소"; disclosure.setAttribute("aria-label", `전체 주소: ${atom.title}`); disclosure.onclick = () => { disclosure.textContent = disclosure.textContent === "주소" ? atom.title : "주소"; }; chip.append(disclosure);
-      }
+      if (atom.url) {
+        const link = document.createElement("a"); link.className = "chat-inline-chip-link"; link.href = atom.url; link.target = "_blank"; link.rel = "noopener noreferrer";
+        link.setAttribute("aria-label", `${atom.title} 새 탭에서 열기`);
+        link.onmousedown = event => event.preventDefault(); link.onclick = event => event.stopPropagation();
+        link.append(icon, label); chip.append(link);
+      } else chip.append(icon, label);
+      if (atom.state && atom.state !== "ready") { const status = document.createElement("span"); status.className = "chat-inline-chip-status"; status.textContent = atom.state === "uploading" ? "등록 중" : "등록 실패"; status.setAttribute("role", "status"); chip.append(status); }
       if (atom.key && ["failed", "cancelled"].includes(atom.state ?? "")) { const retry = document.createElement("button"); retry.type = "button"; retry.textContent = "재시도"; retry.disabled = disabled; retry.onmousedown = event => event.preventDefault(); retry.onclick = () => chat.onRetryAttachment(atom.key!); chip.append(retry); }
       const remove = document.createElement("button"); remove.type = "button"; remove.disabled = disabled; remove.textContent = "×"; remove.setAttribute("aria-label", `${atom.title} 삭제`);
       remove.onmousedown = event => event.preventDefault(); remove.onclick = () => { change(chat.draft.slice(0, atom.start) + chat.draft.slice(atom.end), { start: atom.start, end: atom.start }); inputRef.current?.focus(); };

@@ -17,6 +17,14 @@
 .chat-progress-disclosure > .chat-progress-title, .chat-progress-disclosure > .chat-progress-detail { margin: 2px 0 0 24px; }
 
 /* 입력창 바로 위 실행 중 서브에이전트 (workspace/popup 공용) */
-.chat-subagent-status { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 4px; font-size: 13px; color: var(--muted, #666); }
-.chat-subagent-status li { display: flex; gap: 6px; min-width: 0; }
-.chat-subagent-status li span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-subagent-status { list-style: none; margin: 0 0 8px; padding: 8px 10px; display: grid; gap: 8px; min-width: 0; border-radius: 8px; background: #f1f6fe; color: #526984; font-size: 13px; line-height: 1.6; }
+.chat-subagent-status > li { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; align-items: start; gap: 8px; min-width: 0; }
+.chat-subagent-status .chat-subagent-icon { margin-top: 3px; color: #2458a8; }
+.chat-subagent-status .chat-subagent-copy { min-width: 0; overflow-wrap: anywhere; }
+.chat-subagent-status .chat-subagent-role { color: #2458a8; font-weight: 500; }
+.chat-subagent-status .chat-subagent-state { padding-top: 1px; font-size: 12px; white-space: nowrap; }
+.chat-subagent-status ::selection { background: #d4e3f9; color: #173f7a; }
+@media (max-width: 479px) {
+  .chat-subagent-status > li { grid-template-columns: 16px minmax(0, 1fr); column-gap: 8px; row-gap: 2px; }
+  .chat-subagent-status .chat-subagent-state { grid-column: 2; padding-top: 0; }
+}

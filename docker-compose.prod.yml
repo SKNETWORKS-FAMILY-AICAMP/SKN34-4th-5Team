@@ -5,6 +5,29 @@ x-logging: &default-logging
     max-file: "3"
 
 services:
+  jev-browser:
+    profiles: [web-research]
+    build: ./docker/jev-browser
+    restart: unless-stopped
+    cap_add: [NET_ADMIN]
+    security_opt:
+      - seccomp=./docker/jev-browser/seccomp.json
+    shm_size: 256m
+    environment:
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      TEXT_MODEL_API_KEY: ${RESEARCH_API_KEY:-${OPENAI_API_KEY:-}}
+      TEXT_MODEL_BASE_URL: ${RESEARCH_BASE_URL:-https://api.openai.com/v1}
+      TEXT_MODEL: ${RESEARCH_MODEL:-gpt-6-luna}
+      ANSWER_REVIEW_MODEL: ${RESEARCH_MODEL:-gpt-6-luna}
+      JEV_TIMEOUT_SECONDS: ${JEV_TIMEOUT_SECONDS:-120}
+      JEV_LANGSMITH_TRACING: ${JEV_LANGSMITH_TRACING:-false}
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+      LANGSMITH_ENDPOINT: ${LANGSMITH_ENDPOINT:-https://api.smith.langchain.com}
+      LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-kbo-rag}
+      JEV_MCP_TOKEN: ${JEV_MCP_TOKEN:?Set JEV_MCP_TOKEN}
+    # No host ports: backend connects on the existing Compose network.
+    logging: *default-logging
+
   qdrant:
     image: qdrant/qdrant:v1.19.2
     restart: unless-stopped
@@ -24,6 +47,12 @@ services:
       - ./data/staging/stadium_places:/data/staging/stadium_places:ro
     environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY:?Set OPENAI_API_KEY}
+      JEV_MCP_URL: ${JEV_MCP_URL:-http://jev-browser:8080/mcp}
+      JEV_MCP_TOKEN: ${JEV_MCP_TOKEN:?Set JEV_MCP_TOKEN}
+      WEB_RESEARCH_ENABLED: ${WEB_RESEARCH_ENABLED:-false}
+      RESEARCH_MODEL: ${RESEARCH_MODEL:-gpt-6-luna}
+      RESEARCH_BASE_URL: ${RESEARCH_BASE_URL:-https://api.openai.com/v1}
+      RESEARCH_API_KEY: ${RESEARCH_API_KEY:-}
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY}
       FANTASY_LOCAL_REQUEST_JOBS_ENABLED: "false"
       CHAT_CHECKPOINT_SIGNING_KEY: ${CHAT_CHECKPOINT_SIGNING_KEY:?Set CHAT_CHECKPOINT_SIGNING_KEY}
