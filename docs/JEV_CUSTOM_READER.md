@@ -38,6 +38,27 @@ Squid의 IPv4-mapped `::ffff:0:0/96`는 실제 5.7 파서에서 `0.0.0.0/0`으�
 IPv4 destination ACL에 사설/loopback/link-local을 명시하며 mapped private IPv4도 해당 ACL로 차단한다.
 본문/credentials는 ordinary logs에 남기지 않는다.
 
+## 자동 배포 설정
+
+개발 `.github/workflows/deploy-dev.yml`은 base + dev Compose의 `web-research` profile을 선택하고
+`backend frontend jev-browser`를 build/start한다. 기존 frontend anonymous volume 갱신과 nginx 재생성·검사를 유지한다.
+운영 `.github/workflows/deploy-prod.yml`도 standalone `docker-compose.prod.yml`의 같은 profile과 reader를 명시한다.
+reader는 기존 Compose 내부 네트워크에서만 `8080`을 사용하며 host port를 공개하지 않는다.
+기존 NET_ADMIN/seccomp, Chromium sandbox/proxy, 256MiB shared memory와 제한 로그 설정을 유지한다.
+
+배포 전 각 서버의 `~/dev/.env`에 **동일한 비어 있지 않은 `JEV_MCP_TOKEN`**을 설정한다.
+두 서비스는 서버 `.env`의 token을 공유하며 workflow에 별도 token 사전 검증을 두지 않는다.
+운영은 Compose의 `${JEV_MCP_TOKEN:?Set JEV_MCP_TOKEN}`으로 누락/빈 token을 거부하고,
+reader는 잘못된 token 구성을 런타임에 거부한다. 실제 token은 저장소/GitHub workflow에 넣지 않는다. 운영 Compose에는 `env_file`이 없으므로
+`JEV_MCP_URL`, `JEV_MCP_TOKEN`, `WEB_RESEARCH_ENABLED`, `RESEARCH_MODEL`, `RESEARCH_BASE_URL`, `RESEARCH_API_KEY`를 backend에 명시 전달한다.
+기본 MCP URL은 `http://jev-browser:8080/mcp`, 모델은 `gpt-6-luna`, 연구 base URL은 `https://api.openai.com/v1`이며 nonempty override를 유지한다.
+`RESEARCH_API_KEY`가 없으면 기존 `OPENAI_API_KEY`를 사용한다. 일반 provider의 `OPENAI_BASE_URL` 전달은 이 배포 변경의 범위가 아니다.
+
+`WEB_RESEARCH_ENABLED=false`를 유지해도 첨부 URL 원문 reader와 강제 첨부 specialist는 동작한다.
+일반 웹 조사만 별도 opt-in이며, reader 배포를 위해 `true`로 바꾸지 않는다. 로컬 reader 미사용 환경은 기존 base Compose 그대로다.
+로컬 회귀 검증: `python -m unittest discover -s backend/llm/tests -p test_usage_compose.py`.
+이는 Compose/workflow 구성 검증이며 원격 배포 또는 실제 provider/chat E2E 성공을 의미하지 않는다.
+
 ## 검증·후속 단계
 
 집중 Django 테스트: `llm.tests.test_input_attachments llm.v2.tests.test_web_specialist`.
