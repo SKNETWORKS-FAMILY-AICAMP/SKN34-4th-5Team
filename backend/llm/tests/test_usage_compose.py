@@ -56,5 +56,80 @@ class UsageComposeTest(unittest.TestCase):
                                      {name: int(value) for name, value in expected.items()})
 
 
+class JevDeploymentTest(unittest.TestCase):
+    def test_workflows_build_reader_and_preserve_deployment_steps(self):
+        dev = (ROOT / ".github/workflows/deploy-dev.yml").read_text()
+        prod = (ROOT / ".github/workflows/deploy-prod.yml").read_text()
+        self.assertIn("--profile web-research up -d --build --renew-anon-volumes backend frontend jev-browser", dev)
+        self.assertIn("--no-deps --force-recreate nginx", dev)
+        self.assertIn("--profile web-research up -d --build backend frontend nginx minio jev-browser", prod)
+        for workflow in (dev, prod):
+            self.assertIn("exec -T nginx nginx -t", workflow)
+            self.assertNotIn("down -v", workflow)
+            self.assertNotIn("python3 -c", workflow)
+            self.assertNotIn("config --format json |", workflow)
+
+    def test_reader_config_without_real_env(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Path(directory) / "fixture.env"
+            for production in (False, True):
+                with self.subTest(production=production):
+                    names = ["docker-compose.prod.yml"] if production else ["docker-compose.yml", "docker-compose.dev.yml"]
+                    texts = [(ROOT / name).read_text() for name in names]
+                    required = set(re.findall(r"\$\{([A-Z_]+):\?", "\n".join(texts)))
+                    # Isolated fixture replaces even the base service env_file; never read the real .env.
+                    fixture.write_text("\n".join(f"{key}=test-only" for key in required)
+                                       + "\nJEV_MCP_URL=http://jev-browser:8080/mcp\nWEB_RESEARCH_ENABLED=false\n")
+                    command = ["docker", "compose", "--env-file", str(fixture), "--project-directory", str(ROOT)]
+                    for index, text in enumerate(texts):
+                        config = Path(directory) / f"compose-{index}.yml"
+                        config.write_text(text.replace("- ./.env", f"- {fixture}"))
+                        command += ["-f", str(config)]
+                    command += ["--profile", "web-research", "config"]
+                    environment = {"PATH": os.environ.get("PATH", ""), "COMPOSE_DISABLE_ENV_FILE": "1",
+                                   "JEV_MCP_TOKEN": "test-shared-token", "OPENAI_API_KEY": "test-only"}
+
+                    def resolve(options):
+                        return subprocess.run(command + options, cwd=directory, env=environment,
+                                              capture_output=True, text=True, timeout=30)
+
+                    quiet = resolve(["--quiet"])
+                    self.assertEqual(quiet.returncode, 0, quiet.stderr)
+                    resolved = resolve(["--format", "json"])
+                    self.assertEqual(resolved.returncode, 0, resolved.stderr)
+                    services = json.loads(resolved.stdout)["services"]
+                    reader, backend = services["jev-browser"], services["backend"]["environment"]
+                    self.assertEqual(reader["profiles"], ["web-research"])
+                    self.assertEqual(Path(reader["build"]["context"]), ROOT / "docker/jev-browser")
+                    self.assertTrue((Path(reader["build"]["context"]) / "Dockerfile").is_file())
+                    self.assertFalse(reader.get("ports"))
+                    self.assertIn("NET_ADMIN", reader["cap_add"])
+                    self.assertTrue(any("seccomp=" in value for value in reader["security_opt"]))
+                    self.assertEqual(reader["shm_size"], "268435456")
+                    self.assertEqual(reader["logging"]["options"], {"max-size": "10m", "max-file": "3"})
+                    self.assertEqual(reader["environment"]["JEV_MCP_TOKEN"], backend["JEV_MCP_TOKEN"])
+                    self.assertTrue(backend["JEV_MCP_TOKEN"].strip())
+                    self.assertTrue({"backend", "frontend", "nginx", "minio", "qdrant"} <= services.keys())
+                    self.assertEqual(backend["JEV_MCP_URL"], "http://jev-browser:8080/mcp")
+                    self.assertEqual(backend["WEB_RESEARCH_ENABLED"], "false")
+                    if production:
+                        for key, value in {"RESEARCH_MODEL": "gpt-6-luna", "RESEARCH_BASE_URL": "https://api.openai.com/v1",
+                                           "RESEARCH_API_KEY": ""}.items():
+                            self.assertEqual(backend[key], value)
+                        environment.update(JEV_MCP_URL="http://jev-browser:8080/custom", WEB_RESEARCH_ENABLED="true",
+                                           RESEARCH_MODEL="custom-model", RESEARCH_BASE_URL="https://example.test/v1",
+                                           RESEARCH_API_KEY="test-research-key")
+                        custom = resolve(["--format", "json"])
+                        self.assertEqual(custom.returncode, 0, custom.stderr)
+                        custom_services = json.loads(custom.stdout)["services"]
+                        for key in ("JEV_MCP_URL", "WEB_RESEARCH_ENABLED", "RESEARCH_MODEL", "RESEARCH_BASE_URL", "RESEARCH_API_KEY"):
+                            self.assertEqual(custom_services["backend"]["environment"][key], environment[key])
+                        self.assertEqual(custom_services["jev-browser"]["environment"]["TEXT_MODEL"], "custom-model")
+                        self.assertEqual(custom_services["jev-browser"]["environment"]["TEXT_MODEL_BASE_URL"], "https://example.test/v1")
+                        self.assertEqual(custom_services["jev-browser"]["environment"]["TEXT_MODEL_API_KEY"], "test-research-key")
+                        environment["JEV_MCP_TOKEN"] = ""
+                        self.assertNotEqual(resolve(["--quiet"]).returncode, 0)
+
+
 if __name__ == "__main__":
     unittest.main()

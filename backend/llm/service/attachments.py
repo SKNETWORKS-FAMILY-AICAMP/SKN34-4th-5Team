@@ -29,6 +29,14 @@ class AttachmentProcessingLimit(ValueError):
         super().__init__(self.detail)
 
 
+class URLBodyUnavailable(ValueError):
+    """Expected browser extraction refusal, not source text or a cached failure."""
+
+    def __init__(self, status):
+        self.status = status
+        super().__init__("URL body unavailable: " + status)
+
+
 def reserve_attachment_deletion(key):
     from llm.models import ChatAttachmentDeletion
     ChatAttachmentDeletion.objects.get_or_create(object_key=key)
@@ -166,21 +174,44 @@ def multimodal(human, rows):
     return HumanMessage(content=blocks, id=human.id, additional_kwargs=human.additional_kwargs)
 
 
-def source_text(row):
+class URLPageAnalysis(str):
+    """Untrusted generated page analysis, not a cacheable original body."""
+
+
+class URLObservedBody(str):
+    """Original DOM evidence with transient provenance; failures are never cached."""
+
+    def __new__(cls, body, evidence):
+        value = super().__new__(cls, body)
+        value.evidence = evidence
+        return value
+
+
+def source_text(row, question=""):
     if row.kind == "url":
         from llm.service.chat_runs import check_cancelled
-        from llm.v2.agent.browser_research import web_body
+        from llm.v2.agent.browser_research import web_body, validate_body_evidence
         check_cancelled()
         reference_url(row.source_url)
         if row.extracted_text:
-            return row.extracted_text
-        result = web_body(row.source_url)
+            if len(row.extracted_text.encode("utf-8")) > MAX_TEXT:
+                raise AttachmentProcessingLimit()
+            return URLObservedBody(row.extracted_text, {"status": "ok", "source_kind": "original_body_cache",
+                                                       "provenance": "legacy_or_observed_original"})
+        result = validate_body_evidence(web_body(row.source_url), row.source_url)
         if result.get("status") == "overflow":
             raise AttachmentProcessingLimit()
-        if result.get("status") != "ok":
-            raise ValueError("URL body unavailable: " + result.get("status", "error"))
         check_cancelled()
-        return result["body"]
+        status = result.get("status")
+        if status not in {"ok", "partial"} or not result.get("body"):
+            raise URLBodyUnavailable(status)
+        evidence = {key: result[key] for key in ("status", "source_kind", "source_url", "requested_url",
+                    "final_url", "title", "schema_version", "extractor_version", "collected_at", "limitations", "frames") if key in result}
+        if status == "ok":
+            # No migration: cache only original successful text, never incomplete/generated answers.
+            ChatAttachment.objects.filter(pk=row.pk, session_id=row.session_id, extracted_text="").update(extracted_text=result["body"])
+            row.extracted_text = result["body"]
+        return URLObservedBody(result["body"], evidence)
     if row.kind != "text":
         raise ValueError("only text/URL attachments have source text")
     return read_file(row).decode("utf-8")

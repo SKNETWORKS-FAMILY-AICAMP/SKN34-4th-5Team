@@ -1,0 +1,219 @@
+
+import { createServer } from "node:net";
+
+import { trace, tracePurpose, tracing, inPurpose } from "../trace.ts";
+import { sleep } from "../sleep.ts";
+import type { JsonObject } from "../types.ts";
+
+export { sleep };
+
+const CALL_TIMEOUT_MS = 30_000;
+
+export class CdpSocket {
+  private ws: WebSocket;
+  private nextId = 1;
+  private pending = new Map<
+    number,
+    { sessionId?: string; resolve: (v: any) => void; reject: (e: Error) => void }
+  >();
+  private listeners = new Map<string, Set<(params: any, sessionId?: string) => void>>();
+  private crashed = new Set<string>();
+  private closed = false;
+
+  private constructor(ws: WebSocket) {
+    this.ws = ws;
+    ws.addEventListener("message", (event) => {
+      const msg = JSON.parse(String(event.data));
+
+      if (
+        msg.method === "Inspector.targetCrashed" ||
+        msg.method === "Target.targetCrashed"
+      ) {
+        trace("renderer_crashed", { method: msg.method, sessionId: msg.sessionId, targetId: msg.params?.targetId });
+        const sessionId: string | undefined = msg.sessionId;
+
+        if (sessionId) {
+          this.crashed.add(sessionId);
+
+          for (const [id, p] of this.pending) {
+            if (p.sessionId === sessionId) {
+              this.pending.delete(id);
+              p.reject(new Error("Renderer crashed"));
+            }
+          }
+
+          return;
+        }
+
+        this.closed = true;
+
+        for (const p of this.pending.values()) p.reject(new Error("Renderer crashed"));
+        this.pending.clear();
+
+        return;
+      }
+
+      if (msg.id !== undefined) {
+        const p = this.pending.get(msg.id);
+
+        if (!p) return;
+        this.pending.delete(msg.id);
+
+        if (msg.error) p.reject(new Error(`${msg.error.message ?? "CDP error"}`));
+        else p.resolve(msg.result ?? {});
+
+        return;
+      }
+
+      if (msg.method) {
+        for (const cb of this.listeners.get(msg.method) ?? []) cb(msg.params, msg.sessionId);
+      }
+    });
+    ws.addEventListener("close", event => {
+      trace("cdp_closed", { code: event.code, reason: event.reason, pending: this.pending.size });
+      this.closed = true;
+
+      for (const p of this.pending.values()) p.reject(new Error("CDP connection closed"));
+      this.pending.clear();
+    });
+  }
+
+  static async connect(wsUrl: string): Promise<CdpSocket> {
+    const ws = new WebSocket(wsUrl);
+    await new Promise<void>((resolve, reject) => {
+      ws.addEventListener("open", () => resolve(), { once: true });
+      ws.addEventListener("error", () => reject(new Error(`Cannot connect to ${wsUrl}`)), {
+        once: true,
+      });
+    });
+
+    return new CdpSocket(ws);
+  }
+
+  onEvent(method: string, cb: (params: any, sessionId?: string) => void): void {
+    let set = this.listeners.get(method);
+
+    if (!set) this.listeners.set(method, (set = new Set()));
+    set.add(cb);
+  }
+
+  call<T>(method: string, params: JsonObject = {}, sessionId?: string): Promise<T> {
+    if (this.closed) return Promise.reject(new Error("CDP connection closed"));
+
+    if (sessionId && this.crashed.has(sessionId)) {
+      return Promise.reject(new Error("Renderer crashed"));
+    }
+
+    const id = this.nextId++;
+    const started = performance.now();
+    const purpose = tracePurpose();
+    const details = { id, method, sessionId, purpose };
+    trace("cdp_start", details);
+
+    return new Promise<T>((resolve, reject) => {
+      const finish = (outcome: string, error?: string) => {
+        clearTimeout(timer);
+        clearTimeout(slow);
+        trace("cdp_end", { ...details, outcome, elapsed_ms: Math.round(performance.now() - started), error });
+      };
+
+      const timer = setTimeout(() => {
+        const pending = this.pending.get(id);
+        this.pending.delete(id);
+        pending?.reject(new Error(`CDP ${method} timed out after ${CALL_TIMEOUT_MS}ms (purpose=${purpose ?? "unspecified"}, session=${sessionId ?? "browser"}, id=${id})`));
+      }, CALL_TIMEOUT_MS);
+
+      const slow = setTimeout(() => {
+        if (!tracing() || method === "Browser.getVersion") return;
+        trace("cdp_slow", details);
+        void inPurpose("liveness", () => this.call("Browser.getVersion"))
+          .then(() => trace("cdp_liveness", { stalled_id: id, responsive: true }))
+          .catch(error => trace("cdp_liveness", { stalled_id: id, responsive: false, error: String(error) }));
+      }, 5000);
+
+      this.pending.set(id, {
+        sessionId,
+        resolve: (v) => {
+          finish("ok");
+          resolve(v);
+        },
+        reject: (e) => {
+          finish("error", e.message);
+          reject(e);
+        },
+      });
+
+      try {
+        this.ws.send(JSON.stringify({ id, method, params, sessionId }));
+      } catch (error) {
+        const pending = this.pending.get(id);
+        this.pending.delete(id);
+        pending?.reject(error instanceof Error ? error : new Error(String(error)));
+      }
+    });
+  }
+
+  close(): void {
+    this.closed = true;
+
+    for (const p of this.pending.values()) p.reject(new Error("CDP connection closed"));
+    this.pending.clear();
+
+    try {
+      this.ws.close();
+    } catch {
+    }
+  }
+}
+
+export function freePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = createServer();
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+
+      if (address === null) {
+        server.close(() => reject(new Error("Server closed before reporting a port")));
+
+        return;
+      }
+
+      const port = (address as { port: number }).port;
+      server.close(() => resolve(port));
+    });
+  });
+}
+
+export async function browserWsUrl(port: number, timeoutMs = 15000): Promise<string> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/json/version`);
+
+      const info = response.ok
+        ? ((await response.json()) as { webSocketDebuggerUrl?: string })
+        : null;
+
+      if (info?.webSocketDebuggerUrl) return info.webSocketDebuggerUrl;
+    } catch {
+    }
+
+    await sleep(100);
+  }
+
+  throw new Error(`Chrome did not expose CDP on port ${port}`);
+}
+
+export interface TargetInfo {
+  targetId: string;
+  type: string;
+  openerId?: string;
+  title?: string;
+  url?: string;
+}
+
+export interface TargetList {
+  targetInfos: TargetInfo[];
+}
