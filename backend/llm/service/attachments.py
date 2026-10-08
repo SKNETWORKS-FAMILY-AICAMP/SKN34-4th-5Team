@@ -29,6 +29,14 @@ class AttachmentProcessingLimit(ValueError):
         super().__init__(self.detail)
 
 
+class URLBodyUnavailable(ValueError):
+    """Expected browser extraction refusal, not source text or a cached failure."""
+
+    def __init__(self, status):
+        self.status = status
+        super().__init__("URL body unavailable: " + status)
+
+
 def reserve_attachment_deletion(key):
     from llm.models import ChatAttachmentDeletion
     ChatAttachmentDeletion.objects.get_or_create(object_key=key)
@@ -166,21 +174,27 @@ def multimodal(human, rows):
     return HumanMessage(content=blocks, id=human.id, additional_kwargs=human.additional_kwargs)
 
 
-def source_text(row):
+class URLPageAnalysis(str):
+    """Untrusted generated page analysis, not a cacheable original body."""
+
+
+def source_text(row, question=""):
     if row.kind == "url":
         from llm.service.chat_runs import check_cancelled
-        from llm.v2.agent.browser_research import web_body
+        from llm.v2.agent.browser_research import web_page_analysis
         check_cancelled()
         reference_url(row.source_url)
-        if row.extracted_text:
-            return row.extracted_text
-        result = web_body(row.source_url)
+        # Legacy extracted_text is raw source, never a page-analysis cache.
+        result = web_page_analysis(row.source_url, question)
         if result.get("status") == "overflow":
             raise AttachmentProcessingLimit()
-        if result.get("status") != "ok":
-            raise ValueError("URL body unavailable: " + result.get("status", "error"))
         check_cancelled()
-        return result["body"]
+        if result.get("status") in {"blocked", "busy", "timeout", "error", "partial"}:
+            raise URLBodyUnavailable(result["status"])
+        if result.get("status") != "ok":
+            raise ValueError("Unexpected URL body status: " + str(result.get("status")))
+        check_cancelled()
+        return URLPageAnalysis(result["analysis"])
     if row.kind != "text":
         raise ValueError("only text/URL attachments have source text")
     return read_file(row).decode("utf-8")
