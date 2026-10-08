@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
 
 from baseball.models import Player
 from fantasy.models import FantasySelection, FantasyWeek
@@ -9,6 +10,7 @@ from fantasy.services.scoring import player_fantasy_type
 class WeekSerializer(serializers.ModelSerializer):
     has_games = serializers.SerializerMethodField()
 
+    @extend_schema_field(serializers.BooleanField)
     def get_has_games(self, obj):
         return week_has_games(obj)
 
@@ -22,6 +24,7 @@ class PlayerSerializer(serializers.ModelSerializer):
     team_name = serializers.CharField(source="team.team_name_ko", read_only=True)
     fantasy_type = serializers.SerializerMethodField()
 
+    @extend_schema_field(serializers.CharField)
     def get_fantasy_type(self, obj):
         return player_fantasy_type(obj)
 
@@ -34,6 +37,7 @@ class SelectionSerializer(serializers.ModelSerializer):
     player = PlayerSerializer(read_only=True)
     weights = serializers.SerializerMethodField()
 
+    @extend_schema_field(serializers.DictField)
     def get_weights(self, obj):
         return obj.stat_weights if obj.is_confirmed else {key: None for key in obj.stat_weights}
 

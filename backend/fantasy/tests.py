@@ -408,6 +408,8 @@ class FantasyFlowTests(APITestCase):
             player=self.other_hitter,
             team=self.other_team,
         )
+        week.stats_finalized_at = timezone.now()
+        week.save(update_fields=("stats_finalized_at", "updated_at"))
         settlement = settle_week(week.pk)
         same_settlement = settle_week(week.pk)
 
@@ -474,6 +476,7 @@ class FantasyFlowTests(APITestCase):
             week_start=start,
             week_end=date(2042, 5, 11),
             settlement_date=date(2042, 5, 13),
+            stats_finalized_at=timezone.now(),
         )
         game = Game.objects.create(
             id=914,

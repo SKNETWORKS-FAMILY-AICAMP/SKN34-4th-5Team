@@ -4,6 +4,8 @@ from django.db import transaction
 from rest_framework import permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema
 
 from accounts.models import PointTransaction
 from baseball.models import Game
@@ -24,6 +26,7 @@ from fantasy.services.weeks import current_week, fantasy_today, week_bounds
 class FantasyAdminTestSettlementView(APIView):
     permission_classes = (permissions.IsAdminUser,)
 
+    @extend_schema(responses=OpenApiTypes.OBJECT)
     def get(self, request):
         week = current_week()
         settlement = FantasySettlement.objects.filter(week=week).first()
@@ -43,6 +46,7 @@ class FantasyAdminTestSettlementView(APIView):
         })
 
     @transaction.atomic
+    @extend_schema(request=OpenApiTypes.OBJECT, responses=OpenApiTypes.OBJECT)
     def post(self, request):
         week = current_week()
         try:
@@ -64,6 +68,7 @@ class FantasyAdminTestSettlementView(APIView):
         })
 
     @transaction.atomic
+    @extend_schema(responses=OpenApiTypes.OBJECT)
     def delete(self, request):
         week = current_week()
         try:
@@ -87,6 +92,7 @@ class FantasyAdminTestSettlementView(APIView):
 class FantasyAdminContextView(APIView):
     permission_classes = (permissions.IsAdminUser,)
 
+    @extend_schema(responses=OpenApiTypes.OBJECT)
     def get(self, request):
         week = current_week()
         return Response({
@@ -99,6 +105,7 @@ class FantasyAdminContextView(APIView):
 class FantasyAdminGameListView(APIView):
     permission_classes = (permissions.IsAdminUser,)
 
+    @extend_schema(responses=OpenApiTypes.OBJECT)
     def get(self, request):
         try:
             game_date = date.fromisoformat(request.query_params["date"])
@@ -151,6 +158,7 @@ class FantasyAdminStatImportView(APIView):
     permission_classes = (permissions.IsAdminUser,)
 
     @transaction.atomic
+    @extend_schema(responses=OpenApiTypes.OBJECT)
     def delete(self, request):
         game_id = request.query_params.get("game_id")
         if not str(game_id or "").isdigit():
@@ -191,6 +199,7 @@ class FantasyAdminStatImportView(APIView):
             "pitching_count": pitching_count,
         })
 
+    @extend_schema(responses=OpenApiTypes.OBJECT)
     def get(self, request):
         game_id = request.query_params.get("game_id")
         if not str(game_id or "").isdigit():
@@ -249,6 +258,7 @@ class FantasyAdminStatImportView(APIView):
         })
 
     @transaction.atomic
+    @extend_schema(request=OpenApiTypes.OBJECT, responses=OpenApiTypes.OBJECT)
     def post(self, request):
         game_id = request.data.get("game_id")
         if not str(game_id or "").isdigit():

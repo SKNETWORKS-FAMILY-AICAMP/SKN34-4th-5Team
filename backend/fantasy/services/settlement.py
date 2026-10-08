@@ -63,6 +63,8 @@ def validate_week_stats_complete(week):
 
 def validate_week_ready(week):
     validate_week_stats_complete(week)
+    if week.stats_finalized_at is None:
+        raise FantasySettlementNotReady("주차 경기 기록 완료 확인 후 결산할 수 없습니다.")
     if week.selections.filter(is_confirmed=False).exists():
         raise FantasySettlementNotReady("확정되지 않은 선수 배율이 남아 있어 결산할 수 없습니다.")
 

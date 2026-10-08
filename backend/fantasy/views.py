@@ -5,6 +5,8 @@ from django.utils import timezone
 from rest_framework import permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema
 
 from accounts.models import PointTransaction, PointWallet
 from baseball.models import Player
@@ -23,6 +25,7 @@ def _confirmable(week):
 class WeekView(APIView):
     permission_classes = (permissions.IsAuthenticated,)
 
+    @extend_schema(responses=WeekSerializer)
     def get(self, request, which):
         if which == "current":
             run_local_jobs_if_needed()
@@ -32,6 +35,7 @@ class WeekView(APIView):
 class PlayerListView(APIView):
     permission_classes = (permissions.IsAuthenticated,)
 
+    @extend_schema(responses=PlayerSerializer)
     def get(self, request):
         qs = Player.objects.select_related("team").order_by("name")
         if request.query_params.get("team"):
@@ -49,6 +53,7 @@ class PlayerListView(APIView):
 class SelectionListCreateView(APIView):
     permission_classes = (permissions.IsAuthenticated,)
 
+    @extend_schema(responses=SelectionSerializer)
     def get(self, request):
         week_id = request.query_params.get("week")
         qs = FantasySelection.objects.filter(user=request.user).select_related("player", "week")
@@ -57,6 +62,7 @@ class SelectionListCreateView(APIView):
         return Response(SelectionSerializer(qs, many=True).data)
 
     @transaction.atomic
+    @extend_schema(request=SelectionCreateSerializer, responses=SelectionSerializer)
     def post(self, request):
         data = SelectionCreateSerializer(data=request.data)
         data.is_valid(raise_exception=True)
@@ -99,6 +105,7 @@ class SelectionListCreateView(APIView):
 class SelectionDetailView(APIView):
     permission_classes = (permissions.IsAuthenticated,)
 
+    @extend_schema(responses=OpenApiTypes.OBJECT)
     def delete(self, request, pk):
         selection = FantasySelection.objects.filter(pk=pk, user=request.user).select_related("week").first()
         if not selection:
@@ -112,6 +119,7 @@ class SelectionDetailView(APIView):
 class CurrentScoreView(APIView):
     permission_classes = (permissions.IsAuthenticated,)
 
+    @extend_schema(responses=OpenApiTypes.OBJECT)
     def get(self, request):
         week = current_week()
         return Response({"week": WeekSerializer(week).data, "score": str(score_user_week(request.user, week))})
@@ -120,6 +128,7 @@ class CurrentScoreView(APIView):
 class PointWalletView(APIView):
     permission_classes = (permissions.IsAuthenticated,)
 
+    @extend_schema(responses=OpenApiTypes.OBJECT)
     def get(self, request):
         wallet = PointWallet.objects.filter(user=request.user).first()
         transactions = PointTransaction.objects.filter(user=request.user).values(
