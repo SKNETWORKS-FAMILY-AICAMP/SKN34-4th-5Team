@@ -14,11 +14,14 @@ from baseball.models import Game, Stadium, Team
 class DemoGamesTests(TestCase):
     @classmethod
     def setUpTestData(cls):
+        Game.objects.all().delete()
         for pk, code in enumerate(("KIA", "NC", "DOOSAN", "LOTTE", "LG", "KT"), 1):
-            Team.objects.create(id=pk, team_code=code, team_name_ko=code)
+            Team.objects.get_or_create(team_code=code, defaults={"id": pk, "team_name_ko": code})
         for pk, code in enumerate(("GWANGJU", "JAMSIL", "SUWON"), 1):
-            Stadium.objects.create(id=pk, stadium_code=code, stadium_name_ko=code, address="",
-                                   latitude=37, longitude=127, geocode_source="test", collected_at=timezone.now())
+            Stadium.objects.get_or_create(stadium_code=code, defaults={
+                "id": pk, "stadium_name_ko": code, "address": "", "latitude": 37,
+                "longitude": 127, "geocode_source": "test", "collected_at": timezone.now(),
+            })
 
     def run_command(self, action="status"):
         output = StringIO()
@@ -27,8 +30,9 @@ class DemoGamesTests(TestCase):
 
     def official_game(self, **changes):
         values = dict(id=91, game_code="official", source="tving", source_external_code="official-91",
-                      game_date=date(2026, 10, 16), game_time=time(18, 30), stadium_id=3,
-                      home_team_id=5, away_team_id=6, status_code="scheduled", collected_at=timezone.now())
+                      game_date=date(2026, 10, 16), game_time=time(18, 30), stadium=Stadium.objects.get(stadium_code="SUWON"),
+                      home_team=Team.objects.get(team_code="LG"), away_team=Team.objects.get(team_code="KT"),
+                      status_code="scheduled", collected_at=timezone.now())
         return Game.objects.create(**(values | changes))
 
     def test_apply_is_idempotent_and_has_exact_date_times_teams_and_markers(self):
@@ -57,7 +61,8 @@ class DemoGamesTests(TestCase):
         self.assertIn("created=2", self.run_command("apply"))
 
     def test_conflicting_real_game_rolls_back_the_entire_batch(self):
-        official = self.official_game(stadium_id=2, home_team_id=3, away_team_id=4)
+        official = self.official_game(stadium=Stadium.objects.get(stadium_code="JAMSIL"),
+                                      home_team=Team.objects.get(team_code="DOOSAN"), away_team=Team.objects.get(team_code="LOTTE"))
         before = Game.objects.values().get(pk=official.pk)
         with self.assertRaises(CommandError):
             self.run_command("apply")
@@ -65,7 +70,7 @@ class DemoGamesTests(TestCase):
         self.assertEqual(Game.objects.values().get(pk=official.pk), before)
 
     def test_missing_team_rolls_back_the_first_fixture(self):
-        Team.objects.get(team_code="LOTTE").delete()
+        Team.objects.filter(team_code="LOTTE").update(team_code="MISSING_LOTTE")
         with self.assertRaises(CommandError):
             self.run_command("apply")
         self.assertFalse(Game.objects.exists())
