@@ -10,7 +10,7 @@ const read = path => readFileSync(new URL(`../${path}`, import.meta.url), "utf8"
 const source = read("components/chat-composer-tools.tsx");
 const ast = ts.createSourceFile("tools.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 const body = ast.statements.filter(node => !ts.isImportDeclaration(node)).map(node => node.getText(ast)).join("\n");
-const groupIds = ["web_research", "schedule", "standings", "players", "baseball_stats", "rules", "stadium_info", "parking_transport", "community", "nearby_places", "tourism", "directions", "courses", "weather", "day_plan"];
+const groupIds = ["web_research", "schedule", "standings", "players", "baseball_stats", "rules", "stadium_info", "carry_in", "parking_transport", "community", "nearby_places", "tourism", "directions", "courses", "weather", "day_plan"];
 let menuGroups = groupIds.map(id => ({ id, label: id }));
 let menuError = "";
 let stateIndex = 0;
@@ -41,7 +41,8 @@ test("shared composer keeps attachment cards and chips above text, then add and 
   assert.equal(top[1].props.children.props.children, children);
   assert.equal(top[2].props.className, "chat-composer-toolbar");
   assert.equal(top[2].props.children[0].props.className, "chat-composer-add-row");
-  assert.equal(top[2].props.children[1], actions);
+  assert.equal(top[2].props.children[1].props.className, "chat-composer-actions");
+  assert.equal(top[2].props.children[1].props.children, actions);
   assert.equal(find("chat-composer-hint").props.children, "야구가 궁금한 모든 순간");
   assert.ok(!nodes.some(node => node.type === "form"));
   for (const button of nodes.filter(node => node.type === "button")) assert.equal(button.props.type, "button");
@@ -65,6 +66,63 @@ test("workspace and popup/embedded pass textarea, existing hints and send/stop t
     assert.match(caller.text, /const sendLabel = .*질문 보내기/);
     assert.match(action, /답변 생성 중단/);
     assert.match(action, /chat\.onCancel/);
+  }
+});
+
+test("both surfaces keep queue submission beside stop and hide only redundant busy send", () => {
+  for (const name of ["chat-workspace", "chat-popup"]) {
+    const caller = ts.createSourceFile(`${name}.tsx`, read(`components/${name}.tsx`), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const imports = Object.fromEntries(caller.statements.filter(ts.isImportDeclaration).flatMap(node => {
+      const clause = node.importClause;
+      return [clause?.name, ...(clause?.namedBindings?.elements ?? []).map(item => item.name)].filter(Boolean).map(item => [item.text, item.text]);
+    }));
+    let sent = 0, cancelled = 0, prevented = 0;
+    const state = { pending: "current question", draft: "", attachments: [], queued: [], editingQueuedId: null, editingMessageId: null, status: { ready: true }, messages: [], conversations: [], onSend: () => sent++, onCancel: () => cancelled++ };
+    const compiled = {};
+    runInNewContext(ts.transpileModule(caller.statements.filter(node => !ts.isImportDeclaration(node)).map(node => node.getText(caller)).join("\n"), {
+      compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
+    }).outputText, {
+      ...imports, exports: compiled, require,
+      useChat: () => state, useMemberAuth: () => ({ status: "anonymous" }),
+      useState: initial => [initial, () => {}], useEffect() {}, useRef: initial => ({ current: initial }),
+      chatComposerContent: (draft, attachments) => draft.trim() || (attachments.length ? "attachment" : ""), MAX_MESSAGE_LENGTH: 12000,
+    });
+    const component = compiled[name === "chat-workspace" ? "ChatWorkspace" : "ChatPopup"];
+    for (const embedded of name === "chat-popup" ? [false, true] : [false]) {
+      for (const scenario of [
+        { pending: "current question", draft: "", queued: [], send: false, stop: true },
+        { pending: "current question", draft: "next question", queued: [], send: true, stop: true },
+        { pending: "current question", draft: "next question", queued: [{ id: 1 }, { id: 2 }], send: false, stop: true },
+        { pending: null, draft: "", queued: [], send: true, stop: false, disabled: true },
+        { pending: null, draft: "next question", queued: [], send: true, stop: false },
+        { pending: "current question", draft: "", attachments: [{ state: "ready" }], queued: [], send: true, stop: true },
+        { pending: "current question", draft: "edit", queued: [{ id: 1 }, { id: 2 }], editingQueuedId: 1, send: true, stop: true },
+      ]) {
+        Object.assign(state, { attachments: [], editingQueuedId: null }, scenario);
+        const tools = flatten(component({ embedded })).find(node => node.type === "ChatComposerTools");
+        assert.equal(tools.props.disabled, false);
+        assert.equal(tools.props.available, true);
+        const buttons = flatten(tools.props.actions).filter(node => node.type === "button");
+        const stop = buttons.find(node => node.props["aria-label"] === "답변 생성 중단");
+        const send = buttons.find(node => node !== stop);
+        assert.equal(Boolean(stop), scenario.stop);
+        assert.equal(Boolean(send), scenario.send);
+        if (stop) {
+          const before = cancelled;
+          stop.props.onClick({ preventDefault: () => prevented++ });
+          assert.equal(cancelled, before + 1);
+          assert.equal(stop.props.disabled, undefined);
+        }
+        if (send) {
+          assert.equal(send.props.disabled, Boolean(scenario.disabled));
+          const before = sent;
+          send.props.onClick();
+          assert.equal(sent, before + (scenario.disabled ? 0 : 1));
+          assert.equal(send.props["aria-label"], scenario.editingQueuedId ? "예약 수정 저장" : scenario.pending ? "질문 예약" : "질문 보내기");
+        }
+      }
+    }
+    assert.equal(prevented, cancelled);
   }
 });
 
@@ -96,7 +154,7 @@ test("sent attachments precede user bubbles in both surfaces and wrap in a right
 test("toolbar centers both ends and truncates hint instead of wrapping or shrinking controls", () => {
   const css = read("styles/chat-composer-tools.css");
   assert.match(css, /\.chat-composer-toolbar \{[^}]*display: flex;[^}]*align-items: center;[^}]*justify-content: space-between;/);
-  assert.match(css, /\.chat-composer-toolbar > :last-child \{ flex-shrink: 0;/);
+  assert.match(css, /\.chat-composer-actions \{ display: flex; align-items: center; flex-shrink: 0; gap: 8px;/);
   assert.match(css, /\.chat-composer-add \{[^}]*flex-shrink: 0;/);
   const addStyle = css.match(/\.chat-composer-add \{([^}]*)\}/)[1];
   assert.match(addStyle, /border: none;/);
@@ -135,7 +193,7 @@ const render = props => {
   return flatten(exports.ChatComposerTools({ disabled: false, available: true, children, hint: "", actions, ...props }));
 };
 
-test("manual menu and chips show exactly fourteen visible server groups with category nouns and distinct capability icons", () => {
+test("manual menu and chips show all visible server groups with category nouns and distinct capability icons", () => {
   const server = readFileSync(new URL("../../backend/llm/views/attachments.py", import.meta.url), "utf8");
   const serverIds = [...server.split("TOOL_GROUP_LABELS = {")[1].split("}")[0].matchAll(/"([a-z_]+)":/g)].map(match => match[1]);
   assert.deepEqual(groupIds, serverIds);
@@ -147,10 +205,10 @@ test("manual menu and chips show exactly fourteen visible server groups with cat
   const visibleIds = groupIds.filter(id => id !== "weather");
   assert.deepEqual(Array.from(rows, row => row.key), visibleIds);
   assert.equal(chips.length, 0);
-  assert.equal(rows.length, 14);
+  assert.equal(rows.length, visibleIds.length);
   assert.equal(chips.length, 0);
-  assert.deepEqual(Array.from(rows, row => row.props.children[1].props.children[1].props.children), ["웹", "야구", "야구", "야구", "야구", "야구", "구장", "교통", "커뮤니티", "구장", "여행", "교통", "코스", "코스"]);
-  assert.deepEqual(Array.from(rows, row => row.props.children[0].props.name), ["book", "calendar", "trophy", "userPlus", "chart", "book", "stadium", "car", "chat", "pin", "map", "route", "heart", "clock"]);
+  assert.deepEqual(Array.from(rows, row => row.props.children[1].props.children[1].props.children), ["웹", "야구", "야구", "야구", "야구", "야구", "구장", "구장", "교통", "커뮤니티", "구장", "여행", "교통", "코스", "코스"]);
+  assert.deepEqual(Array.from(rows, row => row.props.children[0].props.name), ["book", "calendar", "trophy", "userPlus", "chart", "book", "stadium", "stadium", "car", "chat", "pin", "map", "route", "heart", "clock"]);
   rows.forEach((row, index) => {
     const [icon, copy] = row.props.children;
     assert.notEqual(icon.props.name, "sparkles");
