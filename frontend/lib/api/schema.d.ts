@@ -10759,6 +10759,8 @@ export interface operations {
     v1_community_posts_list: {
         parameters: {
             query?: {
+                /** @description 글 분류 정확히 일치. 생략하면 전체 분류. */
+                category?: "질문" | "잡담" | "응원" | "경기토론" | "전력토론" | "소식·정보" | "이적·신인" | "직관후기" | "좌석·예매" | "직관준비" | "굿즈" | "사진·영상";
                 /** @description 작성자 활동 목록. JWT 인증 필요, 본인 또는 공개 설정된 회원만 조회 가능. */
                 author_id?: number;
                 board?: "free" | "teams";

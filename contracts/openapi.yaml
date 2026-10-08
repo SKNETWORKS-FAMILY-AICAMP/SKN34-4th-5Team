@@ -5790,6 +5790,12 @@ paths:
       operationId: v1_community_posts_list
       parameters:
       - in: query
+        name: category
+        schema:
+          type: string
+          enum: [질문, 잡담, 응원, 경기토론, 전력토론, 소식·정보, 이적·신인, 직관후기, 좌석·예매, 직관준비, 굿즈, 사진·영상]
+        description: 글 분류 정확히 일치. 생략하면 전체 분류.
+      - in: query
         name: author_id
         schema:
           type: integer
