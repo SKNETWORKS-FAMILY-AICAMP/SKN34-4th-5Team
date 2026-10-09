@@ -98,10 +98,18 @@ export function courseContext(state: CourseState, routePath?: ChatRoutePath, sel
     ...(data.start ? { origin: data.start } : {}), ...(routePath ? { routePath } : {}) };
 }
 
+/** Bind a legacy selection while its visit still exists; external previews stay unbound. */
+export function bindCourseSelection(stops: RouteStop[], selected: RouteStop | null): RouteStop | null {
+  if (!selected || selected.visitId) return selected;
+  const matches = stops.filter(stop => sameStop(stop, selected));
+  if (matches.length !== 1) return matches.length ? null : selected;
+  return { ...selected, visitId: courseVisitId(matches[0], stops.indexOf(matches[0])) };
+}
+
 /** 방문 회차가 지정되면 같은 매장의 다른 방문과 혼동하지 않는다. 미리보기는 코스에 자동 삽입하지 않는다. */
 export function selectedCoursePlace(stops: RouteStop[], current: ChatCurrentCourse, selected?: RouteStop | null): ChatCurrentCourse["selectedPlace"] {
   if (!selected || !Number.isFinite(selected.lat) || !Number.isFinite(selected.lng) || selected.placeId === "route:origin") return;
-  const matches = selected.visitId ? stops.filter(p => p.visitId === selected.visitId) : stops.filter(p => sameStop(p, selected));
+  const matches = selected.visitId ? stops.filter((p, index) => courseVisitId(p, index) === selected.visitId) : stops.filter(p => sameStop(p, selected));
   if (matches.length > 1 || (selected.visitId && !matches.length)) return;
   if (matches.length === 1) {
     const index = stops.indexOf(matches[0]);

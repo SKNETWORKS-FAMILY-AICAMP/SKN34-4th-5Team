@@ -16,7 +16,7 @@ const stadium = { code: "JAMSIL", name: "잠실", lat: 37.5, lng: 127 };
 const stop = name => ({ name, category: "직접 지정", lat: 37.5, lng: 127, isMapPoint: true });
 const scratch = mkdtempSync(join(tmpdir(), "kbo-writer-access-test-"));
 after(() => rmSync(scratch, { recursive: true }));
-for (const name of ["client-id", "route-draft", "stadiums", "stadium-locations", "google-lodging", "community-rich-content", "course-directions", "drawn-course", "chat/course", "chat/current-course", "chat/writer-state", "chat/route-path", "course-state", "nearby-places", "route-content"]) {
+for (const name of ["client-id", "route-draft", "stadiums", "stadium-locations", "google-lodging", "community-rich-content", "course-directions", "drawn-course", "chat/course", "chat/current-course", "chat/writer-state", "chat/route-path", "course-state", "nearby-places", "route-content", "stop-history", "kakao-lodging"]) {
   const source = readFileSync(new URL(`../lib/${name}.ts`, import.meta.url), "utf8");
   mkdirSync(dirname(join(scratch, `${name}.js`)), { recursive: true });
   writeFileSync(join(scratch, `${name}.js`), ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText);
@@ -103,6 +103,83 @@ function elements(node) {
 }
 const find = (tree, predicate) => elements(tree).find(predicate);
 const plannerProps = tree => find(tree, item => item.type === "NearbyRoutePlanner").props;
+
+function loadedPlanner(props) {
+  const state = [];
+  let cursor = 0;
+  const hooks = {
+    useState(initial) { const i = cursor++; if (!(i in state)) state[i] = typeof initial === "function" ? initial() : initial; return [state[i], value => { state[i] = typeof value === "function" ? value(state[i]) : value; }]; },
+    useRef(value) { const i = cursor++; return state[i] ??= { current: value }; },
+    useCallback(fn) { cursor++; return fn; },
+    useMemo(fn) { cursor++; return fn(); },
+    useEffect() { cursor++; },
+    useLayoutEffect() { cursor++; },
+  };
+  const sandbox = { exports: {}, AbortController, clearTimeout, setTimeout,
+    require(id) {
+      if (id === "react") return hooks;
+      if (id === "react/jsx-runtime") return require(id);
+      if (id.startsWith("@/lib/") && ["nearby-places", "drawn-course", "client-id", "stop-history", "google-lodging", "kakao-lodging", "chat/route-path"].includes(id.slice(6))) return createRequire(join(scratch, "entry.cjs"))(`./${id.slice(6)}.js`);
+      if (id.endsWith("/stadium-facility-list")) return { useStadiumFacilities: () => ({ data: null }) };
+      if (id.endsWith("/collected-places")) return { collectedSource: () => "" };
+      if (id === "./course-travel") return { useCourseDirections: () => ({ points: [], origin: "first", picking: false, locating: false }), useTravelOverlay() {}, CourseTravelPanel: "CourseTravelPanel" };
+      return new Proxy({}, { get: (_, name) => name });
+    },
+  };
+  vm.runInNewContext(ts.transpileModule(planner + "\nexports.LoadedPlanner = LoadedPlanner;", { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS } }).outputText, sandbox);
+  return () => { cursor = 0; return sandbox.exports.LoadedPlanner({ ...props, maps: {} }); };
+}
+
+test("actual planner focus and clear notify writer before any layout commit, including A-B-A", () => {
+  const h = harness();
+  let tree = h.render(); h.mountEffects();
+  plannerProps(tree).onChange([{ ...stop("A"), isMapPoint: false, placeId: "101" }, { ...stop("B"), isMapPoint: false, placeId: "102" }]);
+  tree = h.render(); h.mountEffects();
+  const props = plannerProps(tree);
+  const render = loadedPlanner(props);
+  const focus = find(render(), item => item.type?.name === "RouteStops").props.onFocus;
+  focus(props.stops[0]);
+  const before = h.chat.target.getVersion();
+  focus(props.stops[1]); focus(props.stops[0]);
+  assert.notEqual(h.chat.target.getVersion(), before);
+  assert.equal(h.chat.target.getContext().currentCourse.selectedPlace.name, "A");
+  const selectedVersion = h.chat.target.getVersion();
+  find(render(), item => item.props.className === "planner-card-close").props.onClick();
+  assert.notEqual(h.chat.target.getVersion(), selectedVersion);
+  assert.equal(h.chat.target.getContext().currentCourse.selectedPlace, undefined);
+});
+
+ test("selected anchor changes invalidate pending responses even for A-B-A without a render", () => {
+  const h = harness();
+  const tree = h.render(); h.mountEffects();
+  const select = plannerProps(tree).onSelectedPlaceChange;
+  const a = { name: "카페 A", category: "카페·디저트", placeId: "101", lat: 37.51, lng: 127.01 };
+  select(a);
+  const pendingVersion = h.chat.target.getVersion();
+  select({ ...a, name: "카페 B", placeId: "102" });
+  assert.notEqual(h.chat.target.getVersion(), pendingVersion);
+  select(a);
+  assert.notEqual(h.chat.target.getVersion(), pendingVersion);
+  const version = h.chat.target.getVersion();
+  select({ ...a });
+  assert.equal(h.chat.target.getVersion(), version, "repeated identical notifications are not new selections");
+});
+
+ test("deleted legacy visits clear selection while genuine external previews remain available", () => {
+  const h = harness();
+  let tree = h.render(); h.mountEffects();
+  const legacy = { name: "옛 식당", category: "먹거리", placeId: "101", lat: 37.51, lng: 127.01 };
+  plannerProps(tree).onChange([legacy]);
+  plannerProps(tree).onSelectedPlaceChange(legacy);
+  assert.match(h.chat.target.getContext().currentCourse.selectedPlace.visitId, /^stop:/);
+  tree = h.render(); h.mountEffects();
+  plannerProps(tree).onChange([]);
+  assert.equal(h.chat.target.getContext().currentCourse.selectedPlace, undefined);
+  plannerProps(tree).onChange([legacy]);
+  assert.equal(h.chat.target.getContext().currentCourse.selectedPlace, undefined, "a deleted selection cannot resurrect");
+  plannerProps(tree).onSelectedPlaceChange({ ...legacy, placeId: "external" });
+  assert.match(h.chat.target.getContext().currentCourse.selectedPlace.visitId, /^selection:/);
+});
 
 test("a linked conversation reopens the itinerary without copying its story, and refresh preserves the draft", () => {
   const h = harness("authenticated");

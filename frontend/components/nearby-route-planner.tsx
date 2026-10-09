@@ -200,7 +200,11 @@ function LoadedPlanner({ maps, plannerMode = "places", stadium, stops, onChange:
     return () => document.removeEventListener("pointerdown", closeOutside);
   }, [openCategory]);
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<RouteStop | NearbyPlace | null>(null);
+  const [selected, setSelectedState] = useState<RouteStop | NearbyPlace | null>(null);
+  const setSelected = useCallback((place: RouteStop | NearbyPlace | null) => {
+    onSelectedPlaceChange?.(place);
+    setSelectedState(place);
+  }, [onSelectedPlaceChange]);
   useLayoutEffect(() => { onSelectedPlaceChange?.(selected); }, [selected, onSelectedPlaceChange]);
   useLayoutEffect(() => () => { onSelectedPlaceChange?.(null); }, [onSelectedPlaceChange]);
   const [hovered, setHovered] = useState<RouteStop | NearbyPlace | null>(null);
@@ -234,7 +238,7 @@ function LoadedPlanner({ maps, plannerMode = "places", stadium, stops, onChange:
     setSideTab("route");
     // 새 지점이 그려진 다음 프레임에 맞춘다 (한 번만 처리하므로 취소하지 않는다)
     requestAnimationFrame(() => fitRef.current());
-  }, [map, courseApplied, stadium]);
+  }, [map, courseApplied, stadium, setSelected]);
 
   const undoPoint = useCallback(() => {
     if (courseCompleted) return;
@@ -245,7 +249,7 @@ function LoadedPlanner({ maps, plannerMode = "places", stadium, stops, onChange:
     else onChange(result.stops);
     setSelected(null); setHovered(null); clearTimeout(hoverTimer.current);
     setNotice(`${result.removed.name} 한 곳을 되돌렸어요.`);
-  }, [courseCompleted, drawHistory, onChange, onCourseChange]);
+  }, [courseCompleted, drawHistory, onChange, onCourseChange, setSelected]);
 
   function resetCourse() {
     if (courseCompleted) return;
@@ -284,7 +288,7 @@ function LoadedPlanner({ maps, plannerMode = "places", stadium, stops, onChange:
       maps.event.removeListener(map, "rightclick", undoPoint);
       canvas?.removeEventListener("contextmenu", suppressMenu);
     };
-  }, [map, maps, drawing, onChange, undoPoint, stadium.code, drawOnly]);
+  }, [map, maps, drawing, onChange, undoPoint, stadium.code, drawOnly, setSelected]);
 
   useEffect(() => {
     if (!map || !guideOrigin) return;
@@ -313,7 +317,7 @@ function LoadedPlanner({ maps, plannerMode = "places", stadium, stops, onChange:
     };
     const overlay = new maps.CustomOverlay({ map, position, content: button, yAnchor: .5, zIndex: 30, clickable: true });
     return () => overlay.setMap(null);
-  }, [map, maps, guideOrigin, onStopsChange, setCourseCompleted]);
+  }, [map, maps, guideOrigin, onStopsChange, setCourseCompleted, setSelected]);
 
   useEffect(() => {
     if (!map || !mapLocationPicking) return;
@@ -564,7 +568,7 @@ function LoadedPlanner({ maps, plannerMode = "places", stadium, stops, onChange:
     }).catch(error => {
       if (!controller.signal.aborted) setNotice(error instanceof Error ? error.message : "숙소 위치를 확인하지 못했어요.");
     });
-  }, [map, maps, onStopsChange, stadium]);
+  }, [map, maps, onStopsChange, stadium, setSelected]);
 
   useEffect(() => {
     if (!map) return;
@@ -649,7 +653,7 @@ function LoadedPlanner({ maps, plannerMode = "places", stadium, stops, onChange:
       overlay(button, stop.lat, stop.lng, 12, drawnPin ? 1 : .5, isStadiumStop || (drawing && !drawOnly));
     }
     return () => overlays.forEach((item) => item.setMap(null));
-  }, [map, maps, stops, selected, selectPlace, viewport, pinPlaces, drawing, drawOnly, undoPoint, showPreview, hidePreview, stadium, separateStart]);
+  }, [map, maps, stops, selected, selectPlace, viewport, pinPlaces, drawing, drawOnly, undoPoint, showPreview, hidePreview, stadium, separateStart, setSelected]);
 
   function chooseCategory(next: CategoryFilter) {
     lodgingRestore.current?.abort();

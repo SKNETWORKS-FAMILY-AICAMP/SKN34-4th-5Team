@@ -22,7 +22,7 @@ import { GUIDE_COURSE, type GuideCourseStop } from "@/lib/route-guide-events";
 import { teamBoards } from "@/lib/team-community";
 import { browserDraftStorage, createDraftAutosave, latestNewDraftStadium, readRouteDraft, recoverRouteDraft, removeRouteDraft, saveRouteDraft, type MemoryRouteDraft, type RouteDraftData } from "@/lib/route-draft";
 import type { LegModes, TravelMode } from "@/lib/course-directions";
-import { courseContext, courseGeometryKey, type CourseAction } from "@/lib/course-state";
+import { bindCourseSelection, courseContext, courseGeometryKey, type CourseAction } from "@/lib/course-state";
 import { useCourseState } from "./use-course-state";
 import { chatRouteSelectionKey } from "@/lib/chat/route-path";
 import type { ChatCourse, ChatRoutePath } from "@/lib/chat/types";
@@ -143,10 +143,14 @@ function WriterForm({ stadiums, initial, existing, copying = false, sample = fal
   const [pathResult, setPathResult] = useState<{ key: string; path?: ChatRoutePath }>();
   const [selectedPlace, setSelectedPlace] = useState<RouteStop | null>(null);
   const selectedPlaceRef = useRef<RouteStop | null>(null);
+  const selectionRevision = useRef(0);
   const changeSelectedPlace = useCallback((place: RouteStop | null) => {
-    selectedPlaceRef.current = place;
-    setSelectedPlace(place);
-  }, []);
+    const next = bindCourseSelection(courseRef.current.data.stops, place);
+    if (JSON.stringify(selectedPlaceRef.current) === JSON.stringify(next)) return;
+    selectionRevision.current += 1;
+    selectedPlaceRef.current = next;
+    setSelectedPlace(next);
+  }, [courseRef]);
   const geometryKey = courseGeometryKey(courseState.data);
   const routePath = pathResult?.key === geometryKey ? pathResult.path : undefined;
   const pathRef = useRef(pathResult);
@@ -292,9 +296,10 @@ function WriterForm({ stadiums, initial, existing, copying = false, sample = fal
   const commitCourse = useCallback((action: CourseAction) => {
     const before = courseRef.current;
     const next = dispatchCourse(action);
+    if (selectedPlaceRef.current?.visitId && !courseContext(next, undefined, selectedPlaceRef.current).currentCourse?.selectedPlace) changeSelectedPlace(null);
     if (before !== next) markDirty();
     return next;
-  }, [courseRef, dispatchCourse, markDirty]);
+  }, [courseRef, dispatchCourse, markDirty, changeSelectedPlace]);
   const changeCourse = useCallback((patch: Partial<RouteDraftData>) => { commitCourse({ type: "patch", patch }); }, [commitCourse]);
   const changeStops = useCallback((next: RouteStop[]) => changeCourse({ stops: next }), [changeCourse]);
   const changeStart = useCallback((next: TripRoute["start"], originSource: "custom" | "current" = "custom") => {
@@ -326,7 +331,7 @@ function WriterForm({ stadiums, initial, existing, copying = false, sample = fal
   }, [stadiums, courseRef, commitCourse]);
   const applyCourseRef = useRef(applyCourse);
   useLayoutEffect(() => { applyCourseRef.current = applyCourse; }, [applyCourse]);
-  const readCourseVersion = useCallback(() => JSON.stringify([courseRef.current.revision,
+  const readCourseVersion = useCallback(() => JSON.stringify([courseRef.current.revision, selectionRevision.current,
     chatRouteSelectionKey(pathRef.current?.key === courseGeometryKey(courseRef.current.data) ? pathRef.current.path : undefined)]), [courseRef]);
   const selectionKey = JSON.stringify([courseState.revision, chatRouteSelectionKey(routePath)]);
   useLayoutEffect(() => {
