@@ -10824,6 +10824,8 @@ export interface operations {
                 /** @description 작성자 활동 목록. JWT 인증 필요, 본인 또는 공개 설정된 회원만 조회 가능. */
                 author_id?: number;
                 board?: "free" | "teams";
+                /** @description 글 분류 정확히 일치. 생략하면 전체 분류. */
+                category?: "경기토론" | "굿즈" | "사진·영상" | "소식·정보" | "응원" | "이적·신인" | "잡담" | "전력토론" | "좌석·예매" | "직관준비" | "직관후기" | "질문";
                 mine?: "1";
                 page?: number;
                 page_size?: number;

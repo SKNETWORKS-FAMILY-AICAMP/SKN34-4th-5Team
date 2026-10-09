@@ -5843,6 +5843,24 @@ paths:
           - free
           - teams
       - in: query
+        name: category
+        schema:
+          type: string
+          enum:
+          - 경기토론
+          - 굿즈
+          - 사진·영상
+          - 소식·정보
+          - 응원
+          - 이적·신인
+          - 잡담
+          - 전력토론
+          - 좌석·예매
+          - 직관준비
+          - 직관후기
+          - 질문
+        description: 글 분류 정확히 일치. 생략하면 전체 분류.
+      - in: query
         name: mine
         schema:
           type: string
