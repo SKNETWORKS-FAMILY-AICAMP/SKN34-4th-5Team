@@ -512,7 +512,7 @@ class AttachmentApiTests(TransactionTestCase):
             self.assertEqual(row.extracted_text, "")
             self.assertEqual(human.content, "잠실 글을 요약해줘")
             if len(messages) > 1:
-                self.assertEqual(calls[0]["messages"][-1].content, followup.content)
+                self.assertEqual(next(m for m in calls[0]["messages"] if m.id == followup.id).content, followup.content)
         from llm.v2.tests.test_web_specialist import observed
         with patch("llm.v2.agent.browser_research.web_body", return_value=observed("observed article 14:00 ~ 15:00")):
             update = AttachmentContextMiddleware.collect({"decision": {"allowed": True},
