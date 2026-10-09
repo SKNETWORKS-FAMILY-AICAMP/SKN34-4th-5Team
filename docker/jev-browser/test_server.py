@@ -51,7 +51,7 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual((await server.jev_read_body("https://example.com"))["status"], "busy")
                 spawn.assert_not_called()
         for data in ({"status": "ok", "body": "BEGIN MIDDLE END", "source_kind": "rendered_dom_snapshot"},
-                     {"status": "blocked"}, {"status": "partial"},
+                     {"status": "blocked"}, {"status": "partial", "body": "available", "source_kind": "rendered_dom_snapshot"},
                      {"status": "ok", "body": "x" * (2 * 1024 * 1024 + 1)}):
             process = AsyncMock(pid=99999999, returncode=0)
             process.stdout.read.return_value = b""
@@ -62,6 +62,17 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(result["status"], "overflow" if len(data.get("body", "")) > 2 * 1024 * 1024 else data["status"])
             kill.assert_called_once()
             self.assertFalse(server.lock.locked())
+
+    async def test_body_malformed_envelopes_are_errors(self):
+        import json
+        for value in ([], {}, {"status": []}, {"status": "ok", "body": "generated"},
+                      {"status": "partial", "body": 123}, "not an envelope"):
+            process = AsyncMock(pid=99999999, returncode=0)
+            process.stdout.read.return_value = b""
+            with patch.object(server.asyncio, "create_subprocess_exec", return_value=process), \
+                    patch.object(server, "bounded_stdout", AsyncMock(return_value=json.dumps(value).encode())), \
+                    patch.object(server.os, "killpg"):
+                self.assertEqual((await server.jev_read_body("https://example.com"))["status"], "error")
 
     async def test_body_cancellation_reaps_before_release(self):
         process = AsyncMock(pid=99999999)

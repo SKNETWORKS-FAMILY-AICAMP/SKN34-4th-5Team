@@ -23,23 +23,32 @@ def _model_history(messages, turns):
     ]
 
 
-def _citation_links(message):
-    """Responses annotations become visible Markdown links in SSE and stored answer."""
+def _citation_links(message, sources=()):
+    """Render one deduplicated source footer for native citations and accepted originals."""
     from urllib.parse import urlsplit, quote
     links, seen = [], set()
-    for block in message.content if isinstance(message.content, list) else []:
-        if not isinstance(block, dict):
+    annotations = [annotation for block in message.content if isinstance(block, dict)
+                   for annotation in block.get("annotations") or []
+                   if isinstance(annotation, dict) and annotation.get("type") == "url_citation"] if isinstance(message.content, list) else []
+    for source in [*annotations, *sources]:
+        url = source.get("url", "")
+        if not isinstance(url, str) or not url or any(c.isspace() or ord(c) < 32 or ord(c) == 127 for c in url):
             continue
-        for annotation in block.get("annotations") or []:
-            if annotation.get("type") != "url_citation":
-                continue
-            url = annotation.get("url", "")
+        try:
             parsed = urlsplit(url)
-            if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password or url in seen:
+            if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username is not None or parsed.password is not None:
                 continue
-            seen.add(url)
-            title = str(annotation.get("title") or parsed.hostname).replace("\\", "\\\\").replace("[", "\\[").replace("]", "\\]").replace("\n", " ")
-            links.append(f"[{title}]({quote(url, safe=':/?&=#%+~@!$;,*')})")
+            parsed.port  # Reject malformed authority, not just malformed schemes.
+        except ValueError:
+            continue
+        if url in seen:
+            continue
+        seen.add(url)
+        destination = quote(url, safe=':/?&=#%+~@!$;,*')
+        # ponytail: deliberately repeat model inline links; dedup them only with a proper Markdown parser.
+        title = str(source.get("title") or parsed.hostname)
+        title = " ".join(title.split()).replace("\\", "\\\\").replace("[", "\\[").replace("]", "\\]").replace("<", "&lt;").replace(">", "&gt;")
+        links.append(f"[{title}]({destination})")
     return "\n\n출처: " + " · ".join(links) if links else ""
 
 
@@ -59,6 +68,7 @@ def _frames(graph_input, run):
     parents, titles, summaries = {}, {}, {}  # namespace 첫 칸 → parent tool_call_id / tool_call_id → 하위 Agent title
     new_course, course_failed = False, False
     streamed = False  # 마지막 메인 도구 호출 뒤 메인 텍스트를 흘렸는지
+    sources = []  # Only provenance returned with context accepted by the main agent.
     with closing(stream):
         for ns, mode, data in stream:
             parent = parents.get(ns[0]) if ns else None
@@ -75,13 +85,15 @@ def _frames(graph_input, run):
                 yield PublicChatEvent.DELTA.value, {"text": chunk.text, **({"parent_id": parent} if ns else {})}
                 continue
             for update in data.values():
+                if not ns and isinstance(update, dict) and "attachment_sources" in update:
+                    sources = update["attachment_sources"] or []
                 if not ns and isinstance(update, dict) and (update.get("decision") or {}).get("course_request") == "NEW":
                     new_course = True
                 for message in (update or {}).get("messages") or [] if isinstance(update, dict) else ():
                     if ns and isinstance(message, AIMessage) and message.response_metadata.get("parent_id"):
                         parents[ns[0]] = parent = message.response_metadata["parent_id"]
                     if not ns and isinstance(message, AIMessage) and not message.tool_calls:
-                        citations = _citation_links(message)
+                        citations = _citation_links(message, sources)
                         run["answer"] = str(message.text) + citations
                         if not streamed:
                             yield PublicChatEvent.DELTA.value, {"text": run["answer"]}  # 청크 없이 끝난 답: 한 번에

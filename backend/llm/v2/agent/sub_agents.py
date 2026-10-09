@@ -17,12 +17,47 @@ SPECIALISTS = {
 }
 
 
-def _delegate(name, description, agent):
+def _attachment_delegate(agent, runtime):
+    from langgraph.types import Command
+    from llm.service.attachments import AttachmentProcessingLimit
+    from llm.service.chat_runs import Stopped, check_cancelled
+    from ..middleware.attachment_context import AttachmentContextMiddleware
+
+    check_cancelled()
+    context = AttachmentContextMiddleware.collect(runtime.state) or {}
+    human = next(m for m in reversed(runtime.state["messages"]) if isinstance(m, HumanMessage))
+    restored = context.get("attachment_messages", {}).get(human.id, human)
+    records = []  # Do not persist the private question or observed originals in nested history.
+    failed = False
+    try:
+        check_cancelled()
+        for update in agent.stream({"messages": [restored], "decision": runtime.state.get("decision")},
+                                   stream_mode="updates", config=merge_configs(runtime.config,
+                                   {"metadata": {"parent_id": runtime.tool_call_id}})):
+            for node in update.values():
+                records.extend((node or {}).get("messages") or [] if isinstance(node, dict) else ())
+        check_cancelled()
+        text = final_text({"messages": records})
+        failed = not text.strip()
+    except (Stopped, AttachmentProcessingLimit):
+        raise
+    except Exception:
+        check_cancelled()
+        failed, text = True, ""
+    result = ToolMessage(text if not failed else "[조회 실패] 첨부 페이지 분석 실패. 확보된 원문과 출처별 읽기 상태로 답하세요.",
+                         name="ask_web_research", tool_call_id=runtime.tool_call_id,
+                         status="error" if failed or context.get("attachment_source_incomplete") else "success", artifact=records)
+    return Command(update={**context, "attachment_web_done": True, "messages": [result]})
+
+
+def _delegate(name, description, agent, attachment_agent=None):
     @tool(name, description=description)
     def ask(task: str, runtime: ToolRuntime, summary: Annotated[str, "사용자 화면에 공개되는 40자 이내 짧은 작업명(예: 두산 다음 경기 확인). 비밀·개인정보·식별자·긴 지시 금지"] = ""):
         """task: 하위 Agent 에게 줄 실제 작업 지시.
         summary: 사용자 화면에 보일 40자 이내 짧은 작업명(예: 두산 다음 경기 확인). 비밀·개인정보·긴 지시 금지. 수행 입력에는 쓰이지 않는다."""
         # 하위 Agent 에는 작업 문자열과 선택 context 만 넘긴다. 승인(decision)은 작업 문자열이 아닌 내부 state 로 전달.
+        if attachment_agent is not None and runtime.tool_call_id == runtime.state.get("attachment_web_call_id"):
+            return _attachment_delegate(attachment_agent, runtime)
         course = name == "ask_course"
         messages = list(runtime.state.get("messages") or []) if course else [HumanMessage(task)]
         records = [] if course else list(messages)
@@ -48,4 +83,6 @@ def _delegate(name, description, agent):
 
 
 def build(model, tools_by_name):
-    return [_delegate(name, desc, module.build(model, tools_by_name)) for name, (module, desc) in SPECIALISTS.items()]
+    return [_delegate(name, desc, module.build(model, tools_by_name),
+                      web_sub_agent.build_attachment(model) if name == "ask_web_research" else None)
+            for name, (module, desc) in SPECIALISTS.items()]

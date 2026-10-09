@@ -28,7 +28,7 @@ global.sessionStorage = {
 };
 const require = createRequire(join(scratch, "entry.cjs"));
 const { clearMemberTokens, saveMemberTokens } = require("./lib/member-auth-request.js");
-const { saveAnswerFeedback, fetchAdminFeedback, fetchAdminFeedbackDetail, fetchChatToolGroups, ChatClientError, deleteChatMessages, deleteChatSession, editChatMessage, fetchChatHistory, getChatStatus, listChatSessions, renameChatSession, sendChatMessage } = require("./lib/chat/client.js");
+const { fetchChatToolGroups, TOOL_GROUP_IDS, saveAnswerFeedback, fetchAdminFeedback, fetchAdminFeedbackDetail, ChatClientError, deleteChatMessages, deleteChatSession, editChatMessage, fetchChatHistory, getChatStatus, listChatSessions, renameChatSession, sendChatMessage } = require("./lib/chat/client.js");
 const { restoreChatMessages } = require("./lib/chat/history.js");
 const { courseToStops, parseChatCourse } = require("./lib/chat/course.js");
 const { currentCourse } = require("./lib/chat/current-course.js");
@@ -212,6 +212,39 @@ test("attachment multipart and private previews reuse Bearer; URL uploads are ex
   await assert.rejects(uploadChatAttachment("guest", SESSION, image), error => error.status === 503);
   await assert.rejects(uploadChatAttachment("guest", SESSION, new File(["svg"], "bad.svg", { type: "image/svg+xml" })), error => error.status === 400);
 });
+test("tool menu accepts the backend registry including carry_in and rejects invalid groups", async () => {
+  const server = readFileSync(join(frontend, "../backend/llm/views/attachments.py"), "utf8");
+  const groups = [...server.split("TOOL_GROUP_LABELS = {")[1].split("}")[0].matchAll(/"([a-z_]+)": "([^"]+)"/g)].map(([, id, label]) => ({ id, label }));
+  assert.ok(groups.some(group => group.id === "carry_in" && group.label === "반입 규정"));
+  global.fetch = async () => json(groups);
+  const loaded = await fetchChatToolGroups("guest");
+  assert.deepEqual(loaded, groups);
+  assert.deepEqual(TOOL_GROUP_IDS, groups.map(group => group.id));
+  for (const invalid of [[...groups, { id: "unknown", label: "Unknown" }], [{ id: 1, label: "Invalid" }], [{ id: "carry_in", label: null }], {}]) {
+    global.fetch = async () => json(invalid);
+    await assert.rejects(fetchChatToolGroups("guest"), error => error.status === 502);
+  }
+});
+
+test("carry_in selection survives POST, PUT and history with strict unknown and duplicate validation", async () => {
+  const calls = [], log = record(calls);
+  global.fetch = async (url, init) => { await log(url, init); return sse(answerEvents()); };
+  const body = { sessionId: SESSION, content: "반입 질문", toolGroupIds: ["carry_in"] };
+  await sendChatMessage("guest", body);
+  await editChatMessage("guest", { ...body, messageId: USER_MSG });
+  assert.deepEqual(calls.map(call => call.body.tool_group_ids), [["carry_in"], ["carry_in"]]);
+  assert.deepEqual(calls.map(call => call.method), ["POST", "PUT"]);
+  for (const toolGroupIds of [["unknown"], ["carry_in", "carry_in"], [1], "carry_in"]) {
+    await assert.rejects(sendChatMessage("guest", { ...body, toolGroupIds }), error => error.status === 400);
+    await assert.rejects(editChatMessage("guest", { ...body, messageId: USER_MSG, toolGroupIds }), error => error.status === 400);
+    global.fetch = async () => json([{ ...row(USER_MSG, "user", body.content), tool_group_ids: toolGroupIds }]);
+    await assert.rejects(fetchChatHistory("guest", SESSION), error => error.status === 502);
+  }
+  assert.equal(calls.length, 2);
+  global.fetch = async () => json([{ ...row(USER_MSG, "user", body.content), tool_group_ids: body.toolGroupIds }]);
+  assert.deepEqual(restoreChatMessages(await fetchChatHistory("guest", SESSION))[0].toolGroupIds, ["carry_in"]);
+});
+
 test("message options map snake_case, PUT omissions preserve and explicit empty clears", async () => {
   const calls = [], log = record(calls); global.fetch = async (url, init) => { await log(url, init); return sse(answerEvents()); };
   await sendChatMessage("guest", { sessionId: SESSION, content: "question", toolGroupIds: ["rules", "weather", "carry_in"], attachmentIds: [ATTACHMENT] });
