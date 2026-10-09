@@ -25,7 +25,7 @@ EXPECTED_NAMES = (
     "get_ticket_prices", "get_ticket_policies", "get_transport", "get_food_stores",
     "get_facilities", "get_stadium_contents", "get_seat_maps", "search_places",
     "search_courses", "get_course", "search_community_posts", "get_prediction_games",
-    "search_players", "get_directions", "search_tourism", "get_weather",
+    "search_players", "get_directions", "search_tourism", "get_weather", "search_highlight_scenes",
 )
 
 # domain_tools.tools_for() 가 도메인 도구에 더해 노출하는 assistant 전용·SQL·knowledge 도구.

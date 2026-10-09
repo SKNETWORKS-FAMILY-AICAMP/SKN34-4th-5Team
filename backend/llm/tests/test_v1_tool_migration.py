@@ -38,8 +38,8 @@ class V1ToolMigrationTest(unittest.TestCase):
     def test_registry_includes_place_evidence_with_specialized_precedence(self):
         tools = domain_tools.tools_for("assistant")
         names = [t.name for t in tools]
-        self.assertEqual(len(names), 30)
-        self.assertEqual(len(set(names)), 30)
+        self.assertEqual(len(names), 31)
+        self.assertEqual(len(set(names)), 31)
         self.assertIn("search_place_knowledge", names)
         self.assertEqual(names[:9], SPECIALIZED)
         from llm.tools.baseball import GamesInput

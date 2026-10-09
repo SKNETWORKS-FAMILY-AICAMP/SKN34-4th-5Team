@@ -23,6 +23,7 @@ TOOL_GROUP_LABELS = {
     "schedule": "경기 일정",
     "standings": "순위",
     "players": "선수 정보",
+    "highlight": "하이라이트",
     "baseball_stats": "야구 기록",
     "rules": "규정",
     "stadium_info": "구장 정보",
