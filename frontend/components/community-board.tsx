@@ -68,6 +68,7 @@ export function CommunityBoard({ section, teamCode = "", postId = "", category =
   });
   const scope = JSON.stringify([searchContext, activeSearch.team, activeSearch.field, query, category]);
   const [pagination, setPagination] = useState({ scope, page: 1 });
+  if (pagination.scope !== scope) setPagination({ scope, page: 1 });
   const pageCount = Math.max(1, Math.ceil(posts.length / 20));
   const page = pagination.scope === scope ? Math.min(pagination.page, pageCount) : 1;
   const visiblePosts = posts.slice((page - 1) * 20, page * 20);
