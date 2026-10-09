@@ -25,12 +25,14 @@ type Selection = {
 };
 type Week = { id: number; week_start: string; week_end: string; has_games: boolean };
 type PlayerPage = { count: number; next: number | null; previous: number | null; results: Player[] };
+type CancellableWeek = { week_id: number; week_start: string; week_end: string };
 type AdminTestSettlement = {
   week_id: number;
   week_start: string;
   week_end: string;
   status: "OPEN" | "SETTLED";
   is_test_settlement: boolean;
+  cancellable_weeks?: CancellableWeek[];
 };
 type AdminTestSettlementAction = AdminTestSettlement & {
   detail: string;
@@ -101,6 +103,8 @@ export function PredictionBoard() {
   const selectionMutationInFlight = useRef(false);
   const [dashboardRevision, setDashboardRevision] = useState(0);
   const [adminSettlement, setAdminSettlement] = useState<AdminTestSettlement | null>(null);
+  const [cancellationWeekId, setCancellationWeekId] = useState("");
+  const [adminSettlementRevision, setAdminSettlementRevision] = useState(0);
   const [adminSettlementBusy, setAdminSettlementBusy] = useState(false);
   const [adminSettlementMessage, setAdminSettlementMessage] = useState("");
   const [error, setError] = useState("");
@@ -180,7 +184,14 @@ export function PredictionBoard() {
     let cancelled = false;
     json<AdminTestSettlement>("/api/v1/fantasy/admin/test-settlement/")
       .then(result => {
-        if (!cancelled) setAdminSettlement(result);
+        if (!cancelled) {
+          setAdminSettlement(result);
+          setCancellationWeekId(current => {
+            const weeks = result.cancellable_weeks ?? (result.is_test_settlement ? [result] : []);
+            if (weeks.some(week => String(week.week_id) === current)) return current;
+            return result.is_test_settlement ? String(result.week_id) : "";
+          });
+        }
       })
       .catch(value => {
         if (!cancelled) setError(value instanceof Error ? value.message : "테스트 결산 상태를 불러오지 못했어요.");
@@ -188,7 +199,7 @@ export function PredictionBoard() {
     return () => {
       cancelled = true;
     };
-  }, [isAdmin]);
+  }, [isAdmin, dashboardRevision, adminSettlementRevision]);
 
   useEffect(() => {
     if (!authenticated) return;
@@ -222,21 +233,12 @@ export function PredictionBoard() {
     setError("");
     setPendingPlayer(player.external_code);
     try {
-      const item = await json<Selection>("/api/v1/fantasy/selections/", {
+      await json<Selection>("/api/v1/fantasy/selections/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ player: player.external_code }),
       });
-      if (item.week !== nextWeek?.id) {
-        setDashboardRevision(revision => revision + 1);
-      } else {
-        setDashboardRevision(revision => revision + 1);
-        try {
-          setNextSelections(await json<Selection[]>(`/api/v1/fantasy/selections/?week=${item.week}`));
-        } catch {
-          // The write succeeded; the dashboard reload will retry the authoritative read.
-        }
-      }
+      setDashboardRevision(revision => revision + 1);
     } catch (value) {
       setError(value instanceof Error ? value.message : "선택하지 못했어요.");
     } finally {
@@ -259,15 +261,7 @@ export function PredictionBoard() {
         signal: AbortSignal.timeout(15000),
       });
       if (!response.ok) throw new Error("선택을 취소하지 못했어요.");
-      setNextSelections(current => current.filter(value => value.id !== id));
-      if (nextWeek) {
-        setDashboardRevision(revision => revision + 1);
-        try {
-          setNextSelections(await json<Selection[]>(`/api/v1/fantasy/selections/?week=${nextWeek.id}`));
-        } catch {
-          // The delete succeeded; the dashboard reload will retry the authoritative read.
-        }
-      }
+      setDashboardRevision(revision => revision + 1);
     } catch (value) {
       setError(value instanceof Error ? value.message : "선택을 취소하지 못했어요.");
     } finally {
@@ -279,17 +273,18 @@ export function PredictionBoard() {
 
   async function runAdminSettlementAction(method: "POST" | "DELETE") {
     const isPayout = method === "POST";
+    if (adminSettlementBusy || (!isPayout && !cancellationWeekId)) return;
     const prompt = isPayout
       ? "현재 점수를 기준으로 모든 참여자에게 테스트 포인트를 지급할까요?"
-      : "테스트 지급 포인트를 회수하고 이번 주차를 미결산으로 되돌릴까요?";
+      : "선택한 주차의 테스트 지급 포인트를 회수하고 미결산으로 되돌릴까요?";
     if (!window.confirm(prompt)) return;
 
     setError("");
     setAdminSettlementMessage("");
     setAdminSettlementBusy(true);
     try {
-      const settlementPath = method === "DELETE" && adminSettlement?.week_id
-        ? `/api/v1/fantasy/admin/test-settlement/?week_id=${adminSettlement.week_id}`
+      const settlementPath = method === "DELETE"
+        ? `/api/v1/fantasy/admin/test-settlement/?week_id=${cancellationWeekId}`
         : "/api/v1/fantasy/admin/test-settlement/";
       const response = await memberFetch(settlementPath, {
         method,
@@ -300,13 +295,13 @@ export function PredictionBoard() {
       if (!response.ok) {
         throw new Error(result.detail || "테스트 결산을 처리하지 못했어요.");
       }
-      setAdminSettlement({
-        week_id: result.week_id,
-        week_start: result.week_start,
-        week_end: result.week_end,
-        status: result.status,
-        is_test_settlement: result.is_test_settlement,
-      });
+      if (isPayout) {
+        setAdminSettlement(result);
+        setCancellationWeekId(String(result.week_id));
+      } else {
+        setCancellationWeekId("");
+      }
+      setAdminSettlementRevision(revision => revision + 1);
       window.dispatchEvent(new Event("fantasy-points-updated"));
       setAdminSettlementMessage(
         isPayout
@@ -391,6 +386,14 @@ export function PredictionBoard() {
                 <strong>관리자 테스트 결산</strong>
                 <span>현재 기록과 점수 기준으로 포인트를 지급합니다. 실제 결산과 별도인 테스트 기능입니다.</span>
               </div>
+              <label>취소할 테스트 결산 주차
+                <select value={cancellationWeekId} disabled={adminSettlementBusy} onChange={event => setCancellationWeekId(event.target.value)}>
+                  <option value="">주차를 선택해 주세요</option>
+                  {(adminSettlement?.cancellable_weeks ?? (adminSettlement?.is_test_settlement ? [adminSettlement] : [])).map(week => (
+                    <option key={week.week_id} value={week.week_id}>{week.week_start} – {week.week_end}</option>
+                  ))}
+                </select>
+              </label>
               <div className={styles.adminSettlementActions}>
                 <button
                   type="button"
@@ -406,7 +409,7 @@ export function PredictionBoard() {
                 <button
                   type="button"
                   className={styles.cancelTestSettlement}
-                  disabled={adminSettlementBusy || !adminSettlement?.is_test_settlement}
+                  disabled={adminSettlementBusy || !cancellationWeekId}
                   onClick={() => void runAdminSettlementAction("DELETE")}
                 >
                   지급 취소
@@ -562,15 +565,15 @@ export function PredictionBoard() {
                       </article>
                     ))}
                   </div>
-                  <nav className={styles.pagination} aria-label="선수 목록 페이지">
-                    <button type="button" disabled={currentPlayerPage <= 1} onClick={() => setPlayerPage(page => Math.max(1, page - 1))}>이전</button>
-                    <span>{currentPlayerPage} / {Math.max(pageCount, 1)}</span>
-                    <button type="button" disabled={currentPlayerPage >= pageCount} onClick={() => setPlayerPage(page => Math.min(pageCount, page + 1))}>다음</button>
-                  </nav>
                 </>
               ) : (
                 <div className={styles.emptyState}><strong>조건에 맞는 선수가 없어요</strong><span>검색어를 바꾸거나 다른 팀을 선택해 보세요.</span></div>
               )}
+              <nav className={styles.pagination} aria-label="선수 목록 페이지">
+                <button type="button" disabled={currentPlayerPage <= 1} onClick={() => setPlayerPage(page => Math.max(1, page - 1))}>이전</button>
+                <span>{currentPlayerPage} / {Math.max(pageCount, 1)}</span>
+                <button type="button" disabled={playersLoading || currentPlayerPage >= pageCount} onClick={() => setPlayerPage(page => Math.min(pageCount, page + 1))}>다음</button>
+              </nav>
             </>
           ) : (
             <div className={styles.lockedState}><span className={styles.lockIcon} aria-hidden="true">＋</span><strong>{fantasyType === "PITCHER" ? "투수 선수 목록은 로그인 후 이용할 수 있어요" : "타자 선수 목록은 로그인 후 이용할 수 있어요"}</strong><span>선택한 팀의 {fantasyType === "PITCHER" ? "투수" : "타자"}를 보려면 로그인해 주세요.</span></div>

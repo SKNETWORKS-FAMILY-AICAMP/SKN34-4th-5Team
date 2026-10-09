@@ -136,7 +136,7 @@ test("feedback entry shares the primary menu styling and is exclusive to superus
 test("category menu ends with Admin only for authenticated active staff; header has no duplicate", () => {
   for (const [status, user, allowed] of [["authenticated", member, true], ["anonymous", null, false], ["loading", member, false], ["unavailable", member, false], ["authenticated", { ...member, is_staff: false }, false], ["authenticated", { ...member, is_active: false }, false]]) {
     const header = load("../components/member-header-actions.tsx", {
-      react: { ...React, useState: value => [value, () => {}], useRef: () => ({ current: null }), useEffect() {} },
+      react: { ...React, useCallback: callback => callback, useState: value => [value, () => {}], useRef: () => ({ current: null }), useEffect() {} },
       "next/link": { __esModule: true, default: "a" }, "next/navigation": { useRouter: () => ({}) },
       "@/lib/member-auth": { useMemberAuth: () => ({ status, user }) }, "@/lib/member-auth-request": {},
     });

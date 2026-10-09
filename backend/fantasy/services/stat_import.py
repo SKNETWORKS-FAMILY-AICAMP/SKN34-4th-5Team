@@ -117,15 +117,14 @@ def parse_stat_table(text, kind, game):
             continue
 
         try:
-            required_indexes = [field_indexes[field] for field in required_fields]
-            if len(cells) <= max(required_indexes):
-                raise ValueError(f"{line_number}행: 표의 열 수가 부족합니다.")
             row_indexes = field_indexes
             # 코드 열을 추가한 최신 양식과 코드 열이 없는 기존 행을 함께 허용합니다.
             if external_code_index is not None and len(cells) > field_indexes["name"]:
-                candidate = cells[field_indexes["name"]].strip()
+                candidate = cells[row_indexes["name"]].strip()
                 if candidate.isdecimal() and field_indexes["name"] > 0:
                     row_indexes = {field: index - 1 for field, index in field_indexes.items()}
+            if len(cells) <= max(row_indexes.values()):
+                raise ValueError(f"{line_number}행: 표의 열 수가 부족합니다.")
             player_name = cells[row_indexes["name"]].strip()
             if not player_name:
                 raise ValueError(f"{line_number}행: 선수명이 비어 있습니다.")
@@ -168,10 +167,10 @@ def parse_stat_table(text, kind, game):
                     raise ValueError(f"{line_number}행: 안타 수가 타수보다 많습니다.")
             else:
                 values = {
-                    "saves": _integer(cells[field_indexes["saves"]], line_number, "세이브"),
-                    "batters_faced": _integer(cells[field_indexes["batters_faced"]], line_number, "타자"),
-                    "strikeouts": _integer(cells[field_indexes["strikeouts"]], line_number, "삼진"),
-                    "pitch_count": _integer(cells[field_indexes["pitch_count"]], line_number, "투구 수"),
+                    "saves": _integer(cells[row_indexes["saves"]], line_number, "세이브"),
+                    "batters_faced": _integer(cells[row_indexes["batters_faced"]], line_number, "타자"),
+                    "strikeouts": _integer(cells[row_indexes["strikeouts"]], line_number, "삼진"),
+                    "pitch_count": _integer(cells[row_indexes["pitch_count"]], line_number, "투구 수"),
                 }
             rows.append({"player": player, "team": current_team, **values})
             seen_players.add(player.pk)

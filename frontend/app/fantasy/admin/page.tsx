@@ -88,7 +88,7 @@ export default function FantasyAdminPage() {
   const [gamesForDate, setGamesForDate] = useState<{ date: string; items: AdminGame[] } | null>(null);
   const [gameId, setGameId] = useState("");
   const gameIdRef = useRef(gameId);
-  gameIdRef.current = gameId;
+  const mutationInFlight = useRef(false);
   const values = gameId ? drafts[gameId] ?? emptyValues : emptyValues;
   const [loadedGameStats, setLoadedGameStats] = useState<LoadedGameStats | null>(null);
   const [statsRefresh, setStatsRefresh] = useState(0);
@@ -160,6 +160,10 @@ export default function FantasyAdminPage() {
 
   async function saveStats(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!gameId || mutationInFlight.current) return;
+    mutationInFlight.current = true;
+    const targetGameId = gameId;
+    const submitted = { ...values };
     setError("");
     setMessage("");
     setSaving(true);
@@ -172,25 +176,35 @@ export default function FantasyAdminPage() {
       }>("/api/v1/fantasy/admin/stats/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-          game_id: gameId,
-          source_game_id: gameId,
-          batting: values.batting,
-          pitching: values.pitching,
+        body: JSON.stringify({
+          game_id: targetGameId,
+          source_game_id: targetGameId,
+          batting: submitted.batting,
+          pitching: submitted.pitching,
         }),
       }, "선수 기록을 저장하지 못했습니다.");
-      setMessage(`${result.detail} 타자 ${result.batting_count}명, 투수 ${result.pitching_count}명 기록이 반영되었습니다. 기록을 수정했으므로 주차 기록 완료 확인을 다시 해야 합니다.`);
-      setDrafts(current => ({ ...current, [gameId]: emptyValues }));
-      setStatsRefresh(current => current + 1);
+      setDrafts(current => {
+        const draft = current[targetGameId] ?? submitted;
+        return { ...current, [targetGameId]: {
+          batting: draft.batting === submitted.batting ? "" : draft.batting,
+          pitching: draft.pitching === submitted.pitching ? "" : draft.pitching,
+        } };
+      });
+      if (gameIdRef.current === targetGameId) {
+        setMessage(`${result.detail} 타자 ${result.batting_count}명, 투수 ${result.pitching_count}명 기록이 반영되었습니다. 기록을 수정했으므로 주차 기록 완료 확인을 다시 해야 합니다.`);
+        setStatsRefresh(current => current + 1);
+      }
     } catch (requestError) {
-      setError(errorText(requestError));
+      if (gameIdRef.current === targetGameId) setError(errorText(requestError));
     } finally {
+      mutationInFlight.current = false;
       setSaving(false);
     }
   }
 
   async function deleteStats() {
-    if (!gameId) return;
+    if (!gameId || mutationInFlight.current) return;
+    mutationInFlight.current = true;
     const targetGameId = gameId;
     setError("");
     setMessage("");
@@ -211,6 +225,7 @@ export default function FantasyAdminPage() {
     } catch (requestError) {
       if (gameIdRef.current === targetGameId) setError(errorText(requestError));
     } finally {
+      mutationInFlight.current = false;
       setDeleting(false);
     }
   }
@@ -333,7 +348,7 @@ export default function FantasyAdminPage() {
 
         {error && <p className={styles.errorMessage} role="alert">{error}</p>}
         {message && <p className={styles.successMessage} role="status">{message}</p>}
-        <button className={styles.saveButton} type="submit" disabled={saving || !gameId || !values.batting.trim() || !values.pitching.trim()}>
+        <button className={styles.saveButton} type="submit" disabled={saving || deleting || !gameId || !values.batting.trim() || !values.pitching.trim()}>
           {saving ? "저장 중..." : "선수 기록 저장"}
         </button>
       </form>
@@ -371,8 +386,8 @@ export default function FantasyAdminPage() {
             <div className={styles.deleteConfirmation} role="alert">
               <p>선택 경기의 타자·투수 기록이 모두 삭제됩니다. 원본 경기 일정은 삭제되지 않습니다.</p>
               <div>
-                <button type="button" disabled={deleting} onClick={() => setConfirmDelete(false)}>취소</button>
-                <button type="button" disabled={deleting} onClick={() => void deleteStats()}>
+                <button type="button" disabled={deleting || saving} onClick={() => setConfirmDelete(false)}>취소</button>
+                <button type="button" disabled={deleting || saving} onClick={() => void deleteStats()}>
                   {deleting ? "삭제 중…" : "기록 삭제 확인"}
                 </button>
               </div>

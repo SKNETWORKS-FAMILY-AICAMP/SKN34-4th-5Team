@@ -36,21 +36,28 @@ class FantasyAdminTestSettlementView(APIView):
         week, error = self._get_week(request)
         if error:
             return error
-        settlement = FantasySettlement.objects.filter(week=week).first()
-        is_test_settlement = False
-        if settlement:
-            first_result = settlement.results.order_by("pk").first()
-            is_test_settlement = bool(first_result) and PointTransaction.objects.filter(
+        cancellable_weeks = []
+        for settlement in FantasySettlement.objects.select_related("week").prefetch_related("results").order_by("-week__week_start"):
+            results = list(settlement.results.all())
+            first_result = min(results, key=lambda result: result.pk) if results else None
+            if first_result and PointTransaction.objects.filter(
                 user_id=first_result.user_id,
                 source_type=TEST_SETTLEMENT_SOURCE_TYPE,
                 source_key=f"{settlement.pk}:{first_result.user_id}",
-            ).exists()
+            ).exists():
+                cancellable_weeks.append({
+                    "week_id": settlement.week_id,
+                    "week_start": settlement.week.week_start,
+                    "week_end": settlement.week.week_end,
+                })
+        is_test_settlement = any(item["week_id"] == week.pk for item in cancellable_weeks)
         return Response({
             "week_id": week.pk,
             "week_start": week.week_start,
             "week_end": week.week_end,
             "status": week.status,
             "is_test_settlement": is_test_settlement,
+            "cancellable_weeks": cancellable_weeks,
         })
 
     @transaction.atomic
@@ -270,6 +277,7 @@ class FantasyAdminStatImportView(APIView):
             "game_id": game.pk,
             "batting": [
                 {
+                    "external_code": row.player.external_code,
                     "player_name": row.player.name,
                     "team_name": row.team.team_name_ko,
                     "at_bats": row.at_bats,
@@ -281,6 +289,7 @@ class FantasyAdminStatImportView(APIView):
             ],
             "pitching": [
                 {
+                    "external_code": row.player.external_code,
                     "player_name": row.player.name,
                     "team_name": row.team.team_name_ko,
                     "saves": row.saves,

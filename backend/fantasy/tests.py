@@ -6,7 +6,9 @@ from unittest.mock import patch
 from django.contrib.auth import get_user_model
 from django.core.management import CommandError, call_command
 from django.core.cache import cache
-from django.test import SimpleTestCase, override_settings
+from django.db import connection
+from django.db.migrations.executor import MigrationExecutor
+from django.test import SimpleTestCase, TransactionTestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
@@ -24,6 +26,60 @@ from fantasy.models import (
 from fantasy.services.settlement import FantasySettlementNotReady, _point_amount, settle_week
 from fantasy.services.scoring import BASE_SCORE, NEUTRAL_WEIGHT, PITCHER_STATS, WEIGHT_MAX, WEIGHT_MIN, score_selection
 from fantasy.services.weeks import week_bounds
+
+
+class FantasySelectionTypeMigrationTests(TransactionTestCase):
+    def test_historical_and_already_backfilled_types_follow_saved_weights(self):
+        final = ("fantasy", "0005_repair_selection_type_from_weights")
+        other_targets = [target for target in MigrationExecutor(connection).loader.graph.leaf_nodes() if target[0] != "fantasy"]
+        try:
+            for start in ("0003_replace_innings_with_batters_faced", "0004_fantasyselection_type_snapshot"):
+                with self.subTest(start=start):
+                    executor = MigrationExecutor(connection)
+                    executor.migrate([("fantasy", start)])
+                    apps = executor.loader.project_state([*other_targets, ("fantasy", start)]).apps
+                    User = apps.get_model(get_user_model()._meta.app_label, get_user_model()._meta.model_name)
+                    TeamModel = apps.get_model("baseball", "Team")
+                    PlayerModel = apps.get_model("baseball", "Player")
+                    WeekModel = apps.get_model("fantasy", "FantasyWeek")
+                    Selection = apps.get_model("fantasy", "FantasySelection")
+                    user = User.objects.create(username=f"migration-{start}")
+                    team = TeamModel.objects.create(id=10000 + user.pk, team_code=f"M{user.pk}", team_name_ko="마이그레이션")
+                    week = WeekModel.objects.create(week_start=date(2026, 5, 4), week_end=date(2026, 5, 10), settlement_date=date(2026, 5, 12))
+                    ids = []
+                    for intended, positions, weights in (
+                        ("PITCHER", ["외야수"], dict.fromkeys(PITCHER_STATS, 5)),
+                        ("BATTER", ["투수"], dict.fromkeys(("at_bats", "hits", "rbi", "runs"), 5)),
+                        ("BATTER", ["외야수"], {}),
+                    ):
+                        player = PlayerModel.objects.create(external_code=f"migration-{user.pk}-{intended}-{len(ids)}", name="선수", team=team, positions=positions)
+                        fields = {"fantasy_type": "BATTER" if intended == "PITCHER" else "PITCHER"} if start.startswith("0004") and weights else {}
+                        selection = Selection.objects.create(user=user, week=week, player=player, stat_weights=weights, is_confirmed=bool(weights), **fields)
+                        ids.append((selection.pk, intended, weights))
+                    executor = MigrationExecutor(connection)
+                    executor.migrate([final])
+                    game = Game.objects.create(id=20000 + user.pk, game_code=f"migration-game-{user.pk}", game_date=date(2026, 5, 6), game_time="18:30", home_team_id=team.pk, away_team_id=team.pk, status_code="FINAL", game_type="REGULAR", collected_at=timezone.now())
+                    for pk, intended, weights in ids:
+                        selection = FantasySelection.objects.get(pk=pk)
+                        self.assertEqual(selection.fantasy_type, intended)
+                        self.assertEqual(selection.stat_weights, weights)
+                        if weights and intended == "PITCHER":
+                            FantasyPitchingGameStat.objects.create(game=game, player=selection.player, team_id=team.pk, saves=1, batters_faced=20, strikeouts=6, pitch_count=90)
+                            self.assertEqual(score_selection(selection), Decimal("77"))
+                        elif weights:
+                            FantasyBattingGameStat.objects.create(game=game, player=selection.player, team_id=team.pk, hits=1)
+                            self.assertEqual(score_selection(selection), Decimal("4"))
+                        else:
+                            self.assertEqual(score_selection(selection), Decimal("0"))
+                    from importlib import import_module
+                    migration = import_module("fantasy.migrations.0005_repair_selection_type_from_weights")
+                    with connection.schema_editor() as editor:
+                        migration.repair_selection_type(executor.loader.project_state([*other_targets, final]).apps, editor)
+                    for pk, intended, weights in ids:
+                        self.assertEqual(FantasySelection.objects.get(pk=pk).stat_weights, weights)
+                    FantasyWeek.objects.filter(pk=week.pk).delete()
+        finally:
+            MigrationExecutor(connection).migrate([final])
 
 
 class FantasyPolicyTests(SimpleTestCase):
@@ -711,6 +767,22 @@ class FantasyAdminStatImportTests(APITestCase):
         mismatch_response = self.client.post("/api/v1/fantasy/admin/stats/", mismatch, format="json")
         self.assertEqual(mismatch_response.status_code, 400)
 
+    def test_pitcher_identifier_header_accepts_legacy_and_coded_rows_with_trailing_era(self):
+        for coded in (False, True):
+            with self.subTest(coded=coded):
+                payload = self._payload()
+                payload["pitching"] = (
+                    "FT\n선수코드\t선수명\t세\t타자\t삼진\t투구수\tERA\n"
+                    + (f"{self.away_pitcher.external_code}\t" if coded else "")
+                    + "원정투수\t0\t20\t6\t88\t3\n"
+                    + "OT\n선수코드\t선수명\t세\t타자\t삼진\t투구수\tERA\n"
+                    + f"{self.home_pitcher.external_code}\t홈투수\t1\t8\t2\t30\t2\n"
+                )
+                response = self.client.post("/api/v1/fantasy/admin/stats/", payload, format="json")
+                self.assertEqual(response.status_code, 200, response.data)
+                row = FantasyPitchingGameStat.objects.get(game=self.game, player=self.away_pitcher)
+                self.assertEqual((row.saves, row.batters_faced, row.strikeouts, row.pitch_count), (0, 20, 6, 88))
+
     def test_staff_can_import_late_live_game_records_and_reset_finalized_flag(self):
         response = self.client.post(
             "/api/v1/fantasy/admin/stats/", self._payload(), format="json"
@@ -767,6 +839,7 @@ class FantasyAdminStatImportTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["game_id"], self.game.pk)
         self.assertEqual(response.data["batting"], [{
+            "external_code": self.away_hitter.external_code,
             "player_name": "원정타자",
             "team_name": "환상구단",
             "at_bats": 4,
@@ -775,6 +848,7 @@ class FantasyAdminStatImportTests(APITestCase):
             "runs": 1,
         }])
         self.assertEqual(response.data["pitching"], [{
+            "external_code": self.home_pitcher.external_code,
             "player_name": "홈투수",
             "team_name": "상대구단",
             "saves": 0,
@@ -943,7 +1017,12 @@ class FantasyAdminTestSettlementTests(APITestCase):
         with patch("fantasy.admin_views.current_week", return_value=next_week):
             paid = self.client.post(target)
             state = self.client.get(target)
+            reloaded = self.client.get(self.endpoint)
+            self.assertEqual(reloaded.data["week_id"], next_week.pk)
+            self.assertEqual([item["week_id"] for item in reloaded.data["cancellable_weeks"]], [self.week.pk])
             cancelled = self.client.delete(target)
+            after = self.client.get(self.endpoint)
+            self.assertEqual(after.data["cancellable_weeks"], [])
             repeated_cancel = self.client.delete(target)
 
         self.assertEqual(paid.status_code, 200)
@@ -1002,7 +1081,9 @@ class FantasyAdminTestSettlementTests(APITestCase):
 
         with patch("fantasy.admin_views.current_week", return_value=self.week):
             response = self.client.delete(self.endpoint)
+            state = self.client.get(self.endpoint)
 
+        self.assertEqual(state.data["cancellable_weeks"], [])
         self.assertEqual(response.status_code, 409)
         self.assertTrue(FantasySettlement.objects.filter(pk=settlement.pk).exists())
         self.assertEqual(FantasyUserResult.objects.get(pk=result.pk).point_amount, 10)
