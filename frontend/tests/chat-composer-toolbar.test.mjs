@@ -193,7 +193,7 @@ const render = props => {
   return flatten(exports.ChatComposerTools({ disabled: false, available: true, children, hint: "", actions, ...props }));
 };
 
-test("manual menu and chips show all visible server groups with category nouns and distinct capability icons", () => {
+test("manual menu and chips show exactly fifteen visible server groups with category nouns and distinct capability icons", () => {
   const server = readFileSync(new URL("../../backend/llm/views/attachments.py", import.meta.url), "utf8");
   const serverIds = [...server.split("TOOL_GROUP_LABELS = {")[1].split("}")[0].matchAll(/"([a-z_]+)":/g)].map(match => match[1]);
   assert.deepEqual(groupIds, serverIds);
@@ -205,6 +205,7 @@ test("manual menu and chips show all visible server groups with category nouns a
   const visibleIds = groupIds.filter(id => id !== "weather");
   assert.deepEqual(Array.from(rows, row => row.key), visibleIds);
   assert.equal(chips.length, 0);
+  assert.equal(rows.length, 15);
   assert.equal(rows.length, visibleIds.length);
   assert.equal(chips.length, 0);
   assert.deepEqual(Array.from(rows, row => row.props.children[1].props.children[1].props.children), ["웹", "야구", "야구", "야구", "야구", "야구", "구장", "구장", "교통", "커뮤니티", "구장", "여행", "교통", "코스", "코스"]);
