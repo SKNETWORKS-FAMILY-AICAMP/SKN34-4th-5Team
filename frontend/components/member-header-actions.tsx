@@ -74,12 +74,8 @@ export function MemberHeaderActions() {
         <Link href="/mypage?tab=likes" onClick={() => setOpen(false)}>찜한 코스</Link>
         <Link href="/mypage?tab=posts" onClick={() => setOpen(false)}>내가 쓴 글</Link>
         <hr className="member-menu-divider" />
-        {(user.is_staff || user.is_superuser) && <>
-          {/* 관리자 계정은 관리 메뉴가 추가되고, 회원 정보는 로그아웃 바로 위에 둔다 */}
-          <Link href="/mypage?tab=members" onClick={() => setOpen(false)}>회원 관리</Link>
-          <Link href="/mypage?tab=manage-posts" onClick={() => setOpen(false)}>게시글 관리</Link>
-          <Link href="/mypage?tab=reports" onClick={() => setOpen(false)}>신고 관리</Link>
-          {status === "authenticated" && user.is_superuser === true && <Link href="/mypage?tab=feedback" onClick={() => setOpen(false)}>챗봇 답변 평가</Link>}
+        {status === "authenticated" && user.is_superuser === true && <>
+          <Link href="/mypage?tab=feedback" onClick={() => setOpen(false)}>챗봇 답변 평가</Link>
           <hr className="member-menu-divider" />
         </>}
         <Link href="/mypage?tab=profile" onClick={() => setOpen(false)}>회원 정보</Link>
