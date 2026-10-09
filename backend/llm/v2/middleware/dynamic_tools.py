@@ -58,9 +58,7 @@ class DynamicToolMiddleware(AgentMiddleware):
         capabilities = set(decision.get("capabilities") or ()) | set(state.get("tool_group_ids") or ())
         allowed = self.role_tools & {n for c in capabilities for n in self.capability_tools.get(c, ())}
         if state.get("attachment_web_call_id") and not state.get("attachment_web_done"):
-            allowed = allowed | (self.role_tools & {"ask_web_research"})
-        if state.get("attachment_web_done"):
-            allowed = allowed - {"ask_web_research"}
+            allowed = allowed | (self.role_tools & {"jev_read_body"})
         return allowed
 
     def wrap_model_call(self, request, handler):
@@ -82,7 +80,10 @@ class DynamicToolMiddleware(AgentMiddleware):
 
     def wrap_tool_call(self, request, handler):
         name = request.tool_call["name"]
-        if name not in self.allowed(request.state) or (self.course_called(request.state) and name in {"ask_course", "ask_travel_research", "search_documents_tool"}):
+        invalid_attachment_call = (self.capability_tools is not None and name == "jev_read_body" and
+                                   (request.tool_call["id"] != request.state.get("attachment_web_call_id")
+                                    or request.tool_call.get("args") != {}))
+        if invalid_attachment_call or name not in self.allowed(request.state) or (self.course_called(request.state) and name in {"ask_course", "ask_travel_research", "search_documents_tool"}):
             return ToolMessage(
                 content=f"허용되지 않은 도구입니다: {name}", tool_call_id=request.tool_call["id"], name=name, status="error",
             )
