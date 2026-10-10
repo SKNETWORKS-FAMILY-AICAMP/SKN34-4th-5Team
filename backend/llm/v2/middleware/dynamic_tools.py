@@ -44,10 +44,11 @@ CAPABILITY_TOOLS = {
 
 
 class DynamicToolMiddleware(AgentMiddleware):
-    def __init__(self, role_tools, capability_tools=None):
+    def __init__(self, role_tools, capability_tools=None, fixed_tools=()):
         super().__init__()
         self.role_tools = frozenset(role_tools)
         self.capability_tools = capability_tools  # None 이면 역할 고정 도구 묶음 그대로
+        self.fixed_tools = self.role_tools & frozenset(fixed_tools)
 
     def allowed(self, state) -> frozenset:
         if self.capability_tools is None:
@@ -56,7 +57,7 @@ class DynamicToolMiddleware(AgentMiddleware):
         if decision.get("allowed") is not True:
             return frozenset()
         capabilities = set(decision.get("capabilities") or ()) | set(state.get("tool_group_ids") or ())
-        allowed = self.role_tools & {n for c in capabilities for n in self.capability_tools.get(c, ())}
+        allowed = self.fixed_tools | (self.role_tools & {n for c in capabilities for n in self.capability_tools.get(c, ())})
         if state.get("attachment_web_call_id") and not state.get("attachment_web_done"):
             allowed = allowed | (self.role_tools & {"jev_read_body"})
         return allowed

@@ -110,10 +110,14 @@ class DirectMCPTests(SimpleTestCase):
         parent = next(m for m in out["messages"] if isinstance(m, ToolMessage))
         self.assertEqual(sum(isinstance(m, ToolMessage) and m.status == "error" for m in parent.artifact), 2)
 
-    def test_denied_web_capability_never_executes(self):
-        out, _ = self.graph([call("ask_web_research", {"task": "forged"}, "web"), AIMessage("메인")], ("schedule",))
-        self.assertEqual(self.executed, [])
-        self.assertEqual(next(m for m in out["messages"] if isinstance(m, ToolMessage)).status, "error")
+    def test_empty_capabilities_still_delegate_to_narrow_web_tools(self):
+        out, calls = self.graph([call("ask_web_research", {"task": "메뉴 확인"}, "web"),
+                                 call("jev_read_body", {"url": "https://example.com/menu"}, "body"),
+                                 AIMessage("메뉴 확인"), AIMessage("메인")], ())
+        self.assertEqual(set(calls[0]["tools"]), set(chain.sub_agents.SPECIALISTS))
+        self.assertEqual(set(calls[1]["tools"]), {"jev_browse", "jev_read_body", "web_search"})
+        self.assertEqual(self.executed, [("jev_read_body", {"url": "https://example.com/menu"})])
+        self.assertEqual(next(m for m in out["messages"] if isinstance(m, ToolMessage)).status, "success")
 
     def test_adapter_busy_private_overflow_timeout_and_cancellation(self):
         from llm.service.attachments import MAX_TEXT
