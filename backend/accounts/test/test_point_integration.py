@@ -1,10 +1,16 @@
+from datetime import datetime, timezone as datetime_timezone
 from io import StringIO
+from unittest.mock import patch
+from zoneinfo import ZoneInfo
+
 from django.core.management import call_command
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from accounts.models import CustomUser, PointWallet
+from accounts.models import CustomUser, PointTransaction, PointWallet
+from accounts.point_policy import SIGNUP, SIGNUP_SOURCE_KEY, grant_definition
+from accounts.point_service import grant_points
 from community.models import CommunityPost
 
 
@@ -32,6 +38,11 @@ class PointIntegrationTests(TestCase):
         new_user = CustomUser.objects.get(username="newuser")
         wallet = PointWallet.objects.get(user=new_user)
         self.assertEqual(wallet.balance, 100)
+        signup_entry = PointTransaction.objects.get(user=new_user)
+        self.assertEqual(
+            (signup_entry.source_type, signup_entry.source_key),
+            (SIGNUP[0], SIGNUP_SOURCE_KEY),
+        )
 
     def test_login_grants_daily_points(self):
         self.assertEqual(PointWallet.objects.filter(user=self.user).count(), 0)
@@ -53,6 +64,30 @@ class PointIntegrationTests(TestCase):
         wallet.refresh_from_db()
         self.assertEqual(wallet.balance, 10)
 
+    def test_login_points_reset_on_korean_calendar_day_boundary(self):
+        seoul = ZoneInfo("Asia/Seoul")
+        first_day = timezone.localdate(datetime(2025, 1, 1, 14, 59, tzinfo=datetime_timezone.utc), seoul)
+        next_day = timezone.localdate(datetime(2025, 1, 1, 15, 1, tzinfo=datetime_timezone.utc), seoul)
+        with timezone.override("Asia/Seoul"), patch(
+            "accounts.views.timezone.localdate",
+            side_effect=(first_day, next_day),
+        ):
+            first = self.client.post("/api/v1/auth/signin", {
+                "username": "testuser1",
+                "password": "password123!"
+            })
+            second = self.client.post("/api/v1/auth/signin", {
+                "username": "testuser1",
+                "password": "password123!"
+            })
+
+        self.assertEqual((first.status_code, second.status_code), (200, 200))
+        self.assertEqual(PointWallet.objects.get(user=self.user).balance, 20)
+        self.assertEqual(
+            PointTransaction.objects.filter(user=self.user, source_type="daily_login").count(),
+            2,
+        )
+
     def test_post_creation_grants_points(self):
         self.client.force_authenticate(user=self.user)
         response = self.client.post("/api/v1/community/posts/", {
@@ -70,6 +105,28 @@ class PointIntegrationTests(TestCase):
         wallet = PointWallet.objects.get(user=self.user)
         self.assertEqual(wallet.balance, 1)
 
+        retry = self.client.post("/api/v1/community/posts/", {
+            "title": "Test Post",
+            "content": "Test Content",
+            "board": "free",
+            "category": "잡담",
+            "teamCode": "",
+            "images": []
+        }, format="json", HTTP_IDEMPOTENCY_KEY="test-key-1")
+        self.assertEqual(retry.status_code, 200)
+        wallet.refresh_from_db()
+        self.assertEqual(wallet.balance, 1)
+        self.assertEqual(PointTransaction.objects.filter(user=self.user, source_type="post").count(), 1)
+
+        edited = self.client.patch(
+            f"/api/v1/community/posts/{response.data['id']}/",
+            {"title": "Edited Post"},
+            format="json",
+        )
+        self.assertEqual(edited.status_code, 200)
+        wallet.refresh_from_db()
+        self.assertEqual(wallet.balance, 1)
+
     def test_post_read_grants_points(self):
         post = CommunityPost.objects.create(
             owner=self.user2,
@@ -81,6 +138,10 @@ class PointIntegrationTests(TestCase):
             team_code="",
             source_id="read-1"
         )
+        anonymous = APIClient().get(f"/api/v1/community/posts/{post.pk}/")
+        self.assertEqual(anonymous.status_code, 200)
+        self.assertFalse(PointWallet.objects.filter(user=self.user).exists())
+
         self.client.force_authenticate(user=self.user)
         
         # First read by testuser1
@@ -118,11 +179,38 @@ class PointIntegrationTests(TestCase):
         self.assertEqual(response.status_code, 201)
         wallet = PointWallet.objects.get(user=self.user)
         self.assertEqual(wallet.balance, 1)
+        edited = self.client.patch(
+            f"/api/v1/community/comments/{response.data['id']}/",
+            {"content": "Edited comment"},
+            format="json",
+        )
+        self.assertEqual(edited.status_code, 200)
+        wallet.refresh_from_db()
+        self.assertEqual(wallet.balance, 1)
+
+    def test_saving_and_editing_a_draft_does_not_grant_points(self):
+        self.client.force_authenticate(user=self.user)
+        created = self.client.post("/api/v1/community/drafts/", {
+            "board": "free",
+            "teamCode": "",
+            "category": "잡담",
+            "title": "Draft",
+            "content": "Draft content",
+        }, format="json")
+        self.assertEqual(created.status_code, 201)
+        updated = self.client.patch(
+            f"/api/v1/community/drafts/{created.data['id']}/",
+            {"revision": created.data["revision"], "title": "Updated draft"},
+            format="json",
+        )
+        self.assertEqual(updated.status_code, 200)
+        self.assertFalse(PointWallet.objects.filter(user=self.user).exists())
 
     def test_backfill_signup_points_command(self):
         out = StringIO()
         call_command("backfill_signup_points", dry_run=True, stdout=out)
         self.assertIn("대상 회원:", out.getvalue())
+        self.assertIn(f"{self.user.pk}: {self.user.username}", out.getvalue())
         
         call_command("backfill_signup_points")
         self.assertEqual(PointWallet.objects.get(user=self.user).balance, 100)
@@ -132,9 +220,43 @@ class PointIntegrationTests(TestCase):
         call_command("backfill_signup_points")
         self.assertEqual(PointWallet.objects.get(user=self.user).balance, 100)
 
+    def test_backfill_dry_run_excludes_signup_awarded_users_and_preserves_balance(self):
+        wallet, _, created = grant_points(
+            user=self.user,
+            **grant_definition(SIGNUP, SIGNUP_SOURCE_KEY),
+        )
+        self.assertTrue(created)
+        wallet.balance += 37
+        wallet.save(update_fields=("balance", "updated_at"))
+
+        out = StringIO()
+        call_command("backfill_signup_points", dry_run=True, stdout=out)
+
+        self.assertNotIn(f"{self.user.pk}: {self.user.username}", out.getvalue())
+        self.assertIn(f"{self.user2.pk}: {self.user2.username}", out.getvalue())
+        self.assertEqual(PointWallet.objects.get(user=self.user).balance, 137)
+        self.assertFalse(PointWallet.objects.filter(user=self.user2).exists())
+
+        call_command("backfill_signup_points")
+        self.assertEqual(PointWallet.objects.get(user=self.user).balance, 137)
+        self.assertEqual(PointWallet.objects.get(user=self.user2).balance, 100)
+        call_command("backfill_signup_points")
+        self.assertEqual(PointWallet.objects.get(user=self.user2).balance, 100)
+
     def test_point_wallet_api(self):
-        PointWallet.objects.create(user=self.user, balance=500)
+        wallet = PointWallet.objects.create(user=self.user, balance=500)
+        PointTransaction.objects.create(
+            user=self.user,
+            wallet=wallet,
+            amount=10,
+            transaction_type=PointTransaction.ACTIVITY_EARNED,
+            source_type="test",
+            source_key="api-entry",
+            description="테스트 지급",
+        )
         self.client.force_authenticate(user=self.user)
         response = self.client.get("/api/v1/fantasy/points/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["balance"], 500)
+        self.assertEqual(response.data["transactions"][0]["amount"], 10)
+        self.assertEqual(response.data["transactions"][0]["description"], "테스트 지급")

@@ -19,7 +19,7 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 from .auth_service import AuthService
 from .models import EmailChangeChallenge
-from .point_policy import DAILY_LOGIN, SIGNUP, grant_definition
+from .point_policy import DAILY_LOGIN, SIGNUP, SIGNUP_SOURCE_KEY, grant_definition
 from .point_service import grant_points
 from .serializers import (
     EmailChangeRequestResponseSerializer,
@@ -82,7 +82,7 @@ def signup(request):
     try:
         with transaction.atomic():
             user = serializer.save()
-            grant_points(user=user, **grant_definition(SIGNUP, "initial"))
+            grant_points(user=user, **grant_definition(SIGNUP, SIGNUP_SOURCE_KEY))
     except IntegrityError:
         raise ValidationError({'username': '이미 사용 중인 아이디입니다.'})
 
