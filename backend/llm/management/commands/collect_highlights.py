@@ -28,6 +28,7 @@ class Command(BaseCommand):
         parser.add_argument("--video-ids", default="", help="쉼표로 구분한 영상 ID 직접 지정")
         parser.add_argument("--reanalyze", action="store_true", help="이미 분석한 영상도 다시")
         parser.add_argument("--dry-run", action="store_true", help="목록만 보고 분석·저장하지 않음")
+        parser.add_argument("--no-index", action="store_true", help="분석 후 RAG 색인(index_highlights)을 하지 않음")
         parser.add_argument("--refill-pitchers", action="store_true",
                             help="저장된 장면의 빈 투수 칸만 같은 이닝 앞 장면으로 채움 (재분석·비용 없음)")
 
@@ -40,7 +41,8 @@ class Command(BaseCommand):
         ids = [v.strip() for v in o["video_ids"].split(",") if v.strip()]
         try:
             summary = highlights.collect(o["since"], o["team"], o["limit"], o["budget"], o["model"], ids,
-                                         o["reanalyze"], o["dry_run"], report=self.stdout.write)
+                                         o["reanalyze"], o["dry_run"], report=self.stdout.write,
+                                         index_rag=not o["no_index"])
         except highlights.HighlightError as exc:
             raise CommandError(str(exc)) from None
         self.stdout.write(self.style.SUCCESS(

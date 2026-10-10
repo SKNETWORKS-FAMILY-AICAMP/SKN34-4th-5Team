@@ -137,8 +137,8 @@ class SearchToolTest(TestCase):
     def setUp(self):
         kia, _ = Team.objects.get_or_create(team_code="KIA", defaults={"id": 990001, "team_name_ko": "KIA 타이거즈"})
         video = HighlightVideo.objects.create(video_id="vid1", title=TITLE, game_date=date(2026, 10, 6), status="analyzed")
-        HighlightScene.objects.create(video=video, start_sec=187, inning=3, half="말", batting_team=kia,
-                                      batter_name="김도영", event="홈런", rbi=2, description="좌월 투런 홈런")
+        self.homer = HighlightScene.objects.create(video=video, start_sec=187, inning=3, half="말", batting_team=kia,
+                                                   batter_name="김도영", event="홈런", rbi=2, description="좌월 투런 홈런")
         HighlightScene.objects.create(video=video, start_sec=300, batting_team=kia, batter_name="김도영", event="안타")
         HighlightScene.objects.create(video=video, start_sec=420, batting_team=kia, event="홈런", description="나성범이 솔로 홈런을 친다.")
         HighlightVideo.objects.create(video_id="vid2", title=TITLE, status="failed")
@@ -148,7 +148,8 @@ class SearchToolTest(TestCase):
         result = self.tool.invoke({"player_name": "김도영", "event": "홈런"})
         self.assertEqual(result["count"], 1)
         item = result["items"][0]
-        self.assertEqual(item["url"], "https://www.youtube.com/watch?v=vid1&t=184s")
+        self.assertEqual((item["start_sec"], item["scene_id"]), (187, self.homer.pk))
+        self.assertNotIn("url", item)  # 모델에게 URL 을 주지 않는다(영상 카드는 select_highlight_scenes 가 만든다)
         self.assertEqual((item["inning"], item["half"], item["batting_team"]), (3, "말", "KIA"))
         self.assertEqual((result["analyzed_videos"], result["latest_game_date"]), (1, "2026-10-06"))
         by_description = self.tool.invoke({"player_name": "나성범", "event": "홈런"})  # 타자 칸이 비어도 설명으로 찾는다
@@ -229,6 +230,60 @@ class SearchToolTest(TestCase):
         self.assertEqual((empty["count"], empty["analyzed_videos"]), (0, 1))
 
 
+class HighlightAgentToolsTest(TestCase):
+    """ask_highlight 하위 에이전트 도구: RAG 의미 검색, 검증된 장면 선택 → 서버가 만든 영상 카드."""
+
+    def setUp(self):
+        kia, _ = Team.objects.get_or_create(team_code="KIA", defaults={"id": 990001, "team_name_ko": "KIA 타이거즈"})
+        video = HighlightVideo.objects.create(video_id="vid1AAAAAAA", title=TITLE, game_date=date(2026, 10, 5), status="analyzed",
+                                              home_team=kia)
+        self.homer = HighlightScene.objects.create(video=video, start_sec=187, inning=6, half="말", batting_team=kia,
+                                                   batter_name="김도영", event="홈런", rbi=3, description="역전 3점 홈런")
+        failed = HighlightVideo.objects.create(video_id="vid2BBBBBBB", title=TITLE, status="failed")
+        self.hidden = HighlightScene.objects.create(video=failed, start_sec=10, event="홈런")
+        tools = {tool.name: tool for tool in create_highlight_tools()}
+        self.rag, self.select = tools["search_highlight_rag"], tools["select_highlight_scenes"]
+
+    def test_rag_returns_analyzed_scenes_in_rank_order_with_score(self):
+        with patch("llm.highlight_vectors.search", return_value=[(self.hidden.pk, 0.9), (self.homer.pk, 0.8)]) as search:
+            result = self.rag.invoke({"query": "김도영 역전 홈런", "team_code": "KIA", "date_from": "2026-10-05"})
+        self.assertEqual([(i["scene_id"], i["score"]) for i in result["items"]], [(self.homer.pk, 0.8)])
+        self.assertNotIn("url", result["items"][0])
+        self.assertEqual(search.call_args.args[1], ["KIA"])
+
+    def test_rag_without_index_or_with_error_tells_the_agent(self):
+        with patch("llm.highlight_vectors.search", return_value=None):
+            self.assertIn("색인", self.rag.invoke({"query": "다이빙 캐치"})["error"])
+        with patch("llm.highlight_vectors.search", side_effect=RuntimeError("down")):
+            self.assertIn("RuntimeError", self.rag.invoke({"query": "다이빙 캐치"})["error"])
+
+    def test_select_builds_cards_from_db_not_from_model(self):
+        message = self.select.invoke({"type": "tool_call", "id": "c1", "name": "select_highlight_scenes",
+                                      "args": {"scene_ids": [self.homer.pk, self.hidden.pk, 999999], "note": "투수 미확인"}})
+        self.assertEqual(message.artifact["videos"], [{
+            "videoId": "vid1AAAAAAA", "start": 184, "gameDate": "2026-10-05",
+            "label": "2026-10-05 KIA 6회말 김도영 홈런 3타점"}])
+        content = json.loads(message.content)
+        self.assertEqual(content["missing_scene_ids"], [self.hidden.pk, 999999])
+
+    def test_highlight_videos_reads_nested_agent_records_and_rejects_bad_ids(self):
+        from langchain_core.messages import ToolMessage
+        from llm.v2.agent.chat_ui import highlight_videos
+        good = {"videos": [{"videoId": "vid1AAAAAAA", "start": 184, "label": "x"},
+                           {"videoId": "javascript:", "start": 1}, {"videoId": "vid1AAAAAAA", "start": -5}]}
+        inner = ToolMessage("{}", name="select_highlight_scenes", tool_call_id="i1", artifact=good)
+        outer = ToolMessage("요약", name="ask_highlight", tool_call_id="o1", artifact=[inner])
+        self.assertEqual(highlight_videos([outer]), [{"videoId": "vid1AAAAAAA", "start": 184, "label": "x"}])
+        failed = ToolMessage("err", name="ask_highlight", tool_call_id="o2", artifact=[inner], status="error")
+        self.assertEqual(highlight_videos([failed]), [])
+
+    def test_ask_highlight_is_a_fixed_specialist_with_three_tools(self):
+        from llm.v2.agent import highlight_sub_agent, sub_agents
+        self.assertIn("ask_highlight", sub_agents.SPECIALISTS)
+        self.assertEqual(set(highlight_sub_agent.TOOLS),
+                         {"search_highlight_scenes", "search_highlight_rag", "select_highlight_scenes"})
+
+
 class DailyCrawlerTest(TestCase):
     def test_off_by_default_and_runs_recent_days_when_enabled(self):
         from crawling import kbo_highlights
@@ -239,7 +294,7 @@ class DailyCrawlerTest(TestCase):
             collect.return_value = {"found": 5, "analyzed": 5, "skipped": 0, "failed": 0, "cost": 0.5}
             with patch.dict("os.environ", {"HIGHLIGHT_AUTO_COLLECT": "1", "HIGHLIGHT_DAILY_BUDGET": "1.5"}):
                 kbo_highlights.main(today=date(2026, 10, 9))
-            collect.assert_called_once_with(since=date(2026, 10, 6), limit=20, budget=1.5)
+            collect.assert_called_once_with(since=date(2026, 10, 6), limit=20, budget=1.5, index_rag=True)
 
     def test_missing_key_does_not_fail_daily_run(self):
         from crawling import kbo_highlights

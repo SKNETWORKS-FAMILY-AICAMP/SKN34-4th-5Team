@@ -1,11 +1,15 @@
-"""highlight domain tools: collect_highlights 배치가 저장한 하이라이트 장면을 찾아 시작 시각 링크로 돌려준다."""
+"""highlight domain tools: collect_highlights 배치가 저장한 하이라이트 장면을 찾고(조건 검색·RAG 의미 검색) 검증된 장면을 고른다.
+
+모델에게는 URL 을 주지 않는다. 고른 장면의 영상 카드(videoId·시작 시각)는 select_highlight_scenes 가 DB 에서 다시 읽어 만든다."""
+import json
 from datetime import date
 
 from django.db.models import Case, IntegerField, Q, Value, When
 from django.db.models.functions import Coalesce
+from langchain_core.tools import StructuredTool
 from pydantic import Field, StrictInt, model_validator
 
-from .common import ToolInput, _json, _result, _tool, db_team_code, is_team_code
+from .common import INVALID_INPUT, ToolInput, _json, _result, _tool, db_team_code, is_team_code
 
 # 이벤트를 정하지 않은 "하이라이트" 질문에서 먼저 보여 줄 장면: 타점 1점당 10 + 이벤트 가중치(나머지 5)
 EVENT_WEIGHT = {"홈런": 50, "3루타": 30, "2루타": 25, "호수비": 25, "안타": 20, "득점": 20, "실책": 10, "도루": 10}
@@ -39,6 +43,48 @@ class HighlightInput(ToolInput):
         return self
 
 
+def _check_codes(model):
+    from llm.highlights import EVENTS
+    if any(code and not is_team_code(code) for code in (model.team_code, model.opponent_team_code)):
+        raise ValueError("올바른 팀 코드가 아닙니다.")
+    if model.event and model.event not in EVENTS:
+        raise ValueError(f"event 는 {', '.join(EVENTS)} 중 하나입니다.")
+    return model
+
+
+class HighlightRagInput(ToolInput):
+    query: str = Field(min_length=2, max_length=120,
+                       description="찾을 장면을 말로 묘사(예: 김도영 3점 홈런, 9회 끝내기 안타, 다이빙 캐치, 역전 홈런)")
+    team_code: str | None = Field(default=None, description="경기에 나온 팀 코드(예: KIA). 모르면 비운다")
+    opponent_team_code: str | None = Field(default=None, description="상대 팀 코드. 'LG전'이면 LG")
+    event: str | None = Field(default=None, description="홈런·안타·호수비 등으로 확실할 때만. 모르면 비운다")
+    date_from: date | None = None
+    date_to: date | None = None
+    limit: StrictInt | None = Field(default=None, ge=1, le=10, description="후보 수(기본 5)")
+
+    @model_validator(mode="after")
+    def validate_filters(self):
+        return _check_codes(self)
+
+
+class HighlightSelectInput(ToolInput):
+    scene_ids: list[StrictInt] = Field(min_length=1, max_length=5,
+                                       description="검증을 통과한 장면의 scene_id. 이번 검색 결과에 있던 값만")
+    note: str | None = Field(default=None, max_length=200, description="불확실한 점(예: 투수 미확인, 날짜를 바로잡음)")
+
+
+def scene_item(s):
+    """모델에게 보여 줄 장면 정보. URL 은 넣지 않는다(카드는 select_highlight_scenes 결과로 서버가 만든다)."""
+    return {
+        "scene_id": s.pk, "video_id": s.video_id, "title": s.video.title, "game_date": _json(s.video.game_date),
+        "matchup": " vs ".join(t.team_code for t in (s.video.away_team, s.video.home_team) if t),
+        "inning": s.inning, "half": s.half or None,
+        "batting_team": s.batting_team.team_code if s.batting_team else None,
+        "batter": s.batter_name or None, "pitcher": s.pitcher_name or None, "event": s.event, "rbi": s.rbi,
+        "description": s.description, "start_sec": s.start_sec,
+    }
+
+
 def pitcher_team(name):
     """투수의 소속 팀 코드: 선수 DB → 그 투수가 나온 저장 장면(수비 팀 = 경기 두 팀 - 공격 팀) 순. 모르면 None.
     분석 모델은 투수 칸을 자주 비우고 설명에만 적어서("고우석이 커브로 양의지를 삼진") 설명도 본다."""
@@ -59,7 +105,6 @@ def pitcher_team(name):
 
 
 def create_highlight_tools():
-    from llm.highlights import watch_url
     from llm.models import HighlightScene, HighlightVideo
 
     def search_highlight_scenes(player_name=None, pitcher_name=None, team_code=None, opponent_team_code=None, event=None,
@@ -142,23 +187,64 @@ def create_highlight_tools():
         ordered = ordered[:limit]
         if not event:  # 고른 장면은 경기 흐름대로 보여 준다
             ordered.sort(key=lambda s: (-(s.video.game_date or date.min).toordinal(), s.video_id, s.start_sec))
-        items = [{
-            "video_id": s.video_id, "title": s.video.title, "game_date": _json(s.video.game_date),
-            "matchup": " vs ".join(t.team_code for t in (s.video.away_team, s.video.home_team) if t),
-            "inning": s.inning, "half": s.half or None,
-            "batting_team": s.batting_team.team_code if s.batting_team else None,
-            "batter": s.batter_name or None, "pitcher": s.pitcher_name or None, "event": s.event, "rbi": s.rbi, "description": s.description,
-            "start_sec": s.start_sec, "url": watch_url(s.video_id, s.start_sec),
-        } for s in ordered]
+        items = [scene_item(s) for s in ordered]
         analyzed = HighlightVideo.objects.filter(status=HighlightVideo.ANALYZED)
         extra = {"note": "조건을 풀어 찾은 장면이라 공식 기록과 다를 수 있다."} if relaxed else {}
         return _result(items, relaxed=relaxed, requested_date=_json(requested_date), analyzed_videos=analyzed.count(),
                        latest_game_date=_json(analyzed.order_by("-game_date").values_list("game_date", flat=True).first()),
                        **extra)
 
+    def analyzed_scenes():
+        return HighlightScene.objects.filter(video__status=HighlightVideo.ANALYZED).select_related(
+            "video__home_team", "video__away_team", "batting_team")
+
+    def search_highlight_rag(query, team_code=None, opponent_team_code=None, event=None, date_from=None, date_to=None,
+                             limit=None):
+        """하이라이트 RAG: 질문을 임베딩해 Qdrant 장면 설명 색인에서 의미가 가까운 장면을 찾는다(가까운 순)."""
+        from llm import highlight_vectors
+        codes = [db_team_code(code) for code in (team_code, opponent_team_code) if code]
+        try:
+            hits = highlight_vectors.search(query, codes, date_from, date_to, event, k=limit or 5)
+        except Exception as exc:  # noqa: BLE001 - 의미 검색은 보조: 실패를 알리고 조건 검색으로 답하게 한다
+            return _result([], search_mode="rag", error=f"의미 검색 실패: {type(exc).__name__}")
+        if hits is None:
+            return _result([], search_mode="rag", error="하이라이트 RAG 색인이 아직 없다. search_highlight_scenes 결과로 답한다.")
+        scores = dict(hits)
+        by_id = analyzed_scenes().in_bulk(list(scores))
+        items = [{**scene_item(by_id[pk]), "score": score} for pk, score in hits if pk in by_id]
+        return _result(items, search_mode="rag")
+
+    def select_highlight_scenes(scene_ids, note=None):
+        """검증을 통과한 장면만 고른다. 고른 장면은 DB 에서 다시 읽어 화면 영상 카드로 보낸다."""
+        from llm.highlights import LINK_LEAD_SEC
+        ids = list(dict.fromkeys(scene_ids))[:5]
+        by_id = analyzed_scenes().in_bulk(ids)
+        chosen = [by_id[pk] for pk in ids if pk in by_id]
+        missing = [pk for pk in ids if pk not in by_id]
+        videos = [{
+            "videoId": s.video_id, "start": max(0, s.start_sec - LINK_LEAD_SEC), "gameDate": _json(s.video.game_date),
+            "label": " ".join(part for part in (
+                str(s.video.game_date or ""), " vs ".join(t.team_code for t in (s.video.away_team, s.video.home_team) if t),
+                f"{s.inning}회{s.half}" if s.inning else "", s.batter_name, s.event,
+                f"{s.rbi}타점" if s.rbi else "") if part),
+        } for s in chosen]
+        content = {"selected": [scene_item(s) for s in chosen], "missing_scene_ids": missing,
+                   "note": "선택한 장면은 화면에 영상 카드로 표시된다. URL·재생 시각을 답변에 쓰지 않는다."}
+        if not chosen:
+            content["note"] = "선택한 scene_id 가 없다(분석된 장면이 아님). 검색 결과의 scene_id 로 다시 고른다."
+        return json.dumps(content, ensure_ascii=False, default=str), {"videos": videos, "note": note or ""}
+
     specs = (
         (search_highlight_scenes, "search_highlight_scenes",
-         "KBO 경기 하이라이트 영상에서 선수·팀·이벤트(홈런 등) 장면을 찾아 그 장면부터 재생되는 유튜브 링크를 돌려준다.",
+         "KBO 경기 하이라이트 장면을 선수·투수·팀·상대·결과(홈런 등)·날짜 조건으로 DB 에서 찾는다(scene_id 포함).",
          HighlightInput),
+        (search_highlight_rag, "search_highlight_rag",
+         "KBO 하이라이트 장면을 말로 묘사한 질문(역전·끝내기·다이빙 캐치·3점 홈런 등)으로 의미 검색한다(RAG, scene_id 포함).",
+         HighlightRagInput),
     )
-    return tuple(_tool(*spec) for spec in specs)
+    select = StructuredTool.from_function(
+        select_highlight_scenes, name="select_highlight_scenes",
+        description="검증을 마친 하이라이트 장면 scene_id 를 골라 화면 영상 카드로 보낸다. 검색 결과에 있던 scene_id 만, 한 번만 부른다.",
+        args_schema=HighlightSelectInput, response_format="content_and_artifact",
+        handle_tool_error=True, handle_validation_error=INVALID_INPUT)
+    return (*(_tool(*spec) for spec in specs), select)

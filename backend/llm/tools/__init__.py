@@ -9,6 +9,7 @@ DOMAIN_TOOL_NAMES = (
     "get_facilities", "get_stadium_contents", "get_seat_maps", "search_places",
     "search_courses", "get_course", "search_community_posts", "get_prediction_games",
     "search_players", "get_directions", "search_tourism", "get_weather", "search_highlight_scenes",
+    "search_highlight_rag", "select_highlight_scenes",
 )
 
 

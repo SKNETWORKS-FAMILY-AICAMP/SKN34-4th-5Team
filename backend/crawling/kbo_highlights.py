@@ -23,7 +23,8 @@ def main(today=None):
     since = (today or datetime.now(KST).date()) - timedelta(days=int(os.getenv("HIGHLIGHT_LOOKBACK_DAYS", "3")))
     try:
         summary = highlights.collect(since=since, limit=int(os.getenv("HIGHLIGHT_DAILY_LIMIT", "20")),
-                                     budget=float(os.getenv("HIGHLIGHT_DAILY_BUDGET", "2")))
+                                     budget=float(os.getenv("HIGHLIGHT_DAILY_BUDGET", "2")),
+                                     index_rag=os.getenv("HIGHLIGHT_RAG_INDEX", "1") != "0")
     except highlights.HighlightError as exc:  # 키 없음 등 설정 문제: 다른 크롤러의 하루 1회 기록을 막지 않는다
         print(f"하이라이트 수집 건너뜀: {exc}")
         return None

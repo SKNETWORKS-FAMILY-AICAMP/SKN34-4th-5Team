@@ -300,8 +300,10 @@ def replace_scenes(video, scenes, model, cost):
 
 
 def collect(since=None, team=None, limit=5, budget=1.0, model=DEFAULT_MODEL, video_ids=(), reanalyze=False,
-            dry_run=False, report=print, _http=_http_json):
-    """목록 수집 → (dry_run 이 아니면) 새 영상만 분석·저장. 누적 비용이 budget(USD)에 닿으면 멈춘다."""
+            dry_run=False, report=print, _http=_http_json, index_rag=False):
+    """목록 수집 → (dry_run 이 아니면) 새 영상만 분석·저장. 누적 비용이 budget(USD)에 닿으면 멈춘다.
+
+    index_rag 면 분석한 영상의 장면 설명을 바로 RAG 색인(llm.highlight_vectors)에 넣는다. 색인 실패는 장면표 저장을 되돌리지 않는다."""
     from llm.models import HighlightVideo
     if video_ids:
         infos = [{"video_id": v, "title": "", "published_at": None, "away": None, "home": None, "game_date": None} for v in video_ids]
@@ -346,5 +348,11 @@ def collect(since=None, team=None, limit=5, budget=1.0, model=DEFAULT_MODEL, vid
         summary["analyzed"] += 1
         homers = sum(1 for s in scenes if s["event"] == "홈런")
         report(f"분석: {label} | 장면 {len(scenes)}개(홈런 {homers}) | ${cost:.4f} | {time.monotonic() - started:.0f}초 | {provider}")
+        if index_rag:
+            try:
+                from llm import highlight_vectors
+                report(f"RAG 색인: {label} | 장면 {highlight_vectors.index_video(video)}개")
+            except Exception as exc:  # noqa: BLE001 - 색인은 index_highlights 로 다시 할 수 있다
+                report(f"RAG 색인 실패(장면표는 저장됨): {label} | {type(exc).__name__}: {exc}")
     summary["cost"] = round(spent, 4)
     return summary

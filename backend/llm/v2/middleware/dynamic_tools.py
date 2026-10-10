@@ -25,7 +25,7 @@ CAPABILITY_TOOLS = {
     "schedule": ("get_games",),
     "standings": ("get_standings",),
     "players": ("search_players",),
-    "highlight": ("search_highlight_scenes",),
+    "highlight": ("ask_highlight",),
     "baseball_stats": ("get_baseball_schema", "execute_baseball_select"),
     "rules": ("search_kbo_documents",),
     "stadium_info": (

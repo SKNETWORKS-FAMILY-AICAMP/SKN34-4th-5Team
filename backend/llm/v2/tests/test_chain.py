@@ -63,6 +63,7 @@ ALL_NAMES = sorted({
     "get_standings", "search_players", "get_seat_zones", "get_seat_views", "get_seat_maps", "get_ticket_prices",
     "get_ticket_policies", "get_ticket_policy", "search_nearby_places", "plan_course", "get_food_stores", "get_facilities", "get_stadium_contents", "get_weather",
     "search_community_posts", "get_prediction_games", "get_baseball_schema", "execute_baseball_select",
+    "search_highlight_scenes", "search_highlight_rag", "select_highlight_scenes",  # ask_highlight 하위 에이전트 도구
 })
 
 
@@ -368,7 +369,7 @@ class ChainTest(unittest.TestCase):
                          set(sub_agents.SPECIALISTS) | {"get_directions", "present_planning_questions"})
 
     def test_empty_capabilities_allow_every_delegation_but_block_primitives(self):
-        expected = {"ask_baseball", "ask_travel_research", "ask_place_data", "ask_course", "ask_web_research"}
+        expected = {"ask_baseball", "ask_travel_research", "ask_place_data", "ask_course", "ask_web_research", "ask_highlight"}
         self.assertEqual(set(sub_agents.SPECIALISTS), expected)
         for name in sorted(expected):
             with self.subTest(name=name), patch("llm.v2.middleware.dynamic_tools.MIGRATED_TOOLS", frozenset()):

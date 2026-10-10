@@ -11,7 +11,7 @@ import { safeChatUrl } from "@/lib/media-url";
 import { YouTubeVideoPlayer } from "@/components/youtube-video-player";
 export { safeChatUrl } from "@/lib/media-url";
 
-import type { ChatCoursePlace } from "@/lib/chat/types";
+import type { ChatCoursePlace, ChatVideo as ChatVideoCard } from "@/lib/chat/types";
 import type { Element, Root } from "hast";
 
 export function ChatPlaceSource({ place }: { place: ChatCoursePlace }) {
@@ -52,7 +52,10 @@ function ChatVideo({ href, label }: { href: string; label: string }) {
   </span>;
 }
 
-export function ChatAnswer({ text, places = [] }: { text: string; places?: ChatCoursePlace[] }) {
+// 하이라이트 영상 카드: ask_highlight 가 고른 장면을 서버가 DB 에서 만든 videoId·시작 시각으로 보여 준다(모델이 쓴 URL 이 아님).
+export const videoWatchUrl = (video: ChatVideoCard) => `https://www.youtube.com/watch?v=${video.videoId}&t=${video.start}s`;
+
+export function ChatAnswer({ text, places = [], videos = [] }: { text: string; places?: ChatCoursePlace[]; videos?: ChatVideoCard[] }) {
   const placeSources = () => (tree: Root) => {
     const cited = new Set<number>();
     const addSources = (block: Element) => {
@@ -143,5 +146,7 @@ export function ChatAnswer({ text, places = [] }: { text: string; places?: ChatC
       img: ({ src, alt, title }) => <ChatImage key={typeof src === "string" ? src : "blocked"} src={src} alt={alt} title={title} />,
       table: ({ children }) => <div className="chat-table-scroll" role="region" aria-label="답변 표" tabIndex={0}><table>{children}</table></div>,
     }}
-  >{text}</Markdown></div>;
+  >{text}</Markdown>{videos.length > 0 && <div className="chat-videos">
+    {videos.map((video, index) => <ChatVideo key={`${video.videoId}-${video.start}-${index}`} href={videoWatchUrl(video)} label={video.label} />)}
+  </div>}</div>;
 }

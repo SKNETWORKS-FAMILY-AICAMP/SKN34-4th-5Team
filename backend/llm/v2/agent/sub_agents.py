@@ -5,7 +5,8 @@ from langchain.tools import ToolRuntime, tool
 from langchain_core.messages import HumanMessage, ToolMessage
 from langchain_core.runnables.config import merge_configs
 
-from . import baseball_sub_agent, course_sub_agent, place_sub_agent, travel_sub_agent, web_sub_agent
+from . import (baseball_sub_agent, course_sub_agent, highlight_sub_agent, place_sub_agent, travel_sub_agent,
+               web_sub_agent)
 from .common import final_text
 
 SPECIALISTS = {
@@ -13,6 +14,7 @@ SPECIALISTS = {
     "ask_course": (course_sub_agent, "직관 코스 전문 에이전트: 실제 사용자 요청과 현재 지도·서버 기억으로 코스 생성·수정을 검증해 돌려준다. 턴당 한 번만 실행한다."),
     "ask_baseball": (baseball_sub_agent, "야구 전문 에이전트: 경기 일정·시각, 구장 확인, 구장 안 정보, 야구 커뮤니티를 조회해 돌려준다."),
     "ask_travel_research": (travel_sub_agent, "주변 후보 조사 에이전트: 구장 주변 맛집·카페·관광·실내활동 후보를 찾아 돌려준다."),
+    "ask_highlight": (highlight_sub_agent, "하이라이트 전문 에이전트: 선수·팀·날짜·장면 묘사로 KBO 하이라이트 장면을 RAG·조건 검색하고 검증된 장면만 골라 돌려준다. 영상 카드는 서버가 붙인다."),
     "ask_place_data": (place_sub_agent, "장소 확인 에이전트: 기존 공개 코스와 특정 장소가 실제 검색되는지 확인해 돌려준다."),
 }
 
