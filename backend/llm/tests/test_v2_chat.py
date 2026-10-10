@@ -134,6 +134,40 @@ def guest_request(session):
     )
 
 
+class CitationLinksTest(TestCase):
+    def test_exact_safe_destinations_and_duplicate_sources_or_native_citations(self):
+        from llm.service.chat_v2 import _citation_links
+        url = "https://example.com/a(b)?x=1&y=2#part"
+        encoded = "https://example.com/a%28b%29?x=1&y=2#part"
+        source = {"url": url, "title": "page [one]\n<script>"}
+        suffix = _citation_links(AIMessage("answer"), [source, source])
+        self.assertEqual(suffix, "\n\n출처: [page \\[one\\] &lt;script&gt;](" + encoded + ")")
+        for destination in (url, encoded, "<" + encoded + ">"):
+            self.assertEqual(_citation_links(AIMessage("[already](" + destination + ")"), [source]), suffix)
+        native = AIMessage([{"type": "text", "text": "answer", "annotations": [
+            {"type": "url_citation", "url": url, "title": "native"}]}])
+        self.assertEqual(_citation_links(native, [source]).count("](" + encoded + ")"), 1)
+
+    def test_model_markdown_never_suppresses_authoritative_footer(self):
+        from llm.service.chat_v2 import _citation_links
+        url = "https://example.com/source"
+        link = f"[model]({url})"
+        for text in (link, f"내용 ]({url})", f"```markdown\n{link}\n```", "\\" + link,
+                     f"`{link}`", f"[model]({url}"):
+            with self.subTest(text=text):
+                self.assertEqual(_citation_links(AIMessage(text), [{"url": url}, {"url": url}]),
+                                 f"\n\n출처: [example.com]({url})")
+
+    def test_unsafe_urls_never_render_or_crash(self):
+        from llm.service.chat_v2 import _citation_links
+        for url in ("javascript:alert(1)", "file:///tmp/source", "https://user:pass@example.com/",
+                    "https://@example.com/", "https://example.com/\n)[fake](https://evil.com)",
+                    "https://example.com/\rsource", "https://[broken", "https://example.com:bad/",
+                    "https://example.com/\x00", None):
+            with self.subTest(url=url):
+                self.assertEqual(_citation_links(AIMessage("answer"), [{"url": url}]), "")
+
+
 class ResolveVersionTest(TestCase):
     """URL 로 넘어온 version 이 env 보다 우선한다는 선택 규칙 (resolve_version) 회귀 테스트.
     llm/urls.py 를 두 api 버전이 공통 include 하면서 실제 분기가 여기로 옮겨왔다."""
@@ -158,6 +192,19 @@ class SendMessageTest(CheckpointTestCase):
 
     def _patched_chain(self, chain):
         return patch_chain(return_value=chain)
+
+    def test_attachment_citation_stream_matches_done_and_saved_history(self):
+        class SourceChain(FakeChain):
+            def stream(self, *args, **kwargs):
+                yield (), "updates", {"AttachmentContextMiddleware.before_agent": {"attachment_sources": [
+                    {"url": "https://example.com/original", "title": "Original"}]}}
+                yield from super().stream(*args, **kwargs)
+        with self._patched_chain(SourceChain(chunks=("안", "녕"))):
+            frames = list(chat_service.send_message(self.session, "질문"))
+        answer = "안녕\n\n출처: [Original](https://example.com/original)"
+        self.assertEqual("".join(data["text"] for event, data in frames if event == "delta"), answer)
+        self.assertEqual(frames[-1][1]["assistant_message"], answer)
+        self.assertEqual(history(self.session)[-1]["content"], answer)
 
     def test_sse_frame_order_and_persistence(self):
         fake = FakeChain(chunks=("안", "녕"))

@@ -7,10 +7,8 @@ x-logging: &default-logging
 services:
 
   jev-browser:
-    profiles: [web-research]
     build: ./docker/jev-browser
     restart: unless-stopped
-    init: true
     cap_add: [NET_ADMIN]
     security_opt:
       - seccomp=./docker/jev-browser/seccomp.json

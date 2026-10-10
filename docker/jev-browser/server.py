@@ -185,10 +185,18 @@ async def jev_read_body(url: str) -> dict:
             try:
                 raw = await asyncio.wait_for(bounded_stdout(process, 4 * 1024 * 1024), 45)
                 if process.returncode != 0:
-                    return {"status": "blocked", "source_url": url}
-                result = json.loads(raw)
-                if result.get("status") == "ok" and (not isinstance(result.get("body"), str) or len(result["body"].encode("utf-8")) > 2 * 1024 * 1024):
+                    return {"status": "error", "source_url": url}
+                try:
+                    result = json.loads(raw)
+                except (ValueError, TypeError):
+                    return {"status": "error", "source_url": url}
+                if not isinstance(result, dict) or not isinstance(result.get("status"), str) or result["status"] not in {"ok", "partial", "blocked", "busy", "timeout", "error", "overflow", "cancelled"}:
+                    return {"status": "error", "source_url": url}
+                if len(raw) > 2 * 1024 * 1024:
                     return {"status": "overflow", "source_url": url}
+                if result["status"] in {"ok", "partial"}:
+                    if not isinstance(result.get("body"), str) or result.get("source_kind") != "rendered_dom_snapshot":
+                        return {"status": "error", "source_url": url}
                 return result
             except OverflowError:
                 return {"status": "overflow", "source_url": url}

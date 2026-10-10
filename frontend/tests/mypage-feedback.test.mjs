@@ -62,7 +62,8 @@ test("account menu retains feedback for superusers but removes community adminis
   for (const identity of roles) {
     const hooks = harness();
     const { MemberHeaderActions } = load("components/member-header-actions.tsx", {
-      ...hooks, Link: noop, useMemberAuth: () => identity, useRouter: () => ({}), logoutMember: noop, memberError: noop,
+      ...hooks, useCallback: callback => callback, AbortController, memberFetch: async () => Response.json({ balance: 0 }),
+      Link: noop, useMemberAuth: () => identity, useRouter: () => ({}), logoutMember: noop, memberError: noop,
     });
     let tree = hooks.render(MemberHeaderActions);
     find(tree, node => node.props?.["aria-controls"] === "member-menu-panel")?.props.onClick();

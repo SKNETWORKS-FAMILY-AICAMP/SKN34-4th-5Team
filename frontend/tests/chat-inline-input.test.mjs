@@ -17,17 +17,70 @@ const textNode = value => ({ nodeType: 3, nodeName: "#text", textContent: value,
 const input = { childNodes: [textNode("@")], focus() {} };
 const exports = {};
 const selectionContext = {}, selectionRef = { current: null };
+const urlExports = {};
+const urlCode = readFileSync(new URL("../lib/chat/inline-urls.ts", import.meta.url), "utf8");
+runInNewContext(ts.transpileModule(urlCode, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText, { exports: urlExports, URL });
 class Element { constructor(marker) { this.dataset = { marker }; } }
 runInNewContext(ts.transpileModule(body, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText, {
   exports, require, HTMLElement: Element, Node: { TEXT_NODE: 3 }, ChatToolGroupsContext: {}, ChatToolSelectionContext: selectionContext, useContext: context => context === selectionContext ? selectionRef : groups, useChat: () => chat, useMemberAuth: () => ({ status: "anonymous" }),
   useLayoutEffect(effect) { if (effect.toString().includes("toolSelectionRef.current")) effect(); }, document: { createRange: () => ({ setStart() {}, setEnd() {} }) }, useRef: value => refs[refIndex++] ??= { current: value }, useId: () => "tools", Icon: () => null, presentationFor: () => ({ icon: "book" }),
   useState(initial) { const index = stateIndex++; return [index in values ? values[index] : initial, value => { values[index] = typeof value === "function" ? value(values[index] ?? initial) : value; }]; },
-  chatUrlTokens: () => [], normalizeChatUrl: value => value, window: { getSelection: () => null, setTimeout: fn => fn() },
+  URL, chatUrlTokens: urlExports.chatUrlTokens, normalizeChatUrl: urlExports.normalizeChatUrl, window: { getSelection: () => null, setTimeout: fn => fn() },
 });
 const flatten = tree => !tree || typeof tree !== "object" ? [] : [tree, ...[tree.props?.children].flat(Infinity).flatMap(flatten)];
 const render = () => { stateIndex = refIndex = 0; return flatten(exports.ChatInlineInput({ id: "question", inputRef: { current: input }, disabled: false, available: true, onSend: () => sends++, onCompositionChange() {} })); };
 const editor = () => render().find(node => node.props?.role === "textbox").props;
 const keyboard = key => ({ key, keyCode: 0, nativeEvent: {}, preventDefault() {}, stopPropagation() {} });
+
+test("sent and history URLs are safe real links without turning references into navigation", () => {
+  const text = "https://BLOG.naver.com/post?id=42#section [[ Text 1 ]] @규칙 javascript:alert(1) data:text/html,test [[ Text 99 ]]";
+  for (const attachments of [[], [{ kind: "url", url: "https://blog.naver.com/post?id=42" }, { key: "text", name: "Pasted Text 1.txt", inlineText: "[[ Text 1 ]]" }]]) {
+    const tree = flatten(exports.ChatInlineContent({ text, attachments, toolTags: ["@규칙"] }));
+    const links = tree.filter(node => node.type === "a");
+    assert.equal(links.length, 1);
+    assert.equal(links[0].props.href, attachments.length ? "https://BLOG.naver.com/post?id=42#section" : "https://blog.naver.com/post?id=42");
+    assert.equal(links[0].props.target, "_blank");
+    assert.equal(links[0].props.rel, "noopener noreferrer");
+    if (attachments.length) {
+      assert.equal(links[0].props.title, "https://BLOG.naver.com/post?id=42#section");
+      assert.equal(tree.find(node => node.props?.className === "chat-inline-chip-label").props.children, "blog.naver.com");
+    } else assert.equal(links[0].props.children, "https://BLOG.naver.com/post?id=42#section");
+    assert.equal(tree.filter(node => node.type === "span" && node.props.children === "@규칙").length, 1);
+  }
+  assert.equal(flatten(exports.ChatInlineContent({ text: "javascript:alert(1) data:text/html,test https://localhost/x https://example.com:999/x [[ Text 99 ]]" })).filter(node => node.type === "a").length, 0);
+});
+
+test("only explicit URL attachments become read-only domain chips in surrounding prose", () => {
+  const attached = "https://fresh-play-life.tistory.com/46?item=1#details";
+  const other = "https://fresh-play-life.tistory.com/46?item=2";
+  const text = `앞 (${attached}), 중간 ${other} 뒤`;
+  const attachments = [{ kind: "url", url: attached }, { kind: "image", url: other }];
+  const result = exports.ChatInlineContent({ text, attachments });
+  const tree = flatten(result), links = tree.filter(node => node.type === "a");
+  const visible = node => typeof node === "string" ? node : Array.isArray(node) ? node.map(visible).join("") : node?.props ? visible(node.props.children) : "";
+  assert.equal(visible(result), `앞 (fresh-play-life.tistory.com), 중간 ${other} 뒤`);
+  assert.equal(links[0].props.href, attached);
+  assert.equal(links[0].props["aria-label"], `${attached} 새 탭에서 열기`);
+  assert.equal(links[1].props.children, other);
+  assert.equal(tree.filter(node => node.props?.className === "chat-inline-chip").length, 1);
+  assert.equal(tree.filter(node => node.type === "button").length, 0);
+  for (const url of ["javascript:alert(1)", "data:text/html,test", "https://user:pass@example.com/a", "https://localhost/a", "https://example.com:999/a", "https://example.com\\\\evil/a"]) {
+    assert.equal(flatten(exports.ChatInlineContent({ text: url, attachments: [{ kind: "url", url }] })).filter(node => node.type === "a").length, 0);
+  }
+  for (const file of ["chat-workspace.tsx", "chat-popup.tsx"]) {
+    assert.match(readFileSync(new URL(`../components/${file}`, import.meta.url), "utf8"), /ChatUserContent attachments=\{message.attachments\} content=\{message.content\}/);
+  }
+  assert.match(readFileSync(new URL("../components/chat-composer-tools.tsx", import.meta.url), "utf8"), /items = items.filter\(item => item.kind !== "url"/);
+});
+
+test("composer URL navigation is a safe sibling of removal, not a disclosure or submit control", () => {
+  assert.match(code, /link\.href = atom\.url; link\.target = "_blank"; link\.rel = "noopener noreferrer"/);
+  assert.match(code, /link\.onmousedown = event => event\.preventDefault\(\); link\.onclick = event => event\.stopPropagation\(\)/);
+  assert.match(code, /link\.append\(icon, label\); chip\.append\(link\)/);
+  assert.match(code, /remove\.type = "button"/);
+  assert.match(code, /chip\.append\(remove\)/);
+  assert.doesNotMatch(code, /chat-inline-disclosure|marker\.startsWith\("http"\)/);
+});
 
 test("plus tool selection inserts once, preserves draft and focuses without sending", () => {
   let focused = 0;

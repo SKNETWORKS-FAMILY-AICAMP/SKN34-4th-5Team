@@ -21,13 +21,13 @@ for (const name of ["lib/course-directions", "lib/media-url", "lib/member-auth-r
   mkdirSync(dirname(join(scratch, `${name}.js`)), { recursive: true });
   writeFileSync(join(scratch, `${name}.js`), outputText);
 }
-{
-  const source = readFileSync(join(frontend, "components/chat-pending.tsx"), "utf8");
+for (const name of ["chat-pending", "icons"]) {
+  const source = readFileSync(join(frontend, `components/${name}.tsx`), "utf8");
   const { outputText } = ts.transpileModule(source, {
-    fileName: "chat-pending.tsx", compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
+    fileName: `${name}.tsx`, compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
   });
   mkdirSync(join(scratch, "components"), { recursive: true });
-  writeFileSync(join(scratch, "components/chat-pending.js"), outputText);
+  writeFileSync(join(scratch, `components/${name}.js`), outputText);
 }
 {
   const source = readFileSync(join(frontend, "components/chat-answer.tsx"), "utf8").replace(/^import "@\/styles\/chat-answer\.css";$/m, "").replaceAll("@/lib/media-url", "../lib/media-url.js");
@@ -394,8 +394,12 @@ test("running main sub-agents render only above the composer; finished ones fold
   const body = items => renderToStaticMarkup(React.createElement(ChatProgress, { items, live: true }));
   const both = tools("running", "running");
   assert.match(bar(both), /role="status"/);
-  assert.match(bar(both), /야구 정보 확인 · 두산 다음 경기 확인 조회 중/);
-  assert.match(bar(both), /여행 정보 조사 조회 중/);
+  const text = bar(both).replace(/<[^>]*>/g, "");
+  assert.match(text, /야구 정보 확인 · 두산 다음 경기 확인 조회 중/);
+  assert.match(text, /여행 정보 조사 조회 중/);
+  assert.match(bar(both), /aria-live="polite"/);
+  assert.match(bar(both), /<svg[^>]*aria-hidden="true"[^>]*class="chat-subagent-icon"/);
+  assert.doesNotMatch(bar(both), /…/);
   assert.doesNotMatch(body(both), /야구 정보 확인|여행 정보 조사/);
   assert.match(body(both), /날씨 조회/);
   const one = tools("completed", "running");
@@ -404,6 +408,22 @@ test("running main sub-agents render only above the composer; finished ones fold
   assert.match(body(one), /두산 다음 경기 확인/);
   assert.equal(bar(tools("failed", "completed")), "");
   assert.equal(bar([]), "");  // not busy / stop / session change: callers pass []
+  const longSummary = `잠실 직관 코스 계획 ${"긴공개요약".repeat(40)} <script>public</script>`;
+  const scoped = bar(toolItems([
+    tl("public", "ask_course", "running", { kind: "sub_agent", summary: longSummary, title: "PRIVATE_TITLE", detail: { args: { secret: "PRIVATE_ARGS" }, result: "PRIVATE_RESULT", messages: [{ role: "ai", content: "PRIVATE_MESSAGE" }] } }),
+    tl("nested", "ask_place_data", "running", { kind: "sub_agent", parentId: "public", summary: "PRIVATE_NESTED" }),
+    tl("unknown", "unmapped_agent", "running", { kind: "sub_agent" }),
+  ]));
+  assert.match(scoped, /class="chat-subagent-role">코스 생성·수정/);
+  assert.match(scoped, /class="chat-subagent-summary"> · 잠실 직관 코스 계획/);
+  assert.ok(scoped.includes(longSummary.replaceAll("<", "&lt;").replaceAll(">", "&gt;")));
+  assert.match(scoped, /class="chat-subagent-role">정보 조회/);
+  assert.equal((scoped.match(/<li>/g) ?? []).length, 2);
+  assert.doesNotMatch(scoped, /PRIVATE_|unmapped_agent|<script>|<details|title=/);
+  const statusStyles = readFileSync(join(frontend, "styles/chat-progress.css"), "utf8").split("/* 입력창 바로 위")[1];
+  assert.match(statusStyles, /minmax\(0, 1fr\)/);
+  assert.match(statusStyles, /overflow-wrap: anywhere/);
+  assert.doesNotMatch(statusStyles, /text-overflow|overflow: hidden|animation/);
   // saved stopped/failed history (no live): unresolved running sub-agent stays folded in the body
   assert.match(renderToStaticMarkup(React.createElement(ChatProgress, { items: both })), /야구 정보 확인 \(서브에이전트\) 조회 중.*여행 정보 조사 \(서브에이전트\) 조회 중/s);
   for (const f of ["components/chat-workspace.tsx", "components/chat-popup.tsx"]) {

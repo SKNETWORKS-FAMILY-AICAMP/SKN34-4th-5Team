@@ -15,8 +15,8 @@ class CourseBoundaryMiddleware(DynamicToolMiddleware):
         super().__init__(["plan_course"])
 
     def allowed(self, state):
-        decision = state.get("decision") or {}
-        return self.role_tools if decision.get("allowed") is True and "day_plan" in decision.get("capabilities", ()) else frozenset()
+        # 부모 capability와 무관한 고정 역할 도구, 서비스 범위 판정은 유지한다.
+        return self.role_tools if (state.get("decision") or {}).get("allowed") is True else frozenset()
 
 
 def build(model, tools_by_name):
