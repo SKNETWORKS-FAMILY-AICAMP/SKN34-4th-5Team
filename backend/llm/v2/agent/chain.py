@@ -1,5 +1,5 @@
 """V2 그래프 = 메인 Agent 하나. JEV 는 메인 Agent 의 JevGuidelineMiddleware(run_jev=True)가 invocation 당 한 번 부르고,
-하위 Agent 는 ask_* 도구로 노출돼 다른 도구처럼 capability 로 노출·차단된다. checkpointer 없음."""
+하위 Agent 위임 도구는 JEV PASS 후 고정 노출하고 나머지 도구는 capability 로 노출·차단한다. checkpointer 없음."""
 from functools import cache
 
 from ..middleware.dynamic_tools import CAPABILITY_TOOLS
@@ -65,7 +65,8 @@ def build_graph(model, tools_by_name):
     from ..middleware.attachment_context import jev_read_body
     tools = [*(tools_by_name[n] for n in TOOLS), *sub_agents.build(model, tools_by_name), present_planning_questions, jev_read_body]
     capabilities = {**CAPABILITY_TOOLS, "day_plan": (*CAPABILITY_TOOLS["day_plan"], present_planning_questions.name)}
-    return build_agent(model, tools, MAIN_RULES, capabilities, budget=MAIN_MODEL_CALL_BUDGET, run_jev=True)
+    return build_agent(model, tools, MAIN_RULES, capabilities, budget=MAIN_MODEL_CALL_BUDGET, run_jev=True,
+                       fixed_tools=sub_agents.SPECIALISTS)
 
 
 V2_PLAN_COURSE_DESCRIPTION = "직관 코스 생성·장소 교체/추가/삭제·순서/체류시간 변경·장소 고정/해제·직전 수정 취소·대화 조건과 제외 장소 기억/해제를 처리한다. 방문 완료·출발 지연·경기 종료 지연·산책의 실내 교체도 처리한다. 완료한 장소와 수정하지 않은 장소는 유지하고 남은 이동시간·시간표·지도·카드를 함께 갱신한다."

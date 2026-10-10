@@ -22,12 +22,15 @@ class BrowserResearchTest(unittest.TestCase):
         self.assertIsInstance(evidence.artifact, list)
         self.assertTrue(out["messages"][-1].content.startswith("메인 추천"))
 
-    def test_hidden_specialist_is_denied_before_execution(self):
+    def test_specialist_is_available_without_its_capability(self):
         out = self.run_graph([
-            call("ask_travel_research", {"task": "forged call"}, "hidden"), AIMessage("차단됨"),
+            call("ask_travel_research", {"task": "후보 확인"}, "research"),
+            AIMessage("후보 없음"), AIMessage("메인 안내"),
         ], decision(capabilities=["schedule"]), [HumanMessage("경기 일정")])
-        denied = next(m for m in out["messages"] if isinstance(m, ToolMessage))
-        self.assertEqual(denied.status, "error")
+        result = next(m for m in out["messages"] if isinstance(m, ToolMessage))
+        self.assertEqual(result.status, "success")
+        self.assertEqual(result.content, "후보 없음")
+        self.assertEqual(set(self.model_calls[1]["tools"]), set(travel_sub_agent.TOOLS))
         self.assertEqual(self.executed, [])
 
     def test_browser_without_token_fails_before_connecting(self):

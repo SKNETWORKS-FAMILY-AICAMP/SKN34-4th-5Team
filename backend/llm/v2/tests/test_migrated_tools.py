@@ -200,10 +200,14 @@ class MigratedToolsTest(unittest.TestCase):
                 patch("llm.v1.rag.course.agent.answer", return_value={"answer": "코스 완성"}) as engine:
             first = graph.invoke({"messages": [HumanMessage("잠실 기준으로 추천해줘")], "tool_group_ids": ["day_plan"]})
             second = graph.invoke({"messages": [HumanMessage("안녕")]})
-        engine.assert_called_once()
+        self.assertEqual(engine.call_count, 2)
+        self.assertEqual([c.args[0] for c in engine.call_args_list], ["잠실 기준으로 추천해줘", "안녕"])
+        self.assertEqual(engine.call_args_list[1].kwargs["history"], [])
         self.assertEqual(self.tool_msg(first, "ask_course").status, "success")
-        self.assertEqual(self.tool_msg(second, "ask_course").status, "error")
-        self.assertNotIn("ask_course", calls[2]["tools"])
+        self.assertEqual(self.tool_msg(second, "ask_course").status, "success")
+        self.assertIn("ask_course", calls[2]["tools"])
+        self.assertIn("get_directions", calls[0]["tools"])
+        self.assertNotIn("get_directions", calls[2]["tools"])
 
     def test_unverified_course_ends_without_research_loop_or_invented_card(self):
         from llm.v1.rag.course.agent import unverified_course
@@ -228,13 +232,17 @@ class MigratedToolsTest(unittest.TestCase):
         self.assertEqual(out["messages"][-1].content, result["answer"])
 
     def test_hidden_migrated_tools_rejected(self):
-        with patch.object(assistant, "_run_fixed") as db, patch("llm.v1.rag.course.agent.answer") as course:
+        with patch.object(assistant, "_run_fixed") as db, \
+                patch("llm.v1.rag.course.agent.answer", return_value={"answer": "코스 완성"}) as course:
             out = self.run_graph([call("get_ticket_policy", {"team": "LG"}, "h1"),
                                   call("ask_course", {"task": "x"}, "h2"), AIMessage("순위")],
                                  ["standings"], [HumanMessage("순위")])
         db.assert_not_called()
-        course.assert_not_called()
-        self.assertEqual({m.status for m in out["messages"] if isinstance(m, ToolMessage)}, {"error"})
+        course.assert_called_once()
+        self.assertEqual(self.tool_msg(out, "get_ticket_policy").status, "error")
+        self.assertEqual(self.tool_msg(out, "ask_course").status, "success")
+        self.assertNotIn("get_ticket_policy", self.calls[0]["tools"])
+        self.assertIn("ask_course", self.calls[0]["tools"])
 
     def test_map_origin_reaches_course_planner_and_is_not_carried_into_next_request(self):
         origin = {"lat": 35.18, "lng": 126.9}
