@@ -367,3 +367,7 @@ class DailyCrawlerTest(TestCase):
         with patch("crawling.kbo_highlights._setup"), patch.dict("os.environ", {"HIGHLIGHT_AUTO_COLLECT": "1"}), \
                 patch("llm.highlights.collect", side_effect=highlights.HighlightError("YOUTUBE_API_KEY 가 없습니다.")):
             self.assertIsNone(kbo_highlights.main(today=date(2026, 10, 9)))
+        import urllib.error
+        with patch("crawling.kbo_highlights._setup"), patch.dict("os.environ", {"HIGHLIGHT_AUTO_COLLECT": "1"}), \
+                patch("llm.highlights.collect", side_effect=urllib.error.URLError("YouTube 접속 실패")):
+            self.assertIsNone(kbo_highlights.main(today=date(2026, 10, 9)))

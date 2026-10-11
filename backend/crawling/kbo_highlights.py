@@ -25,8 +25,8 @@ def main(today=None):
         summary = highlights.collect(since=since, limit=int(os.getenv("HIGHLIGHT_DAILY_LIMIT", "20")),
                                      budget=float(os.getenv("HIGHLIGHT_DAILY_BUDGET", "2")),
                                      index_rag=os.getenv("HIGHLIGHT_RAG_INDEX", "1") != "0")
-    except highlights.HighlightError as exc:  # 키 없음 등 설정 문제: 다른 크롤러의 하루 1회 기록을 막지 않는다
-        print(f"하이라이트 수집 건너뜀: {exc}")
+    except (highlights.HighlightError, OSError) as exc:  # 키 없음·YouTube 접속 실패: 다른 크롤러의 하루 1회 기록을 막지 않는다
+        print(f"하이라이트 수집 건너뜀: {type(exc).__name__}: {exc}")
         return None
     print(f"하이라이트 적재 완료: 영상={summary['found']} 분석={summary['analyzed']} 건너뜀={summary['skipped']} "
           f"실패={summary['failed']} 비용=${summary['cost']}")
