@@ -53,6 +53,17 @@ COLLECTED_PLACES_DIR = Path(os.getenv("COLLECTED_PLACES_DIR") or BASE_DIR.parent
 PLACE_RAG_PATH = Path(os.getenv("PLACE_RAG_PATH") or BASE_DIR / "artifacts/place-rag/index.sqlite3")
 # Explicit opt-in only; a local knowledge miss must not silently buy web searches.
 COURSE_WEB_VERIFICATION_ENABLED = os.getenv("COURSE_WEB_VERIFICATION_ENABLED", "false").strip().lower() == "true"
+# Public lodging snapshots are shared by local workers, independently of user wording.
+# This private cache directory must remain outside static/media roots.
+CACHES = {
+    "default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"},
+    "lodging_pages": {
+        "BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
+        "LOCATION": str(BASE_DIR / ".cache" / "lodging-pages"),
+        "TIMEOUT": 6 * 60 * 60,
+        "OPTIONS": {"MAX_ENTRIES": 256},
+    },
+}
 SERPER_API_KEY = os.getenv("SERPER_API_KEY") or os.getenv("Serper_API_KEY", "")
 PLACE_EVIDENCE_STORAGE_POLICIES = json.loads(os.getenv("PLACE_EVIDENCE_STORAGE_POLICIES", "[]"))
 

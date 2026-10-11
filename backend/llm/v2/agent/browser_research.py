@@ -20,7 +20,7 @@ def research_model():
                       max_tokens=settings.USAGE_MAX_CALL_OUTPUT_TOKENS)
 
 
-async def discover_tools():
+async def discover_tools(names=None):
     token = os.getenv("JEV_MCP_TOKEN", "").strip()
     if not token:
         raise RuntimeError("JEV_MCP_TOKEN is required")
@@ -32,7 +32,7 @@ async def discover_tools():
     }})
     # Sessions/tools belong to this loop, never cache them across sync invocations.
     tools = await client.get_tools()
-    names = {"jev_browse", "jev_read_body"}
+    names = {"jev_browse", "jev_read_body"} if names is None else set(names)
     selected = [t for t in tools if t.name in names]
     if {t.name for t in selected} != names:
         raise RuntimeError("Required JEV MCP tools unavailable")
