@@ -80,12 +80,19 @@ class DynamicToolMiddleware(AgentMiddleware):
         return False
 
     def wrap_tool_call(self, request, handler):
-        from llm.v2.agent.browser_research import allow_new_source_search
+        from llm.v2.agent.browser_research import allow_new_source_search, attachment_read_results
         token = allow_new_source_search.set(False)
+        retained = attachment_read_results.set(request.state.get("attachment_read_results") or {})
         try:
             return self._tool_call(request, handler)
         finally:
+            attachment_read_results.reset(retained)
             allow_new_source_search.reset(token)
+
+    async def awrap_tool_call(self, request, handler):
+        # Existing tools are synchronous; LangChain's worker threads copy the current context.
+        import asyncio
+        return await asyncio.to_thread(self.wrap_tool_call, request, lambda req: asyncio.run(handler(req)))
 
     def _tool_call(self, request, handler):
         name = request.tool_call["name"]

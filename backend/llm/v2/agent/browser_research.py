@@ -9,6 +9,22 @@ from contextvars import ContextVar
 
 # V2 도구 실행 경계에서만 적용; 기존 V1 호출 계약은 바꾸지 않는다.
 allow_new_source_search = ContextVar("allow_new_source_search", default=True)
+# Transient, server-owned retained attachment identities; never populated from tool arguments.
+attachment_read_results = ContextVar("attachment_read_results", default=None)
+
+
+def shared_body(url):
+    from llm.service.attachments import reference_url
+    url = reference_url(url)
+    return (attachment_read_results.get() or {}).get(url)
+
+
+def shared_reader_result(result):
+    """PublicReader's conservative contract: partial/failed observations are not verified evidence."""
+    ok = result.get("status") == "ok"
+    return {"url": result.get("source_url"), "title": result.get("title", ""),
+            "status": "read" if ok else "paste_body_needed", "body_read": ok,
+            "body_text": result.get("body", ""), "attachment_read_result": result}
 
 from langchain_core.tools import ToolException
 
@@ -158,6 +174,9 @@ def web_body(url, *, retry=True):
     from llm.service.chat_runs import check_cancelled
     url = reference_url(url)
     check_cancelled()
+    retained = shared_body(url)
+    if retained is not None:
+        return dict(retained)
     if not _admission.acquire(blocking=False):
         return {"status": "busy", "source_url": url}
     try:
@@ -193,6 +212,9 @@ def web_page_analysis(url, question=""):
     from llm.service.chat_runs import check_cancelled, Stopped
     url = reference_url(url)
     check_cancelled()
+    retained = shared_body(url)
+    if retained is not None:
+        return dict(retained)
     if not _admission.acquire(blocking=False):
         return {"status": "busy"}
     try:
@@ -312,6 +334,12 @@ def direct_tools():
             from llm.service.chat_runs import check_cancelled
             arguments["url"] = reference_url(arguments["url"])
             check_cancelled()
+            retained = shared_body(arguments["url"])
+            if retained is not None:
+                if retained.get("status") != "ok":
+                    raise ToolException(json.dumps({**retained, "next_action": "paste_body_needed"}, ensure_ascii=False))
+                return ([{"type": "text", "text": json.dumps(retained, ensure_ascii=False)}],
+                        {"structured_content": dict(retained)})
             if not _admission.acquire(blocking=False):
                 raise ToolException(json.dumps({"status": "busy"}))
             try:

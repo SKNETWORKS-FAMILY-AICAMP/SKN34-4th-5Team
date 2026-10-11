@@ -27,6 +27,7 @@ class V2AgentState(AgentState):
     attachment_web_call_id: NotRequired[str | None]
     attachment_web_done: NotRequired[bool]
     attachment_source_incomplete: NotRequired[bool]
+    attachment_read_results: NotRequired[dict]  # Transient retained server-owned URL observations.
     attachment_sources: NotRequired[list[dict]]  # Accepted originals included in this invocation's main input.
     context: NotRequired[dict | None]  # 선택: {"stadium", "intent", "origin": {"lat", "lng"}}
 

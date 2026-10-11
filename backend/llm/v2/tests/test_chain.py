@@ -256,7 +256,8 @@ class ChainTest(unittest.TestCase):
             call("present_planning_questions", payload, "ui"), AIMessage("구장을 선택해 주세요."),
         ], decision(True), [HumanMessage("구장 주변을 찾아줘")])
         specialist = self.model_calls[1]
-        self.assertEqual(specialist["messages"][1].content, task)
+        self.assertEqual(specialist["messages"][-1].content, task)
+        self.assertEqual(specialist["messages"][1].content, "구장 주변을 찾아줘")
         for text in ("한 목표", "중첩 위임하지 않는다", "사용자에게 직접 질문", "저장된 행"):
             self.assertIn(text, specialist["system"])
         self.assertFalse(set(sub_agents.SPECIALISTS) & set(specialist["tools"]))
@@ -307,7 +308,7 @@ class ChainTest(unittest.TestCase):
         baseball_call = self.model_calls[1]
         self.assertIn("get_games", baseball_call["tools"])
         self.assertNotIn("ask_travel_research", baseball_call["tools"])  # 전문 Agent 간 직접 위임 없음
-        self.assertEqual([m.type for m in baseball_call["messages"][1:]], ["human"])  # task 만 전달
+        self.assertEqual([m.type for m in baseball_call["messages"][1:]], ["human", "human"])  # 실제 사용자 제약 + task
         self.assertIn("잠실야구장", baseball_call["system"])  # 선택 context 전달
         tool_results = [m.content for m in self.model_calls[-1]["messages"] if m.type == "tool"]
         self.assertIn("내일 잠실 18:30 경기", tool_results)
