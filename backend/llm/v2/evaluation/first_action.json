@@ -39,12 +39,10 @@
       "timezone": "Asia/Seoul",
       "context": {},
       "observations": [],
-      "rubric": "Independent first-call oracle; prerequisite subset or no call, not classifier quality.",
+      "rubric": "Guard PASS; clarify target/intent in text only, no assumed stadium, lookup, delegation or writer UI. Structured no-call is not proof of clarification prose.",
       "expected": {
-        "allowed_first": [
-          "ask_baseball"
-        ],
-        "no_call": false
+        "allowed_first": [],
+        "no_call": true
       },
       "decision": {
         "guard": "PASS",
@@ -89,12 +87,10 @@
       "timezone": "Asia/Seoul",
       "context": {},
       "observations": [],
-      "rubric": "Independent first-call oracle; prerequisite subset or no call, not classifier quality.",
+      "rubric": "Guard PASS; clarify target/intent in text only, no assumed stadium, lookup, delegation or writer UI. Structured no-call is not proof of clarification prose.",
       "expected": {
-        "allowed_first": [
-          "ask_baseball"
-        ],
-        "no_call": false
+        "allowed_first": [],
+        "no_call": true
       },
       "decision": {
         "guard": "PASS",
@@ -312,6 +308,11 @@
           "stadium_info"
         ],
         "course_request": "NONE"
+      },
+      "argument_constraints": {
+        "get_stadium": {
+          "stadium_code": "JAMSIL"
+        }
       }
     }
   ]

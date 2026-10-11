@@ -193,10 +193,11 @@
     "part": "semantic",
     "input": "잠실야구장 최신 방문 후기를 웹에서 검색해줘",
     "guard": "PASS",
-    "capabilities": [
-      "web_research"
-    ],
-    "course_request": "NONE"
+    "capabilities": [],
+    "course_request": "NONE",
+    "capability_oracle": {
+      "hold": "Reviewed exclusion: new-source search unsupported; page-read mapping undecided. Explain limitation and request provided URL; no mandatory search capability."
+    }
   },
   {
     "review_status": "implementation-reviewed",

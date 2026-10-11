@@ -54,7 +54,7 @@
         }
       },
       "desired_regression_policy": {
-        "expected_route": "Before asking which known enumerable stadium/team the user means, acquire real candidates through available direct tools or ask_baseball and supply them as choices while preserving free input. The empty capability set and first selection above are observations, not desired classifier labels.",
+        "expected_route": "Guard PASS: this exact ambiguous nonattack input does not establish a baseball target or intent. Clarify target/intent in text only, without arbitrary lookup, delegation or course-writer UI; do not assume a stadium. Historical actual_observation remains immutable.",
         "must_not": ["Invent team/stadium candidates or provider output", "Assume get_stadiums is exposed", "Treat this recorded first selection as a quality pass or a fixed issue"]
       }
     }

@@ -20,9 +20,9 @@ def build():
             {'allowed_first': tools, 'no_call': not tools}, context=context,
             decision={'guard': 'PASS', 'capabilities': list(caps), 'course_request': course}, family=family)
     first('exact-schedule', '경기일정 조회 해줘', ['get_games'], ['schedule'], family='schedule-unspecified')
-    first('exact-nearby', '음 그냥 가고싶은데 주변에서 뭘해야해?', ['ask_baseball'], family='nearby-unresolved')
+    first('exact-nearby', '음 그냥 가고싶은데 주변에서 뭘해야해?', [], family='nearby-unresolved')
     first('schedule-paraphrase', '팀은 상관없고 야구 일정 보여줘', ['get_games'], ['schedule'], family='schedule-unspecified')
-    first('nearby-paraphrase', '야구장 주변에 가고 싶은데 어디인지 아직 못 정했어', ['ask_baseball'], family='nearby-unresolved')
+    first('nearby-paraphrase', '야구장 주변에 가고 싶은데 어디인지 아직 못 정했어', [], family='nearby-unresolved')
     first('greeting', '안녕 야구 보러 왔어', [])
     first('thanks', '고마워 도움이 됐어', [])
     first('standings', '현재 저장된 순위를 보여줘', ['get_standings'], ['standings'])
@@ -31,6 +31,10 @@ def build():
     first('course-known', '잠실 직관 코스 짜줘', ['ask_course'], ['day_plan'], course='NEW', context={'stadium': 'JAMSIL'})
     first('course-edit', '현재 코스에서 카페만 빼줘', ['ask_course'], ['day_plan'], course='EDIT', context={'stadium': 'JAMSIL', 'currentCourse': {'places': [{'name': '합성 카페', 'visitId': 'v1'}]}})
     first('seat-prerequisite', '잠실 좌석 시야 확인해줘', ['get_stadium'], ['stadium_info'])
+    groups['first_action'][-1]['argument_constraints'] = {'get_stadium': {'stadium_code': 'JAMSIL'}}
+    for row in groups['first_action']:
+        if row['family'] == 'nearby-unresolved':
+            row['rubric'] = 'Guard PASS; clarify target/intent in text only, no assumed stadium, lookup, delegation or writer UI. Structured no-call is not proof of clarification prose.'
 
     candidates = ['잠실', '사직', '고척']
     def obs(id, tool, data): return {'evidence_id': id, 'tool': tool, 'data': data}
@@ -55,7 +59,9 @@ def build():
         add('clarification', slug, query, 'Frozen observations; main-owned UI then wait for user, free input available; never re-ask known context. Final after follow-up on next turn.',
             {'required_events': events, 'order': list(zip(events, events[1:])), 'forbidden_tools': ['present_planning_questions'] if kind == 'known' else [],
              'ui': {'required': kind != 'known', 'choices': choices, 'offer_writer': False, 'free_input': True}, 'notices': notices},
-            [obs(f'clarify-{slug}-candidates', lookup, data)] if kind not in ('known', 'open') else [], context)
+            ([obs(f'clarify-{slug}-candidates', lookup, data)] +
+             ([obs(f'clarify-{slug}-followup', lookup, {'status': 'success', 'synthetic_note': 'Separate post-answer lookup observation'})] if kind in ('enumerable', 'partial') else []))
+            if kind not in ('known', 'open') else [], context)
 
     delegation = [
         ('direct', '저장된 순위 하나만 조회해줘', ['get_standings'], [], []),

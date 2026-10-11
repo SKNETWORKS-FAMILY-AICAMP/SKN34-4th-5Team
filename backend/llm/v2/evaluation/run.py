@@ -63,6 +63,27 @@ def labels(value):
     return {**value, 'capabilities': sorted(string_list(value['capabilities'], jev.CAPABILITIES))}
 
 
+def capability_oracle(row):
+    value = row.get('capability_oracle', {'required': row['capabilities'], 'allowed': row['capabilities'], 'forbidden': []})
+    if not isinstance(value, dict): raise ValueError('Invalid capability oracle')
+    if set(value) == {'hold'}:
+        if not isinstance(value['hold'], str) or not value['hold'].strip(): raise ValueError('Hold needs reviewed reason')
+        return value
+    if set(value) != {'required', 'allowed', 'forbidden'}: raise ValueError('Invalid capability oracle keys')
+    for names in value.values(): string_list(names, jev.CAPABILITIES)
+    if not set(value['required']) <= set(value['allowed']) or set(value['allowed']) & set(value['forbidden']):
+        raise ValueError('Conflicting capability constraints')
+    return value
+
+
+def label_dimensions(row, actual):
+    actual = labels(actual)
+    oracle = capability_oracle(row)
+    capabilities = set(actual['capabilities'])
+    capability = None if 'hold' in oracle else (set(oracle['required']) <= capabilities <= set(oracle['allowed']) and not capabilities & set(oracle['forbidden']))
+    return {'guard': actual['guard'] == row['guard'], 'course': actual['course_request'] == row['course_request'], 'capability': capability}
+
+
 def validate_row(row, semantic_only=False):
     if not isinstance(row, dict) or not isinstance(row.get('id'), str) or not row['id']:
         raise ValueError('Seed needs a nonempty string ID')
@@ -71,7 +92,7 @@ def validate_row(row, semantic_only=False):
     if row.get('part') not in ('semantic', 'deterministic'):
         raise ValueError('Unknown seed part')
     allowed_keys = {'id', 'review_status', 'provenance', 'part', 'history', 'context', 'course_memory'}
-    allowed_keys |= ({'input', 'guard', 'capabilities', 'course_request', 'selected_tools', 'selection_mode'}
+    allowed_keys |= ({'input', 'guard', 'capabilities', 'course_request', 'selected_tools', 'selection_mode', 'capability_oracle', 'argument_constraints'}
                      if row['part'] == 'semantic' else {'check', 'role_tools', 'capabilities', 'expected_tools', 'tool_group_ids', 'test_method'})
     if set(row) - allowed_keys: raise ValueError('Unknown seed fields')
     if 'course_memory' in row and not isinstance(row['course_memory'], dict): raise ValueError('Memory must be an object')
@@ -82,6 +103,10 @@ def validate_row(row, semantic_only=False):
         if not isinstance(row.get('input'), str) or not row['input'].strip():
             raise ValueError('Semantic seed needs a question')
         labels({k: row[k] for k in LABEL_KEYS if k in row})
+        capability_oracle(row)
+        constraints = row.get('argument_constraints', {})
+        if not isinstance(constraints, dict) or any(n not in KNOWN_TOOLS or not isinstance(v, dict) for n, v in constraints.items()):
+            raise ValueError('Invalid authored argument constraints')
         if not semantic_only or 'selected_tools' in row:
             string_list(row.get('selected_tools'), KNOWN_TOOLS)
         if row.get('selection_mode', 'exact') not in ('exact', 'subset'):
@@ -142,23 +167,33 @@ def dimension_report(results):
     pairs = [r for r in results if 'actual' in r and 'expected' in r]
     tp = fp = fn = 0
     details = []
+    held = 0
+    compliant = 0
     for row in pairs:
-        expected = set(row['expected']['capabilities'])
+        oracle = capability_oracle({**row['expected'], **({'capability_oracle': row['capability_oracle']} if 'capability_oracle' in row else {})})
+        if 'hold' in oracle:
+            held += 1
+            details.append({'id': row['id'], 'held': oracle['hold']})
+            continue
+        required, allowed = set(oracle['required']), set(oracle['allowed'])
         actual = set(row['actual']['capabilities'])
-        tp += len(actual & expected)
-        fp += len(actual - expected)
-        fn += len(expected - actual)
-        details.append({'id': row['id'], 'overextra': sorted(actual - expected), 'missing': sorted(expected - actual)})
+        extra, missing = actual - allowed, required - actual
+        compliant += not extra and not missing and not actual & set(oracle['forbidden'])
+        tp += len(actual & required)
+        fp += len(extra)
+        fn += len(missing)
+        details.append({'id': row['id'], 'overextra': sorted(extra), 'missing': sorted(missing), 'forbidden': sorted(actual & set(oracle['forbidden']))})
     guard_tp = sum(r['actual']['guard'] == r['expected']['guard'] == 'PASS' for r in pairs)
     guard_fp = sum(r['actual']['guard'] == 'PASS' and r['expected']['guard'] != 'PASS' for r in pairs)
     guard_fn = sum(r['actual']['guard'] != 'PASS' and r['expected']['guard'] == 'PASS' for r in pairs)
     return {'semantic_count': len(pairs), 'execution_errors': sum(r['status'] == 'execution_error' for r in results),
-            'guard': {'exact': sum(r['actual']['guard'] == r['expected']['guard'] for r in pairs),
+            'guard': {'evaluated': len(pairs), 'held': 0, 'exact': sum(r['actual']['guard'] == r['expected']['guard'] for r in pairs),
                       'false_allow': guard_fp, 'false_deny': guard_fn,
                       'precision': guard_tp / (guard_tp + guard_fp) if guard_tp + guard_fp else None,
                       'recall': guard_tp / (guard_tp + guard_fn) if guard_tp + guard_fn else None},
-            'course': {'exact': sum(r['actual']['course_request'] == r['expected']['course_request'] for r in pairs)},
-            'capability': {'exact': sum(set(r['actual']['capabilities']) == set(r['expected']['capabilities']) for r in pairs),
+            'course': {'evaluated': len(pairs), 'held': 0, 'exact': sum(r['actual']['course_request'] == r['expected']['course_request'] for r in pairs)},
+            'capability': {'evaluated': len(pairs) - held, 'held': held, 'contract_passed': compliant,
+                           'exact': sum(set(r['actual']['capabilities']) == set(r['expected']['capabilities']) for r in pairs if 'hold' not in capability_oracle({**r['expected'], **({'capability_oracle': r['capability_oracle']} if 'capability_oracle' in r else {})})),
                            'true_positive': tp, 'overextra': fp, 'missing': fn,
                            'precision': tp / (tp + fp) if tp + fp else None,
                            'recall': tp / (tp + fn) if tp + fn else None, 'details': details},
@@ -324,7 +359,12 @@ def semantic(rows):
             actual = {'guard': 'PASS' if decision['allowed'] else 'NON_PASS', 'capabilities': decision['capabilities'], 'course_request': decision['course_request']}
             expected = {k: row[k] for k in actual}
             score = ExactLabels().measure(LLMTestCase(input=row['input'], actual_output=json.dumps(actual), expected_output=json.dumps(expected)))
-            results.append({'id': row['id'], 'status': 'passed' if score else 'failed', 'actual': actual, 'expected': expected, 'usage': usage, 'raw_response': raw})
+            dimensions = label_dimensions(row, actual)
+            status = 'failed' if False in dimensions.values() else 'held' if None in dimensions.values() else 'passed'
+            results.append({'id': row['id'], 'status': status, 'actual': actual, 'expected': expected,
+                            'dimension_scores': dimensions, 'exact_supplementary': score,
+                            **({'capability_oracle': row['capability_oracle']} if 'capability_oracle' in row else {}),
+                            'usage': usage, 'raw_response': raw})
         except Exception as exc:
             results.append({'id': row['id'], 'status': 'execution_error', 'error_type': type(exc).__name__, 'usage': usage, 'raw_response': raw})
         finally: signal.alarm(0)
@@ -343,13 +383,64 @@ def supervisor_state(row):
     return {**state, **update}
 
 
-def selection_ok(row, response):
-    if response.invalid_tool_calls:
-        return False
+def selection_registry():
+    """Build real schemas only; never construct a provider or execute a tool."""
+    from llm.tools import create_default_tools
+    from llm.tools.knowledge import create_knowledge_tools
+    from llm.tools.assistant import build_specialized_tools
+    from llm.v2.agent import sub_agents
+    from llm.v2.agent.chat_ui import present_planning_questions
+    from llm.v2.middleware.attachment_context import jev_read_body
+    registry = {t.name: t for t in (*create_default_tools(), *create_knowledge_tools())}
+    for t in build_specialized_tools(): registry.setdefault(t.name, t)
+    for name, (_, description) in sub_agents.SPECIALISTS.items():
+        registry[name] = sub_agents._delegate(name, description, None)
+    registry.update({t.name: t for t in (present_planning_questions, jev_read_body)})
+    return registry
+
+
+def reject_unknown_args(value, schema, root):
+    if '$ref' in schema: schema = root['$defs'][schema['$ref'].rsplit('/', 1)[-1]]
+    if isinstance(value, dict) and 'properties' in schema:
+        if set(value) - set(schema['properties']): raise ValueError('Unknown tool arguments')
+        for key, item in value.items(): reject_unknown_args(item, schema['properties'][key], root)
+    if isinstance(value, list) and 'items' in schema:
+        for item in value: reject_unknown_args(item, schema['items'], root)
+    for alternative in schema.get('anyOf', []):
+        reject_unknown_args(value, alternative, root)
+
+
+def selection_dimensions(row, response, registry=None):
     selected = [c['name'] for c in response.tool_calls]
     expected = row['selected_tools']
-    return (bool(selected) and set(selected) <= set(expected) if row.get('selection_mode') == 'subset'
-            else sorted(selected) == sorted(expected))
+    name_ok = (bool(selected) and set(selected) <= set(expected) if row.get('selection_mode') == 'subset'
+               else sorted(selected) == sorted(expected))
+    schema_ok = not response.invalid_tool_calls
+    condition_ok = True
+    registry = selection_registry() if response.tool_calls and registry is None else registry
+    for call in response.tool_calls:
+        try:
+            tool = registry[call['name']]
+            public_model = tool.tool_call_schema
+            schema = public_model.model_json_schema()
+            reject_unknown_args(call['args'], schema, schema)
+            public_model.model_validate_json(json.dumps(call['args']), strict=True)
+            model = tool.args_schema
+            injected = set(model.model_fields) - set(public_model.model_fields)
+            if injected:
+                from pydantic import create_model
+                # Inherit validators; only runtime-owned fields may be absent in model output.
+                model = create_model('SelectionArgs', __base__=model,
+                                     **{k: (model.model_fields[k].annotation, None) for k in injected})
+            model.model_validate_json(json.dumps(call['args']), strict=True)
+        except (ValueError, TypeError, KeyError): schema_ok = False
+        for key, value in row.get('argument_constraints', {}).get(call['name'], {}).items():
+            if call['args'].get(key) != value: condition_ok = False
+    return {'name_selection': bool(name_ok), 'argument_schema': schema_ok, 'request_conditions': condition_ok}
+
+
+def selection_ok(row, response, registry=None):
+    return all(selection_dimensions(row, response, registry).values())
 
 
 @local_only
@@ -390,8 +481,9 @@ def supervisor(rows):
                 selected = [c['name'] for c in response.tool_calls]
                 usage = response.usage_metadata
             expected = row['selected_tools']
-            ok = selection_ok(row, response)
-            results.append({'id': row['id'], 'status': 'passed' if ok else 'failed', 'selected': selected, 'expected': expected, 'exposed': exposed, 'usage': usage, 'raw_response': response.model_dump(mode='json'), 'scope': 'first selection only; no tools executed; independently seeded decision'})
+            dimensions = selection_dimensions(row, response, {t.name: t for t in tools})
+            ok = all(dimensions.values())
+            results.append({'dimension_scores': dimensions, 'id': row['id'], 'status': 'passed' if ok else 'failed', 'selected': selected, 'expected': expected, 'exposed': exposed, 'usage': usage, 'raw_response': response.model_dump(mode='json'), 'scope': 'first selection only; no tools executed; independently seeded decision'})
         except Exception as exc:
             results.append({'id': row['id'], 'status': 'execution_error', 'error_type': type(exc).__name__})
         finally: signal.alarm(0)

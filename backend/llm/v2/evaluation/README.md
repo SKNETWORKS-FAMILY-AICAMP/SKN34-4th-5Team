@@ -1,5 +1,13 @@
 # Local JEV / supervisor evaluation (no RAG)
 
+## Evaluation-only policy alignment (2026-10-11)
+
+Current authored expectations supersede stale desired policy, never historical `actual_observation` or scratch execution evidence. Ambiguous nonattack/non-explicit-out-of-domain inputs are guard **PASS**; the exact `음 그냥 가고싶은데 주변에서 뭘해야해?` and its family require target/intent clarification only, no arbitrary lookup/delegation/writer UI. Explicit out-of-domain/attack remains blocked. No-call scoring alone does not prove clarification text is correct.
+
+`capability_oracle` optionally specifies `required`, `allowed`, `forbidden` known labels (required ⊆ allowed, allowed ∩ forbidden empty); absent means legacy exact-set constraints. `ExactLabels` remains supplementary. Guard, course and capability constraints are independent; capability reports include evaluated/held/contract_passed counts, missing/extra/forbidden details, and exclude held cases from capability exact/precision/recall denominators. `{'hold': 'reviewed reason'}` is exclusion, not success. `web-only` remains domain PASS but new-source search is unsupported: explain the limitation/request a provided URL; page-read mapping is undecided, so its capability dimension is explicitly held, not assigned a mandatory search label.
+
+First-selection uses **seeded JEV** and actual registry/tool schemas without executing tools. `selection_dimensions` separately scores name selection, strict JSON schema (including unknown nested arguments rejected despite Pydantic extra-ignore), and authored `argument_constraints` exact values for request conditions. These structured checks do not establish prose truth, full execution or JEV quality. Tests use real schemas with bounded positive/negative date/stadium/unknown-argument examples, not a new execution harness. Historical run counts below remain historical.
+
 ## Separate reviewed boundary dataset (2026-10-10)
 
 `reviewed_boundary.json` adds **44 unique hand-authored semantic cases (24 PASS / 20 NON_PASS)** and **26 distinct deterministic contracts**, without changing seed28 or the two exact first-selection observations. Labels were author-reviewed against production guard/capability/course instructions only, **not independently approved**. `build_reviewed.py` contains explicit authored labels and refuses to overwrite the dataset/manifest. `reviewed_boundary_manifest.json` freezes IDs before execution: semantic dev33/heldout11 and contract dev20/heldout6 (total dev53/heldout17); split is authored order, not provider output. This is a balanced boundary suite, not a distribution estimate.

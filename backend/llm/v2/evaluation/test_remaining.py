@@ -12,9 +12,14 @@ import remaining as suite
 def positive(row):
     """Scorer unit-test input deliberately derived from oracle, never model evidence."""
     e, group = row['expected'], row['group']
-    if group == 'first_action': return {'selected_tools': e['allowed_first'][:1], 'invalid_tool_calls': False}
+    if group == 'first_action':
+        tools = e['allowed_first'][:1]
+        return {'selected_tools': tools, 'invalid_tool_calls': False,
+                'tool_calls': [{'name': t, 'args': row.get('argument_constraints', {}).get(t, {'task': row['input']} if t.startswith('ask_') else {'team_code': 'LG', 'name': '김현수'} if t == 'search_players' else {}), 'id': str(i)} for i, t in enumerate(tools)]}
     if group == 'clarification':
-        return {'events': e['required_events'], 'tools': [] if not e['ui']['required'] else ['present_planning_questions'],
+        return {'events': e['required_events'],
+                'tools': list(dict.fromkeys([o['tool'] for o in row['observations']] + (['present_planning_questions'] if e['ui']['required'] else []))),
+                'observation_events': {event: row['observations'][event == 'followup_lookup']['evidence_id'] for event in e['required_events'] if event in ('lookup', 'followup_lookup')},
                 'notices': e['notices'], 'main_questions': True,
                 'ui': None if not e['ui']['required'] else {'question': '합성 선택 질문', **{k: e['ui'][k] for k in ('choices', 'offer_writer', 'free_input')}}}
     if group == 'delegation':
@@ -58,7 +63,9 @@ class RemainingTest(unittest.TestCase):
         self.assertEqual(len(rows), 12)
         for row in rows:
             suite.base.labels({k: row[k] for k in suite.base.LABEL_KEYS})
-            good = suite.base.AIMessage('', tool_calls=[{'name': t, 'args': {}, 'id': str(i)} for i, t in enumerate(row['selected_tools'][:1])])
+            args = {'ask_course': {'task': row['input']}, 'get_stadium': {'stadium_code': 'JAMSIL'},
+                    'search_players': {'team_code': 'LG', 'name': '김현수'}}
+            good = suite.base.AIMessage('', tool_calls=[{'name': t, 'args': args.get(t, {}), 'id': str(i)} for i, t in enumerate(row['selected_tools'][:1])])
             self.assertTrue(suite.base.selection_ok(row, good))
             bad = suite.base.AIMessage('', tool_calls=[{'name': 'present_planning_questions', 'args': {}, 'id': 'bad'}])
             self.assertFalse(suite.base.selection_ok(row, bad))
@@ -76,6 +83,61 @@ class RemainingTest(unittest.TestCase):
         known = self.row('clarification-known-screen')
         actual = positive(known); actual['tools'] = ['present_planning_questions']
         self.assertEqual(self.score(known, actual), 0)
+    def test_claimed_lookup_ui_require_real_tools_and_observations(self):
+        row = self.row('clarification-stadium')
+        for mutation in ('no_tools', 'no_lookup', 'unknown_evidence', 'no_binding', 'reused_evidence'):
+            actual = deepcopy(positive(row))
+            if mutation == 'no_tools': actual['tools'] = []
+            if mutation == 'no_lookup': actual['tools'] = ['present_planning_questions']
+            if mutation == 'unknown_evidence': actual['observation_events']['lookup'] = 'invented'
+            if mutation == 'no_binding': actual['observation_events'] = {}
+            if mutation == 'reused_evidence': actual['observation_events']['followup_lookup'] = actual['observation_events']['lookup']
+            self.assertEqual(self.score(row, actual), 0)
+        row = self.row('first_action-exact-nearby')
+        self.assertEqual(row['decision']['guard'], 'PASS')
+        self.assertEqual(self.score(row, {'selected_tools': [], 'invalid_tool_calls': False, 'tool_calls': []}), 1)
+        self.assertEqual(self.score(row, {'selected_tools': ['ask_baseball'], 'invalid_tool_calls': False, 'tool_calls': [{'name': 'ask_baseball', 'args': {'task': '임의 구장 조회'}, 'id': 'bad'}]}), 0)
+
+    def test_actual_two_turn_graph_rejects_post_answer_candidates(self):
+        from llm.v2.tests.test_chain import ChainTest, call, decision
+        row = self.row('clarification-stadium')
+        first_data, second_data = [deepcopy(row['observations'][i]['data']) for i in (1, 0)]
+        payload = {'offer_writer': False, 'questions': [{'question': '어느 구장인가요?', 'choices': ['잠실', '사직', '고척']}]}
+        graph = ChainTest()
+        turn1 = graph.run_graph([
+            call('ask_baseball', {'task': '구장 후보 조회'}, 'pre-ui-lookup'),
+            suite.base.AIMessage(json.dumps(first_data, ensure_ascii=False)),
+            call('present_planning_questions', payload, 'shown-ui'), suite.base.AIMessage('구장을 선택해 주세요.')],
+            decision(True), [suite.base.HumanMessage(row['input'], id='initial-user')])
+        turn2 = graph.run_graph([
+            call('ask_baseball', {'task': '선택한 잠실 후속 조회'}, 'post-answer-lookup'),
+            suite.base.AIMessage(json.dumps(second_data, ensure_ascii=False)), suite.base.AIMessage('후속 안내입니다.')],
+            decision(True), [*turn1['messages'], suite.base.HumanMessage('잠실', id='actual-user-answer')])
+        events, bindings, tools = [], {}, []
+        for message in turn2['messages']:
+            if message.type == 'tool':
+                self.assertEqual(message.status, 'success')
+                tools.append(message.name)
+                if message.tool_call_id == 'shown-ui':
+                    events.append('ui')
+                    shown = message.artifact
+                    self.assertEqual(shown, payload)
+                else:
+                    event = 'lookup' if message.tool_call_id == 'pre-ui-lookup' else 'followup_lookup'
+                    events.append(event)
+                    matching = [o for o in row['observations'] if o['tool'] == message.name and o['data'] == json.loads(message.content)]
+                    self.assertEqual(len(matching), 1)
+                    bindings[event] = matching[0]['evidence_id']
+            elif message.type == 'human' and message.id == 'actual-user-answer': events.append('user_answer')
+            elif message is turn2['messages'][-1]: events.append('final')
+        self.assertFalse(first_data.get('candidates'))
+        self.assertEqual(events, ['lookup', 'ui', 'user_answer', 'followup_lookup', 'final'])
+        actual = {'events': events, 'tools': list(dict.fromkeys(tools)), 'notices': [], 'main_questions': True,
+                  'ui': {**shown['questions'][0], 'offer_writer': shown['offer_writer'], 'free_input': True},
+                  'observation_events': bindings}
+        self.assertEqual(self.score(row, actual), 0)
+        self.assertEqual(self.score(row, positive(row)), 1)
+
     def test_independent_parallel_and_narrow_goal(self):
         row = self.row('delegation-independent')
         for mutation in ('sequential', 'goals', 'nested', 'owner'):

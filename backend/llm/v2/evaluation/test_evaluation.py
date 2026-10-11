@@ -83,6 +83,56 @@ class EvaluationTest(unittest.TestCase):
             case = evaluation.LLMTestCase(input='현재 KBO 순위', actual_output=actual, expected_output=expected)
             self.assertEqual(evaluation.ExactLabels().measure(case), score)
 
+    def test_reviewed_web_search_exclusion_matches_generator(self):
+        import runpy
+        authored = runpy.run_path(str(Path(__file__).with_name('build_reviewed.py')))['CASES']
+        row = next(r for r in json.loads(Path(__file__).with_name('reviewed_boundary.json').read_text()) if r['id'] == 'web-only')
+        source = next(r for r in authored if r[0] == 'web-only')
+        self.assertEqual((row['input'], row['guard'], row['capabilities'], row['course_request']), source[1:5])
+        self.assertEqual(row['capability_oracle'], source[5]['capability_oracle'])
+        self.assertEqual(row['guard'], 'PASS')
+        self.assertIn('hold', row['capability_oracle'])
+
+    def test_required_allowed_forbidden_and_held_capability_dimensions(self):
+        row = {'guard': 'PASS', 'capabilities': ['schedule'], 'course_request': 'NONE',
+               'capability_oracle': {'required': ['schedule'], 'allowed': ['schedule', 'stadium_info'], 'forbidden': ['web_research']}}
+        for caps, wanted in [(['schedule', 'stadium_info'], True), ([], False), (['schedule', 'web_research'], False)]:
+            self.assertEqual(evaluation.label_dimensions(row, {**{k: row[k] for k in evaluation.LABEL_KEYS}, 'capabilities': caps})['capability'], wanted)
+        row['capability_oracle'] = {'hold': 'Reviewed mapping undecided'}
+        actual = {k: row[k] for k in evaluation.LABEL_KEYS}
+        dimensions = evaluation.label_dimensions(row, actual)
+        self.assertEqual(dimensions, {'guard': True, 'course': True, 'capability': None})
+        report = evaluation.dimension_report([{'id': 'held', 'status': 'held', 'expected': actual, 'actual': actual, 'capability_oracle': row['capability_oracle']}])
+        self.assertEqual((report['capability']['held'], report['capability']['evaluated'], report['capability']['contract_passed']), (1, 0, 0))
+        self.assertEqual(report['guard']['exact'], 1)
+
+    def test_real_selection_schema_and_authored_conditions(self):
+        registry = evaluation.selection_registry()
+        row = {'selected_tools': ['get_games'], 'argument_constraints': {'get_games': {'start_date': '2026-10-12', 'end_date': '2026-10-12', 'stadium_id': 1}}}
+        good = row['argument_constraints']['get_games']
+        def response(args): return evaluation.AIMessage('', tool_calls=[{'name': 'get_games', 'args': args, 'id': 'game'}])
+        self.assertTrue(evaluation.selection_ok(row, response(good), registry))
+        for args, dimension in [({**good, 'invented': 1}, 'argument_schema'), ({**good, 'start_date': '2026-10-13'}, 'request_conditions'), ({**good, 'stadium_id': 2}, 'request_conditions')]:
+            scores = evaluation.selection_dimensions(row, response(args), registry)
+            self.assertTrue(scores['name_selection'])
+            self.assertFalse(scores[dimension])
+            self.assertFalse(evaluation.selection_ok(row, response(args), registry))
+        bad_ui = evaluation.AIMessage('', tool_calls=[{'name': 'present_planning_questions', 'args': {'offer_writer': False, 'questions': [{'question': '어디?', 'choices': [], 'unknown': True}]}, 'id': 'ui'}])
+        self.assertFalse(evaluation.selection_ok({'selected_tools': ['present_planning_questions']}, bad_ui, registry))
+
+    def test_selection_preserves_model_validators_and_rejects_injected_args(self):
+        registry = evaluation.selection_registry()
+        for args, wanted in [({'stadium_code': 'JAMSIL'}, True), ({'stadium_id': 1}, True),
+                             ({}, False), ({'stadium_id': 1, 'stadium_code': 'JAMSIL'}, False),
+                             ({'stadium_id': '1'}, False), ({'stadium_code': 'JAMSIL', 'unknown': True}, False)]:
+            with self.subTest(args=args):
+                response = evaluation.AIMessage('', tool_calls=[{'name': 'get_stadium', 'args': args, 'id': 'stadium'}])
+                self.assertEqual(evaluation.selection_dimensions({'selected_tools': ['get_stadium']}, response, registry)['argument_schema'], wanted)
+        for name, args in [('ask_baseball', {'task': '구장 조회'}), ('jev_read_body', {})]:
+            for injected, wanted in [(False, True), (True, False)]:
+                response = evaluation.AIMessage('', tool_calls=[{'name': name, 'args': {**args, **({'runtime': {}} if injected else {})}, 'id': 'injected'}])
+                self.assertEqual(evaluation.selection_ok({'selected_tools': [name]}, response, registry), wanted)
+
     def test_malformed_labels(self):
         expected = {'guard': 'PASS', 'capabilities': ['standings'], 'course_request': 'NONE'}
         bad = [{}, [], {**expected, 'capabilities': {'standings': False}},

@@ -24,6 +24,14 @@
             ],
             "status": "success"
           }
+        },
+        {
+          "evidence_id": "clarify-stadium-followup",
+          "tool": "ask_baseball",
+          "data": {
+            "status": "success",
+            "synthetic_note": "Separate post-answer lookup observation"
+          }
         }
       ],
       "rubric": "Frozen observations; main-owned UI then wait for user, free input available; never re-ask known context. Final after follow-up on next turn.",
@@ -89,6 +97,14 @@
             ],
             "status": "success"
           }
+        },
+        {
+          "evidence_id": "clarify-teams-followup",
+          "tool": "ask_baseball",
+          "data": {
+            "status": "success",
+            "synthetic_note": "Separate post-answer lookup observation"
+          }
         }
       ],
       "rubric": "Frozen observations; main-owned UI then wait for user, free input available; never re-ask known context. Final after follow-up on next turn.",
@@ -153,6 +169,14 @@
             ],
             "status": "success"
           }
+        },
+        {
+          "evidence_id": "clarify-players-followup",
+          "tool": "search_players",
+          "data": {
+            "status": "success",
+            "synthetic_note": "Separate post-answer lookup observation"
+          }
         }
       ],
       "rubric": "Frozen observations; main-owned UI then wait for user, free input available; never re-ask known context. Final after follow-up on next turn.",
@@ -215,6 +239,14 @@
               "합성 카페 B"
             ],
             "status": "success"
+          }
+        },
+        {
+          "evidence_id": "clarify-places-followup",
+          "tool": "search_places",
+          "data": {
+            "status": "success",
+            "synthetic_note": "Separate post-answer lookup observation"
           }
         }
       ],
@@ -286,6 +318,14 @@
               "합성 구장 9"
             ],
             "status": "success"
+          }
+        },
+        {
+          "evidence_id": "clarify-ten-followup",
+          "tool": "ask_baseball",
+          "data": {
+            "status": "success",
+            "synthetic_note": "Separate post-answer lookup observation"
           }
         }
       ],
@@ -366,6 +406,14 @@
               "합성 구장 10"
             ],
             "status": "success"
+          }
+        },
+        {
+          "evidence_id": "clarify-eleven-followup",
+          "tool": "ask_baseball",
+          "data": {
+            "status": "success",
+            "synthetic_note": "Separate post-answer lookup observation"
           }
         }
       ],

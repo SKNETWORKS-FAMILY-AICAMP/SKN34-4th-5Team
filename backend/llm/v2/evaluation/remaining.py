@@ -114,7 +114,7 @@ def load():
         if type(data['schema_version']) is not int or data['schema_version'] != 1 or data['group'] != group: raise ValueError('Unknown schema/group')
         if not isinstance(data['cases'], list) or len(data['cases']) < 12: raise ValueError('Expected at least twelve cases')
         for row in data['cases']:
-            obj(row, {'id', 'family', 'input', 'provenance', 'review_status', 'synthetic', 'as_of', 'timezone', 'context', 'observations', 'rubric', 'expected'}, {'decision'})
+            obj(row, {'id', 'family', 'input', 'provenance', 'review_status', 'synthetic', 'as_of', 'timezone', 'context', 'observations', 'rubric', 'expected'}, {'decision', 'argument_constraints'})
             for key in ('id', 'family', 'input', 'rubric'): text(row[key])
             if row['provenance'] != 'hand-authored' or row['review_status'] != 'author-reviewed' or row['synthetic'] is not True: raise ValueError('Unreviewed/unlabeled fixture')
             if row['as_of'] != '2026-10-10T18:00:00+09:00' or row['timezone'] != 'Asia/Seoul': raise ValueError('Clock must be frozen')
@@ -161,13 +161,16 @@ def contract(row, actual):
     """Only supplied output contracts; never generates or replays a model answer."""
     e, group = row['expected'], row['group']
     if group == 'first_action':
-        obj(actual, {'selected_tools', 'invalid_tool_calls'})
+        obj(actual, {'selected_tools', 'invalid_tool_calls', 'tool_calls'})
         strings(actual['selected_tools'], TOOLS)
         boolean(actual['invalid_tool_calls'])
-        return not actual['invalid_tool_calls'] and (not actual['selected_tools'] if e['no_call'] else bool(actual['selected_tools']) and set(actual['selected_tools']) <= set(e['allowed_first']))
+        response = base.AIMessage('', tool_calls=actual['tool_calls'])
+        if actual['selected_tools'] != [c['name'] for c in response.tool_calls] or actual['invalid_tool_calls']: return False
+        return base.selection_ok({'selected_tools': e['allowed_first'], 'selection_mode': 'exact' if e['no_call'] else 'subset',
+                                  'argument_constraints': row.get('argument_constraints', {})}, response)
     if group in ('clarification', 'delegation'):
         keys = {'events', 'tools', 'notices', 'ui', 'main_questions'} if group == 'clarification' else {'events', 'tools', 'parallel', 'goals', 'main_questions', 'nested_delegation'}
-        obj(actual, keys)
+        obj(actual, keys | ({'observation_events'} if group == 'clarification' else set()))
         events = actual['events']
         strings(events, TOOLS | {'lookup', 'ui', 'user_answer', 'followup_lookup', 'final'})
         strings(actual['tools'], TOOLS)
@@ -182,7 +185,17 @@ def contract(row, actual):
             if not isinstance(actual['parallel'], list): return False
             for batch in actual['parallel']: strings(batch, TOOLS)
             return sorted(map(sorted, actual['parallel'])) == sorted(map(sorted, e['parallel']))
+        bindings = actual['observation_events']
+        if not isinstance(bindings, dict): return False
+        observations = {o['evidence_id']: o for o in row['observations']}
+        lookup_events = {'lookup', 'followup_lookup'} & set(events)
+        if set(bindings) != lookup_events or len(set(bindings.values())) != len(bindings): return False
+        for event, evidence_id in bindings.items():
+            if evidence_id not in observations or observations[evidence_id]['tool'] not in actual['tools']: return False
+            if observations[evidence_id]['data'].get('status') != 'success': return False
+        if ('ui' in events) != ('present_planning_questions' in actual['tools']): return False
         strings(actual['notices'], NOTICES)
+        if 'lookup_failed' in e['notices'] and not any(o['data'].get('status') == 'error' and o['tool'] in actual['tools'] for o in row['observations']): return False
         if set(actual['tools']) & set(e['forbidden_tools']) or not set(e['notices']) <= set(actual['notices']): return False
         ui = actual['ui']
         if not e['ui']['required']: return ui is None and 'ui' not in events
@@ -192,8 +205,10 @@ def contract(row, actual):
         if any(len(c) > 80 for c in ui['choices']) or len(ui['choices']) == 1: return False
         boolean(ui['offer_writer']); boolean(ui['free_input'])
         if any(ui[k] != e['ui'][k] for k in ('choices', 'offer_writer', 'free_input')): return False
-        candidates = [c for o in row['observations'] for c in o['data'].get('candidates', [])]
-        return set(ui['choices']) <= set(candidates) and (not ui['choices'] or events.index('lookup') < events.index('ui'))
+        if not ui['choices']: return True
+        if 'lookup' not in bindings or events.index('lookup') >= events.index('ui'): return False
+        candidates = observations[bindings['lookup']]['data'].get('candidates', [])
+        return set(ui['choices']) <= set(candidates)
     if group == 'schedule':
         obj(actual, {'schedule', 'notices', 'games', 'claims_no_games'})
         schedule(actual['schedule']); strings(actual['notices'], NOTICES); boolean(actual['claims_no_games'])
@@ -239,6 +254,7 @@ def supervisor_rows(rows):
     No invocation here. Invoke base.supervisor on an explicitly authorized <=5 selection.
     """
     return [{'id': r['id'], 'input': r['input'], **r['decision'], 'context': deepcopy(r['context']),
+             'argument_constraints': deepcopy(r.get('argument_constraints', {})),
              'selected_tools': r['expected']['allowed_first'], 'selection_mode': 'exact' if r['expected']['no_call'] else 'subset'}
             for r in rows if r['group'] == 'first_action']
 
@@ -264,7 +280,16 @@ def main():
             case = base.LLMTestCase(input=row['input'], actual_output=json.dumps(outputs[row['id']]), expected_output=json.dumps(row['expected']))
             metric = StructuredContract(row)
             score = metric.measure(case)
-            results.append({'id': row['id'], 'split': 'dev' if row['id'] in manifest['dev'] else 'heldout', 'contract_score': score, 'reason': metric.reason, 'semantic_correctness': 'not_measured'})
+            dimensions = {}
+            if row['group'] == 'first_action':
+                try:
+                    response = base.AIMessage('', tool_calls=outputs[row['id']]['tool_calls'])
+                    dimensions = base.selection_dimensions({'selected_tools': row['expected']['allowed_first'],
+                        'selection_mode': 'exact' if row['expected']['no_call'] else 'subset',
+                        'argument_constraints': row.get('argument_constraints', {})}, response)
+                    dimensions['argument_schema'] &= not outputs[row['id']]['invalid_tool_calls']
+                except (ValueError, TypeError, KeyError): dimensions = {'argument_schema': False}
+            results.append({'dimension_scores': dimensions, 'id': row['id'], 'split': 'dev' if row['id'] in manifest['dev'] else 'heldout', 'contract_score': score, 'reason': metric.reason, 'semantic_correctness': 'not_measured'})
         result = {'scope': 'supplied structured outputs only, not production/live quality', 'results': results}
     if args.output:
         with args.output.open('x') as target: target.write(json.dumps(result, ensure_ascii=False, indent=2) + '\n')
