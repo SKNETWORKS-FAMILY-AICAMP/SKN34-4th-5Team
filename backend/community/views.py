@@ -7,7 +7,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from accounts.activity import activity_author
 
-from .models import CommunityPost, TEAM_CODES
+from .models import CommunityPost, TEAM_CODES, TEAM_CATEGORIES
 from .pagination import CommunityPostPageSerializer, CommunityPostPagination, CommunityPostQuery
 from .serializers import CommunityPostPatchSerializer, CommunityPostSerializer, CommunityPostWriteSerializer
 
@@ -31,6 +31,7 @@ def same_submission(post, validated_data):
     get=extend_schema(
         parameters=[
             OpenApiParameter("board", OpenApiTypes.STR, enum=("free", "teams")),
+            OpenApiParameter("category", OpenApiTypes.STR, enum=TEAM_CATEGORIES, description="글 분류 정확히 일치. 생략하면 전체 분류."),
             OpenApiParameter("team", OpenApiTypes.STR),
             OpenApiParameter("mine", OpenApiTypes.STR, enum=("1",)),
             OpenApiParameter("author_id", {"type": "integer", "minimum": 1}, description="작성자 활동 목록. JWT 인증 필요, 본인 또는 공개 설정된 회원만 조회 가능."),
@@ -100,6 +101,8 @@ class CommunityPostListCreateView(generics.ListCreateAPIView):
                 "author": Q(author__icontains=query.q),
             }
             queryset = queryset.filter(fields[query.search_field])
+        if query.category is not None:
+            queryset = queryset.filter(category=query.category)
         return queryset
 
     def create(self, request, *args, **kwargs):

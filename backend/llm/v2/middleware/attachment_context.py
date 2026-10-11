@@ -3,7 +3,9 @@ import json
 import uuid
 
 from langchain.agents.middleware import AgentMiddleware, hook_config
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain.tools import ToolRuntime, tool
+from langgraph.types import Command
 
 from llm.service import attachments
 from llm.service.chat_runs import check_cancelled
@@ -84,6 +86,27 @@ def direct_context(rows, texts=None):
     return context
 
 
+@tool
+def jev_read_body(runtime: ToolRuntime):
+    """현재 허용된 대화 첨부 URL의 원문을 직접 읽는다. URL/첨부 ID 인자를 받지 않는다."""
+    state = runtime.state
+    if ((state.get("decision") or {}).get("allowed") is not True
+            or not state.get("attachment_web_call_id")
+            or runtime.tool_call_id != state["attachment_web_call_id"]
+            or state.get("attachment_web_done")):
+        return ToolMessage("허용되지 않은 첨부 읽기입니다", name="jev_read_body",
+                           tool_call_id=runtime.tool_call_id, status="error")
+    check_cancelled()
+    context = AttachmentContextMiddleware.collect(state) or {}
+    # Originals stay in transient model input, not checkpoint/public tool history.
+    result = ToolMessage(json.dumps({"source_kind": "attachment_body_read",
+                         "sources": context.get("attachment_sources", []),
+                         "incomplete": context.get("attachment_source_incomplete", False)}, ensure_ascii=False),
+                         name="jev_read_body", tool_call_id=runtime.tool_call_id,
+                         status="error" if context.get("attachment_source_incomplete") else "success")
+    return Command(update={**context, "attachment_web_done": True, "messages": [result]})
+
+
 class AttachmentContextMiddleware(AgentMiddleware):
     def before_agent(self, state, runtime):
         if (state.get("decision") or {}).get("allowed") is not True:
@@ -96,8 +119,10 @@ class AttachmentContextMiddleware(AgentMiddleware):
             rows = list(ChatAttachment.objects.filter(session_id=session, id__in=ids))
             if len(rows) != len(ids):
                 raise ValueError("missing conversation attachment")
-            current = {str(key) for key in humans[-1].additional_kwargs.get("attachment_ids", [])}
-            if any(row.kind == "url" and str(row.id) in current for row in rows):
+            for row in rows:
+                if row.kind == "url":
+                    attachments.reference_url(row.source_url)
+            if any(row.kind == "url" for row in rows):
                 return {"attachment_web_call_id": uuid.uuid4().hex, "attachment_web_done": False,
                         "attachment_messages": {}, "attachment_window_start": None, "attachment_sources": []}
         return {**(self.collect(state) or {}), "attachment_web_call_id": None, "attachment_web_done": False}
@@ -107,9 +132,8 @@ class AttachmentContextMiddleware(AgentMiddleware):
         call_id = state.get("attachment_web_call_id")
         if call_id and not state.get("attachment_web_done"):
             check_cancelled()
-            label = "첨부 페이지 내용 조사"
-            return {"messages": [AIMessage("", tool_calls=[{"name": "ask_web_research", "id": call_id,
-                    "args": {"task": label, "summary": label}, "type": "tool_call"}])], "jump_to": "tools"}
+            return {"messages": [AIMessage("", tool_calls=[{"name": "jev_read_body", "id": call_id,
+                    "args": {}, "type": "tool_call"}])], "jump_to": "tools"}
 
     @staticmethod
     def collect(state):
@@ -149,10 +173,6 @@ class AttachmentContextMiddleware(AgentMiddleware):
                                 raise Stopped()
                             texts[str(row.id)] = error
                         check_cancelled()
-                if human is humans[-1]:
-                    incomplete = any(isinstance(text, attachments.URLBodyUnavailable) or
-                                     (isinstance(text, attachments.URLObservedBody) and text.evidence.get("status") != "ok")
-                                     for text in texts.values())
                 context = direct_context(rows, texts)
                 added_bytes = sum(len(text.encode("utf-8")) for text in texts.values() if isinstance(text, str))
                 added_tokens = len(encoding.encode(context, disallowed_special=()))
@@ -164,6 +184,10 @@ class AttachmentContextMiddleware(AgentMiddleware):
                 if human is humans[-1]:
                     raise  # Current turn is atomic: full sources or explicit failure.
                 break  # Older messages and their sources roll out together, oldest-first.
+            # Aggregate only retained sources; an over-budget older turn is not included.
+            incomplete = incomplete or any(isinstance(text, attachments.URLBodyUnavailable) or
+                                          (isinstance(text, attachments.URLObservedBody) and text.evidence.get("status") != "ok")
+                                          for text in texts.values())
             tokens += added_tokens
             text_bytes += added_bytes
             images = [row for row in rows if row.kind == "image"]

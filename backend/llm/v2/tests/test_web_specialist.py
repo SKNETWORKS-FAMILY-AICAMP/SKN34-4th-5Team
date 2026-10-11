@@ -23,27 +23,25 @@ def observed(body, status="ok", **extra):
 
 
 class WebOwnershipTests(SimpleTestCase):
-    def test_keyword_delegation_and_denied_assignment(self):
-        for allowed in (True, False):
+    def test_keyword_delegation_is_available_without_web_capability(self):
+        for capabilities in (["web_research"], ["schedule"], []):
             calls = []
             script = [call("ask_web_research", {"task": "잠실 메뉴 검색"}, "web")]
-            if allowed:
-                script.append(AIMessage("검색 근거 https://example.com/menu; 시간 미확인"))
+            script.append(AIMessage("검색 근거 https://example.com/menu; 시간 미확인"))
             script.append(AIMessage("메인 안내"))
             with patch.dict(os.environ, {"WEB_RESEARCH_ENABLED": "false"}), patch(
                     "llm.v2.middleware.jev_guidelines.classify",
-                    return_value={"allowed": True, "capabilities": ["web_research"] if allowed else ["schedule"]}):
+                    return_value={"allowed": True, "capabilities": capabilities}):
                 graph = chain.build_graph(ScriptedModel(script=script, calls=calls), fake_tools([]))
                 out = graph.invoke({"messages": [HumanMessage("잠실 검색")]})
             self.assertNotIn("web_search", calls[0]["tools"])
             self.assertNotIn("research_public_web", calls[0]["tools"])
             result = next(m for m in out["messages"] if isinstance(m, ToolMessage))
-            if allowed:
-                self.assertIn("https://example.com/menu", result.content)
-                self.assertNotIn("research_public_web", calls[1]["tools"])
-                self.assertNotIn("ask_web_research", calls[1]["tools"])
-            else:
-                self.assertEqual(result.status, "error")
+            self.assertEqual(set(calls[0]["tools"]),
+                             set(chain.sub_agents.SPECIALISTS) | ({"get_games"} if "schedule" in capabilities else set()))
+            self.assertEqual(result.status, "success")
+            self.assertIn("https://example.com/menu", result.content)
+            self.assertEqual(calls[1]["tools"], ())
             self.assertEqual(out["messages"][-1].text, "메인 안내")
         self.assertNotIn("research_public_web", travel_sub_agent.TOOLS)
 

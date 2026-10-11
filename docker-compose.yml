@@ -7,7 +7,6 @@ x-logging: &default-logging
 services:
 
   jev-browser:
-    profiles: [web-research]
     build: ./docker/jev-browser
     restart: unless-stopped
     cap_add: [NET_ADMIN]
