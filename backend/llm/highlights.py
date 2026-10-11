@@ -19,12 +19,20 @@ from django.utils import timezone
 
 UPLOADS = "UUoVz66yWHzVsXAFG8WhJK9g"  # KBO 공식 채널 업로드 목록 (frontend/lib/youtube/kbo-highlight.ts 와 같음)
 DEFAULT_MODEL = "google/gemini-3.8-flash"
-EVENTS = ("홈런", "안타", "2루타", "3루타", "볼넷", "몸에 맞는 공", "삼진", "아웃", "호수비", "도루", "득점", "실책", "투수 교체", "기타")
+EVENTS = ("홈런", "안타", "2루타", "3루타", "볼넷", "몸에 맞는 공", "삼진", "병살타", "희생타", "아웃", "호수비", "도루", "득점", "실책",
+          "투수 교체", "기타")
 # 제목의 구단 표기("삼성라이온즈", "KIA타이거즈") 앞부분 → baseball.Team.team_code
 TITLE_TEAM = (("KIA", "KIA"), ("LG", "LG"), ("두산", "DOOSAN"), ("SSG", "SSG"), ("삼성", "SAMSUNG"), ("롯데", "LOTTE"),
               ("한화", "HANWHA"), ("NC", "NC"), ("KT", "KT"), ("키움", "KIWOOM"))
 # 설명 첫머리 이름이 타자로 확실한 이벤트만. 삼진·아웃·볼넷은 "고우석이 … 삼진으로 잡아낸다"처럼 투수가 주어일 수 있다
 BATTER_EVENTS = ("홈런", "안타", "2루타", "3루타")
+# 타석 결과 이벤트: 설명에 나온 공격팀 야수가 타자다(도루·득점·호수비는 주자·수비수가 주어라 제외)
+PLATE_EVENTS = ("홈런", "안타", "2루타", "3루타", "볼넷", "몸에 맞는 공", "삼진", "병살타", "희생타", "아웃")
+# "3루수 김도영이 …", "2루 주자 문정빈이 …": 이 말 뒤의 이름은 수비수·주자라 타자 후보에서 뺀다
+NOT_BATTER_BEFORE = {"투수", "포수", "1루수", "2루수", "3루수", "유격수", "좌익수", "중견수", "우익수", "주자", "대주자"}
+NAME_PARTICLES = ("", "이", "가", "은", "는", "을", "를", "의", "에게", "와", "과", "도", "만", "까지", "로", "으로", "에")
+PITCHER_POSITIONS = {"pitcher", "투수"}  # 판타지(fantasy.services.scoring)와 같은 기준
+HITTER_POSITIONS = {"infielder", "outfielder", "catcher", "내야수", "외야수", "포수"}
 LINK_LEAD_SEC = 3  # 플레이 직전부터 보이게 링크 시작을 조금 당긴다
 
 
@@ -171,7 +179,7 @@ def prompt(title, rosters):
 - start/end: 영상 시작 기준 MM:SS (그 플레이가 화면에 처음 보이는 시각과 끝나는 시각)
 - 선수 이름은 화면 자막과 중계 멘트로 확인한다. 아래 로스터에 있으면 그 표기로 쓰고, 확실하지 않으면 null.
 - batting_team 은 공격 중인 팀 코드(아래 로스터의 코드 중 하나), 모르면 null.
-- event 는 정해진 목록 중 하나. rbi 는 그 플레이로 들어온 타점 수, 모르면 null.
+- event 는 정해진 목록 중 하나. 병살타는 "병살타", 희생플라이·희생번트는 "희생타"로 쓴다. rbi 는 그 플레이로 들어온 타점 수, 모르면 null.
 - inning/half 는 화면 스코어보드나 멘트로 확인, 모르면 null.
 - pitcher 는 화면 스코어보드·하단 선수 그래픽의 투수 이름(투구 수 옆, "P"·"투수" 표시)과 중계 멘트로 확인한다.
   타석 장면마다 스코어보드를 꼭 확인해 채우고, 같은 이닝에서 '투수 교체' 전까지는 앞서 확인한 투수와 같다.
@@ -211,9 +219,9 @@ def analyze(video_id, title, rosters, model=DEFAULT_MODEL, _http=_http_json):
     return scenes, float((response.get("usage") or {}).get("cost") or 0), response.get("provider")
 
 
-def clean_scenes(raw, duration_sec, team_codes):
-    """모델 출력 검증: 시각 형식·영상 길이 안·이벤트 목록·팀 코드. 못 맞춘 값은 버리거나 비운다."""
-    from baseball.models import Player
+def clean_scenes(raw, duration_sec, team_codes, starters=None):
+    """모델 출력 검증: 시각 형식·영상 길이 안·이벤트 목록·팀 코드. 못 맞춘 값은 버리거나 비운다.
+    빈 타자·투수 칸은 설명 속 로스터 이름(fill_from_description)과 같은 이닝 앞 장면 투수(fill_pitchers)로 채운다."""
     scenes = []
     for item in raw:
         start, end = seconds(item.get("start")), seconds(item.get("end"))
@@ -227,17 +235,111 @@ def clean_scenes(raw, duration_sec, team_codes):
         if not name and item.get("event") in BATTER_EVENTS:  # "나승엽이 우측 폴대를 맞히는 …" → 나승엽
             lead = re.match(r"^(?:대타\s+)?([가-힣]{2,4}?)(?:이|가)\s", description)
             name = lead.group(1) if lead else ""
-        players = Player.objects.filter(name=name, team__team_code__in=[team] if team else team_codes) if name else Player.objects.none()
         scenes.append({
             "start_sec": start, "end_sec": end if end is not None and end >= start else None,
             "inning": item.get("inning") if isinstance(item.get("inning"), int) and 1 <= item["inning"] <= 20 else None,
             "half": item.get("half") if item.get("half") in ("초", "말") else "",
-            "team_code": team, "batter": players.first() if players.count() == 1 else None, "batter_name": name,
+            "team_code": team, "batter": None, "batter_name": name,
             "pitcher_name": (item.get("pitcher") or "").strip()[:80], "event": item["event"],
             "rbi": item.get("rbi") if isinstance(item.get("rbi"), int) and 0 <= item["rbi"] <= 4 else None,
             "description": description,
         })
+    fill_from_description(scenes, roster_roles(team_codes), starters)
+    for scene in scenes:
+        scene["batter"] = batter_player(scene["batter_name"], [scene["team_code"]] if scene["team_code"] else team_codes)
     return fill_pitchers(scenes)
+
+
+def batter_player(name, team_codes):
+    from baseball.models import Player
+    if not name:
+        return None
+    players = Player.objects.filter(name=name, team__team_code__in=team_codes)
+    return players.first() if players.count() == 1 else None
+
+
+def roster_roles(team_codes):
+    """팀별 투수·야수 이름. 포지션은 TVING 로스터(Player.positions·TeamRoster), 없으면 시즌 기록 종류(투수/타자 순위)로 정한다.
+    어느 쪽도 모르는 선수는 넣지 않는다. 로스터가 비어 있으면 crawling/kbo_player.py 를 먼저 돌린다."""
+    from baseball.models import Player, PlayerSeasonRecord, TeamRoster
+    roles = {}
+    for code in filter(None, team_codes):
+        pitchers, hitters = set(), set()
+        for name, positions in Player.objects.filter(team__team_code=code).values_list("name", "positions"):
+            positions = {str(p).lower() for p in positions or []}
+            if positions & PITCHER_POSITIONS:
+                pitchers.add(name)
+            elif positions & HITTER_POSITIONS:
+                hitters.add(name)
+        for name, position in TeamRoster.objects.filter(team__team_code=code).values_list("player__name", "position"):
+            (pitchers if position == "pitcher" else hitters).add(name)
+        for name, kind in PlayerSeasonRecord.objects.filter(
+                player__team__team_code=code, record_kind__in=("pitcher", "hitter")).values_list("player__name", "record_kind"):
+            if name not in pitchers and name not in hitters:
+                (pitchers if kind == "pitcher" else hitters).add(name)
+        roles[code] = {"pitchers": pitchers, "hitters": hitters - pitchers}
+    return roles
+
+
+def mentioned_names(description, names, skip_before=()):
+    """설명에 나온 순서대로, 조사만 붙은 로스터 이름(김도영이·김도영의). 낱말 단위로 봐서 '이재'가 '이재원'에 걸리지 않는다.
+    바로 앞 낱말이 skip_before 에 있으면("3루수 김도영이") 그 이름은 건너뛴다."""
+    found, ordered, previous = [], sorted(names, key=len, reverse=True), ""
+    for token in re.findall(r"[가-힣0-9]+", description or ""):
+        name = next((n for n in ordered if token.startswith(n) and token[len(n):] in NAME_PARTICLES), None)
+        if name and name not in found and previous not in skip_before:
+            found.append(name)
+        previous = token
+    return found
+
+
+def refine_event(event, description):
+    """예전 분석은 병살타·희생플라이를 '아웃'으로 넣었다: 설명으로 다시 나눈다(재분석 없음)."""
+    if event == "아웃" and "병살" in (description or ""):
+        return "병살타"
+    if event == "아웃" and "희생" in (description or ""):
+        return "희생타"
+    return event
+
+
+def game_starters(game):
+    """경기 선발 투수 {팀 코드: 이름} (TVING 일정). 없으면 빈 dict."""
+    if not game:
+        return {}
+    pairs = ((game.home_team, game.home_starting_pitcher), (game.away_team, game.away_starting_pitcher))
+    return {team.team_code: name.strip() for team, name in pairs if team and (name or "").strip()}
+
+
+def fill_from_description(scenes, roles, starters=None):
+    """빈 타자·투수 칸을 장면 설명에 나온 로스터 이름으로 채운다(재분석·비용 없음). 이미 있는 값은 바꾸지 않는다.
+    - 타자: 타석 결과 장면에서 공격팀 야수 중 처음 나온 이름 ("고우석이 김도영을 삼진으로" → 김도영)
+    - 투수: 수비팀 투수 이름이 하나만 나올 때 ("고우석이 …" → 고우석)
+    - 공격팀을 모르는 타석 장면은 두 팀 중 한 팀 야수만 나오면 그 팀을 공격팀으로 정한다.
+    - '아웃' 중 설명에 병살·희생이 있으면 병살타·희생타로 나눈다(refine_event).
+    - 1회에 투수가 비어 있으면 수비팀 선발 투수(starters)로 채운다. 1회 말고는 선발을 이어 붙이지 않는다(불펜을 모름)."""
+    starters = starters or {}
+    for scene in scenes:
+        text = scene.get("description") or ""
+        scene["event"] = refine_event(scene["event"], text)
+        if scene.get("team_code") is None and scene["event"] in PLATE_EVENTS:
+            owners = [code for code, role in roles.items() if mentioned_names(text, role["hitters"], NOT_BATTER_BEFORE)]
+            if len(owners) == 1:
+                scene["team_code"] = owners[0]
+        team = scene.get("team_code")
+        if team not in roles:
+            continue
+        if not scene["batter_name"] and scene["event"] in PLATE_EVENTS:
+            hitters = mentioned_names(text, roles[team]["hitters"], NOT_BATTER_BEFORE)
+            if hitters:
+                scene["batter_name"] = hitters[0]
+        fielding = [code for code in roles if code != team]
+        if not scene["pitcher_name"] and len(fielding) == 1:
+            pitchers = mentioned_names(text, roles[fielding[0]]["pitchers"])
+            if len(pitchers) == 1:
+                scene["pitcher_name"] = pitchers[0]
+            elif scene.get("inning") == 1 and scene["event"] != "투수 교체" and starters.get(fielding[0]):
+                scene["pitcher_name"] = starters[fielding[0]]
+    return scenes
 
 
 def fill_pitchers(scenes):
@@ -259,21 +361,63 @@ def fill_pitchers(scenes):
     return scenes
 
 
-def refill_pitchers(report=print):
-    """저장된 장면에 fill_pitchers 를 다시 적용한다(영상 재분석 없음, 비용 없음)."""
+def refill_players(dry_run=False, index_rag=True, report=print, samples=12):
+    """저장된 장면의 빈 타자·투수 칸을 다시 채운다(재분석·비용 없음): 설명 속 로스터 이름 → 같은 이닝 앞 장면 투수.
+    로스터(선수 포지션)가 비어 있으면 아무것도 못 채우니 kbo_player 크롤러를 먼저 돌린다.
+    이미 있는 값은 바꾸지 않는다. 바뀐 영상은 RAG 색인도 다시 한다(색인 실패는 보고만)."""
+    from baseball.models import Team
     from llm.models import HighlightScene, HighlightVideo
-    changed = 0
-    for video in HighlightVideo.objects.filter(status=HighlightVideo.ANALYZED):
-        rows = list(video.scenes.all())
-        scenes = [{"start_sec": r.start_sec, "inning": r.inning, "half": r.half, "event": r.event,
-                   "pitcher_name": r.pitcher_name, "description": r.description, "row": r} for r in rows]
-        for scene in fill_pitchers(scenes):
-            if scene["pitcher_name"] != scene["row"].pitcher_name:
-                scene["row"].pitcher_name = scene["pitcher_name"]
-                changed += 1
-        HighlightScene.objects.bulk_update(rows, ["pitcher_name"])
-    report(f"투수 칸 채움: {changed}개 장면")
-    return changed
+    totals = {"scenes": 0, "b0": 0, "b1": 0, "p0": 0, "p1": 0, "changed": 0, "videos": 0, "events": 0}
+    examples = []
+    for video in HighlightVideo.objects.filter(status=HighlightVideo.ANALYZED).select_related(
+            "home_team", "away_team", "game__home_team", "game__away_team"):
+        codes = [t.team_code for t in (video.away_team, video.home_team) if t]
+        teams = {t.team_code: t for t in Team.objects.filter(team_code__in=codes)}
+        rows = list(video.scenes.select_related("batting_team"))
+        scenes = [{"start_sec": r.start_sec, "inning": r.inning, "half": r.half, "event": r.event, "description": r.description,
+                   "batter_name": r.batter_name, "pitcher_name": r.pitcher_name,
+                   "team_code": r.batting_team.team_code if r.batting_team else None, "row": r} for r in rows]
+        fill_pitchers(fill_from_description(scenes, roster_roles(codes), game_starters(video.game)))
+        changed = []
+        for scene in scenes:
+            row = scene["row"]
+            totals["b0"] += not row.batter_name
+            totals["p0"] += not row.pitcher_name
+            totals["b1"] += not scene["batter_name"]
+            totals["p1"] += not scene["pitcher_name"]
+            old_team = row.batting_team.team_code if row.batting_team else None
+            if (scene["batter_name"], scene["pitcher_name"], scene["team_code"], scene["event"]) == (
+                    row.batter_name, row.pitcher_name, old_team, row.event):
+                continue
+            totals["events"] += scene["event"] != row.event
+            examples.append(f"{video.game_date} {row.inning or '?'}회{row.half} {row.event}→{scene['event']} | "
+                            f"타자 {row.batter_name or '-'}→{scene['batter_name'] or '-'} | "
+                            f"투수 {row.pitcher_name or '-'}→{scene['pitcher_name'] or '-'} | {row.description[:60]}")
+            if scene["batter_name"] != row.batter_name:
+                row.batter = batter_player(scene["batter_name"], [scene["team_code"]] if scene["team_code"] else codes)
+            row.batter_name, row.pitcher_name, row.event = scene["batter_name"], scene["pitcher_name"], scene["event"]
+            row.batting_team = teams.get(scene["team_code"]) if scene["team_code"] else None
+            changed.append(row)
+        totals["scenes"] += len(rows)
+        totals["changed"] += len(changed)
+        totals["videos"] += bool(changed)
+        if changed and not dry_run:
+            HighlightScene.objects.bulk_update(changed, ["batter_name", "batter", "pitcher_name", "batting_team", "event"])
+            if index_rag:
+                try:
+                    from llm import highlight_vectors
+                    highlight_vectors.index_video(video)
+                except Exception as exc:  # noqa: BLE001 - index_highlights 로 다시 할 수 있다
+                    report(f"RAG 색인 실패(장면표는 저장됨): {video.video_id} | {type(exc).__name__}: {exc}")
+    if dry_run and examples and samples:
+        for line in examples[::max(1, len(examples) // samples)][:samples]:  # 고르게 뽑은 예시로 맞는지 눈으로 확인
+            report(line)
+    n = max(totals["scenes"], 1)
+    report(f"{'[미리보기] ' if dry_run else ''}장면 {totals['scenes']}개 | 타자 빈칸 {totals['b0']} → {totals['b1']} "
+           f"({totals['b0'] * 100 // n}% → {totals['b1'] * 100 // n}%) | 투수 빈칸 {totals['p0']} → {totals['p1']} "
+           f"({totals['p0'] * 100 // n}% → {totals['p1'] * 100 // n}%) | 병살타·희생타로 나눔 {totals['events']}개 "
+           f"| 바뀐 장면 {totals['changed']}개 · 영상 {totals['videos']}개")
+    return totals
 
 
 def save_video(info, duration_sec):
@@ -336,7 +480,7 @@ def collect(since=None, team=None, limit=5, budget=1.0, model=DEFAULT_MODEL, vid
         try:
             codes = [c for c in (info["away"], info["home"]) if c]
             raw, cost, provider = analyze(info["video_id"], info["title"], roster_names(codes), model, _http=_http)
-            scenes = clean_scenes(raw, video.duration_sec, codes)
+            scenes = clean_scenes(raw, video.duration_sec, codes, game_starters(video.game))
             replace_scenes(video, scenes, model, cost)
         except HighlightError as exc:
             video.status, video.error = video.FAILED, str(exc)[:1000]

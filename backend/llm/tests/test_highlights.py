@@ -13,6 +13,72 @@ from llm.tools.highlight import create_highlight_tools
 TITLE = "[LG트윈스 vs KIA타이거즈] 10.6(화) 야구 하이라이트｜2026 KBO 리그｜KBO X TVING"
 
 
+class FillPlayersTest(TestCase):
+    """영상 인식이 비워 둔 타자·투수 칸을 설명 속 로스터 이름으로 채운다 (포지션으로 투수·야수 구분)."""
+
+    def setUp(self):
+        self.kia, _ = Team.objects.get_or_create(team_code="KIA", defaults={"id": 990001, "team_name_ko": "KIA 타이거즈"})
+        self.lg, _ = Team.objects.get_or_create(team_code="LG", defaults={"id": 990002, "team_name_ko": "LG 트윈스"})
+        for code, team, name, positions in (
+                ("t-kdy", self.kia, "김도영", ["infielder"]), ("t-chw", self.kia, "최형우", ["outfielder"]),
+                ("t-jhy", self.kia, "정해영", ["pitcher"]), ("t-mbk", self.lg, "문보경", ["infielder"]),
+                ("t-gws", self.lg, "고우석", ["pitcher"]), ("t-kjs", self.lg, "김진성", ["투수"]),
+                ("t-unk", self.lg, "오지환", [])):
+            Player.objects.update_or_create(external_code=code, defaults={"team": team, "name": name, "positions": positions})
+
+    def scene(self, event, description, team="KIA", batter="", pitcher="", inning=9, half="초", start=100):
+        return {"start_sec": start, "inning": inning, "half": half, "event": event, "description": description,
+                "team_code": team, "batter_name": batter, "pitcher_name": pitcher}
+
+    def test_roles_split_by_position_and_skip_unknown(self):
+        roles = highlights.roster_roles(["KIA", "LG"])
+        self.assertEqual(roles["LG"], {"pitchers": {"고우석", "김진성"}, "hitters": {"문보경"}})  # 포지션 모르는 오지환은 뺀다
+        self.assertEqual(highlights.mentioned_names("이재원이 안타, 이재는 대주자", {"이재", "이재원"}), ["이재원", "이재"])
+
+    def test_fill_batter_and_pitcher_from_description(self):
+        roles = highlights.roster_roles(["KIA", "LG"])
+        scenes = highlights.fill_from_description([
+            self.scene("삼진", "고우석이 김도영을 삼진으로 잡아낸다."),
+            self.scene("도루", "최형우가 2루를 훔친다."),  # 주자는 타자로 쓰지 않는다
+            self.scene("아웃", "문보경이 유격수 땅볼로 물러난다.", team=None, half="말"),  # 공격팀도 정한다
+            self.scene("안타", "김도영이 안타를 친다.", batter="최형우", pitcher="김진성"),  # 있는 값은 그대로
+            self.scene("홈런", "고우석과 김진성이 차례로 던진 뒤 김도영이 홈런."),  # 투수 이름이 둘이면 비워 둔다
+            self.scene("아웃", "3루수 김도영이 땅볼을 잡아 병살타를 완성한다.", team="LG", half="말"),  # 수비수는 타자 아님
+            self.scene("아웃", "최형우의 유격수 땅볼 때 2루 주자 김도영이 3루로 간다."),  # 주자는 타자 아님
+            self.scene("투수 교체", "LG 투수가 김진성으로 교체됩니다."),
+        ], roles)
+        self.assertEqual([(s["event"], s["team_code"], s["batter_name"], s["pitcher_name"]) for s in scenes], [
+            ("삼진", "KIA", "김도영", "고우석"), ("도루", "KIA", "", ""), ("아웃", "LG", "문보경", ""),
+            ("안타", "KIA", "최형우", "김진성"), ("홈런", "KIA", "김도영", ""), ("병살타", "LG", "", ""),
+            ("아웃", "KIA", "최형우", ""), ("투수 교체", "KIA", "", "김진성")])
+
+    def test_first_inning_uses_starting_pitcher_only(self):
+        roles = highlights.roster_roles(["KIA", "LG"])
+        scenes = highlights.fill_pitchers(highlights.fill_from_description([
+            self.scene("안타", "김도영이 안타.", inning=1, start=10),
+            self.scene("홈런", "최형우가 홈런.", inning=1, start=20),
+            self.scene("삼진", "문보경이 삼진.", team="LG", inning=1, half="말", start=30),
+            self.scene("안타", "김도영이 안타.", inning=2, start=40),  # 2회부터는 선발을 이어 붙이지 않는다
+        ], roles, {"LG": "톨허스트", "KIA": "올러"}))
+        self.assertEqual([s["pitcher_name"] for s in scenes], ["톨허스트", "톨허스트", "올러", ""])
+
+    @patch("llm.highlight_vectors.index_video", return_value=2)
+    def test_refill_players_dry_run_then_apply(self, index_video):
+        video = HighlightVideo.objects.create(video_id="vfill", title=TITLE, status="analyzed", home_team=self.kia, away_team=self.lg)
+        HighlightScene.objects.create(video=video, start_sec=10, inning=9, half="초", batting_team=self.kia, event="삼진",
+                                      description="고우석이 김도영을 삼진으로 잡아낸다.")
+        HighlightScene.objects.create(video=video, start_sec=40, inning=9, half="초", batting_team=self.kia, event="홈런",
+                                      batter_name="김도영", description="역전 3점 홈런.")
+        dry = highlights.refill_players(dry_run=True, report=lambda _: None)
+        self.assertEqual((dry["b0"], dry["b1"], dry["p0"], dry["p1"], dry["changed"]), (1, 0, 2, 0, 2))
+        self.assertFalse(HighlightScene.objects.exclude(pitcher_name="").exists())
+        highlights.refill_players(report=lambda _: None)
+        rows = list(video.scenes.order_by("start_sec"))
+        self.assertEqual([(r.batter_name, r.pitcher_name) for r in rows], [("김도영", "고우석"), ("김도영", "고우석")])
+        self.assertEqual(rows[0].batter.external_code, "t-kdy")
+        index_video.assert_called_once_with(video)
+
+
 class ParseTest(TestCase):
     def test_title_teams_and_date(self):
         self.assertEqual(highlights.parse_title(TITLE), ("LG", "KIA", date(2026, 10, 6)))

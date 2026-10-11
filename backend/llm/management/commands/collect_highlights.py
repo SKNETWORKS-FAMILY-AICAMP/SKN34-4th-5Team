@@ -7,6 +7,10 @@
   # 날짜 이후 10개 구단 전체
   docker compose exec backend python manage.py collect_highlights --since 2026-10-01 --limit 30 --budget 3
 
+  # 저장된 장면의 빈 타자·투수 칸 다시 채우기 (재분석·비용 없음, 먼저 --dry-run 으로 숫자 확인)
+  docker compose exec backend python manage.py collect_highlights --refill-players --dry-run
+  docker compose exec backend python manage.py collect_highlights --refill-players
+
 이미 분석한 영상은 건너뛴다(--reanalyze 로 다시). 누적 비용이 --budget(USD)에 닿으면 멈춘다.
 """
 from datetime import date
@@ -29,14 +33,15 @@ class Command(BaseCommand):
         parser.add_argument("--reanalyze", action="store_true", help="이미 분석한 영상도 다시")
         parser.add_argument("--dry-run", action="store_true", help="목록만 보고 분석·저장하지 않음")
         parser.add_argument("--no-index", action="store_true", help="분석 후 RAG 색인(index_highlights)을 하지 않음")
-        parser.add_argument("--refill-pitchers", action="store_true",
-                            help="저장된 장면의 빈 투수 칸만 같은 이닝 앞 장면으로 채움 (재분석·비용 없음)")
+        parser.add_argument("--refill-players", "--refill-pitchers", dest="refill_players", action="store_true",
+                            help="저장된 장면의 빈 타자·투수 칸을 설명 속 로스터 이름·같은 이닝 앞 장면으로 채움 "
+                                 "(재분석·비용 없음, --dry-run 이면 숫자만)")
 
     def handle(self, *args, **o):
         if o["limit"] < 1 or o["budget"] <= 0:
             raise CommandError("--limit 은 1 이상, --budget 은 0 보다 커야 합니다.")
-        if o["refill_pitchers"]:
-            highlights.refill_pitchers(report=self.stdout.write)
+        if o["refill_players"]:
+            highlights.refill_players(dry_run=o["dry_run"], index_rag=not o["no_index"], report=self.stdout.write)
             return
         ids = [v.strip() for v in o["video_ids"].split(",") if v.strip()]
         try:

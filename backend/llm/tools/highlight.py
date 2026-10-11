@@ -27,7 +27,7 @@ class HighlightInput(ToolInput):
                                      description="상대 투수 이름. 'A가 B 상대로 친'이면 player_name=A, pitcher_name=B")
     team_code: str | None = Field(default=None, description="공격 팀 코드(예: KIA, LG, DOOSAN)")
     opponent_team_code: str | None = Field(default=None, description="상대 팀 코드. 'LG전'처럼 상대를 말하면 LG")
-    event: str | None = Field(default=None, description="홈런·안타·2루타·3루타·볼넷·삼진·호수비·도루·득점 등. 모르면 비운다")
+    event: str | None = Field(default=None, description="홈런·안타·2루타·3루타·볼넷·삼진·병살타·희생타·호수비·도루·득점 등. 모르면 비운다")
     date_from: date | None = None
     date_to: date | None = None
     limit: StrictInt | None = Field(default=None, ge=1, le=10,
