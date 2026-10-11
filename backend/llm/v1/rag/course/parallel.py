@@ -1,6 +1,7 @@
 """Bounded provider I/O. Merge and verify results on the requesting thread."""
 from concurrent.futures import ThreadPoolExecutor
 from contextvars import copy_context
+from time import monotonic
 
 from django.db import connections
 
@@ -41,3 +42,20 @@ def reads(jobs):
         finally:
             for future in pending:
                 future.cancel()
+
+
+def alongside(read, action):
+    """Overlap one read with main-thread work; join before leaving the request.
+
+    Model interpretation and request-local mutations stay on the caller. The
+    reader inherits cancellation/tracing and closes its own DB connections.
+    """
+    with ThreadPoolExecutor(max_workers=1, thread_name_prefix="course-prepare") as pool:
+        future = pool.submit(_run, copy_context(), read)
+        try:
+            result = action()
+            started = monotonic()
+            prepared = future.result()
+            return result, prepared, round((monotonic() - started) * 1000)
+        finally:
+            future.cancel()

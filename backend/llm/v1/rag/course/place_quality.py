@@ -26,6 +26,7 @@ _SCOPE = ContextVar("course_quality_stadium", default=None)
 _USED = ContextVar("course_quality_checked", default=False)
 _RESEARCH = ContextVar("course_quality_research", default=None)
 _FRESH = ContextVar("course_quality_fresh", default=True)
+_PROBE = ContextVar("course_quality_local_probe", default=False)
 log = logging.getLogger(__name__)
 STADIUMS = {"GWANGJU", "JAMSIL"}
 FOOD_CATEGORIES = {"FOOD", "FOOD_OUT", "FD6", "BAR", "CAFE", "CE7"}
@@ -38,6 +39,20 @@ GENERIC_QUERIES = {"", "카페", "커피", "식당", "음식점", "맛집", "식
 LOCAL_REUSE_M = 800
 LOCAL_DISTANCE_SLACK_M = 250
 LOCAL_CHOICES = 3
+
+
+@contextmanager
+def local_probe():
+    """Try close, already reviewed branches before doing fresh research."""
+    token = _PROBE.set(True)
+    try:
+        yield
+    finally:
+        _PROBE.reset(token)
+
+
+def probing():
+    return _PROBE.get()
 
 
 @contextmanager
@@ -247,6 +262,14 @@ def verify_candidates(places, category, query="", *, center=None, search_center=
         return sorted(rows, key=lambda p: distance_to(p, center)) if center else rows
     def enough():
         return reuse and _nearby_choices(places, category, query, center, radius)
+    if probing():
+        from . import availability
+        available = [p for p in places if candidate_allowed(p)
+                     and not availability.check(p, availability.visit_date())]
+        nearest = min((distance_to(p, center) for p in available), default=float("inf"))
+        limit = min(radius, LOCAL_REUSE_M, nearest + LOCAL_DISTANCE_SLACK_M)
+        return [p for p in checked() if center and distance_to(p, center) <= limit
+                and not availability.check(p, availability.visit_date())]
     if not _FRESH.get() or enough():
         return checked()
     missing = []
@@ -290,7 +313,7 @@ def verify_candidates(places, category, query="", *, center=None, search_center=
                     seen.add(triple[2])
         missing = interleaved
     from travel.public_page_reader import PublicReader
-    from . import quality_research
+    from . import quality_research, parallel
     pending, profiles = [], []
     def flush():
         checks = {}
@@ -316,7 +339,19 @@ def verify_candidates(places, category, query="", *, center=None, search_center=
         profiles.clear()
 
     local_search = reuse and center is not None and _text(query) in GENERIC_QUERIES
-    for original, item, key in missing[:10 if query else 6]:
+    def read_profile(item):
+        from itertools import islice
+        try:
+            urls = quality_research.discover(item, state["reader"])
+            return next((row for url in islice(urls, 6) if (row := quality_research.profile(item, url, state["reader"]))), None)
+        except (ProgressCancelled, ProgressStorageError):
+            raise
+        except Exception as exc:
+            log.warning("place quality read failed: %s", type(exc).__name__)
+            return None
+
+    queue = missing[:10 if query else 6]
+    while queue:
         if len(state["tried"]) >= 24:
             break
         if state["deadline"] is None:
@@ -324,18 +359,21 @@ def verify_candidates(places, category, query="", *, center=None, search_center=
             state["reader"] = quality_research.ProfileReader(PublicReader(deadline=state["deadline"], max_requests=75, gap=.25))
         if time.monotonic() + 12 >= state["deadline"]:
             break
-        state["tried"].add(key)
-        state["checked"].add(item["placeId"])
-        try:
-            urls = quality_research.discover(item, state["reader"])
-            found = next((row for url in urls[:6] if (row := quality_research.profile(item, url, state["reader"]))), None)
+        size = min(parallel.WORKERS, 24 - len(state["tried"]), len(queue))
+        if local_search:
+            size = min(size, LOCAL_CHOICES - len(pending))
+        reader = state["reader"].reader
+        if reader.max_requests - reader.http_requests < 48:
+            size = 1  # Preserve candidate priority when the shared budget is tight.
+        batch, queue = queue[:size], queue[size:]
+        for _, item, key in batch:
+            state["tried"].add(key)
+            state["checked"].add(item["placeId"])
+        proofs = parallel.reads(lambda item=item: read_profile(item) for _, item, _ in batch)
+        for (_, item, key), found in zip(batch, proofs):
             pending.append((item, key))
             if found:
                 profiles.append(found)
-        except (ProgressCancelled, ProgressStorageError):
-            raise
-        except Exception as exc:
-            log.warning("place quality read failed: %s", type(exc).__name__)
         if local_search and len(pending) >= LOCAL_CHOICES:
             flush()
             if enough():

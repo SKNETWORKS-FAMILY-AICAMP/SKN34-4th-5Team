@@ -1,4 +1,6 @@
 """미들웨어 2: 동적 도구 할당 + 실행 직전 allowlist. 요청 state 만 읽고 캐시된 agent/도구 배열은 바꾸지 않는다."""
+import json
+
 from langchain.agents.middleware import AgentMiddleware
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
@@ -100,6 +102,16 @@ class DynamicToolMiddleware(AgentMiddleware):
                     course = public_course(state.get("course"))
                     artifact = {"course": course} if course else {}
                     outcome = state.get("course") or {}
+                    if course:
+                        from .course_answer import course_text
+                        if direct := course_text(outcome):
+                            artifact["course_direct_answer"] = direct
+                    if outcome.get("lodgingAssessments"):
+                        result = result.model_copy(update={"content": str(result.content)
+                            + "\n\n숙박 판정 보조정보(최종 답변에 상세 JSON을 출력하지 않음): "
+                            + json.dumps(outcome["lodgingAssessments"], ensure_ascii=False)})
+                    if outcome.get("timing"):
+                        artifact["course_timing"] = outcome["timing"]
                     if outcome.get("courseHistoryReset"):
                         artifact["course_history_reset"] = True
                     if outcome.get("evidenceHandled"):

@@ -30,6 +30,11 @@ def normalize(question, visits):
         internal = venue_policy.mentions_internal(expression) and not venue_policy._NEGATIVE.search(expression)
         signature_default = internal and use_default(expression, kind, raw.get("query"), raw.get("conditions"), raw.get("signature_default"))
         conditions = [] if signature_default else list(raw.get("conditions") or [])
+        if not internal and re.search(r"구장\s*(?:밖|외부)", expression):
+            # The full expression and visit policy already require an external
+            # venue. A duplicate scope token is not a separate review feature.
+            # Keep modifiers, exclusions and any other location constraints.
+            conditions = [c for c in conditions if not re.fullmatch(r"구장\s*(?:밖|외부)", c.strip())]
         if kind in ("FOOD", "CAFE"):
             conditions = list(dict.fromkeys([*conditions, expression]))
         result.append({**raw, "id": f"{raw['phase']}:{len(result)}", "kind": kind,
@@ -74,14 +79,16 @@ class Selector:
         return list(dict.fromkeys([p["text"] for p in self.state.get("conditions", []) if p["scope"] == "ALL"]
                                   + visit["conditions"]))
 
-    def for_visit(self, items, visit):
+    def for_visit(self, items, visit, *, center=None):
         from . import agent
+        from .evidence_memory import local_candidates
         state = deepcopy(self.state)
         category = agent.CAT_LABEL.get(agent.STEP_CATEGORY[visit["kind"]], visit["kind"])
         state["conditions"] = [{"scope": category, "text": text} for text in self.conditions(visit)]
         with self.policy(visit):
             candidates = [p for p in venue_policy.filter_candidates(items) if agent._step_matches(visit["kind"], p)]
-            accepted = agent.remembered_candidates(candidates, state, self.cache)
+            with local_candidates(center):
+                accepted = agent.remembered_candidates(candidates, state, self.cache)
         return [{**p, "_requested_visit_ids": list(dict.fromkeys([*p.get("_requested_visit_ids", []), visit["id"]]))}
                 for p in accepted]
 
@@ -112,11 +119,21 @@ class Selector:
         # Investigate explicit menus/brands before generic visits spend the shared
         # lookup budget. This changes search order, never the requested itinerary.
         generic = place_quality.GENERIC_QUERIES
+        external = [(v, q) for v, q in searches if not v["internal"]]
+        explicit = [(v, q) for v, q in external if q.strip() not in generic]
+        # With an origin, the first visit is searched again at its actual route
+        # position. Defer this one investigation instead of researching the
+        # stadium-wide seed and then the origin separately. Multiple explicit
+        # visits retain their existing menu-first budget ordering.
+        deferred = (external[0][0]["id"] if origin and external
+                    and external[0][0]["phase"] == "BEFORE" and len(explicit) == 1
+                    and explicit[0][0]["id"] == external[0][0]["id"] else None)
         searches.sort(key=lambda item: (item[0]["internal"], item[1].strip() in generic))
         for visit, query in searches:
             # Generic visits are researched at their actual preceding stop below.
             # A stadium-wide seed search must not exhaust the budget first.
-            with self.policy(visit), place_quality.research_policy(not origin or query.strip() not in generic):
+            with self.policy(visit), place_quality.research_policy(
+                    not origin or query.strip() not in generic and visit["id"] != deferred):
                 category = "FOOD" if visit["kind"] in ("FOOD", "BAR") else visit["kind"]
                 focus = origin if origin and visit["phase"] == "BEFORE" else anchor
                 rows = editing.candidates({**focus, "category": category},
