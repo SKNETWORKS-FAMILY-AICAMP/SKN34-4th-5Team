@@ -8,8 +8,8 @@ cross-encoder 리랭커가 정한다. OPENROUTER_API_KEY 하나로 쓰고, 실�
 """
 import json
 import logging
+import math
 import os
-import urllib.error
 import urllib.request
 
 URL = "https://openrouter.ai/api/v1/rerank"
@@ -51,22 +51,43 @@ def rerank(query, rows, top_n, model=None, _http=_post):
     model = model or model_name()
     body = {"model": model, "query": query, "top_n": min(top_n, len(rows)),
             "documents": [(row.get("content") or "")[:MAX_CHARS] or " " for row in rows]}
+    total_tokens = None
     try:
         data = _http(body, key)
-        results = data["results"]
-    except (urllib.error.URLError, TimeoutError, ValueError, KeyError, TypeError) as exc:
+        if not isinstance(data, dict):
+            return None
+        usage = data.get("usage")
+        usage = usage if isinstance(usage, dict) else {}
+        total_tokens = usage.get("total_tokens")
+        if isinstance(total_tokens, bool) or not isinstance(total_tokens, int) or total_tokens < 0:
+            total_tokens = None
+        try:
+            cost = float(usage.get("cost") or 0)
+            if isinstance(usage.get("cost"), bool) or not math.isfinite(cost) or cost < 0:
+                cost = 0.0
+        except (ValueError, TypeError, OverflowError):
+            cost = 0.0
+        COSTS.append((model, cost))
+        results = data.get("results")
+        if not isinstance(results, list):
+            return None
+        ranked = []
+        for item in results:
+            if not isinstance(item, dict):
+                return None
+            index, score = item.get("index"), item.get("relevance_score")
+            if isinstance(index, bool) or not isinstance(index, int) or not 0 <= index < len(rows):
+                return None
+            if isinstance(score, bool) or not isinstance(score, (int, float)) or not math.isfinite(score):
+                return None
+            ranked.append({**rows[index], "rerank_score": float(score)})
+        return ranked[:body["top_n"]] or None
+    except Exception as exc:  # noqa: BLE001 - 외부 응답/전송 실패는 기존 검색 순서를 쓴다
         log.warning("rerank failed (%s): %s", model, exc)
         return None
-    usage = data.get("usage") or {}
-    COSTS.append((model, float(usage.get("cost") or 0)))
-    try:  # 질문자 크레딧에도 토큰을 센다(LangChain 콜백이 없는 외부 호출)
-        from llm.service.usage import record_external
-        record_external(usage.get("total_tokens"), 0)
-    except Exception:  # noqa: BLE001
-        pass
-    ranked = []
-    for item in results:
-        index = item.get("index")
-        if isinstance(index, int) and 0 <= index < len(rows):
-            ranked.append({**rows[index], "rerank_score": float(item.get("relevance_score") or 0)})
-    return ranked or None
+    finally:
+        try:  # 시도한 외부 호출은 결과 파싱 성공 여부와 관계없이 정확히 한 번 센다
+            from llm.service.usage import record_external
+            record_external(total_tokens, 0)
+        except Exception:  # noqa: BLE001
+            pass

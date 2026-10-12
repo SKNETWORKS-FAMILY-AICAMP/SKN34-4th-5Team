@@ -25,7 +25,11 @@ WORD = re.compile(r"[가-힣]+|[a-z0-9]+(?:\.[0-9]+)*")
 
 
 def collection_name():
-    return os.getenv("QDRANT_SPARSE_COLLECTION", "kbo_documents_sparse")
+    from llm import vector_store
+    name = os.getenv("QDRANT_SPARSE_COLLECTION", "kbo_documents_sparse")
+    if name == vector_store.collection_name():
+        raise ValueError("Sparse and dense Qdrant collections must have different names")
+    return name
 
 
 def tokens(text):
@@ -106,16 +110,21 @@ def recreate(average_length):
 
 def upsert_payloads(docs, average_length=None):
     """docs: 문서 컬렉션 payload(content·metadata·external_id) + point_id. 같은 point id 로 넣는다."""
+    name = collection_name()
     average_length = average_length or avgdl()
-    points = []
-    for doc in docs:
+    points, deletes = [], []
+    # 같은 ID가 여러 번 오면 dense upsert와 같이 마지막 내용을 남긴다.
+    for doc in {doc["point_id"]: doc for doc in docs}.values():
         vector = document_vector(doc.get("content") or "", average_length)
         if vector is None:
+            deletes.append(doc["point_id"])
             continue
         payload = {k: doc[k] for k in ("content", "metadata", "external_id") if k in doc}
         points.append(models.PointStruct(id=doc["point_id"], vector={VECTOR: vector}, payload=payload))
+    if deletes:
+        client().delete(name, points_selector=models.PointIdsList(points=deletes), wait=True)
     if points:
-        client().upsert(collection_name(), points=points, wait=True)
+        client().upsert(name, points=points, wait=True)
     return len(points)
 
 

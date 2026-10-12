@@ -46,6 +46,15 @@ services:
       - ./data/staging/stadium_places:/data/staging/stadium_places:ro
     environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY:?Set OPENAI_API_KEY}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      RAG_SEARCH_MODE: ${RAG_SEARCH_MODE:-rerank}
+      RAG_VENUE_SEARCH_MODE: ${RAG_VENUE_SEARCH_MODE:-hybrid}
+      RAG_RERANK_MODEL: ${RAG_RERANK_MODEL:-voyageai/rerank-2.5}
+      RAG_RERANK_CANDIDATES: ${RAG_RERANK_CANDIDATES:-30}
+      RAG_RRF_K: ${RAG_RRF_K:-60}
+      RAG_SPARSE_WEIGHT: ${RAG_SPARSE_WEIGHT:-0.1}
+      RAG_SPARSE_RRF_WEIGHT: ${RAG_SPARSE_RRF_WEIGHT:-1.0}
+      QDRANT_SPARSE_COLLECTION: ${QDRANT_SPARSE_COLLECTION:-kbo_documents_sparse}
       JEV_MCP_URL: ${JEV_MCP_URL:-http://jev-browser:8080/mcp}
       JEV_MCP_TOKEN: ${JEV_MCP_TOKEN:?Set JEV_MCP_TOKEN}
       WEB_RESEARCH_ENABLED: ${WEB_RESEARCH_ENABLED:-false}
