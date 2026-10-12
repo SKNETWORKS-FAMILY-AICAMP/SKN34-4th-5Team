@@ -47,10 +47,11 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--golden", default="-", help="골든셋 jsonl 경로, '-' 면 표준 입력")
         parser.add_argument("--label", default="golden")
-        parser.add_argument("--modes", default="vector,hybrid,hybrid_rerank")
+        parser.add_argument("--modes", default="vector,hybrid,hybrid_rerank,hybrid_score")
         parser.add_argument("-k", type=int, default=5)
         parser.add_argument("--path", choices=("kbo", "venue"), default="kbo")
-        parser.add_argument("--rrf-k", default="", help="쉼표로 구분한 RRF 상수들 (예: 20,60,100). 하이브리드 방식마다 따로 잰다")
+        parser.add_argument("--rrf-k", default="", help="쉼표로 구분한 RRF 상수들 (예: 20,60,100). RRF 방식마다 따로 잰다")
+        parser.add_argument("--sparse-weight", default="", help="hybrid_score 의 키워드 가중치들 (예: 0,0.1,0.3)")
 
     def handle(self, *args, **o):
         from llm.v1.rag.club.retrieval import embed_many
@@ -62,13 +63,27 @@ class Command(BaseCommand):
         from llm import sparse_index
         modes = [m for m in o["modes"].split(",") if m in knowledge.SEARCH_MODES]
         rrf_ks = [int(v) for v in o["rrf_k"].split(",") if v.strip()] or [sparse_index.RRF_K]
-        runs = [(m, None) if m == "vector" else (m, rk) for m in modes for rk in ([None] if m == "vector" else rrf_ks)]
+        weights = [float(v) for v in o["sparse_weight"].split(",") if v.strip()] or [sparse_index.SPARSE_WEIGHT]
+        runs = []
+        for m in modes:
+            if m == "vector":
+                runs.append((m, None, None))
+            elif m == "hybrid_score":
+                runs += [(m, None, w) for w in weights]
+            else:
+                runs += [(m, rk, None) for rk in rrf_ks]
         vectors = embed_many([q["question"] for q in golden])
         rows, results = [], {}
-        for mode, rrf_k in runs:
-            name = mode if rrf_k is None or len(rrf_ks) == 1 else f"{mode}@k{rrf_k}"
+        for mode, rrf_k, weight in runs:
+            name = mode
+            if rrf_k is not None and len(rrf_ks) > 1:
+                name = f"{mode}@k{rrf_k}"
+            if weight is not None and len(weights) > 1:
+                name = f"{mode}@w{weight:g}"
             if rrf_k is not None:
                 sparse_index.RRF_K = rrf_k
+            if weight is not None:
+                sparse_index.SPARSE_WEIGHT = weight
             ranks, times = [], []
             for q, vec in zip(golden, vectors):
                 started = time.perf_counter()

@@ -16,7 +16,8 @@ from qdrant_client import models
 VECTOR = "text"
 K1, B = 1.2, 0.75
 DEFAULT_AVGDL = 200.0
-RRF_K = int(os.getenv("RAG_RRF_K", "60"))  # RRF 상수: 작을수록 상위 순위에 무게 (eval_retrieval --rrf-k 로 비교)
+RRF_K = int(os.getenv("RAG_RRF_K", "60"))
+SPARSE_WEIGHT = float(os.getenv("RAG_SPARSE_WEIGHT", "0.1"))  # hybrid_score: 키워드 점수(최고점 대비 0~1)에 곱하는 가중치  # RRF 상수: 작을수록 상위 순위에 무게 (eval_retrieval --rrf-k 로 비교)
 JOSA = re.compile(r"(에서|에게|까지|부터|으로|이랑|이나|이야|은|는|이|가|을|를|에|의|와|과|로|도|만|랑|나|야)$")
 STOP = {"알려줘", "알려", "어디", "어디야", "얼마", "얼마야", "있어", "뭐야", "뭐", "어떻게", "언제", "왜", "설명해줘", "궁금해", "되나요", "돼"}
 WORD = re.compile(r"[가-힣]+|[a-z0-9]+(?:\.[0-9]+)*")
@@ -163,3 +164,13 @@ def rrf(*ranked_lists, key="doc_id", k=None):
             scores[ident] += 1.0 / (k + rank)
             rows.setdefault(ident, row)
     return [{**rows[ident], "rrf": score} for ident, score in scores.most_common()]
+
+
+def dense_distances(vector, point_ids):
+    """키워드 검색으로만 들어온 후보의 벡터 거리(1-cosine)를 문서 컬렉션에서 구한다. {point_id: dist}"""
+    if not point_ids:
+        return {}
+    from llm import vector_store
+    points = client().query_points(vector_store.ensure_collection(), query=list(vector), limit=len(point_ids),
+                                   query_filter=models.Filter(must=[models.HasIdCondition(has_id=list(point_ids))])).points
+    return {str(p.id): 1.0 - float(p.score) for p in points}

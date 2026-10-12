@@ -142,11 +142,15 @@ def format_documents(docs: list[dict]) -> str:
 CATEGORIES = {'OPERATION', 'CAFE', 'FOOD_IN', 'FOOD_OUT', 'TRANSPORT', 'STADIUM', 'PRICE', 'SEAT', 'TICKET_POLICY', 'FACILITY', 'CONTENT', 'CARRY_IN', 'REENTRY', 'RULE', 'SPOT'}
 DOC_K = 5
 
-SEARCH_MODES = ("vector", "hybrid", "hybrid_rerank")
+SEARCH_MODES = ("vector", "hybrid", "hybrid_rerank", "hybrid_score")
 
 
 def search_mode():
-    """RAG_SEARCH_MODE: hybrid(기본, 벡터+키워드 RRF) · vector(벡터 상위 50 + 키워드 재정렬, 이전 방식) · hybrid_rerank."""
+    """RAG_SEARCH_MODE
+    - hybrid(기본): 벡터·키워드(BM25) 순위를 RRF 로 합침
+    - hybrid_score: 키워드 검색으로 후보를 넓힌 뒤 (벡터 유사도 + 키워드 재정렬 + 키워드 점수×RAG_SPARSE_WEIGHT)
+    - hybrid_rerank: RRF + 키워드 재정렬 가산
+    - vector: 이전 방식(벡터 상위 50 + 키워드 재정렬)"""
     mode = os.getenv("RAG_SEARCH_MODE", "hybrid").strip().lower()
     return mode if mode in SEARCH_MODES else "hybrid"
 
@@ -166,6 +170,8 @@ def hybrid_kbo_rows(query, vec, candidate_k, stadium, cats, k, mode=None) -> lis
         sparse = None
     if not sparse:
         return keyword_rerank(query, dense, k=k)
+    if mode == "hybrid_score":
+        return score_fusion(query, vec, dense, sparse, k)
     fused = sparse_index.rrf(dense, [vector_store.legacy_row(doc) for doc in sparse])
     if mode == "hybrid_rerank":
         toks = [t.upper() for t in keywords(query)]
@@ -173,6 +179,29 @@ def hybrid_kbo_rows(query, vec, candidate_k, stadium, cats, k, mode=None) -> lis
             fused.sort(key=lambda r: r["rrf"] + 0.01 * sum(t in (r.get("content") or "").upper() for t in toks) / len(toks),
                        reverse=True)
     return fused[:k]
+
+
+def score_fusion(query, vec, dense, sparse, k, weight=None) -> list[dict]:
+    """후보 = 벡터 상위 ∪ 키워드 상위. 키워드로만 들어온 후보도 벡터 거리를 구해, 이전 방식(벡터 유사도 + 키워드 재정렬)에
+    키워드(BM25) 점수를 최고점 대비 0~1 로 맞춰 weight 만큼 더한다. 벡터가 놓친 후보를 살리면서 벡터 순위는 크게 흔들지 않는다."""
+    from ..v1.rag.club.retrieval import keywords
+    from llm import sparse_index, vector_store
+    weight = sparse_index.SPARSE_WEIGHT if weight is None else weight
+    have = {row.get("doc_id") for row in dense}
+    extra = [doc for doc in sparse if vector_store.legacy_row(doc).get("doc_id") not in have]
+    distances = sparse_index.dense_distances(vec, [doc["point_id"] for doc in extra]) if extra else {}
+    rows = list(dense) + [{**vector_store.legacy_row(doc), "dist": distances[doc["point_id"]]}
+                          for doc in extra if doc["point_id"] in distances]
+    top = max((doc["sparse_score"] for doc in sparse), default=0.0) or 1.0
+    sparse_by_id = {vector_store.legacy_row(doc).get("doc_id"): doc["sparse_score"] / top for doc in sparse}
+    toks = [t.upper() for t in keywords(query)]
+
+    def score(row):
+        body = (row.get("content") or "").upper()
+        keyword = 0.3 * sum(t in body for t in toks) / len(toks) if toks else 0.0  # keyword_rerank 와 같은 가산
+        return (1 - row["dist"]) + keyword + weight * sparse_by_id.get(row.get("doc_id"), 0.0)
+
+    return sorted(rows, key=score, reverse=True)[:k]
 
 
 def search_kbo_rows(query, stadium=None, categories=None, k=DOC_K, _search=None, _embed=None, mode=None) -> list[dict]:
