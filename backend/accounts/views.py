@@ -19,7 +19,7 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 from .auth_service import AuthService
 from .models import EmailChangeChallenge
-from .point_policy import DAILY_LOGIN, SIGNUP, SIGNUP_SOURCE_KEY, grant_definition
+from .point_policy import SIGNUP, SIGNUP_SOURCE_KEY, grant_definition
 from .point_service import grant_points
 from .serializers import (
     EmailChangeRequestResponseSerializer,
@@ -32,6 +32,7 @@ from .serializers import (
     ResetPasswordSerializer,
     SendEmailSerializer,
     SignInRequestSerializer,
+    SignInSerializer,
     SignupSerializer,
     TokenPairSerializer,
     TokenRefreshRequestSerializer,
@@ -44,13 +45,7 @@ User = get_user_model()
 
 @extend_schema(request=SignInRequestSerializer, responses=TokenPairSerializer, auth=[])
 class SignInView(TokenObtainPairView):
-    def post(self, request, *args, **kwargs):
-        response = super().post(request, *args, **kwargs)
-        if response.status_code == status.HTTP_200_OK:
-            user = User.objects.get(username=request.data.get("username"))
-            local_day = timezone.localdate()
-            grant_points(user=user, **grant_definition(DAILY_LOGIN, f"{local_day.isoformat()}:{user.pk}"))
-        return response
+    serializer_class = SignInSerializer
 
 
 @extend_schema(request=TokenRefreshRequestSerializer, responses=TokenRefreshResponseSerializer, auth=[])

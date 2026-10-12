@@ -7,6 +7,7 @@ from django.core.management import call_command
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
+from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 
 from accounts.models import CustomUser, PointTransaction, PointWallet
 from accounts.point_policy import SIGNUP, SIGNUP_SOURCE_KEY, grant_definition
@@ -64,12 +65,53 @@ class PointIntegrationTests(TestCase):
         wallet.refresh_from_db()
         self.assertEqual(wallet.balance, 10)
 
+    def test_normalized_logins_grant_one_daily_reward(self):
+        for username in ("testuser1", " testuser1 ", "\ttestuser1\n"):
+            with self.subTest(username=username):
+                response = self.client.post("/api/v1/auth/signin", {
+                    "username": username,
+                    "password": "password123!",
+                }, format="json")
+                self.assertEqual(response.status_code, 200)
+                for token_class, key in ((AccessToken, "access"), (RefreshToken, "refresh")):
+                    self.assertEqual(token_class(response.data[key])["user_id"], str(self.user.pk))
+                member = self.client.get(
+                    "/api/v1/auth/user", HTTP_AUTHORIZATION=f"Bearer {response.data['access']}"
+                )
+                self.assertEqual(member.status_code, 200)
+                self.assertEqual(member.data["id"], self.user.pk)
+                refreshed = self.client.post("/api/v1/auth/token/refresh/", {
+                    "refresh": response.data["refresh"],
+                }, format="json")
+                self.assertEqual(refreshed.status_code, 200)
+                self.assertEqual(PointWallet.objects.get(user=self.user).balance, 10)
+                entry = PointTransaction.objects.get(user=self.user)
+                self.assertEqual(entry.source_type, "daily_login")
+                self.assertEqual(entry.source_key, f"{timezone.localdate().isoformat()}:{self.user.pk}")
+
+    def test_rejected_logins_do_not_grant_points(self):
+        self.user2.is_active = False
+        self.user2.save(update_fields=["is_active"])
+        for username, password in (
+            ("testuser1", "wrong-password"),
+            ("missing-user", "password123!"),
+            ("testuser2", "password123!"),
+        ):
+            with self.subTest(username=username):
+                response = self.client.post("/api/v1/auth/signin", {
+                    "username": username,
+                    "password": password,
+                }, format="json")
+                self.assertEqual(response.status_code, 401)
+                self.assertFalse(PointWallet.objects.exists())
+                self.assertFalse(PointTransaction.objects.exists())
+
     def test_login_points_reset_on_korean_calendar_day_boundary(self):
         seoul = ZoneInfo("Asia/Seoul")
         first_day = timezone.localdate(datetime(2025, 1, 1, 14, 59, tzinfo=datetime_timezone.utc), seoul)
         next_day = timezone.localdate(datetime(2025, 1, 1, 15, 1, tzinfo=datetime_timezone.utc), seoul)
         with timezone.override("Asia/Seoul"), patch(
-            "accounts.views.timezone.localdate",
+            "accounts.serializers.timezone.localdate",
             side_effect=(first_day, next_day),
         ):
             first = self.client.post("/api/v1/auth/signin", {
