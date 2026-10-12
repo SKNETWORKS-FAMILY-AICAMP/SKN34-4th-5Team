@@ -152,6 +152,7 @@ class MigratedToolsTest(unittest.TestCase):
         self.assertEqual(calls, [])
 
     def test_relative_pin_request_preserves_selection_and_history_when_classifier_says_new_or_none(self):
+        from django.test import override_settings
         from llm.tests.test_course_editing import CURRENT, PLACES
 
         current = {**CURRENT, "places": [], "selectedPlace": PLACES[1],
@@ -159,22 +160,33 @@ class MigratedToolsTest(unittest.TestCase):
         context = {"stadium": "JAMSIL", "intent": "route", "currentCourse": current}
         original = deepcopy(context)
         question = "가기 전에 식사하고 다녀온 뒤에는 산책하는 코스 짜줘"
-        for request in ("NEW", "NONE"):
-            with self.subTest(course_request=request):
+        for mode, request in ((mode, request) for mode in ("strict", "balanced") for request in ("NEW", "NONE")):
+            with self.subTest(mode=mode, course_request=request), override_settings(COURSE_RECOMMENDATION_MODE=mode):
                 calls = []
-                graph = chain.build_graph(ScriptedModel(script=[call("ask_course", {"task": question}, "c"),
-                                                               AIMessage("완성")], calls=calls), tools_with_real_migrated([]))
+                # Balanced edits dispatch directly; strict edits still select the
+                # tool through the model. Both must execute the same guarded tool.
+                script = [AIMessage("완성")]
+                if mode == "strict":
+                    script.insert(0, call("ask_course", {"task": question}, "c"))
+                graph = chain.build_graph(ScriptedModel(script=script, calls=calls), tools_with_real_migrated([]))
                 verdict = {"allowed": True, "capabilities": [], "course_request": request}
                 with patch.object(classifier, "classify", return_value=verdict), \
                         patch("llm.v1.rag.course.agent.answer", return_value={"answer": "앞뒤 코스 완성"}) as engine:
-                    graph.invoke({"messages": [HumanMessage("카페를 골랐어"), AIMessage("네"), HumanMessage(question)],
-                                  "context": context})
+                    out = graph.invoke({"messages": [HumanMessage("카페를 골랐어"), AIMessage("네"), HumanMessage(question)],
+                                        "context": context})
                 engine.assert_called_once()
                 self.assertEqual(engine.call_args.args[0], question)
                 self.assertEqual(engine.call_args.kwargs["course_request"], "EDIT")
                 self.assertEqual(engine.call_args.kwargs["current_course"], current)
                 self.assertEqual(len(engine.call_args.kwargs["history"]), 2)
-                self.assertIn("ask_course", calls[0]["tools"])
+                tool_calls = [c for m in out["messages"] if isinstance(m, AIMessage) for c in m.tool_calls]
+                self.assertEqual([c["name"] for c in tool_calls], ["ask_course"])
+                self.assertEqual(tool_calls[0]["args"]["task"], question)
+                self.assertEqual(self.tool_msg(out, "plan_course").status, "success")
+                self.assertEqual(len(calls), 1 if mode == "balanced" else 2)
+                if mode == "strict":
+                    self.assertIn("ask_course", calls[0]["tools"])
+                self.assertNotIn("ask_course", calls[-1]["tools"])
                 self.assertEqual(verdict["course_request"], request)
                 self.assertEqual(context, original)
 
