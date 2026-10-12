@@ -976,7 +976,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       setQueuePaused(false);
       knownSession = reply.sessionId;
       if (reply.sessionId) backendSessions.current.set(conversationId, reply.sessionId);
-      const assistant: ChatMessage = { role: "assistant", content: reply.reply, planning: reply.planning, course: reply.course, coursePreferences: reply.coursePreferences, status: "completed", ...(reply.assistantMessageId ? { id: reply.assistantMessageId } : {}), ...(reply.tools?.length ? { tools: reply.tools } : {}), ...(reply.timeline?.length ? { timeline: reply.timeline } : {}) };
+      const assistant: ChatMessage = { role: "assistant", content: reply.reply, planning: reply.planning, course: reply.course, coursePreferences: reply.coursePreferences, ...(reply.videos ? { videos: reply.videos } : {}), status: "completed", ...(reply.assistantMessageId ? { id: reply.assistantMessageId } : {}), ...(reply.tools?.length ? { tools: reply.tools } : {}), ...(reply.timeline?.length ? { timeline: reply.timeline } : {}) };
       const next: ChatMessage[] = [...previous, { ...userMessage, status: "completed" }, assistant];
       historyRef.current = next;
       setMessages(next);

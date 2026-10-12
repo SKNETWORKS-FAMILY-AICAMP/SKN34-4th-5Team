@@ -33,7 +33,7 @@ class AttachmentBoundaryTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, [{"id": key, "label": label} for key, label in TOOL_GROUP_LABELS.items()])
         self.assertEqual([group["label"] for group in response.data], [
-            "웹 조사", "경기 일정", "순위", "선수 정보", "야구 기록", "규정", "구장 정보", "반입 규정", "주차·교통",
+            "웹 조사", "경기 일정", "순위", "선수 정보", "하이라이트", "야구 기록", "규정", "구장 정보", "반입 규정", "주차·교통",
             "커뮤니티", "주변 장소", "관광", "길찾기", "기존 코스", "날씨", "직관 코스 계획",
         ])
 

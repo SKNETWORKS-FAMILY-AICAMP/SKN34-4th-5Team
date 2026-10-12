@@ -85,11 +85,13 @@ def build_agent(model, tools, rules, capability_tools=None, budget=MODEL_CALL_BU
     get_directions 는 요청당 2회까지만 실행하고(외부 429 반복 방지), 넘으면 오류 ToolMessage 로 모델이 다음으로 간다."""
     from langchain.agents import create_agent
     from ..middleware.attachment_context import AttachmentContextMiddleware
+    from ..middleware.course_answer import CourseAnswerMiddleware
     agent = create_agent(
         model=model, tools=tools, state_schema=V2AgentState,
         middleware=[
             JevGuidelineMiddleware(rules, run_jev),
             *([AttachmentContextMiddleware()] if run_jev else []),
+            *([CourseAnswerMiddleware()] if run_jev else []),
             DynamicToolMiddleware([t.name for t in tools], capability_tools, fixed_tools),
             ModelCallLimitMiddleware(run_limit=budget, exit_behavior="error"),
             FinalAnswerMiddleware(budget),
