@@ -75,7 +75,7 @@ def _terminate(process):
     process.wait(timeout=10)
 
 
-def _local(name, deadline):
+def _local(name, deadline, *, region=""):
     executable = chrome_path()
     node = shutil.which(os.getenv("LODGING_CHROME_NODE", "node"))
     script = Path(__file__).resolve().parents[2] / "docker/jev-browser/chrome-lodging.mjs"
@@ -88,7 +88,7 @@ def _local(name, deadline):
     env.update(LODGING_CHROME_PATH=executable, LODGING_CHROME_ARGS=os.getenv("LODGING_CHROME_ARGS", ""))
     options = {"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {"start_new_session": True}
     with tempfile.TemporaryDirectory(prefix="lodging-chrome-") as profile, tempfile.TemporaryFile() as output:
-        process = subprocess.Popen([node, str(script), profile, name, str(max(1, deadline - time.monotonic()))],
+        process = subprocess.Popen([node, str(script), profile, name, str(max(1, deadline - time.monotonic())), region],
                                    stdout=output, stderr=subprocess.DEVNULL, env=env, **options)
         try:
             while process.poll() is None:
@@ -110,11 +110,12 @@ def _local(name, deadline):
             _terminate(process)
 
 
-async def _remote(name, seconds, *, background=False):
+async def _remote(name, seconds, *, background=False, region=""):
     from llm.v2.agent.browser_research import cancellable_call, discover_tools
     tools = await cancellable_call(discover_tools({"chrome_lodging"}))
     value = await cancellable_call(tools[0].ainvoke({"name": name, "timeout_seconds": seconds,
-                                                   **({"background": True} if background else {})}))
+                                                   **({"background": True} if background else {}),
+                                                   **({"region": region} if region else {})}))
     if isinstance(value, list):
         if len(value) != 1 or value[0].get("type") != "text":
             return {"status": "error"}
@@ -180,10 +181,11 @@ def collect(candidate, *, deadline, refresh_before=0, background=False):
         mode = os.getenv("LODGING_CHROME_TRANSPORT", "local").lower()
         try:
             if mode == "local":
-                page = _local(candidate["name"], deadline)
+                page = _local(candidate["name"], deadline, region=" ".join(str(candidate.get("address") or "").split()[:2]))
             elif mode == "mcp":
                 page = asyncio.run(asyncio.wait_for(_remote(candidate["name"], seconds,
-                    **({"background": True} if background else {})), timeout=seconds + 3))
+                    **({"background": True} if background else {}),
+                    region=" ".join(str(candidate.get("address") or "").split()[:2])), timeout=seconds + 3))
             else:
                 return {"status": "unavailable"}
         except Stopped:
@@ -197,7 +199,10 @@ def collect(candidate, *, deadline, refresh_before=0, background=False):
             return {"status": "error"}
         if page.get("status") != "read":
             status = page.get("status")
-            return {"status": status if status in {"busy", "timeout", "blocked", "partial", "not_found", "ambiguous", "unavailable", "overflow"} else "error"}
+            stage = page.get("stage")
+            return {"status": status if status in {"busy", "timeout", "blocked", "partial", "not_found", "ambiguous", "unavailable", "overflow"} else "error",
+                    **({"stage": stage} if stage in {"startup", "home_navigation", "search_input", "search_navigation",
+                                                    "search_results", "detail_startup", "detail_navigation", "detail_content"} else {})}
         page = _validated(candidate, page)
         if page is None:
             return {"status": "unverified"}

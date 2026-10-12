@@ -76,8 +76,9 @@ class ChromeToolTests(unittest.IsolatedAsyncioTestCase):
                 patch.object(server, "bounded_stdout", AsyncMock(return_value=json.dumps(result).encode())), \
                 patch.object(server.os, "killpg") as kill, \
                 patch.dict(os.environ, {"OPENAI_API_KEY": "unused-test", "OPENROUTER_API_KEY": "unused-test"}):
-            self.assertEqual(await server.chrome_lodging("호텔"), result)
+            self.assertEqual(await server.chrome_lodging("호텔", region="서울 송파구"), result)
         self.assertEqual(spawn.call_args.args[:2], ("node", "/opt/service/chrome-lodging.mjs"))
+        self.assertEqual(spawn.call_args.args[-1], "서울 송파구")
         self.assertNotIn("OPENAI_API_KEY", spawn.call_args.kwargs["env"])
         self.assertNotIn("OPENROUTER_API_KEY", spawn.call_args.kwargs["env"])
         self.assertFalse(Path(spawn.call_args.args[2]).exists())
