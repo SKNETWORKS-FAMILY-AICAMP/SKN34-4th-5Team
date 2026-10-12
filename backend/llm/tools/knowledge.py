@@ -109,7 +109,7 @@ def retrieve_venue(query: str, slots: dict, mode: str | None = None, original: s
     stadium, cats, flag = slots.get("stadium_code"), slots.get("categories"), slots.get("in_stadium_flag")
     docs = vector_search(query, stadium, cats, flag, qvec)
     method = "vector" if docs else "none"
-    if (mode or search_mode()) != "vector":
+    if (mode or search_mode(venue=True)) != "vector":
         fused = hybrid_venue_search(query, docs, stadium, cats, flag)
         if fused:
             docs, method = fused, "hybrid"
@@ -145,14 +145,15 @@ DOC_K = 5
 SEARCH_MODES = ("vector", "hybrid", "hybrid_rerank", "hybrid_score")
 
 
-def search_mode():
-    """RAG_SEARCH_MODE
-    - hybrid(기본): 벡터·키워드(BM25) 순위를 RRF 로 합침
-    - hybrid_score: 키워드 검색으로 후보를 넓힌 뒤 (벡터 유사도 + 키워드 재정렬 + 키워드 점수×RAG_SPARSE_WEIGHT)
-    - hybrid_rerank: RRF + 규칙 기반 리랭크(제목 정확 일치·본문 키워드·공식 문서 가산)
-    - vector: 이전 방식(벡터 상위 50 + 키워드 재정렬)"""
-    mode = os.getenv("RAG_SEARCH_MODE", "hybrid").strip().lower()
-    return mode if mode in SEARCH_MODES else "hybrid"
+def search_mode(venue=False):
+    """검색 방식. 기본값은 골든셋 측정(10/12)으로 정했다.
+    - RAG_SEARCH_MODE (규정·구장 문서, search_kbo_documents) 기본 vector: 규정 31문항에서 어떤 하이브리드도 Hit@1·MRR 을 넘지 못함
+    - RAG_VENUE_SEARCH_MODE (구장 안팎 장소, search_documents_tool) 기본 hybrid: venue 23문항 Hit@1 0.783→0.826, 42→27ms
+    값: vector(벡터 상위 50 + 키워드 재정렬) · hybrid(벡터·BM25 순위 RRF) · hybrid_rerank(RRF + 규칙 리랭크)
+        · hybrid_score(키워드로 후보 확장 + 벡터 유사도 + 키워드 재정렬 + 키워드 점수×RAG_SPARSE_WEIGHT)"""
+    name, default = ("RAG_VENUE_SEARCH_MODE", "hybrid") if venue else ("RAG_SEARCH_MODE", "vector")
+    mode = os.getenv(name, default).strip().lower()
+    return mode if mode in SEARCH_MODES else default
 
 
 def hybrid_kbo_rows(query, vec, candidate_k, stadium, cats, k, mode=None) -> list[dict]:

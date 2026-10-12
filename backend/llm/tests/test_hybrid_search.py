@@ -1,4 +1,5 @@
 """하이브리드 문서 검색(벡터 + 한국어 키워드 BM25, RRF) 테스트. Qdrant 는 메모리 모드, 임베딩은 가짜 벡터."""
+import os
 from unittest.mock import patch
 
 from django.test import SimpleTestCase
@@ -81,10 +82,12 @@ class HybridSearchTest(SimpleTestCase):
         self.assertNotIn("rrf", rows[0])
 
     def test_mode_env(self):
-        with patch.dict("os.environ", {"RAG_SEARCH_MODE": "VECTOR"}):
-            self.assertEqual(knowledge.search_mode(), "vector")
-        with patch.dict("os.environ", {"RAG_SEARCH_MODE": "이상한값"}):
-            self.assertEqual(knowledge.search_mode(), "hybrid")
+        with patch.dict("os.environ", {}, clear=False):
+            for name in ("RAG_SEARCH_MODE", "RAG_VENUE_SEARCH_MODE"):
+                os.environ.pop(name, None)
+            self.assertEqual((knowledge.search_mode(), knowledge.search_mode(venue=True)), ("vector", "hybrid"))  # 측정으로 정한 기본값
+        with patch.dict("os.environ", {"RAG_SEARCH_MODE": "HYBRID_SCORE", "RAG_VENUE_SEARCH_MODE": "이상한값"}):
+            self.assertEqual((knowledge.search_mode(), knowledge.search_mode(venue=True)), ("hybrid_score", "hybrid"))
 
 
 class EvalHelpersTest(SimpleTestCase):
