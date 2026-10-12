@@ -391,6 +391,10 @@ class ExternalDomainToolAdapterTest(SimpleTestCase):
             result = self.tools["get_weather"].invoke({"stadium_code": "MUNHAK", "game_date": "2099-01-02"})
         get_weather.assert_called_once_with("MUNHAK", "2099-01-02", "18:30")
         self.assertEqual(result, {**weather, "requestedTime": "18:30", "timeBasis": "18:30 기준(경기 시각 아님)"})
+        hourly = {**weather, "forecastAt": "2099-01-02T19:00+09:00"}
+        with patch("travel.weather_service.get_stadium_weather", return_value=hourly):
+            result = self.tools["get_weather"].invoke({"stadium_code": "MUNHAK", "game_date": "2099-01-02"})
+        self.assertEqual(result["timeBasis"], "18:30 기준(경기 시각 아님), 실제 예보 시각 19:00")
         schema = self.tools["get_weather"].tool_call_schema.model_json_schema()
         self.assertNotIn("game_time", schema.get("required", []))
         with patch("travel.weather_service.get_stadium_weather") as get_weather:

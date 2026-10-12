@@ -42,7 +42,12 @@ def create_weather_tools():
                 "weather_busy": "날씨 요청이 많아요. 잠시 후 다시 시도해 주세요.",
             }
             raise ToolException(messages.get(error.code, "날씨 정보를 불러오지 못했습니다.")) from None
-        return {**result, "requestedTime": game_time, "timeBasis": basis} if basis else result
+        if not basis:
+            return result
+        forecast_at = str(result.get("forecastAt", ""))[11:16]  # 기상청은 정시 예보라 요청 시각과 다를 수 있다
+        if forecast_at and forecast_at != game_time:
+            basis = f"{basis}, 실제 예보 시각 {forecast_at}"
+        return {**result, "requestedTime": game_time, "timeBasis": basis}
 
     specs = (
         (get_weather, 'get_weather',
