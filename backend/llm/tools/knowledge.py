@@ -147,12 +147,13 @@ SEARCH_MODES = ("vector", "hybrid", "hybrid_rerank", "hybrid_score", "rerank", "
 
 def search_mode(venue=False):
     """검색 방식. 기본값은 골든셋 측정(10/12)으로 정했다.
-    - RAG_SEARCH_MODE (규정·구장 문서, search_kbo_documents) 기본 vector: 규정 31문항에서 어떤 하이브리드도 Hit@1·MRR 을 넘지 못함
+    - RAG_SEARCH_MODE (규정·구장 문서, search_kbo_documents) 기본 rerank: 벡터+BM25 가중 RRF 후보 30개 → voyage rerank-2.5.
+      규정 31문항 Hit@1 0.710→0.903, Hit@5 0.968→1.000 / 구장 23문항 Hit@1 0.783→0.826 (RRF 만으로는 규정이 나빠졌다)
     - RAG_VENUE_SEARCH_MODE (구장 안팎 장소, search_documents_tool) 기본 hybrid: venue 23문항 Hit@1 0.783→0.826, 42→27ms
     값: vector(벡터 상위 50 + 키워드 재정렬) · hybrid(벡터·BM25 가중 RRF) · hybrid_rerank(RRF + 규칙 리랭크)
         · hybrid_score(키워드로 후보 확장 + 벡터 유사도 + 키워드 재정렬 + 키워드 점수×RAG_SPARSE_WEIGHT)
         · rerank(가중 RRF 상위 후보 → 모델 리랭커, llm.reranker) · vector_rerank(벡터 상위 후보 → 모델 리랭커)"""
-    name, default = ("RAG_VENUE_SEARCH_MODE", "hybrid") if venue else ("RAG_SEARCH_MODE", "vector")
+    name, default = ("RAG_VENUE_SEARCH_MODE", "hybrid") if venue else ("RAG_SEARCH_MODE", "rerank")
     mode = os.getenv(name, default).strip().lower()
     return mode if mode in SEARCH_MODES else default
 
@@ -192,7 +193,13 @@ def model_rerank(query, rows, k, fallback=None) -> list[dict]:
     from llm import reranker
     pool = rows[:reranker.candidates()]
     ranked = reranker.rerank(query, pool, k)
-    return (ranked or fallback or pool)[:k]
+    if not ranked:
+        return (fallback or pool)[:k]
+    ranked = ranked[:k]
+    anchor = (fallback or [None])[0]  # 안전장치: 이전 방식 1위 문서는 최종 k 개 안에 남긴다
+    if anchor and anchor.get("doc_id") not in {r.get("doc_id") for r in ranked} and len(ranked) == k:
+        ranked[-1] = anchor  # 리랭커가 단어 겹침(예: '주차 요금' → 티켓 요금 문서)에 쏠려도 원래 1위를 잃지 않는다
+    return ranked
 
 
 EXACT_BONUS, KEYWORD_BONUS, AUTHORITY_BONUS = 0.020, 0.010, 0.005

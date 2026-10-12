@@ -85,7 +85,7 @@ class HybridSearchTest(SimpleTestCase):
         with patch.dict("os.environ", {}, clear=False):
             for name in ("RAG_SEARCH_MODE", "RAG_VENUE_SEARCH_MODE"):
                 os.environ.pop(name, None)
-            self.assertEqual((knowledge.search_mode(), knowledge.search_mode(venue=True)), ("vector", "hybrid"))  # 측정으로 정한 기본값
+            self.assertEqual((knowledge.search_mode(), knowledge.search_mode(venue=True)), ("rerank", "hybrid"))  # 측정으로 정한 기본값
         with patch.dict("os.environ", {"RAG_SEARCH_MODE": "HYBRID_SCORE", "RAG_VENUE_SEARCH_MODE": "이상한값"}):
             self.assertEqual((knowledge.search_mode(), knowledge.search_mode(venue=True)), ("hybrid_score", "hybrid"))
 
@@ -195,3 +195,15 @@ class WeightedRrfAndRerankerTest(SimpleTestCase):
         self.assertEqual([r[0] for r in runs], ["vector", "hybrid@rrf_w=0.3", "hybrid@rrf_w=1.0",
                                                 "rerank@rrf_w=0.3@model=a/x", "rerank@rrf_w=0.3@model=b/y",
                                                 "rerank@rrf_w=1.0@model=a/x", "rerank@rrf_w=1.0@model=b/y"])
+
+
+class RerankSafetyNetTest(SimpleTestCase):
+    def test_previous_top1_stays_in_final_results(self):
+        rows = [{"doc_id": f"PRICE_{i}", "content": "티켓 요금"} for i in range(5)] + [{"doc_id": "TRANSPORT_P", "content": "주차 요금"}]
+        fallback = [rows[-1]] + rows[:-1]  # 이전 방식 1위 = 주차 문서
+        with patch("llm.reranker.rerank", return_value=rows[:5]):  # 리랭커는 티켓 요금 문서 5개만 고름
+            ranked = knowledge.model_rerank("주차장 요금", rows, 5, fallback=fallback)
+        self.assertEqual(len(ranked), 5)
+        self.assertEqual(ranked[-1]["doc_id"], "TRANSPORT_P")
+        with patch("llm.reranker.rerank", return_value=[rows[-1]] + rows[:4]):  # 이미 들어 있으면 그대로
+            self.assertEqual(knowledge.model_rerank("주차장 요금", rows, 5, fallback=fallback)[0]["doc_id"], "TRANSPORT_P")
