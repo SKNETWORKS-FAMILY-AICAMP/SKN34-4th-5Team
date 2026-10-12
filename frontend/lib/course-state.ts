@@ -17,13 +17,14 @@ export type CourseAction =
   | { type: "patch"; patch: Partial<RouteDraftData>; originSource?: CourseState["originSource"] }
   | { type: "stadium"; code: string }
   | { type: "clear" }
-  | { type: "apply"; course: ChatCourse; stadiumCode: string; how: "replace" | "append" }
+  | { type: "apply"; course: ChatCourse; stadiumCode: string; how: "replace" | "append"; requestBase?: RouteDraftData }
   | { type: "restore"; data: RouteDraftData }
   | { type: "undo"; before: CourseState; expectedRevision: number };
 
 function normalize(data: RouteDraftData): RouteDraftData {
   let { stops, start } = data;
-  const plannerMode = data.plannerMode ?? (stops.some(stop => stop.isMapPoint && stop.category === "동선 지점") ? "draw" : "places");
+  // Older drafts may contain the retired drawing mode; keep their visits in the unified planner.
+  const plannerMode = "places";
   // Migrate old embedded origins at the boundary. New edits always have one origin field.
   if (stops[0]?.placeId === "route:origin" || (!start && stops[0]?.isMapPoint)) {
     const first = stops[0];
@@ -65,14 +66,16 @@ export function reduceCourse(state: CourseState, action: CourseAction): CourseSt
         plannerMode: draft.plannerMode, travelMode: draft.travelMode, legModes: draft.legModes,
         plannerCompleted: draft.plannerCompleted, chatCourseKey: course.writerKey ?? draft.chatCourseKey };
     } else {
-      const sameStadium = stadiumCode === data.stadiumCode;
-      const base = how === "append" && sameStadium ? data.stops : [];
-      const incoming = courseToStops(course, undefined, data.stops).filter(stop => !base.some(previous => sameStop(previous, stop)));
+      // 요청에 없던 출발지·방문지 변경을 진행 중인 챗봇 결과에 섞지 않는다.
+      const source = action.requestBase ?? data;
+      const sameStadium = stadiumCode === source.stadiumCode;
+      const base = how === "append" && sameStadium ? source.stops : [];
+      const incoming = courseToStops(course, undefined, source.stops).filter(stop => !base.some(previous => sameStop(previous, stop)));
       const start = how === "replace" && course.writerState ? course.writerState.origin ?? undefined
-        : how === "replace" && course.origin ? course.origin : sameStadium ? data.start : undefined;
+        : how === "replace" && course.origin ? course.origin : sameStadium ? source.start : undefined;
       data = { ...data, stadiumCode, stops: [...base, ...incoming], start, plannerMode: "places",
         travelMode: course.travelMode ?? "walk",
-        legModes: course.edit && sameStadium ? course.legModes ?? data.legModes ?? {} : how === "append" && sameStadium ? data.legModes ?? {} : {},
+        legModes: course.edit && sameStadium ? course.legModes ?? source.legModes ?? {} : how === "append" && sameStadium ? source.legModes ?? {} : {},
         plannerCompleted: course.writerState?.completed ?? true, chatCourseKey: course.writerKey };
     }
     originSource = "custom";

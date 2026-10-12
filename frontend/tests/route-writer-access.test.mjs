@@ -63,7 +63,7 @@ function harness(status = "anonymous", sample = false, userId = 1, draftContext 
   };
   const doc = { addEventListener(name, fn) { listeners.set(name, fn); }, removeEventListener() {}, activeElement: null };
   const routeService = { useRoutes: () => [], useRoutesReady: () => true, useRoutesError: () => "", saveRoute: async () => { calls.push("server-save"); return { id: "saved" }; } };
-  const sandbox = { exports: {}, window: win, document: doc, URL, clearTimeout() {}, requestAnimationFrame(fn) { fn(); }, console,
+  const sandbox = { exports: {}, window: win, document: doc, URL, structuredClone, clearTimeout() {}, requestAnimationFrame(fn) { fn(); }, console,
     require(id) {
       if (id === "react") return hooks;
       if (id === "react/jsx-runtime") return require(id);
@@ -122,13 +122,75 @@ function loadedPlanner(props) {
       if (id.startsWith("@/lib/") && ["nearby-places", "drawn-course", "client-id", "stop-history", "google-lodging", "kakao-lodging", "chat/route-path"].includes(id.slice(6))) return createRequire(join(scratch, "entry.cjs"))(`./${id.slice(6)}.js`);
       if (id.endsWith("/stadium-facility-list")) return { useStadiumFacilities: () => ({ data: null }) };
       if (id.endsWith("/collected-places")) return { collectedSource: () => "" };
-      if (id === "./course-travel") return { useCourseDirections: () => ({ points: [], origin: "first", picking: false, locating: false }), useTravelOverlay() {}, CourseTravelPanel: "CourseTravelPanel" };
+      if (id === "./course-travel") return { useCourseDirections: () => ({ points: [], origin: "first", picking: false, locating: false, chooseFirst: () => props.onStartChange(undefined) }), useTravelOverlay() {}, CourseTravelPanel: "CourseTravelPanel" };
       return new Proxy({}, { get: (_, name) => name });
     },
   };
   vm.runInNewContext(ts.transpileModule(planner + "\nexports.LoadedPlanner = LoadedPlanner;", { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS } }).outputText, sandbox);
   return () => { cursor = 0; return sandbox.exports.LoadedPlanner({ ...props, maps: {} }); };
 }
+
+test("right-click on the map removes only the origin and respects the course edit lock", () => {
+  const h = harness();
+  let tree = h.render(); h.mountEffects();
+  const props = plannerProps(tree), before = h.chat.target.getContext();
+  const canvas = find(loadedPlanner(props)(), item => item.props.className === "planner-map-canvas");
+  let prevented = false;
+  canvas.props.onContextMenuCapture({ preventDefault() { prevented = true; } });
+  assert.equal(prevented, true);
+  assert.equal(h.chat.target.getContext().origin, undefined);
+  assert.deepEqual(h.chat.target.getContext().currentCourse.places, before.currentCourse.places);
+  props.onStartChange({ lat: 37.4, lng: 127.1 });
+  props.onCompletionChange(true);
+  tree = h.render(); h.mountEffects();
+  const locked = find(loadedPlanner(plannerProps(tree))(), item => item.props.className === "planner-map-canvas");
+  locked.props.onContextMenuCapture({ preventDefault() {} });
+  assert.equal(h.chat.target.getContext().origin.lat, 37.4);
+});
+
+test("a writer request applies its captured origin and visits, and undo restores interim map edits", () => {
+  for (const change of ["move", "delete", "add"]) {
+    const h = harness(); h.storage.clear();
+    let tree = h.render(); h.mountEffects();
+    const original = change === "add" ? undefined : { lat: 37.4, lng: 127.1, name: "요청 출발지" };
+    const visit = { visitId: "visit-1", name: "기존 카페", placeId: "101", category: "카페·디저트", lat: 37.51, lng: 127.01, stayMin: 45 };
+    plannerProps(tree).onStartChange(original);
+    plannerProps(tree).onChange([visit]);
+    tree = h.render(); h.mountEffects();
+    const requestScope = h.chat.target.requestScope;
+    const apply = h.chat.target.captureApply();
+    const requestContext = h.chat.target.getContext();
+    const interim = change === "delete" ? undefined : { lat: 37.7, lng: 127.3, name: "나중 출발지" };
+    plannerProps(tree).onStartChange(interim);
+    plannerProps(tree).onChange([{ ...visit, stayMin: 90 }]);
+    tree = h.render(); h.mountEffects();
+    assert.equal(h.chat.target.requestScope, requestScope);
+    const undo = apply({ places: requestContext.currentCourse.places, edit: true, notes: [] }, "replace");
+    tree = h.render(); h.mountEffects();
+    assert.deepEqual(plannerProps(tree).initialStart, original);
+    assert.equal(plannerProps(tree).stops[0].stayMin, 45);
+    assert.equal(undo(), true);
+    tree = h.render(); h.mountEffects();
+    assert.deepEqual(plannerProps(tree).initialStart, interim);
+    assert.equal(plannerProps(tree).stops[0].stayMin, 90);
+  }
+});
+
+test("applying the same completed course again still asks the map to show it", () => {
+  const h = harness(); h.storage.clear();
+  h.render(); h.mountEffects();
+  const course = { stadiumCode: "JAMSIL", notes: [], places: [
+    { visitId: "cafe", placeId: "101", name: "카페", category: "CAFE", phase: "BEFORE", lat: 37.51, lng: 127.01 },
+  ] };
+  h.chat.target.apply(course, "replace");
+  let tree = h.render(); h.mountEffects();
+  const first = plannerProps(tree);
+  h.chat.target.apply(course, "replace");
+  tree = h.render(); h.mountEffects();
+  const second = plannerProps(tree);
+  assert.equal(second.courseRevision, first.courseRevision, "the itinerary is identical");
+  assert.ok(second.courseApplied.version > first.courseApplied.version, "every completion must trigger viewport focus");
+});
 
 test("actual planner focus and clear notify writer before any layout commit, including A-B-A", () => {
   const h = harness();
@@ -149,13 +211,14 @@ test("actual planner focus and clear notify writer before any layout commit, inc
   assert.equal(h.chat.target.getContext().currentCourse.selectedPlace, undefined);
 });
 
- test("selected anchor changes invalidate pending responses even for A-B-A without a render", () => {
+ test("selected anchor changes update the version without changing the writer request scope", () => {
   const h = harness();
   const tree = h.render(); h.mountEffects();
   const select = plannerProps(tree).onSelectedPlaceChange;
   const a = { name: "카페 A", category: "카페·디저트", placeId: "101", lat: 37.51, lng: 127.01 };
   select(a);
   const pendingVersion = h.chat.target.getVersion();
+  const requestScope = h.chat.target.requestScope;
   select({ ...a, name: "카페 B", placeId: "102" });
   assert.notEqual(h.chat.target.getVersion(), pendingVersion);
   select(a);
@@ -163,6 +226,7 @@ test("actual planner focus and clear notify writer before any layout commit, inc
   const version = h.chat.target.getVersion();
   select({ ...a });
   assert.equal(h.chat.target.getVersion(), version, "repeated identical notifications are not new selections");
+  assert.equal(h.chat.target.requestScope, requestScope);
 });
 
  test("deleted legacy visits clear selection while genuine external previews remain available", () => {
