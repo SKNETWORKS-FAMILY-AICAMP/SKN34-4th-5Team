@@ -6,6 +6,8 @@ The main V2 agent handles final answers, except for unambiguous new-course-only 
 
 Set `WEB_RESEARCH_ENABLED=true` in runtime `.env`, `OPENROUTER_API_KEY`, and `RESEARCH_API_KEY` (or `OPENAI_API_KEY`) for the general research specialist. `RESEARCH_MODEL=gpt-6-luna` and `RESEARCH_BASE_URL=https://api.openai.com/v1` configure both specialist and upstream text/answer helper. `JEV_MCP_URL=http://jev-browser:8080/mcp` is internal, with no published port. The browser service is part of the default Compose stack and is also needed for lodging when general web research is disabled. Configure `JEV_MCP_TOKEN` before starting; an empty token fails startup. Build/start it with `docker compose up -d --build jev-browser`.
 
+Production deployment builds the backend, frontend, and browser images sequentially on the GitHub Actions runner, transfers them to EC2, and starts them with `--no-build`; EC2 does not compile these images. Configure the `NEXT_PUBLIC_KAKAO_MAP_KEY` and `YOUTUBE_API_KEY` GitHub Actions secrets if those keys are used by the frontend.
+
 ## Server Chrome lodging collection
 
 Compose sets `LODGING_CHROME_TRANSPORT=mcp`. `travel.chrome_lodging` discovers only `chrome_lodging`, which runs `chrome-lodging.mjs` with standard Node.js/CDP APIs. It opens NOL's normal search button flow, follows a uniquely matching observed hotel link, and reads the visible detail DOM in a fresh Chrome profile. Neither JEV nor a search/browser-control model is called, and failure never falls back to paid search. The existing condition models still extract requirements and interpret the observed text; model token costs remain.
