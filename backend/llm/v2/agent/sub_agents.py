@@ -44,8 +44,11 @@ def _delegate(name, description, agent):
             return ToolMessage(str(result.content) if result is not None else "[조회 실패] ask_course: 답변 없음",
                                name=name, tool_call_id=runtime.tool_call_id,
                                status=result.status if result is not None else "error", artifact=records)
+        terminal = next((m for m in reversed(records) if isinstance(m, ToolMessage)), None)
+        failed = (name == "ask_highlight" and isinstance(agent, highlight_sub_agent.MultimodalAgent)
+                  and terminal is not None and terminal.status == "error")
         return ToolMessage(final_text({"messages": records}) or f"[조회 실패] {name}: 답변 없음",
-                           name=name, tool_call_id=runtime.tool_call_id, artifact=records)
+                           name=name, tool_call_id=runtime.tool_call_id, status="error" if failed else "success", artifact=records)
     return ask
 
 

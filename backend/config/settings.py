@@ -164,6 +164,8 @@ DATABASE_ROUTERS = ["travel.knowledge_router.PlaceKnowledgeRouter", "baseball.db
 
 # 식사·숙소 근거 조사를 연속 실행할 수 있는 공개 이벤트 대기 예산. heartbeat는 이 제한을 연장하지 않는다.
 CHAT_STREAM_IDLE_TIMEOUT_SECONDS = positive_int_env("CHAT_STREAM_IDLE_TIMEOUT_SECONDS", 300)
+# Empty keeps production; preview embeds via GOOGLE_API_KEY, verifies via OPENROUTER_API_KEY.
+HIGHLIGHT_MULTIMODAL_CORPUS = os.getenv("HIGHLIGHT_MULTIMODAL_CORPUS", "").strip()
 
 BASEBALL_QUERY_MAX_ROWS = positive_int_env("BASEBALL_QUERY_MAX_ROWS", 200)
 BASEBALL_QUERY_TIMEOUT_MS = positive_int_env("BASEBALL_QUERY_TIMEOUT_MS", 3000)

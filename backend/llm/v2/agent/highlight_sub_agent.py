@@ -21,5 +21,48 @@ URL·영상 ID·재생 시각은 만들거나 적지 않는다(영상 카드는 
 TOOLS = ("search_highlight_scenes", "search_highlight_rag", "select_highlight_scenes")
 
 
+class MultimodalAgent:
+    """Existing ask_highlight delegation/card contract, without another model tool loop."""
+    def stream(self, inputs, **kwargs):
+        import fcntl
+        import json
+        import math
+        from pathlib import Path
+        from django.conf import settings
+        from langchain_core.messages import AIMessage, ToolMessage
+        from llm.highlight_multimodal import Google, Specialist
+
+        root = Path(settings.HIGHLIGHT_MULTIMODAL_CORPUS)
+        # ponytail: serialize local Qdrant across workers; use a server if throughput matters.
+        with (root / "web.lock").open("a") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            specialist = Specialist(root, Google())
+            try:
+                try:
+                    result = specialist.ask(inputs["messages"][-1].text, candidate_limit=3)
+                except (RuntimeError, ValueError) as exc:
+                    result = {"complete": False, "no_match": None, "matches": [],
+                              "decisions": [{"provider_error": str(exc)}]}
+            finally:
+                specialist.close()
+        failures = [d.get("provider_error") or d.get("rejected") for d in result["decisions"]
+                    if d.get("provider_error") or d.get("rejected")]
+        if not result["complete"]:
+            text = "[조회 실패] 멀티모달 검증 미완료: " + "; ".join(failures) + ". 장면 없음으로 판단할 수 없습니다."
+            yield {"tools": {"messages": [ToolMessage(text, name="select_highlight_scenes",
+                   tool_call_id="multimodal-selection", status="error", artifact={"multimodal": result})]}}
+        else:
+            videos = [{"videoId": m["video_id"], "start": math.floor(m["playback_seconds"]),
+                       "label": m["evidence"][:120]} for m in result["matches"]]
+            text = "\n".join(m["evidence"] for m in result["matches"]) or "샘플링된 멀티모달 후보에서 요청 장면을 확인하지 못했습니다(전체 경기 검색 아님)."
+            yield {"tools": {"messages": [ToolMessage(json.dumps(result, ensure_ascii=False),
+                   name="select_highlight_scenes", tool_call_id="multimodal-selection",
+                   artifact={"videos": videos, "multimodal": result})]}}
+        yield {"model": {"messages": [AIMessage(text)]}}
+
+
 def build(model, tools_by_name):
+    from django.conf import settings
+    if getattr(settings, "HIGHLIGHT_MULTIMODAL_CORPUS", ""):
+        return MultimodalAgent()
     return build_agent(model, [tools_by_name[n] for n in TOOLS], HIGHLIGHT_RULES)
