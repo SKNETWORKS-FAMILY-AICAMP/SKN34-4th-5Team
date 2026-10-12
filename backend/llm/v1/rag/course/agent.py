@@ -100,7 +100,10 @@ def answer_public_course(question, history):
 # ── 1. DB 조회 ────────────────────────────────────────────────────────────────
 def stadium_anchor(code):
     """정식 구장 테이블의 검증된 좌표를 우선 사용한다. 예전 RAG 적재 여부에 의존하지 않는다."""
+    from llm.service.chat_runs import check_cancelled
+    check_cancelled()
     result = invoke_domain_tool("course", "get_stadium", {"stadium_code": code})
+    check_cancelled()
     stadium = result.get("item") if isinstance(result, dict) else None
     if stadium and None not in (_f(stadium.get("latitude")), _f(stadium.get("longitude"))):
         return {"key": "STADIUM", "phase": "GAME", "name": stadium["stadium_name_ko"],
@@ -295,7 +298,10 @@ def find_game(code, question, today, tool_result=None, *, now=None, stadium_id=N
 
 def load_schedule(code, requested, now):
     """구장을 먼저 필터링해 타 구장 경기나 기본 20행 제한에 다음 경기가 누락되지 않게 한다."""
+    from llm.service.chat_runs import check_cancelled
+    check_cancelled()
     stadium_result = invoke_domain_tool("course", "get_stadium", {"stadium_code": code})
+    check_cancelled()
     stadium = stadium_result.get("item") if isinstance(stadium_result, dict) else None
     if not stadium:
         return {"items": [], "warning": "구장 정보를 확인하지 못해 경기 일정을 조회하지 못했어요.", "lookup_failed": True}, None

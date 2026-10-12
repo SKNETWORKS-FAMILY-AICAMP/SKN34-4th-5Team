@@ -1,9 +1,12 @@
 """Bounded provider I/O. Merge and verify results on the requesting thread."""
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from contextvars import copy_context
+from threading import Event
 from time import monotonic
 
 from django.db import connections
+
+from llm.service import chat_runs
 
 from ...progress import ProgressCancelled, current
 
@@ -11,6 +14,7 @@ WORKERS = 2
 
 
 def _call(job):
+    chat_runs.check_cancelled()
     collector = current()
     if collector is not None and collector.cancelled:
         raise ProgressCancelled("chat progress cancelled")
@@ -50,12 +54,29 @@ def alongside(read, action):
     Model interpretation and request-local mutations stay on the caller. The
     reader inherits cancellation/tracing and closes its own DB connections.
     """
+    stop = Event()
+    cancelled = chat_runs._cancelled.get()
+    collector = current()
+    context = copy_context()
+    context.run(chat_runs._cancelled.set, lambda: stop.is_set() or cancelled()
+                or (collector is not None and collector.cancelled))
     with ThreadPoolExecutor(max_workers=1, thread_name_prefix="course-prepare") as pool:
-        future = pool.submit(_run, copy_context(), read)
+        future = pool.submit(_run, context, read)
         try:
             result = action()
             started = monotonic()
-            prepared = future.result()
+            while True:
+                _call(lambda: None)
+                try:
+                    prepared = future.result(timeout=.1)
+                    break
+                except TimeoutError:
+                    if future.done():
+                        prepared = future.result()
+                        break
             return result, prepared, round((monotonic() - started) * 1000)
         finally:
+            # Join only the current bounded I/O, not the remaining speculative
+            # queries/pages. _run closes worker DB connections before return.
+            stop.set()
             future.cancel()

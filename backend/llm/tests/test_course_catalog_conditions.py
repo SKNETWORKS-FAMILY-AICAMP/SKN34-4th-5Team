@@ -24,6 +24,17 @@ class CatalogConditionsTests(SimpleTestCase):
             with self.subTest(text=text):
                 self.assertIsNone(catalog.parse([text]))
 
+    def test_cross_category_activities_keep_semantic_menu_and_service_evidence(self):
+        for text in ("한식 식당에서 커피 한잔", "카페에서 식사하고", "메가커피에서 식사하기"):
+            with self.subTest(text=text), patch.object(agent, "llm") as llm:
+                self.assertIsNone(catalog.parse([text]))
+                self.assertIsNone(catalog.choose([], {"conditions": [text]}, text, verified=True))
+                llm.return_value.with_structured_output.return_value.invoke.return_value = {"items": [
+                    {"term": "커피" if "커피 한잔" in text else "식사", "attribute": "menu", "intent": "required", "group": "1"}]}
+                self.assertEqual(evidence_memory.requirements([text])[0].attribute, "menu")
+                llm.assert_called_once()
+        self.assertEqual(catalog.parse(["카페에서 커피 한잔", "한식 식당에서 식사하고"]), ["카페", "한식"])
+
     def test_catalog_proof_is_not_inferred_from_shop_name_or_address(self):
         self.assertTrue(catalog.matches({"detail": "음식점 > 양식"}, "양식"))
         self.assertFalse(catalog.matches({"name": "양식집", "detail": "음식점 > 한식"}, "양식"))

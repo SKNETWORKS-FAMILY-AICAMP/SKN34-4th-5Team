@@ -51,6 +51,10 @@ def chrome_path():
     for command in ("google-chrome", "google-chrome-stable", "chrome"):
         if path := shutil.which(command):
             return path
+    for folder in (Path("/Applications"), Path.home() / "Applications"):
+        path = folder / "Google Chrome.app/Contents/MacOS/Google Chrome"
+        if path.is_file():
+            return str(path)
     for folder in (os.getenv("PROGRAMFILES"), os.getenv("PROGRAMFILES(X86)"), os.getenv("LOCALAPPDATA")):
         if folder and (path := Path(folder) / "Google/Chrome/Application/chrome.exe").is_file():
             return str(path)

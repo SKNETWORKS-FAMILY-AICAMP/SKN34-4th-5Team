@@ -5,7 +5,9 @@ from unittest.mock import patch
 
 from django.test import SimpleTestCase
 
+from llm.service import chat_runs
 from llm.service.chat_runs import Stopped
+from llm.v1 import progress
 from llm.tests.test_course_creation import QUESTION, creation_result
 from llm.tests.test_course_editing import GAME, PLACES
 from llm.v1.rag.course import agent, editing, parallel, preparation
@@ -33,6 +35,79 @@ class PreparationTests(SimpleTestCase):
             plan, snapshot, _ = parallel.alongside(read, interpret)
         self.assertEqual((plan, snapshot, local.get()), ("plan", "schedule", "interpreted"))
         close.assert_called_once()
+
+    def test_action_errors_stop_reader_at_next_boundary_and_join_cleanup(self):
+        for error in (Stopped, progress.ProgressCancelled, RuntimeError):
+            entered, release, cleaned = Event(), Event(), Event()
+            calls = []
+            def query(*args):
+                calls.append(args[1])
+                entered.set()
+                self.assertTrue(release.wait(2))
+                for _ in range(200):
+                    if chat_runs._cancelled.get()():
+                        break
+                    Event().wait(.01)
+                self.assertTrue(chat_runs._cancelled.get()())
+                return {"item": {"id": 1}}
+            def interpret():
+                self.assertTrue(entered.wait(2))
+                release.set()
+                raise error("interpret failed")
+            with self.subTest(error=error), \
+                    patch.object(agent, "invoke_domain_tool", side_effect=query), \
+                    patch.object(parallel.connections, "close_all", side_effect=cleaned.set):
+                with self.assertRaises(error):
+                    parallel.alongside(lambda: preparation.read(QUESTION, "JAMSIL"), interpret)
+            self.assertEqual(calls, ["get_stadium"])
+            self.assertTrue(cleaned.is_set())
+
+    def test_waiting_on_http_observes_chat_and_progress_cancel_before_next_page(self):
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+        for source in ("chat", "progress", "error"):
+            entered, release, cancelled, cleaned = Event(), Event(), Event(), Event()
+            collector = SimpleNamespace(cancelled=False)
+            response = Mock()
+            def body():
+                entered.set()
+                self.assertTrue(release.wait(2))
+                if source == "chat":
+                    cancelled.set()
+                if source == "progress":
+                    collector.cancelled = True
+                if source == "error":
+                    for _ in range(200):
+                        if chat_runs._cancelled.get()():
+                            break
+                        Event().wait(.01)
+                    self.assertTrue(chat_runs._cancelled.get()())
+                return b'{"documents": [], "meta": {"is_end": false}}'
+            response.read.side_effect = body
+            response.__enter__ = Mock(return_value=response)
+            response.__exit__ = Mock(return_value=False)
+            def interpret():
+                self.assertTrue(entered.wait(2))
+                release.set()
+                if source == "error":
+                    raise RuntimeError("interpret failed")
+                return "plan"
+            token = chat_runs._cancelled.set(cancelled.is_set)
+            try:
+                with self.subTest(source=source), patch.object(progress, "current", return_value=collector), \
+                        patch.object(parallel, "current", return_value=collector), \
+                        patch.object(agent.kakao, "_cache", return_value=None), \
+                        patch.object(agent.kakao, "enabled", return_value=True), \
+                        patch.object(agent.kakao, "resolve_stadium", return_value={"lat": 37.5, "lng": 127, "address": ""}), \
+                        patch.object(agent.kakao.urllib.request, "urlopen", return_value=response) as http, \
+                        patch.object(parallel.connections, "close_all", side_effect=cleaned.set):
+                    with self.assertRaises(RuntimeError if source == "error" else (Stopped, progress.ProgressCancelled)):
+                        parallel.alongside(lambda: agent.kakao.nearby("JAMSIL", "indoor"), interpret)
+                    http.assert_called_once()
+                    self.assertEqual(http.call_args.kwargs["timeout"], 6)
+                    self.assertTrue(cleaned.is_set())
+            finally:
+                chat_runs._cancelled.reset(token)
 
     def test_new_request_passes_prepared_data_once_and_edit_does_not_prepare(self):
         snapshot = {"elapsed_ms": 12}

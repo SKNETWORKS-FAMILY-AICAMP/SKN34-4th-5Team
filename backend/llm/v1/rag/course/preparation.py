@@ -21,7 +21,9 @@ def read(question, code):
     try:
         check_cancelled()
         requested = agent.requested_date(question, [], today, code)
+        check_cancelled()
         schedule, stadium_id = agent.load_schedule(code, requested, now)
+        check_cancelled()
         result.update(requested=requested, schedule=schedule, stadium_id=stadium_id)
         game, _, _ = agent.find_game(code, requested or "", today, schedule, now=now, stadium_id=stadium_id)
         # Don't speculate on place lookups when no usable game was found.

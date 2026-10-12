@@ -35,6 +35,23 @@ class ChromeCollectionTests(SimpleTestCase):
         env.start()
         self.addCleanup(env.stop)
 
+    def test_standard_macos_installations_and_explicit_override(self):
+        for install in (Path("/Applications"), Path("/home/test/Applications")):
+            expected = install / "Google Chrome.app/Contents/MacOS/Google Chrome"
+            with patch.dict(os.environ, {"LODGING_CHROME_PATH": ""}), \
+                    patch.object(chrome_lodging.shutil, "which", return_value=None), \
+                    patch.object(Path, "home", return_value=Path("/home/test")), \
+                    patch.object(Path, "is_file", autospec=True, side_effect=lambda p: p == expected):
+                self.assertEqual(chrome_lodging.chrome_path(), str(expected))
+        with patch.dict(os.environ, {"LODGING_CHROME_PATH": "/custom/chrome"}), \
+                patch.object(chrome_lodging.shutil, "which", return_value=None), \
+                patch.object(Path, "is_file", return_value=True):
+            self.assertEqual(chrome_lodging.chrome_path(), "/custom/chrome")
+        with patch.dict(os.environ, {"LODGING_CHROME_PATH": "/missing/chrome"}), \
+                patch.object(chrome_lodging.shutil, "which", return_value=None), \
+                patch.object(Path, "is_file", return_value=False):
+            self.assertIsNone(chrome_lodging.chrome_path())
+
     def collect(self):
         return chrome_lodging.collect(CANDIDATE, deadline=time.monotonic() + 45)
 

@@ -6,6 +6,8 @@ from functools import lru_cache
 
 from qdrant_client import QdrantClient, models
 
+from llm.service.chat_runs import check_cancelled
+
 DOCUMENT_MODEL = "text-embedding-3-small"
 DOCUMENT_DIMENSION = 1536
 
@@ -41,12 +43,17 @@ def client():
 def ensure_collection(create=False):
     name, size, model = collection_name(), dimension(), embedding_model()
     db = client()
-    if not db.collection_exists(name):
+    check_cancelled()
+    exists = db.collection_exists(name)
+    check_cancelled()
+    if not exists:
         if not create:
             raise RuntimeError(f"Missing Qdrant collection {name}; migrate/build before retrieval")
         db.create_collection(name, vectors_config=models.VectorParams(size=size, distance=models.Distance.COSINE),
                              metadata={"embedding_model": model, "dimension": size})
+    check_cancelled()
     info = db.get_collection(name)
+    check_cancelled()
     config = info.config.params.vectors
     if not isinstance(config, models.VectorParams) or config.size != size or config.distance != models.Distance.COSINE:
         raise ValueError(f"Incompatible vector configuration: {name}")
@@ -99,9 +106,12 @@ def iter_documents(stadium=None, categories=None, flag=None, include_common=True
     name = ensure_collection()
     offset = None
     while True:
+        check_cancelled()
         points, offset = client().scroll(name, scroll_filter=metadata_filter(stadium, categories, flag, include_common, **equals),
                                         offset=offset, limit=page_size, with_payload=True, with_vectors=False)
+        check_cancelled()
         for point in points:
+            check_cancelled()
             yield {**point.payload, "point_id": str(point.id)}
         if offset is None:
             break
@@ -114,8 +124,11 @@ def search(vector, k=5, stadium=None, categories=None, flag=None, include_common
     vector = validate_vector(vector, dimension())
     query_filter = metadata_filter(stadium, categories, flag, include_common)
     def query(query_filter):
-        return client().query_points(name, query=vector, query_filter=query_filter, limit=k,
-                                    with_payload=True, search_params=models.SearchParams(hnsw_ef=int(ef_search))).points
+        check_cancelled()
+        points = client().query_points(name, query=vector, query_filter=query_filter, limit=k,
+                                      with_payload=True, search_params=models.SearchParams(hnsw_ef=int(ef_search))).points
+        check_cancelled()
+        return points
 
     if must_text:
         # ponytail: exact ILIKE-compatible substring scan; add a text index when corpus size warrants it.

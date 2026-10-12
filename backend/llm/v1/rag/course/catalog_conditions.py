@@ -31,7 +31,7 @@ def course_scope(text):
 
 
 PREFIX = r"(?:(?:경기|야구|직관)(?:전|후)(?:에)?)?(?:구장(?:밖|외부)(?:의)?)?"
-ACTION = r"(?:(?:에서|에|으로|로)?(?:식사(?:하고|하기|한뒤)?|갔다가|가기|들르기|들러|들렀다가|방문|방문하기|커피한잔))?"
+ACTION = r"(?:(?:에서|에|으로|로)?(?P<action>식사(?:하고|하기|한뒤)?|갔다가|가기|들르기|들러|들렀다가|방문|방문하기|커피한잔))?"
 PATTERN = re.compile(PREFIX + r"(?P<term>" + "|".join(sorted(TERMS, key=len, reverse=True))
                      + r")(?P<kind>식당|음식점|카페|브랜드|매장|메뉴)?" + ACTION, re.I)
 
@@ -51,6 +51,11 @@ def parse(conditions):
             return None
         raw = next(k for k in TERMS if k.casefold() == match["term"].casefold())
         term, kind = TERMS[raw], match["kind"]
+        action = match["action"] or ""
+        # An activity outside the proven category is a service/menu constraint.
+        if (action == "커피한잔" and raw not in BRANDS and term != "카페"
+                or action.startswith("식사") and (raw in BRANDS or term == "카페")):
+            return None
         if kind and ((raw in CUISINES and kind not in ("식당", "음식점"))
                      or (raw in BRANDS and kind not in ("카페", "브랜드", "매장"))
                      or (raw in MENUS and kind not in ("식당", "음식점", "메뉴"))
