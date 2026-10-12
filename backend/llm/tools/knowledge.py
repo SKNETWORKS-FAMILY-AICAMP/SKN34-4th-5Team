@@ -149,7 +149,7 @@ def search_mode():
     """RAG_SEARCH_MODE
     - hybrid(기본): 벡터·키워드(BM25) 순위를 RRF 로 합침
     - hybrid_score: 키워드 검색으로 후보를 넓힌 뒤 (벡터 유사도 + 키워드 재정렬 + 키워드 점수×RAG_SPARSE_WEIGHT)
-    - hybrid_rerank: RRF + 키워드 재정렬 가산
+    - hybrid_rerank: RRF + 규칙 기반 리랭크(제목 정확 일치·본문 키워드·공식 문서 가산)
     - vector: 이전 방식(벡터 상위 50 + 키워드 재정렬)"""
     mode = os.getenv("RAG_SEARCH_MODE", "hybrid").strip().lower()
     return mode if mode in SEARCH_MODES else "hybrid"
@@ -174,11 +174,28 @@ def hybrid_kbo_rows(query, vec, candidate_k, stadium, cats, k, mode=None) -> lis
         return score_fusion(query, vec, dense, sparse, k)
     fused = sparse_index.rrf(dense, [vector_store.legacy_row(doc) for doc in sparse])
     if mode == "hybrid_rerank":
-        toks = [t.upper() for t in keywords(query)]
-        if toks:
-            fused.sort(key=lambda r: r["rrf"] + 0.01 * sum(t in (r.get("content") or "").upper() for t in toks) / len(toks),
-                       reverse=True)
+        fused = rule_rerank(query, fused)
     return fused[:k]
+
+
+EXACT_BONUS, KEYWORD_BONUS, AUTHORITY_BONUS = 0.020, 0.010, 0.005
+
+
+def rule_rerank(query, rows):
+    """규칙 기반 리랭크(모델 없음): rrf + 0.020×제목 정확 일치 + 0.010×본문 키워드 비율 + 0.005×공식 문서.
+    제목은 청크 첫 줄('[KBO 리그규정 2026] 제5장 … > 제34조 준플레이오프')이라 쌍둥이 조항(준PO·PO)을 가른다."""
+    from ..v1.rag.club.retrieval import keywords
+    toks = [t.upper() for t in keywords(query)]
+
+    def score(row):
+        content = (row.get("content") or "").upper()
+        title = content.split("\n", 1)[0]
+        exact = any(re.search(rf"(?<![가-힣A-Z0-9]){re.escape(t)}(?![가-힣A-Z0-9])", title) for t in toks) if toks else False
+        keyword = sum(t in content for t in toks) / len(toks) if toks else 0.0
+        official = _kbo_grade(row) == "OFFICIAL"
+        return row["rrf"] + EXACT_BONUS * exact + KEYWORD_BONUS * keyword + AUTHORITY_BONUS * official
+
+    return sorted(rows, key=score, reverse=True)
 
 
 def score_fusion(query, vec, dense, sparse, k, weight=None) -> list[dict]:

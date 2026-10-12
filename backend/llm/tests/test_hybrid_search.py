@@ -133,3 +133,15 @@ class ScoreFusionTest(SimpleTestCase):
         ids = [r["doc_id"] for r in rows]
         self.assertIn("RULE_COMMON_BR_6.02", ids)   # 벡터 후보에 없던 보크 조항을 키워드로 데려와 벡터 거리까지 붙여 비교
         self.assertTrue(all(r["dist"] is not None for r in rows))
+
+
+class RuleRerankTest(SimpleTestCase):
+    def test_title_exact_match_separates_twin_articles(self):
+        rows = [  # 벡터·키워드 모두 PO 조항을 조금 더 위로 본 상황(RRF 점수 차이는 작다)
+            {"doc_id": "LR_제38조", "rrf": 0.0330, "status": "CONFIRMED",
+             "content": "[KBO 리그규정 2026] 제5장 포스트시즌 > 제38조 플레이오프\n플레이오프는 5전 3선승제로 한다."},
+            {"doc_id": "LR_제34조", "rrf": 0.0325, "status": "CONFIRMED",
+             "content": "[KBO 리그규정 2026] 제5장 포스트시즌 > 제34조 준플레이오프\n준플레이오프는 5전 3선승제로 한다."},
+        ]
+        ranked = knowledge.rule_rerank("준플레이오프는 몇 선승제야?", rows)
+        self.assertEqual(ranked[0]["doc_id"], "LR_제34조")  # 제목에 '준플레이오프'가 정확히 있는 조항이 1위
