@@ -9,7 +9,13 @@ concurrency:
   group: production-deployment
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
+  evaluation-regression:
+    uses: ./.github/workflows/evaluation-regression.yml
+
   ci-test:
     runs-on: ubuntu-latest
     steps:
@@ -45,7 +51,7 @@ jobs:
         run: npm run build
 
   deploy:
-    needs: ci-test
+    needs: [ci-test, evaluation-regression]
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to production EC2
@@ -69,7 +75,7 @@ jobs:
             docker builder prune -af --filter "until=24h"
 
   notify-discord:
-    needs: [ci-test, deploy]
+    needs: [ci-test, evaluation-regression, deploy]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -77,6 +83,7 @@ jobs:
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           CI_RESULT: ${{ needs.ci-test.result }}
+          EVALUATION_RESULT: ${{ needs.evaluation-regression.result }}
           DEPLOY_RESULT: ${{ needs.deploy.result }}
         run: |
           if [ -z "$DISCORD_WEBHOOK_URL" ]; then
@@ -84,7 +91,7 @@ jobs:
             exit 0
           fi
 
-          if [ "$CI_RESULT" = "failure" ]; then
+          if [ "$CI_RESULT" = "failure" ] || [ "$EVALUATION_RESULT" = "failure" ]; then
             STATUS="❌ [운영 CI 실패]"
             DETAILS="운영 배포 전 CI 검증에서 오류가 발생했습니다."
           else
