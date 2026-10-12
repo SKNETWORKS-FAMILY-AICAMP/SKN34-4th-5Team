@@ -10,6 +10,10 @@
 .chat-questions legend { width: 100%; margin-bottom: 10px; padding: 0; color: #183b63; font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
 .chat-question-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .chat-question-choices button { width: 100%; min-width: 0; max-width: 100%; text-align: left; }
+.chat-question-choice { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; min-width: 0; }
+.chat-question-choice button { flex: 1; }
+.chat-question-source { display: inline-flex; align-items: center; gap: 3px; padding: 2px 6px; border: 1px solid #d8e3f2; border-radius: 5px; background: #eef3fa; color: #506986; font-size: 11px; font-weight: 500; line-height: 1.7; text-decoration: none; white-space: nowrap; }
+.chat-question-source:hover { border-color: #9dbbeb; background: #e2edfc; color: #245ec5; }
 @container (min-width: 480px) { .chat-question-choices { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @container (min-width: 680px) { .chat-question-choices { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
 @container (max-width: 240px) { .chat-question-choices { grid-template-columns: minmax(0, 1fr); } }

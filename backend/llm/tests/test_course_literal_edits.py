@@ -4,7 +4,7 @@ from unittest.mock import patch
 from django.test import SimpleTestCase
 
 from llm.tests.test_course_editing import CURRENT, PLACES
-from llm.v1.rag.course import agent, editing, literal_edits, memory
+from llm.v1.rag.course import agent, editing, evidence_memory, literal_edits, memory, recommendation_policy
 from llm.v1.rag.nearby import lodging
 
 
@@ -12,6 +12,59 @@ QUESTION = "난 카페 무조건 메가커피 가야해. 메가커피로 바꿔�
 
 
 class LiteralEditTests(SimpleTestCase):
+    def test_choice_continues_complete_request_without_reinterpreting_or_rechecking_menu(self):
+        current = {**CURRENT, 'places': [
+            {**PLACES[0], 'label': '1', 'name': 'STATION', 'placeId': 'stadium-facility:snack'},
+            *PLACES[1:], {**PLACES[0], 'label': '5', 'name': '술집', 'visitId': 'bar'},
+        ]}
+        prompt = '돈카츠 가게로 바꿀 식당을 골라 주세요.'
+        history = [{'role': 'user', 'content': '식당이 좀 별로다. 돈카츠 가게로 수정해줘'},
+                   {'role': 'assistant', 'content': prompt + ': 1번 STATION / 5번 술집'}]
+        candidate = {**PLACES[0], 'name': '새 식당', 'detail': '음식점 > 일식 > 돈까스', 'placeId': 'new'}
+        unrelated = {**candidate, 'name': '다른 식당', 'detail': '음식점 > 중식', 'placeId': 'other'}
+        for choice, target in [('1번 STATION', 'food'), ('STATION', 'food'), ('5번 술집', 'bar')]:
+            for question in [choice, prompt + ': ' + choice]:
+                with self.subTest(question=question), patch.object(agent, 'llm') as llm, \
+                        patch.object(recommendation_policy, 'balanced', return_value=True), \
+                        patch.object(editing.availability, 'check', return_value=None), \
+                        patch.object(evidence_memory, 'enrich', return_value=[]) as enrich:
+                    plan = editing.interpret(question, current, history)
+                    self.assertEqual(plan['targets'], [target])
+                    self.assertEqual(plan['conditions'], ['돈까스'])
+                    self.assertTrue(plan['_literal_edit'])
+                    self.assertFalse(plan['internal_venue_requests'])
+                    self.assertEqual(editing.choose([unrelated, candidate], plan, question)['placeId'], 'new')
+                    enrich.assert_not_called()
+                    self.assertIsNone(editing.choose([unrelated], plan, question))
+                llm.assert_not_called()
+                enrich.assert_called_once_with([unrelated], ['돈까스'])
+
+    def test_choice_does_not_erase_conditions_or_guess_stale_targets(self):
+        prompt = '돈카츠 가게로 바꿀 식당을 골라 주세요.'
+        current = {**CURRENT, 'places': [{**PLACES[0], 'label': '1', 'name': 'STATION'},
+                                        {**PLACES[0], 'label': '3', 'name': '술집', 'visitId': 'bar'}]}
+        for original in ['돈카츠로 바꿔줘 그리고 주차도 가능해야 해', '알레르기 없는 돈카츠로 바꿔줘',
+                         '구장 내 돈카츠로 바꿔줘', '메가커피로 바꿔줘', '돈카츠로 바꿔줘. 왜 추천했는지도 설명해줘']:
+            history = [{'role': 'user', 'content': original}, {'role': 'assistant', 'content': prompt}]
+            self.assertIsNone(literal_edits.interpret(prompt + ': 1번 STATION', current, history=history))
+        history = [{'role': 'user', 'content': '돈카츠로 바꿔줘'}, {'role': 'assistant', 'content': prompt}]
+        for question in ['1번 다른 식당', '3번 STATION', prompt + ': 1번 STATION 그리고 주차도',
+                         prompt + ': 1번 STATION\n카페?: 메가커피', '주차 가능한 ' + prompt + ': 1번 STATION']:
+            self.assertIsNone(literal_edits.interpret(question, current, history=history))
+        self.assertIsNone(literal_edits.interpret('STATION', current, history=[]))
+        self.assertIsNone(literal_edits.interpret(prompt + ': 1번 STATION', current, history=[
+            history[0], {'role': 'assistant', 'content': '수정했어요.'}]))
+        duplicates = {**current, 'places': [*current['places'], {**current['places'][0], 'label': '4', 'visitId': 'duplicate'}]}
+        self.assertIsNone(literal_edits.interpret('STATION', duplicates, history=history))
+
+    def test_choice_supports_other_categories_and_saved_brand_conflicts(self):
+        current = {**CURRENT, 'places': [*PLACES, {**PLACES[1], 'label': '4', 'visitId': 'cafe2', 'name': '두번째 카페'}]}
+        prompt = '메가커피로 바꿀 카페를 골라 주세요.'
+        history = [{'role': 'user', 'content': '메가커피로 바꿔줘'}, {'role': 'assistant', 'content': prompt}]
+        self.assertEqual(literal_edits.interpret(prompt + ': 4번 두번째 카페', current, history=history)['targets'], ['cafe2'])
+        saved = {'conditions': [{'scope': 'CAFE', 'text': '컴포즈커피 브랜드'}]}
+        self.assertIsNone(literal_edits.interpret(prompt + ': 4번 두번째 카페', current, saved, history))
+
     def test_complete_compound_request_needs_no_model_and_preserves_preferences(self):
         before = deepcopy(CURRENT)
         with patch.object(agent, 'llm') as llm:

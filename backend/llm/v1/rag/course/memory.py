@@ -94,6 +94,12 @@ def restore_place_details(current, saved):
     if current.get("stadiumCode") != previous.get("stadiumCode"):
         return current
     value = deepcopy(current)
+    # The browser sends only date/time. Recover provenance solely from server
+    # memory for this same stadium and game; never accept a client demo flag.
+    game, known_game = value.get("game"), previous.get("game")
+    if game and known_game and all(game.get(k) == known_game.get(k) for k in ("date", "time")):
+        from .game_metadata import summary
+        value["game"] = summary(known_game)
     def category(place):
         return "FOOD" if place.get("category") == "FOOD_OUT" else place.get("category")
     for place in value.get("places", []):
@@ -111,6 +117,7 @@ def restore_place_details(current, saved):
 def attach(result, value, current=None, origin=None, before=None, undo=True):
     state = deepcopy(value)
     if result.get("places"):
+        state.pop("pending_selection", None)
         from .writer_state import for_result
         result["writerState"] = for_result(result, current, origin)
         state["current"] = snapshot(result)

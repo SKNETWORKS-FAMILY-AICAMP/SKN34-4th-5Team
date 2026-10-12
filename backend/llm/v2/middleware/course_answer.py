@@ -20,10 +20,12 @@ EXTRA_CAPABILITIES = frozenset({"weather", "standings", "players", "baseball_sta
 
 
 def course_text(outcome):
-    """Keep every generated warning/link; add only the deterministic past-date note."""
+    """Keep every warning/link and deterministic game provenance/date notes."""
     text = outcome.get("answer")
     if not isinstance(text, str) or not text.strip() or outcome.get("courseOnly") is not True:
         return None
+    from llm.v1.rag.course.game_metadata import annotate
+    text = annotate(text, outcome.get("game"))
     try:
         day = date.fromisoformat((outcome.get("game") or {}).get("date", ""))
     except (ValueError, TypeError):

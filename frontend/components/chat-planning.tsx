@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ChatAttachment, ChatMessage } from "@/lib/chat/types";
 import { ChatInlineContent } from "./chat-inline-input";
 import { inlineChatUrls, normalizeChatUrl } from "@/lib/chat/inline-urls";
-import { planningAnswers, type ChatPlanning } from "@/lib/chat/planning";
+import { planningAnswers, planningChoiceLink, type ChatPlanning } from "@/lib/chat/planning";
 import { useChat } from "./chat-provider";
 
 export function ChatWriterOffer() {
@@ -95,7 +95,9 @@ function QuestionAnswers({ message, disabled }: { message: ChatMessage; disabled
     <fieldset disabled={locked}>
       <legend ref={heading} tabIndex={-1}>{question.question}</legend>
       {!multiple && question.choices.length > 0 && <p className="chat-question-help">선택하면 바로 보내요</p>}
-      <div className="chat-question-choices">{question.choices.map(choice => <button type="button" key={choice} disabled={locked} aria-pressed={!direct[step] && answers[step] === choice} onClick={event => {
+      <div className="chat-question-choices">{question.choices.map(choice => {
+        const link = planningChoiceLink(question.choice_links?.find(item => item.choice === choice));
+        return <div className="chat-question-choice" key={choice}><button type="button" disabled={locked} aria-pressed={!direct[step] && answers[step] === choice} onClick={event => {
         event.preventDefault(); event.stopPropagation();
         if (locked || sent.current) return;
         chat.stayHere();
@@ -103,7 +105,10 @@ function QuestionAnswers({ message, disabled }: { message: ChatMessage; disabled
         setDirect(current => ({ ...current, [step]: false }));
         setAnswers(values);
         if (!multiple) submit(values);
-      }}>{choice}</button>)}</div>
+      }}>{choice}</button>{link && <a className="chat-question-source" href={link.url} target="_blank" rel="noopener noreferrer"
+          aria-label={`${choice} ${link.label} (새 창)`} title={`${choice} 장소 정보 확인`}
+          onClick={event => { event.stopPropagation(); chat.stayHere(); }}>{link.label} <span aria-hidden="true">↗</span></a>}</div>;
+      })}</div>
       <label className="chat-question-help" htmlFor={`planning-direct-${message.id}-${step}`}>직접 입력{direct[step] ? " · 선택됨" : drafts[step] ? " · 수정하면 이 답변을 선택해요" : ""}</label>
       <input id={`planning-direct-${message.id}-${step}`} aria-label={`${question.question} 직접 입력`} placeholder="답변을 직접 입력해주세요" maxLength={160} value={drafts[step] ?? ""} onChange={event => {
         if (locked || sent.current) return;

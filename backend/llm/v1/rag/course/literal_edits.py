@@ -5,6 +5,7 @@ locked/completed visits, atomic application and timeline rebuilding stay shared.
 """
 import re
 
+from llm.place_choices import compact, selected_place
 from . import catalog_conditions as catalog
 
 CATEGORIES = {"식당": "FOOD", "음식점": "FOOD", "식사": "FOOD", "카페": "CAFE",
@@ -31,7 +32,94 @@ def _category(place):
     return "FOOD" if value in {"FOOD_IN", "FOOD_OUT"} else value
 
 
-def interpret(question, current, saved=None):
+CHOICE_QUESTION = re.compile(
+    r"(?P<destination>" + DESTINATIONS + r")(?:가게|매장|식당|카페)?(?:으로|로)바꿀"
+    r"(?:" + KINDS + r"|곳|장소)(?:을|를)?골라(?:줘|주세요)[.!?]?", re.I)
+
+
+def interpret(question, current, saved=None, history=None):
+    if plan := _interpret(question, current, saved):
+        return plan
+    if (saved or {}).get("pending_selection") or any(t.get("planning_questions") for t in (history or [])[-1:]):
+        return _pending_choice(question, current, saved or {}, history or [])
+    # A choice is a continuation of the immediately preceding request, never a
+    # replacement for its conditions. Unknown clauses still need semantics.
+    turns = history or []
+    last = next((i for i in range(len(turns) - 1, -1, -1) if turns[i].get('role') == 'user'), None)
+    if last is None:
+        return None
+    assistants = [str(t.get('content', '')) for t in turns[last + 1:] if t.get('role') == 'assistant']
+    if not assistants:
+        return None
+    prefix, separator, choice = question.partition(':')
+    prompts = [prefix] if separator else [line.partition(':')[0] for line in assistants[-1].splitlines()]
+    prompt = next((p for p in prompts if CHOICE_QUESTION.fullmatch(compact(p))), None)
+    if not prompt or compact(prompt) not in compact(assistants[-1]):
+        return None
+    target = selected_place(choice if separator else question, current.get('places', []))
+    if target is None:
+        return None
+    plan = _interpret(str(turns[last].get('content', '')), current, saved, target=target)
+    if not plan or plan['operation'] != 'replace':
+        return None
+    destination = CHOICE_QUESTION.fullmatch(compact(prompt))['destination']
+    canonical = next(k for k in {**catalog.TERMS, **CATEGORIES} if k.casefold() == destination.casefold())
+    # Do not bind a stale/different question to an otherwise valid command.
+    if canonical in catalog.TERMS:
+        if plan['query'] != catalog.TERMS[canonical]:
+            return None
+    elif (plan['category'] or _category(target)) != CATEGORIES[canonical]:
+        return None
+    return plan
+
+
+def _snapshot(current):
+    from .memory import fingerprint
+    return {**fingerprint(current), "game": {k: (current.get("game") or {}).get(k) for k in ("date", "time")},
+            "visits": [{k: p.get(k) for k in ("visitId", "placeId", "label", "phase")} for p in current.get("places", [])]}
+
+
+def pending_selection(question, current, saved):
+    """Only a fully parsed single replacement can await a visit selection."""
+    targets = []
+    for place in current.get("places", []):
+        plan = _interpret(question, current, saved, target=place)
+        if plan and plan["operation"] == "replace":
+            targets.append(place["visitId"])
+    if len(targets) < 2:
+        return None
+    return {"request": question, "snapshot": _snapshot(current), "targets": targets}
+
+
+def _pending_choice(question, current, saved, history):
+    pending = saved.get("pending_selection")
+    if not isinstance(pending, dict) or pending.get("snapshot") != _snapshot(current):
+        return None
+    last = next((i for i in range(len(history)-1, -1, -1) if history[i].get("role") == "user"), None)
+    if last is None or history[last].get("content") != pending.get("request"):
+        return None
+    assistants = [t for t in history[last+1:] if t.get("role") == "assistant"]
+    questions = assistants[-1].get("planning_questions", []) if assistants else []
+    if len(questions) != 1:
+        return None
+    row = questions[0]
+    places = current.get("places", [])
+    offered = [selected_place(c, places) for c in row.get("choices", [])]
+    if len(offered) < 2 or any(p is None or p.get("visitId") not in pending["targets"] for p in offered):
+        return None
+    prefix, separator, answer = question.partition(":")
+    if separator and compact(prefix) != compact(row.get("question", "")):
+        return None
+    target = selected_place(answer if separator else question, places)
+    if target is None or target["visitId"] not in {p["visitId"] for p in offered}:
+        return None
+    # Reconsume the complete original request and current saved preferences.
+    # Extra free-text conditions or changed maps use the semantic interpreter.
+    plan = _interpret(pending["request"], current, saved, target=target)
+    return plan if plan and plan["operation"] == "replace" else None
+
+
+def _interpret(question, current, saved=None, *, target=None):
     from .editing import EditAction, EditPlan
 
     # Consume every clause; no keyword-only guesses or loss of trailing facts.
@@ -63,6 +151,8 @@ def interpret(question, current, saved=None):
                     else CATEGORIES.get(raw))
         source = CATEGORIES[match['source']] if match['source'] else category
         targets = [p for p in current.get('places', []) if _category(p) == source]
+        if target is not None:
+            targets = [p for p in targets if p is target]
         if len(targets) != 1 or not targets[0].get('visitId'):
             return None
         if rejected_category and rejected_category != source:

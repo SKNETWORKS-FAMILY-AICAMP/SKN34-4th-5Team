@@ -285,6 +285,7 @@ def find_game(code, question, today, tool_result=None, *, now=None, stadium_id=N
                 "home": item.get("home_team__team_name_ko") or item.get("home_team__team_code") or "",
                 "canceled": item.get("status_code") in {"cancelled", "postponed"},
                 "status": item.get("status_code") or "", "score": "", "as_of": str(item["game_date"]),
+                **{k: item[k] for k in ("source", "game_type", "source_status_label") if item.get(k)},
             })
         games = [game for game in games if not game["canceled"]]
     else:
@@ -319,9 +320,10 @@ def load_schedule(code, requested, now):
 
 
 def schedule_notice(game):
-    return (f"방문 날짜가 정해지지 않아 이 구장의 가장 가까운 예정 홈경기인 "
+    from .game_metadata import annotate
+    return annotate((f"방문 날짜가 정해지지 않아 이 구장의 가장 가까운 예정 홈경기인 "
             f"{game['date']} {game['time']} · {game['home']} 홈 vs {game['away']} 원정을 기준으로 짰어요.\n"
-            f"{DATE_RECOMMENDATION}")
+            f"{DATE_RECOMMENDATION}"), game)
 
 
 def game_time_of(game):
@@ -333,11 +335,12 @@ def is_evening(game):
 
 
 def _game_text(game, code):
+    from .game_metadata import annotate
     ko = STADIUM_KO.get(code, code)
     if game:
         d = datetime.strptime(game["date"], "%Y-%m-%d")
-        return (f"{d.month}월 {d.day}일 {game['time']} {ko} · {game['home']} 홈 vs {game['away']} 원정 "
-                f"(상태: {game['status'] or '경기 전'})")
+        return annotate((f"{d.month}월 {d.day}일 {game['time']} {ko} · {game['home']} 홈 vs {game['away']} 원정 "
+                f"(상태: {game.get('status') or '경기 전'})"), game)
     return f"{ko} · 경기 정보 없음 → 평일 저녁 경기 기준 {DEFAULT_GAME_TIME} 시작으로 가정"
 
 
@@ -1492,6 +1495,8 @@ def _answer(question, history=None, hint_stadium=None, origin=None, requested_af
     if not _WARN.search(text):
         text = f"{text}\n{WARN_THIRD_PARTY}"
 
+    from .game_metadata import annotate, summary as game_summary
+    text = annotate(text, game)
     route.append(f"course:{code}:{game['date'] + ' ' + game['time'] if game else 'assumed'}:{len(cands)}cands")
     if approach_notice:
         travel.setdefault("notes", []).append(approach_notice)
@@ -1502,7 +1507,7 @@ def _answer(question, history=None, hint_stadium=None, origin=None, requested_af
         "lodgingAssessments": lodging.assessments(rows),
         "routeComparison": ranker.report,
         "stadiumCode": code,
-        "game": {"date": game["date"], "time": game["time"]} if game else None,
+        "game": game_summary(game) if game else None,
         "origin": {**original_origin, "name": origin_label} if original_origin else None,
         "entryPoint": entry_point,
         "approachNotice": approach_notice,

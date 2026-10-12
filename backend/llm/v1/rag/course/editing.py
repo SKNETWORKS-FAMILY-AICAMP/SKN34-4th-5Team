@@ -132,7 +132,7 @@ def interpret(question, current, history, course_memory=None, *, new_course=Fals
     from .agent import llm
     if not new_course:
         from . import literal_edits
-        if literal := literal_edits.interpret(question, current, course_memory):
+        if literal := literal_edits.interpret(question, current, course_memory, history):
             return literal
     if new_course:
         from .creation import interpret as interpret_creation
@@ -704,7 +704,9 @@ def rebuild(places, current, code, origin, question, history, progress_plan=None
     from .writer_state import for_result
     result["writerState"] = for_result(result, current, origin)
     if game:
-        result["game"] = {"date": game["date"], "time": game["time"]}
+        from .game_metadata import annotate, summary as game_summary
+        result["game"] = game_summary(game)
+        result["answer"] = annotate(result["answer"], game)
     if progress_state:
         result["progress"] = progress_state
     if _availability_check and any(availability.records(p) for p in places):
@@ -875,8 +877,12 @@ def answer(question, history, current, code, origin, course_memory=None, parsed=
         if op in ("replace", "remove", "indoor", "duration", "move", "swap", "reorder") and any(p.get("completed") and p["visitId"] in affected for p in current["places"]):
             return keep("이미 방문을 완료한 장소는 유지해요. 남은 장소를 지정해 주세요. 완료 표시가 잘못됐다면 직전 수정 취소를 요청해 주세요.")
         saved = update_memory(original, plan, current)
+        saved.pop("pending_selection", None)
         applicable = request_memory(saved, plan)
         if plan["operation"] == "clarify":
+            from .literal_edits import pending_selection
+            if pending := pending_selection(question, current, saved):
+                saved["pending_selection"] = pending
             return keep(plan["clarification"] or "수정할 장소와 순서를 이름 또는 지도 번호로 알려 주세요.")
         if op in ("lock", "unlock"):
             if not targets or len(targets) != len(set(plan["targets"])):

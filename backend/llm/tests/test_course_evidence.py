@@ -241,7 +241,7 @@ class CourseEvidenceTests(TestCase):
             allow_new_source_search.reset(token)
         attempt = PlaceEnrichmentAttempt.objects.get()
         self.assertEqual((attempt.search_calls, attempt.model_calls), (0, 0))
-        self.assertEqual((attempt.status, attempt.reason_code), ("api_error", "provider_error"))
+        self.assertEqual((attempt.status, attempt.reason_code), ("no_evidence", "not_found"))
         self.assertEqual(PlaceKnowledgeObservation.objects.count(), 0)
 
     def test_turn_budget_spans_nested_lookups_and_resets_for_next_turn(self):

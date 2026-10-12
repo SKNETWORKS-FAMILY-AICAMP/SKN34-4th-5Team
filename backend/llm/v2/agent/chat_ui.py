@@ -1,5 +1,6 @@
 """Explicit public UI tool; never render model HTML or navigate to a model URL."""
 import re
+from urllib.parse import urlsplit
 
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field, field_validator
@@ -18,6 +19,8 @@ class PlanningQuestion(BaseModel):
 
 
 def public_ui(value):
+    from .course_output import _source_url
+
     if not isinstance(value, dict) or not isinstance(value.get("offer_writer"), bool):
         return None
     questions = value.get("questions")
@@ -34,8 +37,41 @@ def public_ui(value):
             return None
         if any(not isinstance(c, str) or not c.strip() or len(c) > 80 for c in choices) or len(set(choices)) != len(choices):
             return None
-        cleaned.append({"question": question, "choices": list(choices)})
+        row = {"question": question, "choices": list(choices)}
+        links = []
+        seen = set()
+        for raw in item.get("choice_links", []) if isinstance(item.get("choice_links"), list) else []:
+            if not isinstance(raw, dict) or raw.get("choice") not in choices or raw["choice"] in seen:
+                continue
+            url = _source_url(raw.get("url"))
+            if not url:
+                continue
+            label = "매장 상세 위치" if urlsplit(url).hostname == "myseatcheck.com" else "장소 정보"
+            links.append({"choice": raw["choice"], "url": url, "label": label})
+            seen.add(raw["choice"])
+        if links:
+            row["choice_links"] = links
+        cleaned.append(row)
     return {"offer_writer": value["offer_writer"], "questions": cleaned}
+
+
+def with_place_links(payload, state):
+    """Attach existing course sources on the server; no model URLs or lookup."""
+    from llm.place_choices import selected_place
+    current = (state.get("context") or {}).get("currentCourse")
+    if not isinstance(current, dict):
+        current = (state.get("course_memory") or {}).get("current") or {}
+    places = current.get("places") or []
+    payload = public_ui(payload)
+    if payload is None:
+        return None
+    for question in payload["questions"]:
+        question["choice_links"] = [
+            {"choice": choice, "url": place.get("placeUrl")}
+            for choice in question["choices"]
+            if (place := selected_place(choice, places)) is not None
+        ]
+    return public_ui(payload)
 
 
 @tool(response_format="content_and_artifact")
