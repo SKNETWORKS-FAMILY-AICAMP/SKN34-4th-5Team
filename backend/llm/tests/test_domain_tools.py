@@ -378,6 +378,25 @@ class ExternalDomainToolAdapterTest(SimpleTestCase):
             }), weather)
         get_weather.assert_called_once_with("JAMSIL", "2026-09-16", "18:30")
 
+    def test_weather_without_game_time_uses_stated_default_time(self):
+        from datetime import date, datetime
+        from llm.tools.weather import default_time
+        from travel.weather_service import KST
+        now = datetime(2026, 10, 13, 9, 40, tzinfo=KST)
+        self.assertEqual(default_time(date(2026, 10, 13), now), ("10:00", "오늘 다음 정시 기준(경기 시각 아님)"))
+        self.assertEqual(default_time(date(2026, 10, 13), now.replace(hour=23, minute=30))[0], "23:00")
+        self.assertEqual(default_time(date(2026, 10, 14), now), ("18:30", "18:30 기준(경기 시각 아님)"))
+        weather = {"label": "비", "temperature": 15}
+        with patch("travel.weather_service.get_stadium_weather", return_value=weather) as get_weather:
+            result = self.tools["get_weather"].invoke({"stadium_code": "MUNHAK", "game_date": "2099-01-02"})
+        get_weather.assert_called_once_with("MUNHAK", "2099-01-02", "18:30")
+        self.assertEqual(result, {**weather, "requestedTime": "18:30", "timeBasis": "18:30 기준(경기 시각 아님)"})
+        schema = self.tools["get_weather"].tool_call_schema.model_json_schema()
+        self.assertNotIn("game_time", schema.get("required", []))
+        with patch("travel.weather_service.get_stadium_weather") as get_weather:
+            self.tools["get_weather"].invoke({"stadium_code": "MUNHAK", "game_date": "2099-01-02", "game_time": "25:00"})
+        get_weather.assert_not_called()  # 형식이 틀린 시각은 기상청 호출 전에 막힌다
+
 
 class ToolErrorContractTest(__import__("unittest").TestCase):
     def test_knowledge_and_schema_tools_return_error_toolmessage(self):
