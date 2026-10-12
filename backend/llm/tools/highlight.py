@@ -12,6 +12,7 @@ from pydantic import Field, StrictInt, model_validator
 from .common import INVALID_INPUT, ToolInput, _json, _result, _tool, db_team_code, is_team_code
 
 # 이벤트를 정하지 않은 "하이라이트" 질문에서 먼저 보여 줄 장면: 타점 1점당 10 + 이벤트 가중치(나머지 5)
+RECENT_DAYS = 7  # recent_first: 최근 경기 날짜를 며칠까지 거슬러 찾을지
 EVENT_WEIGHT = {"홈런": 50, "3루타": 30, "2루타": 25, "호수비": 25, "안타": 20, "득점": 20, "실책": 10, "도루": 10}
 
 
@@ -61,6 +62,8 @@ class HighlightRagInput(ToolInput):
     date_from: date | None = None
     date_to: date | None = None
     limit: StrictInt | None = Field(default=None, ge=1, le=10, description="후보 수(기본 5)")
+    recent_first: bool = Field(default=False, description="'최근·요즘·지난 경기'처럼 날짜 없이 최근을 물었으면 true: "
+                                                          "가장 최근 경기부터 날짜순으로 찾는다")
 
     @model_validator(mode="after")
     def validate_filters(self):
@@ -199,12 +202,22 @@ def create_highlight_tools():
             "video__home_team", "video__away_team", "batting_team")
 
     def search_highlight_rag(query, team_code=None, opponent_team_code=None, event=None, date_from=None, date_to=None,
-                             limit=None):
-        """하이라이트 RAG: 질문을 임베딩해 Qdrant 장면 설명 색인에서 의미가 가까운 장면을 찾는다(가까운 순)."""
+                             limit=None, recent_first=False):
+        """하이라이트 RAG: 질문을 임베딩해 Qdrant 장면 설명 색인에서 의미가 가까운 장면을 찾는다(가까운 순).
+        recent_first 이고 날짜가 없으면 분석된 경기 날짜를 최근부터 하루씩 찾아, 처음 장면이 나온 날의 결과를 돌려준다."""
         from llm import highlight_vectors
         codes = [db_team_code(code) for code in (team_code, opponent_team_code) if code]
         try:
-            hits = highlight_vectors.search(query, codes, date_from, date_to, event, k=limit or 5)
+            if recent_first and not (date_from or date_to):
+                days = (HighlightVideo.objects.filter(status=HighlightVideo.ANALYZED, game_date__isnull=False)
+                        .order_by("-game_date").values_list("game_date", flat=True).distinct()[:RECENT_DAYS])
+                hits = []
+                for day in days:
+                    hits = highlight_vectors.search(query, codes, day, day, event, k=limit or 5)
+                    if hits is None or hits:
+                        break
+            else:
+                hits = highlight_vectors.search(query, codes, date_from, date_to, event, k=limit or 5)
         except Exception as exc:  # noqa: BLE001 - 의미 검색은 보조: 실패를 알리고 조건 검색으로 답하게 한다
             return _result([], search_mode="rag", error=f"의미 검색 실패: {type(exc).__name__}")
         if hits is None:
