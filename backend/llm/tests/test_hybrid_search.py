@@ -183,9 +183,10 @@ class WeightedRrfAndRerankerTest(SimpleTestCase):
                 rows = knowledge.search_kbo_rows("보크 선언", None, ["RULE"], 2, _embed=lambda _: vec(1), mode="rerank")
             self.assertEqual(rows[0]["doc_id"], "RULE_COMMON_BR_5.09")  # 리랭커가 정한 순서
             self.assertEqual(len(rerank.call_args.args[1]), 2)          # 벡터+키워드 후보(RULE 2건)를 넘김
-            with patch("llm.reranker.rerank", return_value=None):       # 리랭커 실패 → 후보 순서 그대로
-                rows = knowledge.search_kbo_rows("보크 선언", None, ["RULE"], 1, _embed=lambda _: vec(1), mode="rerank")
-            self.assertEqual(rows[0]["doc_id"], "RULE_COMMON_BR_6.02")
+            with patch("llm.reranker.rerank", return_value=None):       # 리랭커 실패 → 이전 방식(벡터+키워드 재정렬) 순서
+                rows = knowledge.search_kbo_rows("보크 선언", None, ["RULE"], 1, _embed=lambda _: vec(2), mode="rerank")
+            self.assertEqual(rows[0]["doc_id"], knowledge.search_kbo_rows("보크 선언", None, ["RULE"], 1,
+                                                                         _embed=lambda _: vec(2), mode="vector")[0]["doc_id"])
 
     def test_eval_grid_labels(self):
         from llm.management.commands.eval_retrieval import Command

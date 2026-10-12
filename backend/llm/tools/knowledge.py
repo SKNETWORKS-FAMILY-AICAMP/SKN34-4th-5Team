@@ -165,16 +165,16 @@ def hybrid_kbo_rows(query, vec, candidate_k, stadium, cats, k, mode=None) -> lis
     dense = search(vec, k=candidate_k, stadium=stadium, categories=cats)[0]
     if mode == "vector":
         return keyword_rerank(query, dense, k=k)
+    vector_order = keyword_rerank(query, dense, k=len(dense))  # 이전 방식 순서: 리랭커 실패 시 대체
     if mode == "vector_rerank":
-        return model_rerank(query, keyword_rerank(query, dense, k=len(dense)), k)
+        return model_rerank(query, vector_order, k, fallback=vector_order)
     from llm import sparse_index, vector_store
     try:
         sparse = sparse_index.search(query, k=candidate_k, stadium=stadium, categories=cats)
     except Exception:  # noqa: BLE001 - 키워드 색인 장애는 벡터 검색으로 대신한다
         sparse = None
     if not sparse:
-        base = keyword_rerank(query, dense, k=len(dense) if mode == "rerank" else k)
-        return model_rerank(query, base, k) if mode == "rerank" else base
+        return model_rerank(query, vector_order, k, fallback=vector_order) if mode == "rerank" else vector_order[:k]
     if mode == "hybrid_score":
         return score_fusion(query, vec, dense, sparse, k)
     fused = sparse_index.rrf(dense, [vector_store.legacy_row(doc) for doc in sparse],
@@ -182,16 +182,17 @@ def hybrid_kbo_rows(query, vec, candidate_k, stadium, cats, k, mode=None) -> lis
     if mode == "hybrid_rerank":
         fused = rule_rerank(query, fused)
     if mode == "rerank":
-        return model_rerank(query, fused, k)
+        return model_rerank(query, fused, k, fallback=vector_order)
     return fused[:k]
 
 
-def model_rerank(query, rows, k) -> list[dict]:
-    """후보 상위 RAG_RERANK_CANDIDATES 개를 모델 리랭커로 다시 줄 세운다. 실패하면 원래 순서."""
+def model_rerank(query, rows, k, fallback=None) -> list[dict]:
+    """후보 상위 RAG_RERANK_CANDIDATES 개를 모델 리랭커로 다시 줄 세운다.
+    리랭커가 실패하면 fallback(이전 방식 순서: 벡터 + 키워드 재정렬)을 쓴다. RRF 순서는 리랭커 없이는 규정에서 더 나빴다."""
     from llm import reranker
     pool = rows[:reranker.candidates()]
     ranked = reranker.rerank(query, pool, k)
-    return (ranked or pool)[:k]
+    return (ranked or fallback or pool)[:k]
 
 
 EXACT_BONUS, KEYWORD_BONUS, AUTHORITY_BONUS = 0.020, 0.010, 0.005
