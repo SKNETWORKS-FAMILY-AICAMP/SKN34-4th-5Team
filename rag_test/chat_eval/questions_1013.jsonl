@@ -4,7 +4,7 @@
 {"id": "rule4", "category": "규정", "turns": ["고척돔 천장에 공 맞으면 어떻게 돼?"], "tools_any": ["search_kbo_documents"], "must": [["천장"], ["파울"]], "src": "golden r28"}
 {"id": "rule5", "category": "규정", "turns": ["비 오면 경기 취소는 누가 언제 결정해?"], "tools_any": ["search_kbo_documents"], "must": [["경기운영위원"], ["3시간 전"]], "src": "golden r19"}
 {"id": "rule6", "category": "규정", "turns": ["와일드카드 결정전은 어떻게 진행돼? 4위가 유리해?"], "tools_any": ["search_kbo_documents"], "must": [["4위"], ["5위"], ["1승 또는 1무승부", "1승이나 무승부", "1무"]], "src": "golden r24"}
-{"id": "rule7", "category": "규정", "turns": ["인필드 플라이 규칙 설명해줘"], "tools_any": ["search_kbo_documents"], "must": [["무사 또는 1사", "무사나 1사", "노아웃"], ["만루"]], "src": "golden r02"}
+{"id": "rule7", "category": "규정", "turns": ["인필드 플라이 규칙 설명해줘"], "tools_any": ["search_kbo_documents"], "must": [["무사 또는 1사", "무사나 1사", "노아웃", "0아웃 또는 1아웃", "0아웃", "1아웃"], ["만루"]], "src": "golden r02 / 1013: 0아웃·1아웃 표현 허용"}
 {"id": "rule8", "category": "규정", "turns": ["메이저리그 피치클락은 몇 초야?"], "expect": "any", "note": "KBO 규정(23초/18초)을 MLB 값처럼 단정하면 실패", "src": "golden r32"}
 {"id": "venue1", "category": "구장", "turns": ["SSG 경기장 주차장 정보랑 요금 알려줘"], "tools_any": ["get_transport", "get_facilities", "get_food_stores", "get_stadium", "get_stadium_contents", "search_kbo_documents"], "must": [["주차"]], "note": "티켓 가격만 나오면 실패 (#78 순위 하락 문항)", "src": "golden v02"}
 {"id": "venue2", "category": "구장", "turns": ["고척스카이돔 구일역 몇 번 출구에서 가까워?"], "tools_any": ["get_transport", "get_facilities", "get_food_stores", "get_stadium", "get_stadium_contents", "search_kbo_documents"], "must": [["출구"]], "src": "golden v05"}
@@ -41,7 +41,7 @@
 {"id": "stat5", "category": "기록", "turns": ["LG 김현수 선수 기록 찾아줘"], "tools_any": ["search_players", "execute_baseball_select"], "must": [["김현수"]], "src": "79 first_action-player"}
 {"id": "stat6", "category": "기록", "turns": ["KBO 타율 1위 선수 누구야?"], "tools_any": ["execute_baseball_select", "search_players", "get_standings"], "note": "데이터 없으면 지어내지 않음", "src": "golden c30"}
 {"id": "stat7", "category": "기록", "turns": ["삼성 라이온즈 3위 맞지?"], "tools_any": ["get_standings"], "note": "실제 순위로 확인(맞장구 금지)", "src": "golden c35"}
-{"id": "stat8", "category": "기록", "turns": ["김도영 홈런 영상 보여주고 이번 시즌 기록도 알려줘"], "tools_all": [["ask_highlight"], ["search_players", "execute_baseball_select"]], "videos": "required", "no_url": true, "src": "신규"}
+{"id": "stat8", "category": "기록", "turns": ["김도영 홈런 영상 보여주고 이번 시즌 기록도 알려줘"], "tools_all": [["ask_highlight"], ["search_players", "execute_baseball_select"]], "videos": "required", "src": "신규 / 1013: 출처 링크 허용, 영상 URL만 금지", "forbid": ["youtube.com", "youtu.be"], "note": "TVING 기록 출처 링크는 #79 정책상 허용·권장. 영상 URL만 금지"}
 {"id": "hl1", "category": "하이라이트", "turns": ["김도영 최근 홈런 영상 보여줘"], "tools_any": ["ask_highlight"], "videos": "required", "no_url": true, "max_videos": 5, "note": "가장 최근 경기일", "src": "신규"}
 {"id": "hl2", "category": "하이라이트", "turns": ["어제 SSG KIA 경기 멋진 수비 장면 보여줘"], "tools_any": ["ask_highlight"], "videos": "required", "no_url": true, "note": "수비 장면", "src": "신규"}
 {"id": "hl3", "category": "하이라이트", "turns": ["최근 병살타 장면 보여줘"], "tools_any": ["ask_highlight"], "videos": "required", "no_url": true, "note": "최신 날짜", "src": "신규"}
