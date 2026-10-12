@@ -1,12 +1,12 @@
 # Ragas replay of actual multimodal highlight outputs
 
-The user changed the evaluation framework requirement to **Ragas** after the finite real-provider pass had completed. `backend/llm/highlight_ragas.py` runs actual Ragas 0.4.3 `EvaluationDataset`, `SingleTurnSample`, custom deterministic `SingleTurnMetric`, and `ragas.evaluate` on the saved real outputs. The prior DeepEval run remains separately named and is not relabelled as Ragas. No additional provider calls or LLM judge calls are needed.
+The user changed the evaluation framework requirement to **Ragas** after the finite real-provider pass had completed. `backend/llm/v2/evaluation/highlight_ragas.py` runs actual Ragas 0.4.3 `EvaluationDataset`, `SingleTurnSample`, custom deterministic `SingleTurnMetric`, and `ragas.evaluate` on the saved real outputs. The prior DeepEval run remains separately named and is not relabelled as Ragas. No additional provider calls or LLM judge calls are needed.
 
 ```sh
 EVAL=/Users/yunseongho/.hermes/cache/scratch/highlight-deepeval
 uv pip install --python "$EVAL/venv/bin/python" \
   ragas==0.4.3 langchain-community==0.4.1
-"$EVAL/venv/bin/python" -I backend/llm/highlight_ragas.py \
+"$EVAL/venv/bin/python" -I backend/llm/v2/evaluation/highlight_ragas.py \
   --raw-rows "$EVAL/run-20261012/raw-rows.json" \
   --output "$EVAL/new-ragas-replay-directory"
 ```

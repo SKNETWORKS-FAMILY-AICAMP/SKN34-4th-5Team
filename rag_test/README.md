@@ -11,16 +11,16 @@ Ragas는 운영 의존성(OpenAI/jiter)과 충돌하므로 **검색·생성 expo
 python3.12 -m venv .venv-backend
 .venv-backend/bin/pip install -r backend/requirements.txt
 python3.12 -m venv .venv-ragas
-.venv-ragas/bin/pip install -r rag_test/requirements-ragas.txt
+.venv-ragas/bin/pip install -r backend/llm/v2/evaluation/requirements-ragas.txt
 export RAGAS_DO_NOT_TRACK=true
 # OPENAI_API_KEY: 생성·검색 임베딩·Ragas judge/embedding
 # OPENROUTER_API_KEY: 기존 rerank helper. 키는 환경으로만 공급하고 저장하지 않습니다.
 # backend Qdrant 등 기존 환경설정도 필요합니다.
-cat rag_test/golden/golden_rule.jsonl rag_test/golden/golden_venue.jsonl | \
+cat backend/llm/v2/evaluation/golden/golden_rule.jsonl backend/llm/v2/evaluation/golden/golden_venue.jsonl | \
   .venv-backend/bin/python backend/manage.py export_ragas --ids r16,r25,v04 \
   --limit 3 --k 5 --mode rerank --generation-model gpt-4.1-mini \
   --output /tmp/ragas-export.jsonl
-.venv-ragas/bin/python rag_test/eval_ragas.py --input /tmp/ragas-export.jsonl \
+.venv-ragas/bin/python backend/llm/v2/evaluation/eval_ragas.py --input /tmp/ragas-export.jsonl \
   --limit 3 --evaluation-model gpt-4.1-mini --output /tmp/ragas-scores.json
 ```
 
@@ -54,7 +54,7 @@ export JSONL은 `id/question/user_input/reference/reference_doc_ids/response/ret
 이는 실제 `search_kbo_rows`(sparse/rerank 경로) + 서비스 `build_prompt`를 통한 **단일 생성 평가**입니다. 실제 전체 챗봇 응답/agent 도구루프/외부 리서치/브라우저/DB·지갑 쓰기/채팅 세션 E2E 평가가 아닙니다. 3문항은 smoke 평가이며 전체 성능이나 통계적 유의성을 보증하지 않습니다.
 
 ```sh
-.venv-backend/bin/python backend/manage.py test llm.tests.test_eval_ragas
+.venv-backend/bin/python backend/manage.py test llm.v2.evaluation.test_eval_ragas
 ```
 
 회귀는 mock으로 네트워크 없이 검증합니다. 실제 Ragas API 호환 smoke는 별도 평가 환경에서 HTTP MockTransport를 사용하며 실제 제공자 호출과 구별합니다.

@@ -11,9 +11,9 @@ EVAL=/Users/yunseongho/.hermes/cache/scratch/highlight-deepeval
 uv venv "$EVAL/venv" --python 3.12
 uv pip install --python "$EVAL/venv/bin/python" \
   deepeval==4.2.8 qdrant-client==1.19.1 python-dotenv==1.2.4
-"$EVAL/venv/bin/python" -I backend/llm/tests/test_highlight_deepeval.py
-"$EVAL/venv/bin/python" -I backend/llm/highlight_deepeval.py \
-  --dataset backend/llm/tests/highlight_deepeval_sample.json \
+"$EVAL/venv/bin/python" -I backend/llm/v2/evaluation/test_highlight_deepeval.py
+"$EVAL/venv/bin/python" -I backend/llm/v2/evaluation/highlight_deepeval.py \
+  --dataset backend/llm/v2/evaluation/highlight_deepeval_sample.json \
   --corpus /Users/yunseongho/.hermes/runtimes/kbo-preview/corpus-v2 \
   --output "$EVAL/new-run-directory" --env-file .env --run-provider
 ```
