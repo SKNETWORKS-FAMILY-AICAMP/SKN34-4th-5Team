@@ -317,6 +317,19 @@ class HighlightAgentToolsTest(TestCase):
         self.assertNotIn("url", result["items"][0])
         self.assertEqual(search.call_args.args[1], ["KIA"])
 
+    def test_rag_recent_first_searches_latest_game_day_first(self):
+        newer = HighlightVideo.objects.create(video_id="vid3CCCCCCC", title=TITLE, game_date=date(2026, 10, 11), status="analyzed")
+        catch = HighlightScene.objects.create(video=newer, start_sec=477, event="호수비", description="펜스 앞 점프 캐치")
+
+        def fake(query, codes, date_from, date_to, event, k):  # 10/11 에만 장면이 있고, 날짜 없이 찾으면 10/5 가 더 가깝다
+            return [(catch.pk, 0.7)] if date_from == date(2026, 10, 11) else [(self.homer.pk, 0.9)] if date_from is None else []
+        with patch("llm.highlight_vectors.search", side_effect=fake) as search:
+            plain = self.rag.invoke({"query": "멋진 수비", "event": "호수비"})
+            recent = self.rag.invoke({"query": "멋진 수비", "event": "호수비", "recent_first": True})
+        self.assertEqual(plain["items"][0]["scene_id"], self.homer.pk)
+        self.assertEqual(recent["items"][0]["scene_id"], catch.pk)          # 가장 최근 경기(10/11)부터 찾는다
+        self.assertEqual(search.call_args.args[2:4], (date(2026, 10, 11), date(2026, 10, 11)))
+
     def test_rag_without_index_or_with_error_tells_the_agent(self):
         with patch("llm.highlight_vectors.search", return_value=None):
             self.assertIn("색인", self.rag.invoke({"query": "다이빙 캐치"})["error"])

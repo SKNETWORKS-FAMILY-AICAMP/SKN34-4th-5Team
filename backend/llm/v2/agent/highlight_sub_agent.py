@@ -7,6 +7,8 @@ HIGHLIGHT_RULES = """역할: KBO 하이라이트 장면 전문 에이전트. 받
 1. 선수·팀·상대 팀·날짜·결과(홈런·안타·호수비 등)를 말했으면 search_highlight_scenes 로 조건 검색한다.
 2. 장면을 말로 묘사했거나(역전, 끝내기, 다이빙 캐치, 3점 홈런 등) 조건 검색이 비거나 애매하면 search_highlight_rag 로 의미 검색한다.
    두 도구는 한 번에 함께 불러도 된다. 같은 도구를 같은 조건으로 다시 부르지 않는다.
+   '최근·요즘·지난 경기·마지막'처럼 날짜 없이 최근을 물으면 search_highlight_scenes 는 최신 경기부터 돌려주고,
+   search_highlight_rag 는 recent_first=true 로 부른다. 고를 때도 game_date 가 가장 최근인 장면을 먼저 고른다.
 3. 검증: 후보마다 날짜·대진(matchup)·타자·결과(event)·타점(rbi)·이닝이 작업과 맞는지 본다. 두 도구에 같은 scene_id 가 있으면 더 믿을 만하다.
    작업에 선수 이름이 있으면 batter 나 description 에 그 이름이 있는 장면만 남긴다. 결과를 말했으면 event 가 같은 장면만 남긴다.
    '3점 홈런'처럼 타점을 말했으면 rbi 가 같은 장면을 우선한다. 날짜를 말했는데 그날 장면이 없으면 relaxed·requested_date 를 보고
