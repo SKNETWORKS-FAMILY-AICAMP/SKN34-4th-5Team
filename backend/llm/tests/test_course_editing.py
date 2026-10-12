@@ -28,6 +28,28 @@ def plan(op, targets, **kw):
 
 
 class CourseEditingTest(SimpleTestCase):
+    def test_lodging_replacement_keeps_verdict_for_answer_but_not_public_cards(self):
+        operation = plan("replace", ["park"], category="STAY", query="호텔", conditions=["주차 가능"])
+        url = "https://nol.yanolja.com/stay/domestic/123"
+        for status in ("match", "unknown"):
+            check = {"status": status, "checks": [{"condition": "주차 가능", "status": status,
+                     "intent": "required", "evidence": "private source excerpt"}]}
+            stay = {"placeId": "hotel", "name": "검증한 호텔", "lat": 37.51, "lng": 127.075,
+                    "category": "STAY", "placeUrl": url, "lodgingCheck": check}
+            with self.subTest(status=status), patch.object(editing, "candidates", return_value=[stay]), \
+                    patch.object(editing, "choose", return_value=stay), \
+                    patch.object(editing, "route_legs", return_value=[{"minutes": 5, "meters": 400, "by": "walk"}] * 3), \
+                    patch.object(agent, "load_schedule", return_value=({}, 1)), \
+                    patch.object(agent, "find_game", return_value=(GAME, False, [])), \
+                    patch.object(agent, "stadium_anchor", return_value=PLACES[2]):
+                result = editing.answer("산책만 주차 가능한 호텔로 바꿔줘", [], CURRENT, "JAMSIL", None, parsed=operation)
+            self.assertEqual(result["lodgingAssessments"], [{"name": "검증한 호텔", "sourceUrl": url,
+                "status": status, "checks": [{"condition": "주차 가능", "status": status, "intent": "required"}]}])
+            public = public_course(result)
+            self.assertEqual([p["placeId"] for p in public["places"]], ["1", "2", "3", "hotel"])
+            self.assertNotIn("lodgingAssessments", public)
+            self.assertNotIn("lodgingCheck", public["places"][-1])
+
     def test_replacement_keeps_all_other_places_and_original_input(self):
         before = deepcopy(PLACES)
         result = editing.mutate(PLACES, plan("replace", ["cafe"]), REPLACEMENT)

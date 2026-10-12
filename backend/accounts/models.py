@@ -54,6 +54,7 @@ class PointWallet(models.Model):
 class PointTransaction(models.Model):
     """포인트 증감 원장. source_key가 같은 지급은 한 번만 처리한다."""
     FANTASY_SETTLEMENT = "FANTASY_SETTLEMENT"
+    ACTIVITY_EARNED = "ACTIVITY_EARNED"
     user = models.ForeignKey(CustomUser, on_delete=models.PROTECT, related_name="point_transactions")
     wallet = models.ForeignKey(PointWallet, on_delete=models.PROTECT, related_name="transactions")
     amount = models.BigIntegerField()

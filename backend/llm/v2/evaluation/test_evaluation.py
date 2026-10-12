@@ -57,10 +57,12 @@ class EvaluationTest(unittest.TestCase):
         with self.assertRaises(ValueError): evaluation.validate_row(row)
         evaluation.validate_row(row, semantic_only=True)
 
-    def test_actual_production_fixed_six_exposed_and_execution_gated(self):
+    def test_actual_production_fixed_tools_exposed_and_execution_gated(self):
         from llm.v2.agent import chain, sub_agents
         fixed = (*sub_agents.SPECIALISTS, 'present_planning_questions')
-        self.assertEqual(len(fixed), 6)
+        self.assertEqual(set(fixed), {'ask_web_research', 'ask_course', 'ask_baseball',
+                                     'ask_travel_research', 'ask_highlight', 'ask_place_data',
+                                     'present_planning_questions'})
         registry = [*chain.TOOLS, *fixed, 'jev_read_body']
         middleware = evaluation.DynamicToolMiddleware(registry, evaluation.CAPABILITY_TOOLS, fixed)
         state = {'decision': {'allowed': True, 'capabilities': ['unknown']}, 'messages': []}

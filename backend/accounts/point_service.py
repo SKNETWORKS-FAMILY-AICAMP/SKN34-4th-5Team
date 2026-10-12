@@ -17,7 +17,8 @@ def grant_points(*, user=None, user_id=None, amount, source_type, source_key, de
     wallet.balance += amount
     wallet.save(update_fields=("balance", "updated_at"))
     entry = PointTransaction.objects.create(
-        user=user, wallet=wallet, amount=amount, transaction_type=PointTransaction.FANTASY_SETTLEMENT,
+        user=user, wallet=wallet, amount=amount,
+        transaction_type=PointTransaction.FANTASY_SETTLEMENT if source_type.startswith("fantasy.") else PointTransaction.ACTIVITY_EARNED,
         source_type=source_type, source_key=source_key, description=description,
     )
     return wallet, entry, True

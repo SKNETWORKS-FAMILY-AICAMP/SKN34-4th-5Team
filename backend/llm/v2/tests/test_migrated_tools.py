@@ -108,6 +108,20 @@ class MigratedToolsTest(unittest.TestCase):
                                                    {"role": "assistant", "content": "네"}], "JAMSIL")])
         self.assertEqual(self.tool_msg(out, "plan_course").content, "코스 완성")
 
+    def test_main_receives_lodging_verdicts_without_exposing_internal_fields_on_course(self):
+        from llm.tests.test_course_output import COURSE
+        for status in ("match", "unknown", "mismatch"):
+            verdict = [{"name": "숙소", "sourceUrl": "https://nol.yanolja.com/stay/domestic/123",
+                        "status": status, "checks": [{"condition": "주차 가능", "status": status, "intent": "required"}]}]
+            with self.subTest(status=status), patch("llm.v1.rag.course.agent.answer", return_value={
+                    **COURSE, "answer": "코스 안내", "lodgingAssessments": verdict}):
+                out = self.run_graph([call("ask_course", {"task": "숙박 코스"}, "c"), AIMessage("안내")],
+                                     ["day_plan"], [HumanMessage("숙박 코스")])
+            self.assertIn(f'"status": "{status}"', self.tool_msg(out, "ask_course").content)
+            self.assertTrue(any(isinstance(m, ToolMessage) and f'"status": "{status}"' in m.content
+                                for m in self.calls[-1]["messages"]))
+            self.assertEqual(self.tool_msg(out, "plan_course").artifact["course"], COURSE)
+
     def test_explicit_course_selection_reaches_engine_when_classifier_misses(self):
         from llm.tests.test_course_output import COURSE
 
