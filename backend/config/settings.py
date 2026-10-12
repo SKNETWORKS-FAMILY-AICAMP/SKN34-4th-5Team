@@ -53,6 +53,8 @@ COLLECTED_PLACES_DIR = Path(os.getenv("COLLECTED_PLACES_DIR") or BASE_DIR.parent
 PLACE_RAG_PATH = Path(os.getenv("PLACE_RAG_PATH") or BASE_DIR / "artifacts/place-rag/index.sqlite3")
 # Explicit opt-in only; a local knowledge miss must not silently buy web searches.
 COURSE_WEB_VERIFICATION_ENABLED = os.getenv("COURSE_WEB_VERIFICATION_ENABLED", "false").strip().lower() == "true"
+COURSE_PLACE_WARM_ENABLED = os.getenv("COURSE_PLACE_WARM_ENABLED", "false").strip().lower() == "true"
+COURSE_RECOMMENDATION_MODE = os.getenv("COURSE_RECOMMENDATION_MODE", "balanced").strip().lower()
 # Public lodging snapshots are shared by local workers, independently of user wording.
 # This private cache directory must remain outside static/media roots.
 CACHES = {

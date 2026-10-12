@@ -18,6 +18,24 @@ TEXT = "경기 코스예요.\n18:10 잠실야구장\n숙소 [NOL](https://nol.ya
 
 
 class CourseAnswerTest(TestCase):
+    def test_balanced_edit_returns_verified_tool_result_without_dispatch_or_rewrite(self):
+        from django.test import override_settings
+        with override_settings(COURSE_RECOMMENDATION_MODE="balanced"):
+            for course_only in (True, False):
+                calls = []
+                graph = chain.build_graph(ScriptedModel(script=[AIMessage("추가 질문 답변")], calls=calls), tools_with_real_migrated([]))
+                verdict = {**decision(capabilities=["day_plan"]), "course_request": "EDIT"}
+                current = {**deepcopy(COURSE), "travelMode": "walk", "legModes": {}}
+                for i, place in enumerate(current["places"]):
+                    place.update(label=str(i + 1), visitId=f"test-{i}")
+                with patch.object(classifier, "classify", return_value=verdict), \
+                        patch("llm.v1.rag.course.agent.answer", return_value={**COURSE, "edit": True, "route": "course:edit:replace", "answer": TEXT, "courseOnly": course_only}) as course:
+                    result = graph.invoke({"messages": [HumanMessage("식당만 돈카츠로 수정해줘")],
+                                           "context": {"intent": "route", "stadium": "JAMSIL", "currentCourse": current}})
+                course.assert_called_once()
+                self.assertEqual(len(calls), 0 if course_only else 1)
+                self.assertEqual(result["messages"][-1].text, TEXT if course_only else "추가 질문 답변")
+
     def test_route_screen_dispatch_keeps_tool_validation_and_mixed_final_model(self):
         for direct in (True, False):
             calls = []

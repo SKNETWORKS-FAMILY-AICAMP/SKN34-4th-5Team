@@ -47,7 +47,11 @@ request_preferences의 ALL은 모든 매장에 요구할 속성(실내 등)만 �
 
 def interpret(question, stadium_code):
     from .agent import llm
-    response = llm().with_structured_output(CreationPlan, method="json_schema").invoke([
+    from .recommendation_policy import EXPLICIT_RESEARCH
+    # Routine visit extraction needs little reasoning. Keep the existing effort
+    # for evidence-dependent conditions, alternatives and accommodation rules.
+    detailed = EXPLICIT_RESEARCH.search(question) or re.search(r"금연|흡연|반려|장애|인원|또는|혹은", question)
+    response = llm(reasoning_effort="medium" if detailed else "low").with_structured_output(CreationPlan, method="json_schema").invoke([
         SystemMessage(RULES),
         HumanMessage(json.dumps({"question": question, "stadiumCode": stadium_code}, ensure_ascii=False)),
     ], **config_kwargs())

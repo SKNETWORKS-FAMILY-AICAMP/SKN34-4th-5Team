@@ -84,6 +84,30 @@ def snapshot(result):
             **({"progress": deepcopy(result["progress"])} if result.get("progress") else {})}
 
 
+def restore_place_details(current, saved):
+    """The public map omits provider subcategories. Keep known branch details.
+
+    Preserve the current map's list, coordinates, order, category and timings;
+    only recover missing metadata for the same unchanged branch/category.
+    """
+    previous = (saved or {}).get("current") or {}
+    if current.get("stadiumCode") != previous.get("stadiumCode"):
+        return current
+    value = deepcopy(current)
+    def category(place):
+        return "FOOD" if place.get("category") == "FOOD_OUT" else place.get("category")
+    for place in value.get("places", []):
+        if place.get("detail"):
+            continue
+        match = next((p for p in previous.get("places", []) if same(p, place)
+                      and not (p.get("placeId") and place.get("placeId") and p["placeId"] != place["placeId"])
+                      and category(p) == category(place)
+                      and all(abs(p.get(k, 0) - place.get(k, 1)) < .0005 for k in ("lat", "lng"))), None)
+        if match and match.get("detail"):
+            place["detail"] = match["detail"]
+    return value
+
+
 def attach(result, value, current=None, origin=None, before=None, undo=True):
     state = deepcopy(value)
     if result.get("places"):
