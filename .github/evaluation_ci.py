@@ -171,7 +171,7 @@ def main():
             elif dataset == 'first-action':
                 if options.mode != 'supervisor':
                     raise ValueError('first-action requires supervisor')
-                execute([EVAL + 'remaining.py', 'supervisor-input', '--output', str(out / 'input.json')])
+                execute([EVAL + 'remaining.py', 'supervisor-input', '--output', str(out / 'input.json')], offline=True)
                 command += ['--dataset', str(out / 'input.json')]
             code = execute(command, accept_quality=True)
             result = jev_report(out / 'results.json', expected_ids=selected)
@@ -206,11 +206,14 @@ def main():
                 source = str(out / 'export.jsonl')
                 golden = out / 'golden.jsonl'
                 golden.write_text(''.join((ROOT / (EVAL + 'golden/golden_' + name + '.jsonl')).read_text() for name in ('rule', 'venue')))
-                execute(['backend/manage.py', 'export_ragas', '--golden', str(golden), '--ids', ','.join(selected), '--limit', str(limit), '--k', '5', '--mode', 'rerank', '--generation-model', 'gpt-4.1-mini', '--output', source])
+                execute(['.github/evaluation_luna.py', 'export', 'export_ragas', '--golden', str(golden), '--ids', ','.join(selected), '--limit', str(limit), '--k', '5', '--mode', 'vector', '--generation-model', 'gpt-6-luna', '--output', source])
             if not source or not Path(source).is_file():
                 raise ValueError('Saved Ragas export is required')
-            execute([EVAL + 'eval_ragas.py', '--input', source, '--limit', str(limit), '--evaluation-model', 'gpt-4.1-mini', '--output', str(out / 'scores.json')], python=os.environ['RAGAS_PYTHON'])
+            execute(['.github/evaluation_luna.py', 'judge', '--input', source, '--limit', str(limit), '--evaluation-model', 'gpt-6-luna', '--output', str(out / 'scores.json')], python=os.environ['RAGAS_PYTHON'])
             summary.update(json.loads((out / 'scores.json').read_text())['summary'])
+            adapter = runpy.run_path(str(ROOT / '.github/evaluation_luna.py'))
+            summary.update(generation_model='gpt-6-luna' if options.mode == 'ragas' else 'saved-export/not-generated',
+                           judge_model='gpt-6-luna', request_settings=adapter['SETTINGS'])
         else:
             if options.mode == 'highlight':
                 require('GOOGLE_API_KEY', 'EVAL_CORPUS')

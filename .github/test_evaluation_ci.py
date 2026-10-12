@@ -72,6 +72,14 @@ class WiringTest(unittest.TestCase):
             self.assertIn('django-exec', run.call_args.args[0])
             self.assertNotIn('offline-exec', run.call_args.args[0])
 
+    def test_first_action_input_uses_canonical_isolated_launcher(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / 'input.json'
+            self.assertEqual(ci.execute([ci.EVAL + 'remaining.py', 'supervisor-input', '--output', str(output)], offline=True), 0)
+            rows = json.loads(output.read_text())
+            self.assertEqual(len(rows), 12)
+            self.assertTrue(all('selected_tools' in row and 'context' in row for row in rows))
+
     def test_only_documented_quality_exit_is_accepted(self):
         with patch.object(ci.subprocess, 'run') as run:
             for code in (0, 1):

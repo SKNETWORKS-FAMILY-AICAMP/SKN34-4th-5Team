@@ -8,6 +8,27 @@
 
 핵심은 **잘못된 답변을 한 점수로 묶지 않고, 어느 단계에서 실패했는지 분리하는 것**이다. RAG는 이번 평가 범위에서 제외한다.
 
+## PR 제공자 A/B 실행 절차 (2026-10-12)
+
+이 절은 평가 프레임워크 실행 범위이며 위 챗봇 행동 정책(RAG 제외)을 확대하거나 미결 숫자 기준을 확정하지 않는다. 목적은 무료 회귀와 실제 제공자 품질 근거를 분리하고, LLM 관련 PR에서 키 누락·모의 결과·미실행을 품질 통과로 표시하지 않는 것이다.
+
+- 먼저 기준·독립 검토 정답·사례·judge·모델·corpus·설정을 신뢰 기준 ref에서 동결한다. PR base SHA의 A와 pinned head SHA의 B를 동일한 동결 자료와 신뢰 채점기로 실행한다. 후보의 기준/정답/평가기 변경은 자동 채택하지 않으며 별도 검토 전 fail-closed한다.
+- 2026-10-12 사용자 모델 지정: CI Ragas 답변 생성과 judge 모두 gpt-6-luna로 명시 고정한다. generation은 Responses API/reasoning medium/max output1200, judge는 Ragas Instructor chat JSON-object 구조화 출력/reasoning medium/max completion1800이며 sampling temperature/top_p는 전송하지 않는다. A/B 동일 설정을 기록하고 실제 SDK MockTransport 요청 계약을 검증하되 실제 provider 지원은 승인된 유료 실행 전 미검증이다. mini fallback은 금지한다. JEV/embedding/highlight 및 운영 기본값은 변경하지 않는다.
+- 무료 회귀는 계속 자동 필수다. 유료 평가는 사용자가 PR/릴리스별 필요성과 수동 실행 시점을 선택하며 PR/Push마다 자동 호출하지 않는다. 사용자가 품질 gate를 선택한 경우에만 해당 실제 근거와 최종 승인을 요구하며 일반 Merge의 전역 필수 유료 gate는 설정하지 않는다. LLM 관련 변경의 `required/not-run`은 품질 미측정 보고이지 그 자체로 Merge 차단이 아니며 관련 없는 변경은 명시적 면제를 기록한다. JEV/supervisor(DeepEval), source-reviewed r16/r25/v04의 실제 export+Ragas judge, 실제 corpus를 사용하는 highlight만 live A/B 대상이다. generate·저장 replay는 이를 대체하지 않는다.
+- 유료 실행은 trusted develop/main의 수동 PR-target workflow, 명시적 실행 승인, required reviewer가 설정된 evaluation environment, 검토된 pinned PR 코드 및 전용 ephemeral runner가 필요하다. fork 코드를 secret과 실행하는 위험은 승인자가 사전 검토한다. 자동 pull_request_target 실행은 금지한다. 이 작업은 설정/secret/runner 등록이나 실제 유료 실행을 승인하지 않는다.
+- 완료 기준: 양쪽 실제 실행의 정확한 ID/입력/독립 라벨·설정·corpus·harness 해시/모델 일치, 사례별 점수·분모·delta, null/보류/오류 보존, 제공자 오류 0, 최신 PR head/base 확인. 누락·중복·잘못된 ID, 불일치, API/키 오류, stale head, 미승인은 실행 실패이며 품질 통과가 아니다.
+- 품질 결정 후속 절차: mode별 exact-SHA 실행 상태를 분리한다. trusted 수동 품질 review는 현재 PR base/head·변경 경로에서 보수적으로 정한 필수 mode 전체·성공한 trusted workflow run 및 해당 run의 실제 A/B artifact identity를 검증한 뒤 environment 승인된 사용자의 approve/reject를 aggregate quality 상태로 기록한다. non-LLM not-applicable은 같은 trusted 경로 분류로만 면제하며 관련 변경의 면제는 거절한다. 모드 누락/실패/이전 SHA/임의 status·artifact는 승인 근거가 아니다. 새로운 숫자 threshold를 만들지 않는다.
+- 기준·케이스·harness 변경 자체는 무료 회귀의 영구 실패 조건이 아니다. 다만 trusted 품질 approve는 `protected_review=true`와 필수 전체 A/B 증거를 요구하며, 독립 Environment reviewer가 exact SHA의 변경과 frozen trusted baseline을 reason과 함께 확인해야 한다. 새 workflow는 독립 검토 후 trusted branch에 먼저 도입해야 하며 후보 자기 승인이나 현재 PR 승인 완료를 주장하지 않는다.
+- 실행 성공은 비교 가능한 근거 확보만 뜻한다. 일반 품질 숫자 목표 미결이므로 `needs-review`를 유지하며 사용자의 별도 최종 품질 승인이 필요하다. 이미 확정한 중대한 실패는 실제 증거로 확인될 때만 기존 불합격 규칙을 적용한다. 평균·delta만으로 자동 품질 승인하지 않는다.
+- 구현 검증은 synthetic라고 표시한 CLI/transport fixture로 A/B 일치·오류·ID/context/label 불일치·stale head·승인/키 누락·명령 주입/ref 거절·not-run/needs-review를 검사하고 실제 무료 CI 명령을 실행한다. SDK/entrypoint 호환 검사는 네트워크 없이 수행한다. 실제 제공자 미실행은 검증 대기로 보고하며 정답/합격 기준을 사후 완화하지 않는다.
+
+### CI Luna 생성 출력 경계 회귀 (2026-10-12)
+
+- 목적/변경 변수: CI 전용 generation adapter에서 설치된 LangChain의 native text 추출로 Responses content list를 canonical export의 문자열 계약에 맞춘다. 운영 코드·export 검증·정답·모델 기본값과 gpt-6-luna Responses/medium 설정은 변경하지 않는다.
+- A/B: 동일한 실제 ChatOpenAI SDK + MockTransport, disposable synthetic retrieval/독립 fixture 라벨, adapter → Django export_ragas → JSONL 경로를 네트워크 차단 상태로 실행한다. 기존 verifier probe의 A 오류와 같은 fixture의 B 결과를 보존한다. fixture는 live 제공자 지원·답변 품질·DeepEval/Ragas 유료 채점 근거가 아니다.
+- SDK 경계 추가 회귀: LangChain의 lossy 변환 이전 실제 Responses HTTP output을 CI 소유 SDK client 경계에서 검사한다. assistant message의 사용자 가시 content는 유효 output_text만 허용하며, 정상 text와 혼합된 refusal/unknown/malformed도 전체 실패다. 별도 reasoning output의 유효 summary_text/encrypted_content는 사용자 가시 답변이 아닌 reasoning metadata로 보존하며 native text 추출에서 제외한다. 같은 합성 transport로 scratch에 동결한 수정 전 adapter A와 후보 B를 실행하고 파일명 아닌 실제 결과/adapter 해시로 출처를 확인한다.
+- 합격: 복수 text block 순서와 plain string을 보존한 비어 있지 않은 문자열, usage/response metadata 및 별도 reasoning metadata 보존, canonical export 오류 0. 빈/공백·refusal·malformed·nontext 출력은 fail-closed하며 실패를 성공 JSONL로 기록하지 않는다. SDK 요청 계약·A/B 관련 회귀 및 CI 자동 발견/명령 포함을 검증한다. 실제 제공자 평가는 승인 전 미실행/검증 대기로 유지한다.
+
 ## 정책 상태표
 
 문서에 적힌 제안과 합의한 기준을 구분한다. 아래 표는 평가 기준의 합의 상태이며 운영 구현 완료 여부를 뜻하지 않는다. 기존 데이터셋도 이 기준으로 재검토하며, 미결 정책을 기존 라벨이나 현재 구현값만으로 확정하지 않는다.
