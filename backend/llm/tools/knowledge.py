@@ -142,15 +142,16 @@ def format_documents(docs: list[dict]) -> str:
 CATEGORIES = {'OPERATION', 'CAFE', 'FOOD_IN', 'FOOD_OUT', 'TRANSPORT', 'STADIUM', 'PRICE', 'SEAT', 'TICKET_POLICY', 'FACILITY', 'CONTENT', 'CARRY_IN', 'REENTRY', 'RULE', 'SPOT'}
 DOC_K = 5
 
-SEARCH_MODES = ("vector", "hybrid", "hybrid_rerank", "hybrid_score")
+SEARCH_MODES = ("vector", "hybrid", "hybrid_rerank", "hybrid_score", "rerank", "vector_rerank")
 
 
 def search_mode(venue=False):
     """검색 방식. 기본값은 골든셋 측정(10/12)으로 정했다.
     - RAG_SEARCH_MODE (규정·구장 문서, search_kbo_documents) 기본 vector: 규정 31문항에서 어떤 하이브리드도 Hit@1·MRR 을 넘지 못함
     - RAG_VENUE_SEARCH_MODE (구장 안팎 장소, search_documents_tool) 기본 hybrid: venue 23문항 Hit@1 0.783→0.826, 42→27ms
-    값: vector(벡터 상위 50 + 키워드 재정렬) · hybrid(벡터·BM25 순위 RRF) · hybrid_rerank(RRF + 규칙 리랭크)
-        · hybrid_score(키워드로 후보 확장 + 벡터 유사도 + 키워드 재정렬 + 키워드 점수×RAG_SPARSE_WEIGHT)"""
+    값: vector(벡터 상위 50 + 키워드 재정렬) · hybrid(벡터·BM25 가중 RRF) · hybrid_rerank(RRF + 규칙 리랭크)
+        · hybrid_score(키워드로 후보 확장 + 벡터 유사도 + 키워드 재정렬 + 키워드 점수×RAG_SPARSE_WEIGHT)
+        · rerank(가중 RRF 상위 후보 → 모델 리랭커, llm.reranker) · vector_rerank(벡터 상위 후보 → 모델 리랭커)"""
     name, default = ("RAG_VENUE_SEARCH_MODE", "hybrid") if venue else ("RAG_SEARCH_MODE", "vector")
     mode = os.getenv(name, default).strip().lower()
     return mode if mode in SEARCH_MODES else default
@@ -164,19 +165,33 @@ def hybrid_kbo_rows(query, vec, candidate_k, stadium, cats, k, mode=None) -> lis
     dense = search(vec, k=candidate_k, stadium=stadium, categories=cats)[0]
     if mode == "vector":
         return keyword_rerank(query, dense, k=k)
+    if mode == "vector_rerank":
+        return model_rerank(query, keyword_rerank(query, dense, k=len(dense)), k)
     from llm import sparse_index, vector_store
     try:
         sparse = sparse_index.search(query, k=candidate_k, stadium=stadium, categories=cats)
     except Exception:  # noqa: BLE001 - 키워드 색인 장애는 벡터 검색으로 대신한다
         sparse = None
     if not sparse:
-        return keyword_rerank(query, dense, k=k)
+        base = keyword_rerank(query, dense, k=len(dense) if mode == "rerank" else k)
+        return model_rerank(query, base, k) if mode == "rerank" else base
     if mode == "hybrid_score":
         return score_fusion(query, vec, dense, sparse, k)
-    fused = sparse_index.rrf(dense, [vector_store.legacy_row(doc) for doc in sparse])
+    fused = sparse_index.rrf(dense, [vector_store.legacy_row(doc) for doc in sparse],
+                             weights=[1.0, sparse_index.SPARSE_RRF_WEIGHT])
     if mode == "hybrid_rerank":
         fused = rule_rerank(query, fused)
+    if mode == "rerank":
+        return model_rerank(query, fused, k)
     return fused[:k]
+
+
+def model_rerank(query, rows, k) -> list[dict]:
+    """후보 상위 RAG_RERANK_CANDIDATES 개를 모델 리랭커로 다시 줄 세운다. 실패하면 원래 순서."""
+    from llm import reranker
+    pool = rows[:reranker.candidates()]
+    ranked = reranker.rerank(query, pool, k)
+    return (ranked or pool)[:k]
 
 
 EXACT_BONUS, KEYWORD_BONUS, AUTHORITY_BONUS = 0.020, 0.010, 0.005

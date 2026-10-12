@@ -17,7 +17,8 @@ VECTOR = "text"
 K1, B = 1.2, 0.75
 DEFAULT_AVGDL = 200.0
 RRF_K = int(os.getenv("RAG_RRF_K", "60"))
-SPARSE_WEIGHT = float(os.getenv("RAG_SPARSE_WEIGHT", "0.1"))  # hybrid_score: 키워드 점수(최고점 대비 0~1)에 곱하는 가중치  # RRF 상수: 작을수록 상위 순위에 무게 (eval_retrieval --rrf-k 로 비교)
+SPARSE_WEIGHT = float(os.getenv("RAG_SPARSE_WEIGHT", "0.1"))
+SPARSE_RRF_WEIGHT = float(os.getenv("RAG_SPARSE_RRF_WEIGHT", "1.0"))  # 가중 RRF: 키워드 순위 목록의 가중치(벡터는 1)  # hybrid_score: 키워드 점수(최고점 대비 0~1)에 곱하는 가중치  # RRF 상수: 작을수록 상위 순위에 무게 (eval_retrieval --rrf-k 로 비교)
 JOSA = re.compile(r"(에서|에게|까지|부터|으로|이랑|이나|이야|은|는|이|가|을|를|에|의|와|과|로|도|만|랑|나|야)$")
 STOP = {"알려줘", "알려", "어디", "어디야", "얼마", "얼마야", "있어", "뭐야", "뭐", "어떻게", "언제", "왜", "설명해줘", "궁금해", "되나요", "돼"}
 WORD = re.compile(r"[가-힣]+|[a-z0-9]+(?:\.[0-9]+)*")
@@ -152,16 +153,17 @@ def search(query, k=50, stadium=None, categories=None, flag=None, include_common
     return [{**point.payload, "point_id": str(point.id), "dist": None, "sparse_score": float(point.score)} for point in points]
 
 
-def rrf(*ranked_lists, key="doc_id", k=None):
-    """Reciprocal Rank Fusion: 여러 순위 목록을 1/(k+순위) 합으로 합친다. 앞 목록의 행을 대표로 남긴다.
-    key 는 행의 키 이름이나 행 → 식별자 함수."""
+def rrf(*ranked_lists, key="doc_id", k=None, weights=None):
+    """(가중) Reciprocal Rank Fusion: 여러 순위 목록을 weight/(k+순위) 합으로 합친다. 앞 목록의 행을 대표로 남긴다.
+    key 는 행의 키 이름이나 행 → 식별자 함수. weights 가 없으면 모두 1."""
     k = RRF_K if k is None else k
+    weights = weights or [1.0] * len(ranked_lists)
     ident_of = key if callable(key) else (lambda row: row.get(key))
     scores, rows = Counter(), {}
-    for ranked in ranked_lists:
+    for weight, ranked in zip(weights, ranked_lists):
         for rank, row in enumerate(ranked, 1):
             ident = ident_of(row)
-            scores[ident] += 1.0 / (k + rank)
+            scores[ident] += weight / (k + rank)
             rows.setdefault(ident, row)
     return [{**rows[ident], "rrf": score} for ident, score in scores.most_common()]
 

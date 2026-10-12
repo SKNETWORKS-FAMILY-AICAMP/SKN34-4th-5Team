@@ -148,3 +148,49 @@ class RuleRerankTest(SimpleTestCase):
         ]
         ranked = knowledge.rule_rerank("준플레이오프는 몇 선승제야?", rows)
         self.assertEqual(ranked[0]["doc_id"], "LR_제34조")  # 제목에 '준플레이오프'가 정확히 있는 조항이 1위
+
+
+class WeightedRrfAndRerankerTest(SimpleTestCase):
+    def test_weighted_rrf_lets_vector_order_win(self):
+        dense, keyword = [{"doc_id": "a"}, {"doc_id": "b"}], [{"doc_id": "b"}, {"doc_id": "a"}]
+        self.assertEqual(sparse_index.rrf(dense, keyword)[0]["doc_id"], "a")  # 동점이면 앞 목록 우선
+        self.assertEqual([r["doc_id"] for r in sparse_index.rrf(dense, keyword, weights=[1.0, 0.3])], ["a", "b"])
+        self.assertEqual([r["doc_id"] for r in sparse_index.rrf(dense, keyword, weights=[0.3, 1.0])], ["b", "a"])
+
+    def test_reranker_reorders_and_fails_open(self):
+        from llm import reranker
+        rows = [{"doc_id": "a", "content": "플레이오프"}, {"doc_id": "b", "content": "준플레이오프"}]
+        fake = lambda body, key: {"results": [{"index": 1, "relevance_score": 0.9}, {"index": 0, "relevance_score": 0.2}],  # noqa: E731
+                                  "usage": {"cost": 0.001, "total_tokens": 40}}
+        with patch.dict("os.environ", {"OPENROUTER_API_KEY": "k"}):
+            ranked = reranker.rerank("준플레이오프 몇 선승제?", rows, 2, _http=fake)
+            self.assertEqual([r["doc_id"] for r in ranked], ["b", "a"])
+            self.assertEqual(reranker.COSTS[-1][1], 0.001)
+
+            def broken(body, key):
+                raise TimeoutError("slow")
+            self.assertIsNone(reranker.rerank("q", rows, 2, _http=broken))
+        with patch.dict("os.environ", {"OPENROUTER_API_KEY": ""}):
+            self.assertIsNone(reranker.rerank("q", rows, 2, _http=fake))
+
+    def test_rerank_mode_uses_model_order_over_fused_candidates(self):
+        db = QdrantClient(":memory:")
+        with patch("llm.vector_store.client", return_value=db):
+            vector_store.upsert_documents(DOCS)
+            sparse_index.build_from_documents(report=lambda _: None)
+            reverse = lambda query, rows, top_n, model=None: list(reversed(rows))[:top_n]  # noqa: E731
+            with patch("llm.reranker.rerank", side_effect=reverse) as rerank:
+                rows = knowledge.search_kbo_rows("보크 선언", None, ["RULE"], 2, _embed=lambda _: vec(1), mode="rerank")
+            self.assertEqual(rows[0]["doc_id"], "RULE_COMMON_BR_5.09")  # 리랭커가 정한 순서
+            self.assertEqual(len(rerank.call_args.args[1]), 2)          # 벡터+키워드 후보(RULE 2건)를 넘김
+            with patch("llm.reranker.rerank", return_value=None):       # 리랭커 실패 → 후보 순서 그대로
+                rows = knowledge.search_kbo_rows("보크 선언", None, ["RULE"], 1, _embed=lambda _: vec(1), mode="rerank")
+            self.assertEqual(rows[0]["doc_id"], "RULE_COMMON_BR_6.02")
+
+    def test_eval_grid_labels(self):
+        from llm.management.commands.eval_retrieval import Command
+        runs = Command().runs({"rrf_k": "60", "rrf_sparse_weight": "0.3,1", "sparse_weight": "", "rerank_model": "a/x,b/y"},
+                              ["vector", "hybrid", "rerank"])
+        self.assertEqual([r[0] for r in runs], ["vector", "hybrid@rrf_w=0.3", "hybrid@rrf_w=1.0",
+                                                "rerank@rrf_w=0.3@model=a/x", "rerank@rrf_w=0.3@model=b/y",
+                                                "rerank@rrf_w=1.0@model=a/x", "rerank@rrf_w=1.0@model=b/y"])
