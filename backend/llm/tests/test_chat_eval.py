@@ -56,6 +56,31 @@ class ChatEvalTest(SimpleTestCase):
         _, fails = self.run_case({"turns": ["q"], "tools_all": [["ask_highlight"], ["search_kbo_documents"]]}, FakeGraph("a", ["ask_highlight"]))
         self.assertEqual(fails, ["필요 도구 미호출: search_kbo_documents"])
 
+    def test_clarify_input_requests_and_declaratives(self):
+        for answer in (
+            "어떤 구장이든 주변에서 식사하면 됩니다.",
+            "어느 구장이나 주변에 맛집이 있습니다.",
+            "메뉴는 직원이 알려주면 주문하면 됩니다.",
+            "어느 구장인지 확인했습니다. 잠실입니다.",
+        ):
+            with self.subTest(answer=answer):
+                _, fails = self.run_case({"turns": ["q"], "expect": "clarify"}, FakeGraph(answer))
+                self.assertEqual(fails, ["되묻는 질문 없음"])
+        for answer, calls in (
+            ("어느 구장 주변인지 알려주면 같이 골라볼게요!", ()),
+            ("가실 구장을 알려주시면 주변 식당을 골라드릴게요.", ()),
+            ("가실 구장을 알려주세요.", ()),
+            ("원하는 메뉴를 말씀해 주세요.", ()),
+            ("가실 곳은 잠실인가요?", ()),
+            ("구장을 선택해 주세요.", ("present_planning_questions",)),
+        ):
+            with self.subTest(answer=answer):
+                _, fails = self.run_case({"turns": ["q"], "expect": "clarify"}, FakeGraph(answer, calls))
+                self.assertEqual(fails, [])
+        _, fails = self.run_case({"turns": ["q"], "expect": "clarify"},
+                                 FakeGraph("가실 구장을 알려주세요.", ["get_stadium"]))
+        self.assertEqual(fails, ["되묻기 전에 조회함: get_stadium"])
+
     def test_command_runs_multi_turn_and_writes_new_file(self):
         graph = FakeGraph("코스입니다", ["ask_course"])
         lines = "\n".join(json.dumps(c, ensure_ascii=False) for c in [

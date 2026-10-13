@@ -25,8 +25,8 @@ from django.core.management.base import BaseCommand, CommandError
 URL = re.compile(r"https?://|youtu\.be|youtube\.com/watch", re.I)
 REFUSE = re.compile(r"도와드리기 어렵|도와드릴 수 없|답변드리기 어렵|안내드리기 어렵|제공할 수 없|제공하지 않|범위(를|가)? 벗어|"
                     r"KBO[^.\n]{0,20}(만|관련)[^.\n]{0,20}(도와|안내|답변)|처리할 수 없|할 수 없습니다")
-# 물음표 없이 "…알려주면 같이 골라볼게요!"처럼 끝나는 확인 질문도 인정한다(pc-2 route6).
-ASKING = re.compile(r"어느|어떤|무엇을|뭘 |알려주(시면|면|세요)|말씀해 ?주")
+# ponytail: 입력 요청 표현만 보는 휴리스틱; 인용·제3자 요청의 의미 판정은 사람 확인(pc-2 route6).
+ASKING = re.compile(r"알려주(?:시면|세요)|말씀해\s*주(?:시면|세요)|인지\s*알려주면")
 LOOKUP_FREE = {"present_planning_questions"}  # 되묻기 UI 는 조회가 아니다
 OUT = Path("/app/artifacts/chat_eval")
 

@@ -22,6 +22,7 @@ FREE = [
     ['backend/llm/v2/tests/run_attachment_offline.py', 'llm.v2.evaluation.test_eval_ragas'],
     ['backend/llm/v2/tests/run_attachment_offline.py', 'llm.tests.test_domain_tools.ExternalDomainToolAdapterTest'],
     [EVAL + 'weather_contract.py', 'export', '--output', 'weather.json'],
+    ['backend/llm/v2/tests/run_attachment_offline.py', 'llm.tests.test_chat_eval'],
 ]
 
 

@@ -8,7 +8,7 @@ Python 3.12의 별도 job을 사용하며 운영 requirements는 변경하지 �
 
 | 환경 | 실제 실행 대상 |
 | --- | --- |
-| DeepEval/backend | seed offline 13개, reviewed boundary offline 26개, test_evaluation 전체, attachment_shared 전체(소유 SQLite runner), test_remaining 전체 및 60-case validate, 기존 attachment offline runner 기본 5개 모듈 전체, relocated test_eval_ragas mock 회귀, 정확한 `llm.tests.test_domain_tools.ExternalDomainToolAdapterTest`(DB-heavy DomainToolsTest 제외), `weather_contract.py export` 실제 도구 11개 고정 계약/DeepEval |
+| DeepEval/backend | seed offline 13개, reviewed boundary offline 26개, test_evaluation 전체, attachment_shared 전체(소유 SQLite runner), test_remaining 전체 및 60-case validate, 기존 attachment offline runner 기본 5개 모듈 전체, relocated test_eval_ragas mock 회귀, 정확한 `llm.tests.test_domain_tools.ExternalDomainToolAdapterTest`(DB-heavy DomainToolsTest 제외), `weather_contract.py export` 실제 도구 11개 고정 계약/DeepEval, `llm.tests.test_chat_eval` 전체(같은 SQLite runner, 모의 stream·결정적 채점·명령 저장 회귀) |
 | highlight isolated | relocated test_highlight_deepeval(DeepEval/Ragas scoring), test_relocation(실제 두 framework offline evaluate 및 legacy CLI/import/data 호환), `weather_contract.py scorer-check` 실제 DeepEval/Ragas 정상·오류 채점기 대조(합성, production 증거 아님) |
 | CI wiring | `.github/test_evaluation_ci.py`: ID cap/중복/주입 거부, argv 실행, 실행 오류와 품질 불일치 구분, trusted-ref 수동 gate와 배포 needs 확인 |
 
