@@ -8,9 +8,9 @@ Python 3.12의 별도 job을 사용하며 운영 requirements는 변경하지 �
 
 | 환경 | 실제 실행 대상 |
 | --- | --- |
-| DeepEval/backend | seed offline 13개, reviewed boundary offline 26개, test_evaluation 전체, attachment_shared 전체(소유 SQLite runner), test_remaining 전체 및 60-case validate, 기존 attachment offline runner 기본 5개 모듈 전체, relocated test_eval_ragas mock 회귀 |
+| DeepEval/backend | seed offline 13개, reviewed boundary offline 26개, test_evaluation 전체, attachment_shared 전체(소유 SQLite runner), test_remaining 전체 및 60-case validate, 기존 attachment offline runner 기본 5개 모듈 전체, relocated test_eval_ragas mock 회귀, 정확한 `llm.tests.test_domain_tools.ExternalDomainToolAdapterTest`(DB-heavy DomainToolsTest 제외), `weather_contract.py export` 실제 도구 11개 고정 계약/DeepEval |
 | highlight Django/frontend (`deterministic`) | `llm.tests.test_highlights` 전체 28개(실제 Django TestCase/ORM/migrations), `frontend/tests/youtube-highlight.test.mjs` 전체 3개(Node test runner) |
-| highlight isolated | relocated test_highlight_deepeval(DeepEval/Ragas scoring), test_relocation(실제 두 framework offline evaluate 및 legacy CLI/import/data 호환) |
+| highlight isolated | relocated test_highlight_deepeval(DeepEval/Ragas scoring), test_relocation(실제 두 framework offline evaluate 및 legacy CLI/import/data 호환), `weather_contract.py scorer-check` 실제 DeepEval/Ragas 정상·오류 채점기 대조(합성, production 증거 아님) |
 | CI wiring | `.github/test_evaluation_ci.py`: ID cap/중복/주입 거부, argv 실행, 실행 오류와 품질 불일치 구분, trusted-ref 수동 gate와 배포 needs 확인 |
 
 `deterministic` job은 기존 evaluation requirements/`offline-exec` launcher를 재사용하여 `python -I .github/evaluation_ci.py offline-exec backend/manage.py test llm.tests.test_highlights --settings=llm.tests.highlight_settings --noinput --verbosity=2`를 실행합니다. 전용 `pgvector/pgvector:pg18` service의 loopback DB에만 연결하며 Django가 `test_highlight_ci`를 생성·삭제합니다. 독립 settings는 운영 settings/dotenv를 import하지 않고 DB host/user/name을 고정하며, 로컬 disposable service 포트만 `HIGHLIGHT_TEST_DB_PORT`로 바꿀 수 있습니다. 전체 migration graph에 필요한 앱과 PostgreSQL/vector extension을 유지하므로 migration 생략·AST 대체가 아닙니다. Python socket 차단은 제공자 네트워크를 막고 psycopg/libpq의 전용 DB 연결만 사용합니다. 이는 하이라이트 회귀 증거이며 전체 운영 settings/제공자 품질 검증은 아닙니다.

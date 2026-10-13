@@ -31,6 +31,9 @@ def page():
 class ChromeCollectionTests(SimpleTestCase):
     def setUp(self):
         cache.clear()
+        pages = patch.object(chrome_lodging, "_page_cache", return_value=cache)
+        pages.start()
+        self.addCleanup(pages.stop)
         env = patch.dict(os.environ, {"LODGING_CHROME_TRANSPORT": "local"})
         env.start()
         self.addCleanup(env.stop)
@@ -63,6 +66,14 @@ class ChromeCollectionTests(SimpleTestCase):
                 self.assertEqual(self.collect()["status"], "unverified")
         with patch.object(chrome_lodging, "_local", return_value=page()):
             self.assertEqual(self.collect()["url"], URL)
+
+    def test_reordered_hotel_name_still_requires_exact_address_and_branch(self):
+        candidate = {"name": "호텔상주", "address": "서울 송파구 올림픽로8길 19"}
+        found = {"name": "잠실 상주 호텔", "address": "서울특별시 송파구 올림픽로8길 19"}
+        self.assertTrue(lodging.same_property(candidate, found))
+        self.assertFalse(lodging.same_property(candidate, {**found, "address": "서울 송파구 올림픽로8길 20"}))
+        self.assertFalse(lodging.same_property(candidate, {**found, "name": "잠실 상주 2 호텔"}))
+        self.assertFalse(lodging.same_property(candidate, {**found, "name": "잠실 다른 호텔"}))
 
     def test_busy_and_expired_budget_do_not_start_a_browser(self):
         with patch.object(chrome_lodging, "_local") as local:
@@ -115,6 +126,12 @@ class ChromeCollectionTests(SimpleTestCase):
             self.assertEqual(self.collect()["status"], "read")
         local.assert_called_once()
 
+    def test_failure_stage_is_bounded_and_does_not_expose_source_body(self):
+        for stage, expected in (("home_navigation", {"stage": "home_navigation"}), ("untrusted source text", {})):
+            with self.subTest(stage=stage), patch.object(chrome_lodging, "_local", return_value={
+                    **page(), "status": "timeout", "stage": stage}):
+                self.assertEqual(self.collect(), {"status": "timeout", **expected})
+
     def test_mcp_calls_only_deterministic_lodging_tool(self):
         invoke = AsyncMock(return_value=[{"type": "text", "text": json.dumps(page())}])
         with patch.object(browser_research, "discover_tools", AsyncMock(return_value=[SimpleNamespace(ainvoke=invoke)])) as discover:
@@ -148,6 +165,9 @@ class ChromeCollectionTests(SimpleTestCase):
 class ChromeLodgingIntegrationTests(SimpleTestCase):
     def setUp(self):
         cache.clear()
+        pages = patch.object(chrome_lodging, "_page_cache", return_value=cache)
+        pages.start()
+        self.addCleanup(pages.stop)
         token = lodging._CONTEXT.set({"deadline": time.monotonic()+90, "requirements": report()["requirements"]})
         self.addCleanup(lodging._CONTEXT.reset, token)
 

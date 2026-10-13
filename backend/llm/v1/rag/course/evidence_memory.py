@@ -21,6 +21,7 @@ from llm.v2.agent.browser_research import allow_new_source_search, structured_se
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from llm.v1.progress import config_kwargs, ProgressCancelled, ProgressStorageError
+from llm.service.chat_runs import Stopped
 from travel.place_keyword_memory import retrieve_keyword_memory, record_keyword_memory
 from travel.place_knowledge_models import PlaceKnowledge, PlaceKnowledgeSource, PlaceEnrichmentAttempt, PlaceKnowledgeObservation
 from ..nearby.lodging import same_property
@@ -346,7 +347,9 @@ def search(candidates, requested):
                 if all(any(f.place_id == identity(p) and f.term == r.term for f in direct)
                        for p in candidates for r in requested):
                     return direct, direct_urls, 0
-        if place_quality.probing():
+        if place_quality.probing() or not allow_new_source_search.get():
+            # V2 permits known-page reads only. Preserve verified partial facts;
+            # absent conditions remain unknown through checked_rows/verdict.
             return direct, direct_urls, 0
         findings, opened, calls, discovered = _search_once(candidates, requested)
         valid_ids = {identity(p) for p in candidates}
@@ -611,7 +614,7 @@ def _enrich(candidates, conditions):
                     all_rows[id(p)].extend(rows)
                     known = facts.setdefault(fact_key(p), [])
                     known.extend(row for row in rows if row not in known)
-            except (ProgressCancelled, ProgressStorageError):
+            except (Stopped, ProgressCancelled, ProgressStorageError):
                 raise
             except Exception as exc:
                 log.warning("local menu probe failed: %s", type(exc).__name__)
@@ -641,7 +644,7 @@ def _enrich(candidates, conditions):
                         break
             except (DatabaseError, ValidationError):
                 continue
-        if not active:
+        if not active and allow_new_source_search.get():
             # When all candidates were tried, revisit partial evidence first,
             # explicitly asking for different sources under the same turn cap.
             active = sorted(alternatives, key=lambda p: -len(all_rows[id(p)]))[:4]
@@ -659,7 +662,7 @@ def _enrich(candidates, conditions):
             semantic_before = budget.get("semantic_calls", 0)
             try:
                 findings, opened, calls = search(active, requested)
-            except (ProgressCancelled, ProgressStorageError):
+            except (Stopped, ProgressCancelled, ProgressStorageError):
                 raise
             except Exception as exc:
                 log.warning("place evidence lookup failed: %s", type(exc).__name__)

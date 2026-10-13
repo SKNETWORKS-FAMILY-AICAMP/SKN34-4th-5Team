@@ -8,14 +8,16 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 MIGRATED_TOOLS = frozenset({"get_ticket_policy", "search_nearby_places", "plan_course"})
 
 
-def request_args(state):
+def request_args(state, *, course=False):
     """V2 state → request_state(hint, question, history). 도구 호출마다 새 상태라 동시 요청·캐시 agent 와 안 섞인다."""
     from llm.tools.assistant import to_stadium_code
     turns = [m for m in state.get("messages") or [] if isinstance(m, HumanMessage)
              or (isinstance(m, AIMessage) and not m.tool_calls and m.text)]
     last = next((i for i in range(len(turns) - 1, -1, -1) if isinstance(turns[i], HumanMessage)), None)
     question = turns[last].text if last is not None else ""
-    history = [{"role": "user" if isinstance(m, HumanMessage) else "assistant", "content": m.text}
+    history = [{"role": "user" if isinstance(m, HumanMessage) else "assistant", "content": m.text,
+                **({"planning_questions": m.response_metadata["planning_questions"]}
+                   if course and isinstance(m, AIMessage) and m.response_metadata.get("planning_questions") else {})}
                for m in turns[:last or 0][-20:]]
     stadium = (state.get("context") or {}).get("stadium")
     return (to_stadium_code(stadium) if stadium else None), question, history
@@ -123,7 +125,7 @@ class DynamicToolMiddleware(AgentMiddleware):
             from llm.tools.assistant import request_state
             from llm.v2.agent.course_output import public_course
             context = request.state.get("context") or {}
-            with request_state(*request_args(request.state), origin=context.get("origin"), route_path=context.get("routePath"), current_course=context.get("currentCourse")) as state:
+            with request_state(*request_args(request.state, course=name == "plan_course"), origin=context.get("origin"), route_path=context.get("routePath"), current_course=context.get("currentCourse")) as state:
                 state["course_memory"] = request.state.get("course_memory", {})
                 state["course_request"] = (request.state.get("decision") or {}).get("course_request")
                 result = handler(request)
@@ -152,4 +154,9 @@ class DynamicToolMiddleware(AgentMiddleware):
                     if artifact:
                         result = result.model_copy(update={"artifact": artifact})
                 return result
-        return handler(request)
+        result = handler(request)
+        if name == "present_planning_questions" and isinstance(result, ToolMessage) and result.status != "error":
+            from llm.v2.agent.chat_ui import with_place_links
+            if payload := with_place_links(result.artifact, request.state):
+                result = result.model_copy(update={"artifact": payload})
+        return result

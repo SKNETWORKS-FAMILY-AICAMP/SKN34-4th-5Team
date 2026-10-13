@@ -42,14 +42,26 @@ class CreationTest(SimpleTestCase):
     def test_new_course_interprets_visits_and_lodging_in_one_call(self):
         model = Mock()
         model.with_structured_output.return_value.invoke.return_value = creation_result()
-        with patch.object(agent, "llm", return_value=model), patch.object(agent, "_answer", return_value={"answer": "코스", "places": []}) as generate:
+        with patch.object(agent, "llm", return_value=model) as get_model, patch.object(agent, "_answer", return_value={"answer": "코스", "places": []}) as generate:
             result = agent.answer(QUESTION, hint_stadium="JAMSIL", course_memory=memory.empty(), course_request="NEW")
+        get_model.assert_called_once_with(reasoning_effort="medium")
         model.with_structured_output.assert_called_once_with(creation.CreationPlan, method="json_schema")
         model.with_structured_output.return_value.invoke.assert_called_once()
         requirements = generate.call_args.kwargs["lodging_requirements"]
         self.assertEqual([r["label"] for r in requirements], ["주차 가능", "호텔"])
         self.assertEqual(generate.call_args.kwargs["requested_visits"][0]["phase"], "AFTER")
         self.assertTrue(result["courseOnly"])
+
+    def test_simple_visits_use_low_effort_but_explicit_evidence_keeps_medium(self):
+        for question, effort in (("카페 갔다가 구장에서 간식 먹고 술집 가고 산책하는 코스", "low"),
+                                 ("메가커피 가는 코스", "low"), ("깔끔한 카페 코스", "medium"),
+                                 ("주차 가능한 금연 숙박 코스", "medium"),
+                                 ("한식 또는 일식 식당 코스", "medium")):
+            model = Mock()
+            model.with_structured_output.return_value.invoke.return_value = creation_result()
+            with self.subTest(question=question), patch.object(agent, "llm", return_value=model) as get_model:
+                creation.interpret(question, "JAMSIL")
+            get_model.assert_called_once_with(reasoning_effort=effort)
 
     def test_compact_schema_failure_keeps_existing_interpreter_and_cancellation_does_not_retry(self):
         model = Mock()

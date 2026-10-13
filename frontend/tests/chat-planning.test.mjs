@@ -216,6 +216,47 @@ test("single choice auto-sends once even with a stale double click", () => harne
   assert.ok(h.stays > 0);
 }));
 
+test("place source badges open separately and never select or submit a choice", () => harness(1, h => {
+  const { parsePlanning } = h.require("./helper.cjs");
+  h.props.message.planning = parsePlanning({ offer_writer: false, questions: [{ question: "바꿀 곳은?", choices: ["1번 STATION", "3번 카페", "공원"], choice_links: [
+    { choice: "1번 STATION", url: "https://myseatcheck.com/station/" },
+    { choice: "3번 카페", url: "http://place.map.kakao.com/123" },
+  ] }] });
+  h.render();
+  const anchors = nodes(h.tree).filter(n => n.type === "a");
+  assert.equal(anchors.length, 2);
+  assert.equal(anchors[0].props.href, "https://myseatcheck.com/station/");
+  assert.equal(anchors[0].props["aria-label"], "1번 STATION 매장 상세 위치 (새 창)");
+  assert.equal(anchors[1].props.href, "https://place.map.kakao.com/123");
+  assert.equal(anchors[1].props["aria-label"], "3번 카페 장소 정보 (새 창)");
+  let stopped = 0;
+  for (const a of anchors) {
+    assert.equal(a.props.target, "_blank");
+    assert.equal(a.props.rel, "noopener noreferrer");
+    a.props.onClick({ stopPropagation() { stopped++; }, preventDefault() { assert.fail("navigation must remain available"); } });
+  }
+  h.render();
+  assert.equal(stopped, 2);
+  assert.equal(h.sends.length, 0);
+  assert.equal(h.button("1번 STATION").props["aria-pressed"], false);
+  assert.ok(nodes(h.tree).filter(n => n.type === "button").every(b => !nodes(b.props.children).some(n => n.type === "a")));
+  h.click(h.button("1번 STATION"));
+  assert.deepEqual(h.sends, [[2, "바꿀 곳은?: 1번 STATION"]]);
+}));
+
+test("planning links discard unsafe, unknown and duplicate entries without losing legacy choices", () => harness(1, h => {
+  const { parsePlanning, planningChoiceLink } = h.require("./helper.cjs");
+  const legacy = { offer_writer: false, questions: [{ question: "어디?", choices: ["A", "B"] }] };
+  assert.deepEqual(parsePlanning(legacy), legacy);
+  for (const url of ["javascript:alert(1)", "//example.com", "https://user:password@example.com/", "https://example.com/\npath", "https://example.com\\path"])
+    assert.equal(planningChoiceLink({ choice: "A", url }), undefined);
+  const payload = parsePlanning({ ...legacy, questions: [{ ...legacy.questions[0], choice_links: [
+    null, { choice: "X", url: "https://example.com/" }, { choice: "A", url: "https://example.com/a", label: "model label" },
+    { choice: "A", url: "https://example.com/duplicate" }, { choice: "B", url: "javascript:alert(1)" },
+  ] }] });
+  assert.deepEqual(payload.questions[0].choice_links, [{ choice: "A", url: "https://example.com/a", label: "장소 정보" }]);
+}));
+
 test("single always-visible custom input requires explicit send; Enter cannot submit writer", () => harness(1, h => {
   assert.equal(h.button("답변 보내기"), undefined);
   let input = nodes(h.tree).find(n => n.type === "input");

@@ -79,6 +79,7 @@ class InternalVenueRequest(BaseModel):
 
 
 class EditPlan(EditAction):
+    course_only: bool = Field(default=False, description="코스 수정·방문 조건만 요청했고 별도 질문·설명·비교·답변 형식 요구가 없으면 true. 모호하면 false")
     internal_venue_requests: list[InternalVenueRequest] = Field(default_factory=list, max_length=7,
         description="이번 질문에서 구장 내부 장소를 명시적으로 요청한 업종만. 주변/근처 요청·구장 이름만 언급·부정·이전 대화에서의 허용은 빈 배열")
     requested_visits: list[RequestedVisit] | None = Field(default=None, max_length=12,
@@ -129,6 +130,10 @@ requested_visits가 있으면 개별 장소 조건은 그 방문에 기록한다
 
 def interpret(question, current, history, course_memory=None, *, new_course=False):
     from .agent import llm
+    if not new_course:
+        from . import literal_edits
+        if literal := literal_edits.interpret(question, current, course_memory, history):
+            return literal
     if new_course:
         from .creation import interpret as interpret_creation
         from llm.service.chat_runs import Stopped
@@ -223,7 +228,9 @@ conditions는 새 장소 자체의 조건이며 '다른 곳 유지'는 코드가
 closer_to_stadium일 때 원래 방문보다 구장에 가까운 후보만 코드로 남긴다. 메뉴는 유지하고 거리 조건을 웹 검증 조건에 넣지 않는다.
 예: '출발지에서 구장으로 가는 길 근처 국밥집으로 바꿔줘'는 query='국밥', conditions=['국밥'], route_preference='origin_to_stadium'.
 메뉴 요청은 query와 conditions에 함께 보존한다. 경로 조건 때문에 국밥/초밥 같은 필수 메뉴 조건을 생략하지 않는다.
-요청하지 않은 활동/야식/카페/숙소를 추가하지 않는다. 기존의 다른 장소를 변경하지 않는다."""
+요청하지 않은 활동/야식/카페/숙소를 추가하지 않는다. 기존의 다른 장소를 변경하지 않는다.
+코스 수정과 방문 조건만 있으면 course_only=true. 날씨·이유·설명·비교·표·번역 등 별도 요청이 섞이면 false.
+명시한 메뉴·브랜드·시설·제외 조건은 conditions와 query에서 빠뜨리지 않는다."""
     from .selection import selected_relative_request
     if current.get("gameConnection"):
         prompt += """\n이번 요청은 수동으로 고른 장소를 유지하며 지정 날짜 또는 경기 관람에 맞는 코스로 확장하는 부분 수정이다. new로 초기화하지 않는다.
@@ -479,10 +486,23 @@ def choose(candidates_, plan, question):
             return selected([{**p, "reason": "이름에서 확인한 저가 커피 브랜드 후보예요. 실제 메뉴 가격은 확인이 필요해요."} for p in candidates_])
     if candidates_[0]["category"] == "STAY":
         from ..nearby import lodging
-        eligible = lodging.eligible(candidates_, lodging.verify(candidates_, question))
+        # A fully consumed literal replacement with no saved/explicit venue
+        # conditions needs identity verification, but no second intent model.
+        fixed = {"fixed_requirements": []} if plan.get("_literal_edit") and not conditions and not plan.get("query") else {}
+        eligible = lodging.eligible(candidates_, lodging.verify(candidates_, question, **fixed))
         return selected([{**p, "reason": lodging.reason(p["lodgingCheck"])} for p in eligible])
     from . import catalog_conditions
-    if (catalogued := catalog_conditions.choose(candidates_, plan, question)) is not None:
+    from . import recommendation_policy
+    catalog_question = question
+    if plan.get("_literal_edit"):
+        catalog_question = "; ".join(conditions)
+    if recommendation_policy.balanced() and plan.get("course_only") is True:
+        terms = catalog_conditions.parse([*conditions, *([plan["query"]] if plan.get("query") else [])])
+        # Only a complete literal replacement can skip raw-text verification.
+        # Unknown brands/modifiers and compound edits retain the original text.
+        if terms and catalog_conditions.simple_edit_matches(question, terms):
+            catalog_question = "; ".join(conditions)
+    if (catalogued := catalog_conditions.choose(candidates_, plan, catalog_question)) is not None:
         return selected(catalogued)
     # Brand/type-only queries stay cheap. Additional facts use the same evidence
     # path in generation, replacement, additions and corridor searches.
@@ -491,7 +511,7 @@ def choose(candidates_, plan, question):
         candidates_ = enrich(candidates_, conditions)
         if not candidates_:
             return selected([])
-        if (confirmed := catalog_conditions.choose(candidates_, plan, question, verified=True)) is not None:
+        if (confirmed := catalog_conditions.choose(candidates_, plan, catalog_question, verified=True)) is not None:
             return selected(confirmed)
     candidates_ = [p for p in candidates_ if not availability.check(p, availability.visit_date())]
     if not candidates_:
@@ -684,7 +704,9 @@ def rebuild(places, current, code, origin, question, history, progress_plan=None
     from .writer_state import for_result
     result["writerState"] = for_result(result, current, origin)
     if game:
-        result["game"] = {"date": game["date"], "time": game["time"]}
+        from .game_metadata import annotate, summary as game_summary
+        result["game"] = game_summary(game)
+        result["answer"] = annotate(result["answer"], game)
     if progress_state:
         result["progress"] = progress_state
     if _availability_check and any(availability.records(p) for p in places):
@@ -805,7 +827,9 @@ def answer(question, history, current, code, origin, course_memory=None, parsed=
             working, state, next_origin = deepcopy(current), update_memory(original, plan, current), origin
             changes, availability_plans, after_tails = [], {}, {}
             for action in actions:
-                action = {**action, "request_preferences": [*plan.get("request_preferences", []), *action.get("request_preferences", [])],
+                action = {**action, "course_only": plan.get("course_only", False),
+                          "_literal_edit": plan.get("_literal_edit", False),
+                          "request_preferences": [*plan.get("request_preferences", []), *action.get("request_preferences", [])],
                           "request_overrides": [*plan.get("request_overrides", []), *action.get("request_overrides", [])]}
                 after_reference = action.get("reference") if action["operation"] == "add" and action.get("position") == "after" else None
                 if after_reference in after_tails:
@@ -853,8 +877,12 @@ def answer(question, history, current, code, origin, course_memory=None, parsed=
         if op in ("replace", "remove", "indoor", "duration", "move", "swap", "reorder") and any(p.get("completed") and p["visitId"] in affected for p in current["places"]):
             return keep("이미 방문을 완료한 장소는 유지해요. 남은 장소를 지정해 주세요. 완료 표시가 잘못됐다면 직전 수정 취소를 요청해 주세요.")
         saved = update_memory(original, plan, current)
+        saved.pop("pending_selection", None)
         applicable = request_memory(saved, plan)
         if plan["operation"] == "clarify":
+            from .literal_edits import pending_selection
+            if pending := pending_selection(question, current, saved):
+                saved["pending_selection"] = pending
             return keep(plan["clarification"] or "수정할 장소와 순서를 이름 또는 지도 번호로 알려 주세요.")
         if op in ("lock", "unlock"):
             if not targets or len(targets) != len(set(plan["targets"])):
@@ -914,7 +942,9 @@ def answer(question, history, current, code, origin, course_memory=None, parsed=
                 plan = {**plan, "_route": route,
                         "conditions": list(dict.fromkeys([*plan["conditions"], *([plan["query"]] if plan["query"] else [])]))}
             options = candidates(target, anchor, plan, [*current["places"], *saved.get("rejected", [])])
-            replacement = choose(options, plan, question + "\n유지할 해당 장소 조건: " + "; ".join(plan["conditions"]))
+            # Saved conditions already live in plan. Appending them to the user's
+            # words breaks exact-edit recognition and needlessly re-verifies menus.
+            replacement = choose(options, plan, question)
             if not replacement:
                 if options:
                     requested = " · ".join(plan["conditions"])[:160] or plan["query"] or "요청 조건"

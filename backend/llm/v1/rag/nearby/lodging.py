@@ -144,7 +144,11 @@ def same_property(place, found):
         prefix = region[0].replace("특별시", "").replace("광역시", "")
         other_name = re.sub(r"^" + re.escape(prefix) + r"\s+", "", other_name.strip())
     other = _compact(other_name)
-    if not name or not other or SequenceMatcher(None, name, other).ratio() < .65:
+    # NOL may prefix the neighborhood and move the generic type, e.g.
+    # 카카오 '호텔상주' / NOL '잠실 상주 호텔'. Address equality below remains mandatory.
+    core = lambda value: re.sub(r"호텔|모텔", "", value)
+    reordered = len(core(name)) >= 2 and core(other).endswith(core(name))
+    if not name or not other or (SequenceMatcher(None, name, other).ratio() < .65 and not reordered):
         return False
     # 1/2호점·지점 번호가 다른 경우 인접 주소라도 구분한다.
     if re.findall(r"\d+", name) != re.findall(r"\d+", other):
@@ -301,7 +305,8 @@ def search(candidates, question, history):
         began = time.monotonic()
         page = collect_chrome(candidate, deadline=context["deadline"] - 27)
         context.setdefault("pages", []).append({"id": candidate["id"], "status": page.get("status"),
-            "ms": round((time.monotonic() - began) * 1000), "cache_hit": page.get("cache_hit", False)})
+            "ms": round((time.monotonic() - began) * 1000), "cache_hit": page.get("cache_hit", False),
+            **({"stage": page["stage"]} if page.get("stage") else {})})
         if page.get("status") != "read":
             context["collection_failed"] = True
             log.info("lodging Chrome collection: %s", page.get("status", "error"))
