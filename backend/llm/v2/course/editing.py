@@ -352,7 +352,7 @@ def candidates(target, anchor, plan, fixed):
     from . import place_quality
     from .catalog_conditions import menu_hint
     from .agent import invoke_domain_tool
-    from ..nearby import kakao
+    from llm.v1.rag.nearby import kakao
     from .grounding import query_variants, canonical_menu_term
     from .evidence_memory import catalog_cuisine
     category = {"FOOD": "FD6", "CAFE": "CE7", "STAY": "AD5", "SPOT": "AT4", "CONVENIENCE": "CS2"}.get(target["category"])
@@ -500,7 +500,7 @@ def choose(candidates_, plan, question):
         if not remaining and question == "; ".join(conditions) and not plan.get("query"):
             return selected([{**p, "reason": "이름에서 확인한 저가 커피 브랜드 후보예요. 실제 메뉴 가격은 확인이 필요해요."} for p in candidates_])
     if candidates_[0]["category"] == "STAY":
-        from ..nearby import lodging
+        from llm.v1.rag.nearby import lodging
         # A fully consumed literal replacement with no saved/explicit venue
         # conditions needs identity verification, but no second intent model.
         fixed = {"fixed_requirements": []} if plan.get("_literal_edit") and not conditions and not plan.get("query") else {}
@@ -754,7 +754,7 @@ def rebuild(places, current, code, origin, question, history, progress_plan=None
                 raise progress.ProgressError("예정 방문 시간에 이용할 수 있는 대체 매장을 확인하지 못했어요. 요청한 방문을 삭제하지 않고 변경을 취소했어요.")
         for p in result.get("places", []):
             p.pop("key", None)
-    from ..nearby import lodging
+    from llm.v1.rag.nearby import lodging
     if assessments := lodging.assessments(result.get("places", [])):
         result["lodgingAssessments"] = assessments
     return result

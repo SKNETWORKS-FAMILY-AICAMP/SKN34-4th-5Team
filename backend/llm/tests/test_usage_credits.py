@@ -162,7 +162,7 @@ class MeterUnitTest(TestCase):
         from llm.tools import knowledge
         from llm.v1.rag.assistant import pipeline
         from llm.v1.rag.club import agent as club
-        from llm.v1.rag.course import agent as course
+        from llm.v2.course import agent as course
         from llm.v1.rag.nearby import agent as nearby
         from llm.v1.rag.venue import agent as venue
         from llm.v2.agent import common

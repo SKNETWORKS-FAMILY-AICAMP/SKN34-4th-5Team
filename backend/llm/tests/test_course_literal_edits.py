@@ -4,7 +4,7 @@ from unittest.mock import patch
 from django.test import SimpleTestCase
 
 from llm.tests.test_course_editing import CURRENT, PLACES
-from llm.v1.rag.course import agent, editing, evidence_memory, literal_edits, memory, recommendation_policy
+from llm.v2.course import agent, editing, evidence_memory, literal_edits, memory, recommendation_policy
 from llm.v1.rag.nearby import lodging
 
 

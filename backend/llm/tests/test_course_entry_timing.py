@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 from django.test import SimpleTestCase
 
 from baseball.stadium_locations import reviewed_venue
-from llm.v1.rag.course import agent, editing, entry_timing, feasibility, progress, timeline
+from llm.v2.course import agent, editing, entry_timing, feasibility, progress, timeline
 from travel.stadium_food import food_candidates
 
 

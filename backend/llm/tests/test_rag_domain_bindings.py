@@ -11,7 +11,7 @@ from ..v1.rag import domain_tools
 from ..v1.rag.assistant import pipeline as assistant_pipeline
 from ..v1.rag.club import agent as club
 from ..v1.rag.club import retrieval
-from ..v1.rag.course import agent as course
+from ..v2.course import agent as course
 from ..v1.rag.nearby import agent as nearby
 from ..tools import assistant as assistant_tools
 from ..v1.rag.venue import agent as venue

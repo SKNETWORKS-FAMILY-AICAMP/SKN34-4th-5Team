@@ -14,7 +14,7 @@
 import re
 
 from . import transport
-from ..nearby.agent import kinds_of as _nearby_kinds
+from llm.v1.rag.nearby.agent import kinds_of as _nearby_kinds
 
 # ── 취향 (음식·활동) : 질문 표현 → external_places 의 category_detail 에서 찾을 말 ──────
 PREFERENCE = {

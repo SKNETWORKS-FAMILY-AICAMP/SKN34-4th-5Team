@@ -6,7 +6,7 @@ from django.test import SimpleTestCase
 
 from baseball.stadium_locations import reviewed_venue
 from llm.tests.test_course_editing import CURRENT, GAME, plan
-from llm.v1.rag.course import agent, editing, evidence_memory, memory, venue_policy, visit_requests
+from llm.v2.course import agent, editing, evidence_memory, memory, venue_policy, visit_requests
 from travel.stadium_food import food_candidates
 from travel.stadium_signatures import SIGNATURES, details, menu_label, reference_details
 

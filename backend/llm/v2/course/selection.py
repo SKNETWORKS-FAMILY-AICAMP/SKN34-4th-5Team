@@ -24,7 +24,7 @@ def game_course_request(question, current):
     """An explicit date/game itinerary can extend a manual route without a stadium."""
     if not current or not (current.get("selectedPlace") or current.get("places")):
         return False
-    from ..club.router import detect_stadium
+    from llm.v1.rag.club.router import detect_stadium
     requested_code = detect_stadium(question)
     if requested_code and requested_code != current.get("stadiumCode"):
         return False
@@ -36,7 +36,7 @@ def game_course_request(question, current):
     if (re.search(r"경기|직관|(?:구장|야구장)(?:으로|에)?\s*(?:가|갈|방문|들르|입장|관람|코스|일정)", question)
             or mentions_internal(question)):
         return True
-    from ..club.structured import date_in, DateRequestError
+    from llm.v1.rag.club.structured import date_in, DateRequestError
     try:
         return bool(date_in(question, datetime.now(ZoneInfo("Asia/Seoul")).date().isoformat()))
     except DateRequestError:
@@ -72,7 +72,7 @@ def connect_game_context(question, current, code):
 
 def selected_relative_request(question, current):
     """Preserve explicit anchor requests; the model still resolves actions and names."""
-    from ..club.router import detect_stadium
+    from llm.v1.rag.club.router import detect_stadium
     requested_code = detect_stadium(question)
     if requested_code and requested_code != (current or {}).get("stadiumCode"):
         return False

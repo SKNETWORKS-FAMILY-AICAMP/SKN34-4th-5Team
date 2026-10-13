@@ -6,7 +6,7 @@ from rest_framework.exceptions import ValidationError
 
 from llm.serializer.message import _validate_context
 from llm.tools import assistant
-from llm.v1.rag.course import agent, arrival, corridor, geo, slots
+from llm.v2.course import agent, arrival, corridor, geo, slots
 
 
 ANCHOR = {"lat": 37.5, "lng": 127.0}

@@ -293,7 +293,7 @@ def deterministic(row):
             assert DynamicToolMiddleware(['get_games']).allowed(state) == frozenset(['get_games'])
     elif check == 'course_transition':
         from langgraph.graph.message import add_messages
-        from llm.v1.rag.course.memory import empty
+        from llm.v2.course.memory import empty
         current = {'stadium': 'JAMSIL', 'origin': {'lat': 37}, 'routePath': [1],
                    'currentCourse': {'places': [{'name': 'old', 'category': 'CE7', 'visitId': 'v1'}], 'writerState': {'origin': {'lat': 38}}}}
         for mode in ['NEW', 'EDIT']:

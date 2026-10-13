@@ -3,7 +3,7 @@ import math
 import time
 from functools import partial
 
-from ...progress import ProgressCancelled, ProgressStorageError
+from llm.v1.progress import ProgressCancelled, ProgressStorageError
 from . import geo, parallel
 
 MAX_VARIANTS = 4

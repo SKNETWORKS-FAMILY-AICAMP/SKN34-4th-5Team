@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 from django.test import SimpleTestCase, override_settings
 from django.utils import timezone
 
-from llm.v1.rag.course import profile_features as features, evidence_memory as evidence, recommendation_policy as policy, agent
+from llm.v2.course import profile_features as features, evidence_memory as evidence, recommendation_policy as policy, agent
 
 PLACE = {"placeId":"123", "name":"가상카페", "address":"서울 송파구 가상로 10", "lat":37.51, "lng":127.08,
          "category":"CAFE", "detail":"음식점 > 카페"}

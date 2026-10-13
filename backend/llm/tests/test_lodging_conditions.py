@@ -6,7 +6,7 @@ from django.core.cache import cache
 from django.test import SimpleTestCase
 
 from llm.tools import assistant
-from llm.v1.rag.course import agent as course
+from llm.v2.course import agent as course
 from llm.v1.rag.nearby import lodging
 
 

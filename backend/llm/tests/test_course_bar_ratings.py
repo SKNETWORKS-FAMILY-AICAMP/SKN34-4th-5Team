@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 from django.core.cache.backends.locmem import LocMemCache
 from django.test import SimpleTestCase, override_settings
 
-from llm.v1.rag.course import bar_ratings, place_quality as quality, quality_research, recommendation_policy as policy, venue_policy
+from llm.v2.course import bar_ratings, place_quality as quality, quality_research, recommendation_policy as policy, venue_policy
 from llm.tests.test_course_place_warmer import PLACE
 
 BAR = {**PLACE, "name": "시험호프", "detail": "음식점 > 술집 > 호프,요리주점", "kind": "BAR"}
@@ -131,7 +131,7 @@ class BarRatingTests(SimpleTestCase):
         closed = {**BAR, "placeId": "9002"}
         self.save(closed)
         proof = {"place": BAR, "url": URL, "rating": 4., "ratingCount": 1}
-        with patch("llm.v1.rag.course.availability.check", side_effect=lambda p, day: "휴무" if p["placeId"] == "9002" else ""), \
+        with patch("llm.v2.course.availability.check", side_effect=lambda p, day: "휴무" if p["placeId"] == "9002" else ""), \
                 patch.object(quality_research, "discover", return_value=[URL]), \
                 patch.object(quality_research, "profile", return_value=proof) as profile:
             quality.verify_candidates([closed, BAR], "BAR", "술집", center=BAR)

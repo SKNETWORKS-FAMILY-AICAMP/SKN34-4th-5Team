@@ -221,7 +221,7 @@ class QdrantIntegrationTests(unittest.TestCase):
         import django
         django.setup()
         from llm.v1.rag.club import retrieval, structured
-        from llm.v1.rag.course import agent, transport
+        from llm.v2.course import agent, transport
         from llm.tools import knowledge
         store.upsert_documents([self.document("transport", "JAMSIL", "TRANSPORT"),
                                 self.document("facility", "JAMSIL", "FACILITY")])

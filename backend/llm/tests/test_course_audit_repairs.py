@@ -10,7 +10,7 @@ from llm.service.chat_runs import Stopped
 from llm.tests.test_course_editing import CURRENT, PLACES, GAME
 from llm.tests.test_course_evidence import PLACE, finding, requirement
 from llm.tests.test_course_schedule import NOW, game
-from llm.v1.rag.course import agent, edit_context, editing, evidence_memory as evidence, grounding, literal_edits, memory, place_quality, save
+from llm.v2.course import agent, edit_context, editing, evidence_memory as evidence, grounding, literal_edits, memory, place_quality, save
 from llm.v2.agent.course_output import public_course
 from llm.v2.middleware.course_answer import course_text
 from llm.v2.middleware.dynamic_tools import request_args

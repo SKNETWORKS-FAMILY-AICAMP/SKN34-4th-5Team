@@ -7,7 +7,7 @@ from .test_v2_chat import CheckpointTestCase
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from llm.serializer.message import project_history
-from llm.v1.rag.course.memory import restore
+from llm.v2.course.memory import restore
 from llm.v2.agent import chain
 from llm.v2.middleware import jev_guidelines
 from llm.v2.tests.test_chain import ScriptedModel, call
@@ -23,7 +23,7 @@ class CourseGraphBridgeTests(SimpleTestCase):
                  "context": context or {"stadium": "JAMSIL"}, "course_memory": memory or {"conditions": []}}
         verdict = {"allowed": True, "capabilities": ["day_plan"], "course_request": request}
         result = outcome or {**deepcopy(COURSE), "answer": "검증된 코스", "courseMemory": {"conditions": [], "current": {"places": COURSE["places"]}}}
-        with patch.object(jev_guidelines, "classify", return_value=verdict) as jev, patch("llm.v1.rag.course.agent.answer", return_value=result) as engine:
+        with patch.object(jev_guidelines, "classify", return_value=verdict) as jev, patch("llm.v2.course.agent.answer", return_value=result) as engine:
             events = list(graph.stream(state, stream_mode="updates", subgraphs=True))
         messages = list(state["messages"])
         for ns, data in events:
@@ -105,7 +105,7 @@ class CourseGraphBridgeTests(SimpleTestCase):
         from llm.service.chat_v2 import _frames
         calls = []
         graph = chain.build_graph(ScriptedModel(script=[call("ask_course", {"task": "수정"}, "c"), AIMessage("최종 안내")], calls=calls), tools_with_real_migrated([]))
-        with patch.object(chain, "get_graph", return_value=graph), patch.object(jev_guidelines, "classify", return_value={"allowed": True, "capabilities": ["day_plan"]}), patch("llm.v1.rag.course.agent.answer", return_value={**COURSE, "answer": "코스"}):
+        with patch.object(chain, "get_graph", return_value=graph), patch.object(jev_guidelines, "classify", return_value={"allowed": True, "capabilities": ["day_plan"]}), patch("llm.v2.course.agent.answer", return_value={**COURSE, "answer": "코스"}):
             frames = list(_frames({"messages": [HumanMessage("코스")], "context": {"stadium": "JAMSIL"}}, {"messages": [], "answer": ""}))
         inner = [data for event, data in frames if event == "tool" and data["tool_name"] == "plan_course"]
         self.assertEqual([data["status"] for data in inner], ["running", "completed"])
@@ -128,14 +128,14 @@ class CourseGraphBridgeTests(SimpleTestCase):
         run = {"messages": [], "answer": ""}
         with patch.object(chain, "get_graph", return_value=graph), \
                 patch.object(jev_guidelines, "classify", return_value={"allowed": True, "capabilities": ["day_plan"], "course_request": "NEW"}), \
-                patch("llm.v1.rag.course.agent.answer", return_value={**COURSE, "answer": "코스"}):
+                patch("llm.v2.course.agent.answer", return_value={**COURSE, "answer": "코스"}):
             list(_frames({"messages": [HumanMessage("새 코스")], "context": {"stadium": "JAMSIL"}}, run))
         self.assertTrue(run["course_history_reset"])
 
     def test_specialist_failure_is_nonfatal_without_restorable_artifact(self):
         calls = []
         graph = chain.build_graph(ScriptedModel(script=[call("ask_course", {"task": "수정"}, "c"), AIMessage("기존 코스는 유지하고 실패를 안내")], calls=calls), tools_with_real_migrated([]))
-        with patch.object(jev_guidelines, "classify", return_value={"allowed": True, "capabilities": ["day_plan"], "course_request": "EDIT"}), patch("llm.v1.rag.course.agent.answer", side_effect=RuntimeError("private error")):
+        with patch.object(jev_guidelines, "classify", return_value={"allowed": True, "capabilities": ["day_plan"], "course_request": "EDIT"}), patch("llm.v2.course.agent.answer", side_effect=RuntimeError("private error")):
             result = graph.invoke({"messages": [HumanMessage("카페 바꿔줘")], "context": {"stadium": "JAMSIL"}})
         self.assertEqual(len(calls), 2)
         tool = next(m for m in result["messages"] if isinstance(m, ToolMessage))
@@ -150,7 +150,7 @@ class CoursePostgresBridgeTests(CheckpointTestCase):
         from llm.models import ChatSession
         from llm.service.chat_thread import ChatThread
         from llm.service import chat_v2
-        from llm.v1.rag.course.memory import snapshot
+        from llm.v2.course.memory import snapshot
         for request in ("NEW", "EDIT"):
             with self.subTest(request=request):
                 session = ChatSession.objects.create(guest="19191919-1919-4919-8919-191919191919")
@@ -168,7 +168,7 @@ class CoursePostgresBridgeTests(CheckpointTestCase):
                 graph = chain.build_graph(ScriptedModel(script=[batch, AIMessage("기존 코스는 유지하고 실패를 안내")], calls=calls), tools_with_real_migrated([]))
                 with patch.object(chain, "get_graph", return_value=graph), \
                         patch.object(jev_guidelines, "classify", return_value={"allowed": True, "capabilities": ["day_plan"], "course_request": request}), \
-                        patch("llm.v1.rag.course.agent.answer", side_effect=RuntimeError("private error")) as engine:
+                        patch("llm.v2.course.agent.answer", side_effect=RuntimeError("private error")) as engine:
                     frames = [f for f in chat_v2._stream_turn(thread, prefix, turns, human, {"stadium": "JAMSIL"}, None) if f is not None]
                 records, final_turns = ChatThread(session.id).state()
                 self.assertEqual(restore(records, final_turns), saved)

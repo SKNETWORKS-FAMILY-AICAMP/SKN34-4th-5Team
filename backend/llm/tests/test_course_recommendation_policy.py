@@ -2,7 +2,7 @@ from copy import deepcopy
 from unittest.mock import patch
 from django.test import SimpleTestCase, override_settings
 from langchain_core.messages import HumanMessage
-from llm.v1.rag.course import recommendation_policy as policy, place_quality as quality, catalog_conditions as catalog, editing, agent, visit_requests, memory, timeline
+from llm.v2.course import recommendation_policy as policy, place_quality as quality, catalog_conditions as catalog, editing, agent, visit_requests, memory, timeline
 from llm.tests.test_course_place_warmer import PLACE, proof
 from llm.v2.middleware.course_answer import CourseAnswerMiddleware
 
@@ -13,7 +13,7 @@ class RecommendationPolicyTests(SimpleTestCase):
         with policy.request("경기 전 카페, 경기 후 술집 코스"), quality.request_scope("GWANGJU"), \
                 patch.object(quality, "resolve", return_value=None), \
                 patch("travel.course_place_warmer.remember"), \
-                patch("llm.v1.rag.course.quality_research.discover") as discover:
+                patch("llm.v2.course.quality_research.discover") as discover:
             result = quality.verify_candidates([PLACE], "FOOD")
             self.assertTrue(result[0]["qualityUnverified"])
             self.assertEqual(quality._RESEARCH.get()["approved"], set())
@@ -78,7 +78,7 @@ class RecommendationPolicyTests(SimpleTestCase):
             self.assertIsNone(catalog.choose([cafe], {"conditions": ["카페"]}, "메가커피로 바꿔줘"))
 
     def test_chinese_recommendation_basis_is_not_labeled_as_verified_menu(self):
-        from llm.v1.rag.course import evidence_memory as evidence
+        from llm.v2.course import evidence_memory as evidence
         place = {**PLACE, "category": "FOOD"}
         req = evidence.Requirement(term="짜장면", attribute="menu", intent="required", group="meal")
         with policy.request("자장면을 먹을 수 있는 중국집"):
@@ -111,7 +111,7 @@ class RecommendationPolicyTests(SimpleTestCase):
                 patch.object(agent, "stadium_anchor", return_value=PLACES[2]), \
                 patch.object(agent, "requested_date", return_value=None), \
                 patch.object(editing.availability, "check", return_value=None), \
-                patch("llm.v1.rag.course.evidence_memory.enrich", return_value=[]) as enrich:
+                patch("llm.v2.course.evidence_memory.enrich", return_value=[]) as enrich:
             result = editing.answer(question, [], deepcopy(CURRENT), "JAMSIL", None, parsed=operation, _staged=True)
         enrich.assert_not_called()
         self.assertEqual(result["places"][0]["placeId"], kat["placeId"])

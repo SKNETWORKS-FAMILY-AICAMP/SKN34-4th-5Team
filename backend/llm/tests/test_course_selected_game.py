@@ -7,8 +7,8 @@ from django.test import SimpleTestCase
 
 from llm.tests.test_course_editing import CURRENT, PLACES, plan
 from llm.tests.test_course_entry_timing import stadium, tenant
-from llm.v1.rag.course import agent, editing, memory
-from llm.v1.rag.course.selection import connect_game_context, selected_relative_request
+from llm.v2.course import agent, editing, memory
+from llm.v2.course.selection import connect_game_context, selected_relative_request
 
 
 class SelectedGameTests(SimpleTestCase):

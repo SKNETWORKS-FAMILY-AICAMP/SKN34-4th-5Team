@@ -24,7 +24,7 @@ def _page_cache():
 
 def _validated(candidate, page):
     from llm.v1.rag.nearby.lodging import same_property, source_url, _compact
-    from llm.v1.rag.course.grounding import address_in_body
+    from llm.v2.course.grounding import address_in_body
     if not isinstance(page, dict) or page.get("status") != "read":
         return None
     url, body = source_url(page.get("url")), page.get("body_text")

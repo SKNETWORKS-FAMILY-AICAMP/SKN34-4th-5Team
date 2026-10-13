@@ -14,7 +14,7 @@ import re
 from . import persona
 from .assistant import pipeline as assistant
 from .club import agent as club
-from .course import agent as course
+from llm.v2.course import agent as course
 from .nearby import agent as nearby
 from .venue import agent as venue
 from ..progress import ProgressCancelled, ProgressStorageError, operation

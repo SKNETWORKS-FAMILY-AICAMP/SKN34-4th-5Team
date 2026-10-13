@@ -134,11 +134,11 @@ def _stream_turn(thread, prefix, turns, human, context, charge):
     """프레임: tool*/delta* → done | stopped | error (chat_runs.stream_turn). 저장 답변 = 마지막 도구 없는 model 호출의 답."""
     run = {"answer": "", "messages": []}
     from llm.v2.middleware.attachment_context import recent_messages
-    from llm.v1.rag.course.conversation_scope import scoped_messages
+    from llm.v2.course.conversation_scope import scoped_messages
     scoped = scoped_messages(prefix, turns)
     graph_input = {"messages": recent_messages([*_model_history(scoped, turns), human]), "attachment_session_id": thread.thread_id,
                    "tool_group_ids": human.additional_kwargs.get("tool_group_ids", [])}
-    from llm.v1.rag.course.memory import restore
+    from llm.v2.course.memory import restore
     graph_input["course_memory"] = restore(scoped, turns)
     if context:
         graph_input["context"] = context

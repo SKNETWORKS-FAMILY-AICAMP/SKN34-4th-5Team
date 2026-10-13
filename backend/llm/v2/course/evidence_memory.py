@@ -24,7 +24,7 @@ from llm.v1.progress import config_kwargs, ProgressCancelled, ProgressStorageErr
 from llm.service.chat_runs import Stopped
 from travel.place_keyword_memory import retrieve_keyword_memory, record_keyword_memory
 from travel.place_knowledge_models import PlaceKnowledge, PlaceKnowledgeSource, PlaceEnrichmentAttempt, PlaceKnowledgeObservation
-from ..nearby.lodging import same_property
+from llm.v1.rag.nearby.lodging import same_property
 
 log = logging.getLogger(__name__)
 GENERAL = {"scope": "general", "weekdays": [], "start_minute": None, "end_minute": None}

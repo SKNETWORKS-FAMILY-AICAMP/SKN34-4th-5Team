@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 
 from django.test import SimpleTestCase
 
-from llm.v1.rag.course import feasibility, timeline, save, slots, agent
+from llm.v2.course import feasibility, timeline, save, slots, agent
 
 KST = ZoneInfo("Asia/Seoul")
 COURSE = [{"key": "food", "phase": "BEFORE"}, {"key": "cafe", "phase": "BEFORE"},

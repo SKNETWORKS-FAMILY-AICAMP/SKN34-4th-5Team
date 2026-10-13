@@ -8,7 +8,7 @@ from django.db import connections
 
 from llm.service import chat_runs
 
-from ...progress import ProgressCancelled, current
+from llm.v1.progress import ProgressCancelled, current
 
 WORKERS = 2
 

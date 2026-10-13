@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 
 from django.test import SimpleTestCase, TestCase
 
-from llm.v1.rag.course import agent as course
+from llm.v2.course import agent as course
 
 
 KST = ZoneInfo("Asia/Seoul")

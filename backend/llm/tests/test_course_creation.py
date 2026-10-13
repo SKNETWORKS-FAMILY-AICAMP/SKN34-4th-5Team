@@ -7,7 +7,7 @@ from django.test import SimpleTestCase
 from llm.service.chat_runs import Stopped
 from llm.tests.test_course_editing import plan
 from llm.tests.test_lodging_conditions import PLACE, URL, report
-from llm.v1.rag.course import agent, creation, editing, memory
+from llm.v2.course import agent, creation, editing, memory
 from llm.v1.rag.nearby import lodging
 
 

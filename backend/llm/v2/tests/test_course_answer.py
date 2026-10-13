@@ -29,7 +29,7 @@ class CourseAnswerTest(TestCase):
                 for i, place in enumerate(current["places"]):
                     place.update(label=str(i + 1), visitId=f"test-{i}")
                 with patch.object(classifier, "classify", return_value=verdict), \
-                        patch("llm.v1.rag.course.agent.answer", return_value={**COURSE, "edit": True, "route": "course:edit:replace", "answer": TEXT, "courseOnly": course_only}) as course:
+                        patch("llm.v2.course.agent.answer", return_value={**COURSE, "edit": True, "route": "course:edit:replace", "answer": TEXT, "courseOnly": course_only}) as course:
                     result = graph.invoke({"messages": [HumanMessage("식당만 돈카츠로 수정해줘")],
                                            "context": {"intent": "route", "stadium": "JAMSIL", "currentCourse": current}})
                 course.assert_called_once()
@@ -44,7 +44,7 @@ class CourseAnswerTest(TestCase):
             verdict = {**decision(capabilities=["day_plan"]), "course_request": "NEW"}
             question = "잠실 코스와 준비물도 알려줘" if not direct else "잠실 코스 짜줘"
             with patch.object(classifier, "classify", return_value=verdict), \
-                    patch("llm.v1.rag.course.agent.answer", return_value={**COURSE, "answer": TEXT, "courseOnly": direct}) as course:
+                    patch("llm.v2.course.agent.answer", return_value={**COURSE, "answer": TEXT, "courseOnly": direct}) as course:
                 result = graph.invoke({"messages": [HumanMessage(question)],
                                        "context": {"intent": "route", "stadium": "JAMSIL"}})
             course.assert_called_once()
@@ -81,7 +81,7 @@ class CourseAnswerTest(TestCase):
         graph = self.graph()
         verdict = {**decision(capabilities=capabilities or ["day_plan"]), "course_request": "NEW"}
         with patch.object(classifier, "classify", return_value=verdict), \
-                patch("llm.v1.rag.course.agent.answer", return_value={**COURSE, "answer": TEXT, "courseOnly": direct}):
+                patch("llm.v2.course.agent.answer", return_value={**COURSE, "answer": TEXT, "courseOnly": direct}):
             return graph.invoke({"messages": [HumanMessage(question)]})
 
     def test_course_only_skips_final_model_and_preserves_all_text_and_public_course(self):
@@ -139,7 +139,7 @@ class CourseAnswerTest(TestCase):
         run = {"answer": "", "messages": []}
         with patch.object(chain, "get_graph", return_value=graph), \
                 patch.object(classifier, "classify", return_value={**decision(capabilities=["day_plan"]), "course_request": "NEW"}), \
-                patch("llm.v1.rag.course.agent.answer", return_value={**COURSE, "answer": TEXT, "courseOnly": True}):
+                patch("llm.v2.course.agent.answer", return_value={**COURSE, "answer": TEXT, "courseOnly": True}):
             frames = list(_frames({"messages": [HumanMessage("숙박 코스 짜줘")]}, run))
         self.assertEqual(run["answer"], TEXT)
         self.assertEqual([d["text"] for e, d in frames if e == "delta"], [TEXT])
@@ -151,7 +151,7 @@ class CourseAnswerTest(TestCase):
         run = {"answer": "", "messages": []}
         with patch.object(chain, "get_graph", return_value=graph), \
                 patch.object(classifier, "classify", return_value={**decision(capabilities=["day_plan"]), "course_request": "NEW"}), \
-                patch("llm.v1.rag.course.agent.answer", return_value={**COURSE, "answer": TEXT, "courseOnly": True}):
+                patch("llm.v2.course.agent.answer", return_value={**COURSE, "answer": TEXT, "courseOnly": True}):
             frames = list(_frames({"messages": [HumanMessage("숙박 코스 짜줘")],
                                   "context": {"intent": "route", "stadium": "JAMSIL"}}, run))
         self.assertEqual(run["answer"], TEXT)

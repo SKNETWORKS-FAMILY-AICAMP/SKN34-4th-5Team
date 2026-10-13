@@ -5,7 +5,7 @@ from django.test import SimpleTestCase
 
 from preprocessing.read_myseatcheck_menus import consensus, compile_catalogue
 from travel.stadium_food import food_candidates, matching_menu_items
-from llm.v1.rag.course import editing, venue_policy, evidence_memory
+from llm.v2.course import editing, venue_policy, evidence_memory
 
 
 def photo(items, status="MENU_READABLE"):
@@ -91,7 +91,7 @@ class InternalMenuSearchTests(SimpleTestCase):
         question = "구장 내부에서 아메리카노 마시자"
         invoke = Mock()
         with venue_policy.request_policy(question, "GWANGJU", [{"category": "CAFE", "expression": question}]), \
-                patch("llm.v1.rag.course.agent.invoke_domain_tool", invoke):
+                patch("llm.v2.course.agent.invoke_domain_tool", invoke):
             rows = editing.candidates({**self.anchor, "category": "CAFE"}, self.anchor, {"query": "아메리카노"}, [])
             found = venue_policy.filter_candidates(rows)
             matching = next(p for p in found if p["placeId"] == self.source["placeId"])

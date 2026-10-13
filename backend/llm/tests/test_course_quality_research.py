@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from django.test import SimpleTestCase
-from llm.v1.rag.course import agent, quality_research as research
+from llm.v2.course import agent, quality_research as research
 
 
 class QualityResearchTests(SimpleTestCase):

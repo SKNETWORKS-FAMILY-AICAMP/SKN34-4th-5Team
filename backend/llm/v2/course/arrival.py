@@ -4,7 +4,7 @@ import re
 
 from . import geo, transport
 from .default_origins import station_origin
-from ...progress import ProgressCancelled, ProgressStorageError
+from llm.v1.progress import ProgressCancelled, ProgressStorageError
 
 RADIUS_M = 2500
 RELATIVE_ORIGINS = {"여기", "내 위치", "현재 위치", "현위치", "지도", "집", "회사", "출발지"}

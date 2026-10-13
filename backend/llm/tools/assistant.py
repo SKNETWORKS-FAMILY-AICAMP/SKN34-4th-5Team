@@ -390,7 +390,7 @@ def plan_course(request, _course=None) -> str:
     if active_domain() == "course":
         return "현재 코스 생성 중에는 plan_course를 다시 호출할 수 없습니다. 주어진 후보로 답하세요."
     if _course is None:
-        from llm.v1.rag.course import agent as _course
+        from llm.v2.course import agent as _course
     # 도구 인자는 모델의 요약일 뿐이다. 실제 사용자 원문이 있으면 길이와 관계없이 우선한다.
     question = s.get("question") or request
     from llm.v1.rag.club.router import detect_stadium

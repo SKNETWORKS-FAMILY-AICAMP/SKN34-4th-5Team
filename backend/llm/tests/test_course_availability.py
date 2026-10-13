@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 import httpx
 from django.test import SimpleTestCase
 
-from llm.v1.rag.course import agent, availability as hours, editing, evidence_memory, grounding, timeline
+from llm.v2.course import agent, availability as hours, editing, evidence_memory, grounding, timeline
 from travel.public_page_reader import PublicReader, extract_dated_hours, extract_text
 from .test_course_route_ranking import ANCHOR, ORIGIN, NEAR, FAR, CAFE, PARK, provider
 
@@ -341,7 +341,7 @@ class AvailabilityPipelineTests(SimpleTestCase):
         self.check_requested_replacement(has_alternative=False)
 
     def check_requested_replacement(self, has_alternative):
-        from llm.v1.rag.course.progress import ProgressError
+        from llm.v2.course.progress import ProgressError
         near, far, cafe, park, stadium, game = self.fixture()
         places = [{**p, 'category': 'FOOD' if p['category'] == 'FOOD_OUT' else p['category'], 'visitId': str(i)}
                   for i, p in enumerate((near, cafe, stadium, park))]

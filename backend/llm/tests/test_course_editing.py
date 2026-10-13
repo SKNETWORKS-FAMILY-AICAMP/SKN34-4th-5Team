@@ -7,7 +7,7 @@ from rest_framework.exceptions import ValidationError
 
 from llm.serializer.message import _validate_context
 from llm.tools import assistant
-from llm.v1.rag.course import agent, editing
+from llm.v2.course import agent, editing
 from llm.v2.agent.course_output import public_course
 from llm.v2.middleware.dynamic_tools import DynamicToolMiddleware
 
@@ -273,7 +273,7 @@ class CourseEditingTest(SimpleTestCase):
         from unittest.mock import Mock
         model = Mock()
         model.with_structured_output.return_value.invoke.return_value = editing.CandidateChoice(place_id="", evidence="스타벅스 후보 없음")
-        with patch.object(agent, "llm", return_value=model), patch("llm.v1.rag.course.evidence_memory.enrich", side_effect=lambda candidates, _: candidates):
+        with patch.object(agent, "llm", return_value=model), patch("llm.v2.course.evidence_memory.enrich", side_effect=lambda candidates, _: candidates):
             selected = editing.choose([REPLACEMENT], plan("replace", ["cafe"], conditions=["식당은 유지"]), "스타벅스로 바꿔줘")
         self.assertIsNone(selected)
         supplied = model.with_structured_output.return_value.invoke.call_args.args[0][-1].content

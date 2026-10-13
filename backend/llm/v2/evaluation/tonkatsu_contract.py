@@ -81,9 +81,9 @@ def encoded(value):
 
 
 def observe(case):
-    from llm.v1.rag.course import literal_edits, editing, evidence_memory, recommendation_policy
+    from llm.v2.course import literal_edits, editing, evidence_memory, recommendation_policy
     if case['kind']=='chinese_compound':
-        from llm.v1.rag.course import profile_features
+        from llm.v2.course import profile_features
         place={**MEAL,'name':'시험 중화 식당'}
         if case.get('internal'):
             place.update(source='MYSEATCHECK',placeId='stadium-facility:meal')
@@ -115,13 +115,13 @@ def observe(case):
             result=editing.choose([place],{'conditions':[case['question']],'all_matches':True},case['question'])
         return [p['placeId'] for p in result]
     if case['kind']=='requirements':
-        from llm.v1.rag.course import agent
+        from llm.v2.course import agent
         with patch.object(agent,'llm') as model:
             model.return_value.with_structured_output.return_value.invoke.return_value={'items':[
                 {'term':'돈카츠','attribute':'menu','intent':'required','group':'0'}]}
             return [r.term for r in evidence_memory.requirements([case['question']])]
     if case['kind']=='generation':
-        from llm.v1.rag.course import visit_requests, agent
+        from llm.v2.course import visit_requests, agent
         raw={'kind':'FOOD','phase':'BEFORE','expression':case['question'],'query':'돈카츠','conditions':[]}
         visits=visit_requests.normalize(case['question'],[raw])
         with patch.object(recommendation_policy,'balanced',return_value=True), \
@@ -131,7 +131,7 @@ def observe(case):
             result=selector.for_visit([{**p,'category':'FOOD_OUT'} for p in [OTHER,SNACK,SPECIALTY]],visits[0])
         return [p['placeId'] for p in result]
     if case['kind']=='profile_menu':
-        from llm.v1.rag.course import profile_features, place_quality
+        from llm.v2.course import profile_features, place_quality
         from unittest.mock import Mock
         place={**MEAL,'address':'서울 송파구 가상로 10'}
         url='https://www.diningcode.com/profile.php?rid=contract-menu'
@@ -153,7 +153,7 @@ def observe(case):
     if case.get('without_meal'): current['places'].remove(current['places'][0])
     if case.get('two_meals'): current['places'].append({**MEAL,'visitId':'meal2'})
     if case['kind']=='clarify':
-        from llm.v1.rag.course import visit_roles
+        from llm.v2.course import visit_roles
         target = deepcopy(BAR if case['target']=='bar' else SNACK)
         if case['target']=='snack': target.update(category='CAFE')
         plan = visit_roles.protect_target('식당을 바꿔줘' if case['target']=='bar' else '카페를 바꿔줘',
@@ -161,7 +161,7 @@ def observe(case):
         return next((s.strip() for s in plan.get('clarification','').split('.') if '유지했어요' in s), '')
     if case['kind']=='ratings':
         from django.core.cache.backends.locmem import LocMemCache
-        from llm.v1.rag.course import agent, bar_ratings, place_quality, quality_research, visit_requests
+        from llm.v2.course import agent, bar_ratings, place_quality, quality_research, visit_requests
         cache = LocMemCache(case['id'], {})
         cache.clear()
         raw = {'id':'9101','place_name':'시험브랜드','x':127.081,'y':37.510,
@@ -198,8 +198,8 @@ def observe(case):
                   conditions=[], category='', clarification='', preferences=[], forget_conditions=[])
         current.update(travelMode='walk',legModes={})
         with patch.object(editing, 'candidates',return_value=[]) as candidates, \
-                patch('llm.v1.rag.course.agent.requested_date', return_value=None), \
-                patch('llm.v1.rag.course.agent.stadium_anchor', return_value=GAME), \
+                patch('llm.v2.course.agent.requested_date', return_value=None), \
+                patch('llm.v2.course.agent.stadium_anchor', return_value=GAME), \
                 patch.object(editing.place_quality, 'missing_notice', return_value=''):
             editing.answer(case['question'], [], current, 'JAMSIL', None, parsed=plan)
         return candidates.call_args.args[0]['visitId'] if candidates.called else None
