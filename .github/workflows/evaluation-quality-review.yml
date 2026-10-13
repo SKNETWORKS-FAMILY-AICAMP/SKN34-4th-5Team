@@ -1,0 +1,79 @@
+name: Approved PR quality decision
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: 'Open team PR number'
+        required: true
+        type: string
+      base_sha:
+        description: 'Exact reviewed current base SHA'
+        required: true
+        type: string
+      head_sha:
+        description: 'Exact reviewed current head SHA'
+        required: true
+        type: string
+      decision:
+        description: 'User quality decision; no automatic numeric threshold'
+        required: true
+        type: choice
+        options: [approve, reject, not-applicable]
+      runs:
+        description: 'Approve requires jev=ID,supervisor=ID,ragas=ID,highlight=ID trusted successful runs'
+        type: string
+      protected_review:
+        description: 'Independent reviewer approved criteria/cases/harness diff and frozen trusted baseline (reason required)'
+        type: boolean
+        default: false
+      reason:
+        description: 'Required user review rationale (reviewed within this protected run)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  authorize:
+    runs-on: ubuntu-latest
+    environment: evaluation
+    steps:
+      - name: Validate trusted decision inputs after required reviewer approval
+        env:
+          PR: ${{ inputs.pr }}
+          BASE: ${{ inputs.base_sha }}
+          HEAD: ${{ inputs.head_sha }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          python -I - <<'PY'
+          import os, re
+          assert os.environ['GITHUB_REF'] in ('refs/heads/develop','refs/heads/main')
+          assert re.fullmatch(r'[1-9][0-9]*', os.environ['PR'])
+          assert all(re.fullmatch(r'[0-9a-f]{40}',os.environ[k]) for k in ('BASE','HEAD'))
+          assert os.environ['REASON'].strip()
+          PY
+  publish:
+    needs: authorize
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      statuses: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate trusted executed evidence and publish explicit aggregate decision
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ inputs.pr }}
+          BASE: ${{ inputs.base_sha }}
+          HEAD: ${{ inputs.head_sha }}
+          DECISION: ${{ inputs.decision }}
+          RUNS: ${{ inputs.runs }}
+          PROTECTED_REVIEW: ${{ inputs.protected_review }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          python -I .github/evaluation_quality.py --pr "$PR" --base "$BASE" --head "$HEAD" --decision "$DECISION" --runs "$RUNS" --reason "$REASON"

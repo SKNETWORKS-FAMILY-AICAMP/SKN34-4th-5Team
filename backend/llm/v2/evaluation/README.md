@@ -1,4 +1,35 @@
-# Local JEV / supervisor evaluation (no RAG)
+# Local DeepEval / Ragas evaluation
+
+## Canonical index (2026-10-12 relocation)
+
+All active DeepEval/Ragas implementations, framework tests, dependency pins and datasets live here; scoring and historical evidence are unchanged.
+
+| Files | Purpose / environment |
+| --- | --- |
+| `run.py`, `remaining.py`, `test_evaluation.py`, `test_remaining.py`, `test_attachment_shared.py`, existing JSON datasets | JEV/supervisor contracts; `requirements.txt` (DeepEval, backend dependencies) |
+| `highlight_deepeval.py`, `highlight_ragas.py`, `test_highlight_deepeval.py`, `highlight_deepeval_sample.json` | Specialist deterministic metrics and offline replay; isolated highlight environment in [DeepEval guide](../../../../docs/HIGHLIGHT_DEEPEVAL.md) and [Ragas guide](../../../../docs/HIGHLIGHT_RAGAS.md) |
+| `export_ragas.py`, `test_eval_ragas.py`, `golden/*.jsonl` | Django export, executed with backend dependencies via `manage.py export_ragas`; [input/output guide](../../../../rag_test/README.md) |
+| `eval_ragas.py`, `requirements-ragas.txt` | Paid built-in Ragas scoring of exports; **separate** Python 3.12 environment, never production requirements |
+
+Repository-root free checks / entrypoint help:
+
+```sh
+# Existing isolated highlight environment includes DeepEval 4.2.8 + Ragas 0.4.3.
+HIGHLIGHT_PY="$HOME/.hermes/cache/scratch/highlight-deepeval/venv/bin/python"
+"$HIGHLIGHT_PY" -I backend/llm/v2/evaluation/test_highlight_deepeval.py
+"$HIGHLIGHT_PY" -I backend/llm/v2/evaluation/test_relocation.py -v
+"$HIGHLIGHT_PY" -I backend/llm/v2/evaluation/highlight_deepeval.py --help
+"$HIGHLIGHT_PY" -I backend/llm/v2/evaluation/highlight_ragas.py --help
+.venv-backend/bin/python backend/manage.py test llm.v2.evaluation.test_eval_ragas
+.venv-backend/bin/python backend/manage.py export_ragas --help
+python3.12 -m venv .venv-ragas
+.venv-ragas/bin/pip install -r backend/llm/v2/evaluation/requirements-ragas.txt
+.venv-ragas/bin/python -I backend/llm/v2/evaluation/eval_ragas.py --help
+```
+
+Do not combine these environments: `requirements.txt` pins langchain-community 0.4.2, highlight replay needs 0.4.1, and built-in Ragas scoring uses its independently tested 0.3.31 / OpenAI 3.3.0 pins. The backend include in `requirements.txt` remains relative to this directory (`../../../requirements.txt`). Old highlight scripts, `rag_test/eval_ragas.py`, old framework test imports and `rag_test/requirements-ragas.txt` are thin compatibility entrypoints; Django command discovery is a shim. `rag_test/golden` and the old highlight sample path are symlinks to unchanged canonical data, so unrelated retrieval/LangSmith callers retain their inputs without duplicate goldens. Unrelated `rag_test` pipelines and archives stay in place.
+
+## Local JEV / supervisor evaluation (no RAG)
 
 ## Evaluation-only policy alignment (2026-10-11)
 

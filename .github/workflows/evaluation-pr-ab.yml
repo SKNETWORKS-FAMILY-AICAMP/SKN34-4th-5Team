@@ -1,0 +1,176 @@
+name: Approved PR provider A/B
+run-name: Provider A/B pr=${{ inputs.pr }} mode=${{ inputs.mode }} base=${{ inputs.base_sha }} head=${{ inputs.head_sha }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: 'Reviewed open team PR number'
+        required: true
+        type: string
+      base_sha:
+        description: 'Reviewed exact PR base SHA (40 lowercase hex)'
+        required: true
+        type: string
+      head_sha:
+        description: 'Reviewed exact PR head SHA (40 lowercase hex)'
+        required: true
+        type: string
+      mode:
+        description: 'Actual provider mode; replay/generate not accepted'
+        required: true
+        type: choice
+        options: [jev, supervisor, ragas, highlight]
+      dataset:
+        description: 'JEV seed/boundary, supervisor seed/first-action'
+        type: choice
+        default: seed
+        options: [seed, boundary, first-action]
+      ids:
+        description: 'Max5 explicit IDs; Ragas max3 r16,r25,v04; highlight frozen10'
+        type: string
+      authorize:
+        description: 'Approve reviewed pinned code and bounded paid A AND B calls'
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  DEEPEVAL_TELEMETRY_OPT_OUT: 'YES'
+  DEEPEVAL_DISABLE_DOTENV: '1'
+  DEEPEVAL_DISABLE_LEGACY_KEYFILE: '1'
+  PYTHON_DOTENV_DISABLED: '1'
+  RAGAS_DO_NOT_TRACK: 'true'
+  LANGSMITH_TRACING: 'false'
+  LANGCHAIN_TRACING_V2: 'false'
+
+jobs:
+  authorize:
+    runs-on: ubuntu-latest
+    outputs:
+      head: ${{ steps.pin.outputs.head }}
+    steps:
+      - id: pin
+        name: Reject untrusted refs and invalid pinned PR identity
+        env:
+          AUTHORIZED: ${{ inputs.authorize }}
+          PR: ${{ inputs.pr }}
+          BASE: ${{ inputs.base_sha }}
+          HEAD: ${{ inputs.head_sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python -I - <<'PY'
+          import json, os, re, urllib.request
+          assert os.environ['AUTHORIZED'] == 'true'
+          assert os.environ['GITHUB_REF'] in ('refs/heads/develop','refs/heads/main')
+          assert re.fullmatch(r'[1-9][0-9]*', os.environ['PR'])
+          assert all(re.fullmatch(r'[0-9a-f]{40}', os.environ[k]) for k in ('BASE','HEAD'))
+          url = 'https://api.github.com/repos/' + os.environ['GITHUB_REPOSITORY'] + '/pulls/' + os.environ['PR']
+          req = urllib.request.Request(url, headers={'Authorization':'Bearer '+os.environ['GH_TOKEN']})
+          with urllib.request.urlopen(req, timeout=30) as r: p = json.load(r)
+          assert p['state'] == 'open' and p['base']['repo']['full_name'] == os.environ['GITHUB_REPOSITORY']
+          assert p['base']['ref'] in ('develop','main') and p['base']['sha'] == os.environ['BASE']
+          assert p['head']['sha'] == os.environ['HEAD'] and p['head']['repo']
+          assert re.fullmatch(r'feat/[a-z0-9-]+', p['head']['ref'])
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f: f.write('head='+p['head']['sha']+'\n')
+          PY
+  evaluate:
+    needs: authorize
+    runs-on: [self-hosted, linux, evaluation]
+    environment: evaluation
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: trusted
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.base_sha }}
+          path: baseline
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.authorize.outputs.head }}
+          path: candidate
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install only trusted evaluation dependencies
+        env:
+          MODE: ${{ inputs.mode }}
+        run: |
+          python -m venv "$RUNNER_TEMP/ab-runtime"
+          if [ "$MODE" = highlight ]; then
+            "$RUNNER_TEMP/ab-runtime/bin/pip" install -r trusted/.github/requirements-highlight.txt
+          else
+            "$RUNNER_TEMP/ab-runtime/bin/pip" install -r trusted/backend/llm/v2/evaluation/requirements.txt
+          fi
+          if [ "$MODE" = ragas ]; then
+            python -m venv "$RUNNER_TEMP/ab-ragas"
+            "$RUNNER_TEMP/ab-ragas/bin/pip" install -r trusted/backend/llm/v2/evaluation/requirements-ragas.txt
+          fi
+      - name: Frozen actual provider A then B (execution is not quality approval)
+        env:
+          MODE: ${{ inputs.mode }}
+          PR: ${{ inputs.pr }}
+          BASE: ${{ inputs.base_sha }}
+          HEAD: ${{ needs.authorize.outputs.head }}
+          AUTHORIZED: ${{ inputs.authorize }}
+          EVAL_DATASET: ${{ inputs.dataset }}
+          EVAL_IDS: ${{ inputs.ids }}
+          EVAL_CORPUS: ${{ vars.EVAL_CORPUS }}
+          GH_TOKEN: ${{ github.token }}
+          OPENROUTER_API_KEY: ${{ inputs.mode != 'highlight' && secrets.OPENROUTER_API_KEY || '' }}
+          OPENAI_API_KEY: ${{ (inputs.mode == 'supervisor' || inputs.mode == 'ragas') && secrets.OPENAI_API_KEY || '' }}
+          GOOGLE_API_KEY: ${{ inputs.mode == 'highlight' && secrets.GOOGLE_API_KEY || '' }}
+          QDRANT_URL: ${{ inputs.mode == 'ragas' && vars.EVAL_QDRANT_URL || '' }}
+          QDRANT_API_KEY: ${{ inputs.mode == 'ragas' && secrets.QDRANT_API_KEY || '' }}
+        run: |
+          export RAGAS_PYTHON="$RUNNER_TEMP/ab-ragas/bin/python"
+          "$RUNNER_TEMP/ab-runtime/bin/python" -I trusted/.github/evaluation_ab.py "$MODE" --pr "$PR" --base "$BASE" --head "$HEAD" --a "$GITHUB_WORKSPACE/baseline" --b "$GITHUB_WORKSPACE/candidate" --output "$RUNNER_TEMP/provider-ab"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: provider-ab-evidence
+          path: ${{ runner.temp }}/provider-ab/ab-summary.json
+          retention-days: 7
+      - name: Remove private outputs and evaluated snapshots
+        if: always()
+        run: |
+          rm -rf "$RUNNER_TEMP/provider-ab" "$RUNNER_TEMP/ab-runtime" "$RUNNER_TEMP/ab-ragas" "$GITHUB_WORKSPACE/baseline" "$GITHUB_WORKSPACE/candidate"
+  publish:
+    needs: [authorize, evaluate]
+    if: always() && needs.authorize.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      - name: Bind execution result and pending quality review to exact current PR SHA
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ inputs.pr }}
+          BASE: ${{ inputs.base_sha }}
+          HEAD: ${{ needs.authorize.outputs.head }}
+          RESULT: ${{ needs.evaluate.result }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          python -I - <<'PY'
+          import json, os, urllib.request
+          root = 'https://api.github.com/repos/' + os.environ['GITHUB_REPOSITORY']
+          headers = {'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Content-Type':'application/json'}
+          with urllib.request.urlopen(urllib.request.Request(root+'/pulls/'+os.environ['PR'],headers=headers), timeout=30) as r: p=json.load(r)
+          current = p['state']=='open' and p['head']['sha']==os.environ['HEAD'] and p['base']['sha']==os.environ['BASE']
+          success = current and os.environ['RESULT']=='success'
+          url = os.environ['GITHUB_SERVER_URL']+'/'+os.environ['GITHUB_REPOSITORY']+'/actions/runs/'+os.environ['GITHUB_RUN_ID']
+          for context, state, description in (
+              ('evaluation/provider-ab-execution/'+os.environ['MODE'],'success' if success else 'failure','Complete comparable execution; NOT quality approval' if success else 'Failed, cancelled, incomplete or stale A/B'),
+              ('evaluation/provider-quality','pending','Needs user quality review' if success else 'Required / not-run or failed')):
+              data=json.dumps({'state':state,'context':context,'description':description,'target_url':url}).encode()
+              urllib.request.urlopen(urllib.request.Request(root+'/statuses/'+os.environ['HEAD'],data=data,headers=headers),timeout=30).close()
+          PY
