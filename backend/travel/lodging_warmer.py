@@ -1,5 +1,4 @@
 """Bounded prefetch of public lodging pages, with foreground browser priority."""
-import os
 import pickle
 import time
 
@@ -42,8 +41,6 @@ def candidates(stadiums, per_stadium=2, *, deadline=float("inf")):
 
 def warm(stadiums, *, limit=6, max_seconds=180, refresh_before=1800, per_stadium=2):
     """Refresh near expiry; never cache a failure or extend an old snapshot."""
-    if os.getenv("LODGING_CHROME_TRANSPORT", "local").lower() != "mcp":
-        return {"status": "disabled", "reason": "foreground_priority_requires_mcp", "items": []}
     started = time.monotonic()
     deadline = started + max_seconds
     result = {"status": "ok", "items": [], "cached": 0}

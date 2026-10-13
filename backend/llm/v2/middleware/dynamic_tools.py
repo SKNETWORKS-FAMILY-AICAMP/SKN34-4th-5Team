@@ -41,7 +41,7 @@ CAPABILITY_TOOLS = {
     "community": ("search_community_posts", "get_prediction_games", "get_games"),
     "nearby_places": ("get_stadium", "search_places", "search_documents_tool", "ask_travel_research"),
     "tourism": ("get_stadium", "search_tourism", "search_nearby_places", "search_documents_tool"),
-    "directions": ("get_stadium", "get_directions"),
+    "directions": ("get_stadium", "search_places", "get_directions"),  # 출발지(역 등) 좌표 확인용 search_places
     "courses": ("search_courses", "get_course"),
     "weather": ("get_games", "get_stadium", "get_weather"),
     "day_plan": ("ask_baseball", "ask_travel_research", "ask_place_data", "get_directions", "ask_course"),

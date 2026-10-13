@@ -4,22 +4,24 @@
 실제 v2 그래프(모델·도구·DB·Qdrant)를 쓰므로 비용이 든다. 채팅 세션과 크레딧은 쓰지 않는다.
 
 ```bat
-type rag_test\chat_eval\questions_1012.jsonl | docker compose exec -T backend python manage.py chat_eval --questions - --label A --category 규정
-type rag_test\chat_eval\questions_1012.jsonl | docker compose exec -T backend python manage.py chat_eval --questions - --label A
+type rag_test\chat_eval\questions_1013.jsonl | docker compose exec -T backend python manage.py chat_eval --questions - --label A --category 규정
+type rag_test\chat_eval\questions_1013.jsonl | docker compose exec -T backend python manage.py chat_eval --questions - --label A
 ```
 
 결과는 `backend/artifacts/chat_eval/<label>_<시각>.jsonl`에 저장된다. 문항마다 도구 호출, 도구 결과 앞부분, 답변, 영상 카드, 토큰, 지연, 실패 사유가 들어간다.
 
-## 문항 (`questions_1012.jsonl`, 59개)
+## 문항 (`questions_1013.jsonl`, 59개)
+
+현재 기준은 `questions_1013.jsonl`이다. `questions_1012.jsonl`은 첫 버전이며 비교용으로 남긴다. 1013에서 바꾼 문항은 각 문항의 `src`에 이유를 적었다(#79 정책, 실제 도구 이름, 같은 뜻의 표현, 출처 링크 허용).
 
 | 카테고리 | 수 | 출처 | 보는 것 |
 |---|---|---|---|
-| 규정 | 8 | `rag_test/golden/golden_rule.jsonl` | RAG 문서 검색 호출, 필수 키워드(`must`) |
-| 구장 | 8 | `golden_venue.jsonl`, PR #79 평가셋 | 구장 도구·RAG 호출, 필수 키워드, 대상이 불명확하면 되묻기 |
-| 먹거리 | 7 | `golden_venue.jsonl`, PR #79 | 구장 내부 먹거리, 주변 장소, 복합 요청 |
+| 규정 | 8 | `backend/llm/v2/evaluation/golden/golden_rule.jsonl` | RAG 문서 검색 호출, 필수 키워드(`must`) |
+| 구장 | 8 | `golden/golden_venue.jsonl`, PR #79 평가셋 | 구장 도구·RAG 호출, 필수 키워드, 대상이 불명확하면 되묻기 |
+| 먹거리 | 7 | `golden/golden_venue.jsonl`, PR #79 | 구장 내부 먹거리, 주변 장소, 복합 요청 |
 | 루트 | 6 | PR #79 | 길찾기, 코스 생성·수정(멀티턴), 숙소, 대상이 불명확할 때 조회 없이 되묻기 |
 | 일정 | 7 | PR #79 | `get_games` 호출, 기간, 일정+날씨, 앞 대화 이어받기 |
-| 기록 | 8 | `golden_club.jsonl`, PR #79 | 순위·선수 도구, 틀린 전제에 맞장구치지 않기 |
+| 기록 | 8 | `golden/golden_club.jsonl`, PR #79 | 순위·선수 도구, 틀린 전제에 맞장구치지 않기 |
 | 하이라이트 | 10 | 신규(#67) | `ask_highlight` 호출, 영상 카드, 답변 URL 금지, 없는 장면을 지어내지 않기 |
 | 가드 | 5 | PR #79 | 비도메인·공격·혼합 요청 거절 |
 

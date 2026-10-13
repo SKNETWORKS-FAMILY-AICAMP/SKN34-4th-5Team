@@ -202,9 +202,10 @@ class BrowserResearchTest(unittest.TestCase):
         handler.assert_called_once()
 
     def test_policy_instructions_are_present_not_semantic_enforcement(self):
-        from llm.v2.middleware.jev_guidelines import GUARD_INSTRUCTIONS, GROUNDING_RULES, CONTENT_RULES
+        from llm.v2.middleware.jev_guidelines import GUARD_CRITERIA, GUARD_INSTRUCTIONS, GROUNDING_RULES, CONTENT_RULES
         from llm.v2.agent.chain import MAIN_RULES
         self.assertIn("전체 NON_PASS", GUARD_INSTRUCTIONS)
+        self.assertIn("유모차 보관소", GUARD_CRITERIA["PASS"])
         self.assertIn("확인 질문만", GROUNDING_RULES)
         self.assertIn("전체 일정 조회", GROUNDING_RULES)
         self.assertIn("관련 대화의 확정 조건 → 화면 기본값", CONTENT_RULES)

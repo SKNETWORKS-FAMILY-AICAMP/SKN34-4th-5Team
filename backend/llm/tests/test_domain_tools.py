@@ -267,6 +267,35 @@ class DomainToolsTest(TestCase):
         self.assertEqual(maps["items"][0]["detailPath"], "/stadiums/TEST-JAMSIL")
         self.assertIsNone(maps["items"][0]["collected_at"])
 
+    def test_get_stadium_accepts_korean_stadium_name_as_code(self):
+        baseball.Stadium.objects.get_or_create(stadium_code="JAMSIL", defaults={
+            "id": 990077, "stadium_name_ko": "잠실야구장", "address": "서울", "longitude": "127.071", "latitude": "37.512",
+            "geocode_source": "official", "collected_at": timezone.now()})
+        for code in ("JAMSIL", "잠실야구장", "잠실"):
+            with self.subTest(code=code):
+                self.assertEqual(self.tools["get_stadium"].invoke({"stadium_code": code})["item"]["stadium_code"], "JAMSIL")
+        self.assertIsNone(self.tools["get_stadium"].invoke({"stadium_code": "없는구장"})["item"])
+
+    def test_directions_summary_in_minutes_and_km(self):
+        from llm.tools.travel import with_summary
+        raw = {"mode": "walk", "distance": 3091, "seconds": 2946,
+               "legs": [{"status": "ok", "distance": 3091, "seconds": 2946, "paths": [], "instructions": []}]}
+        result = with_summary(raw)
+        self.assertEqual((result["durationMinutes"], result["distanceKm"], result["legs"][0]["minutes"]), (49, 3.1, 49))
+        self.assertEqual(with_summary({"mode": "walk", "legs": []})["durationMinutes"], None)
+
+    def test_directions_accepts_latitude_longitude_points_from_place_tools(self):
+        directions = {"mode": "walk", "legs": [], "distance": 3091, "seconds": 2946}
+        with patch("travel.directions_provider.fetch_directions", return_value=directions) as fetch:
+            result = self.tools["get_directions"].invoke({"mode": "walk", "points": [
+                {"latitude": 37.5133, "longitude": 127.1002}, {"latitude": "37.51218540", "longitude": "127.07185130"}]})
+        fetch.assert_called_once_with("walk", [{"lat": 37.5133, "lng": 127.1002}, {"lat": 37.5121854, "lng": 127.0718513}])
+        self.assertEqual(result["durationMinutes"], 49)
+        with patch("travel.directions_provider.fetch_directions") as fetch:
+            self.tools["get_directions"].invoke({"mode": "walk", "points": [{"latitude": 37.5, "longitude": 127.0, "x": 1.0}, {"lat": 37.6, "lng": 127.1}]})
+            self.tools["get_directions"].invoke({"mode": "walk", "points": [{"latitude": "abc", "longitude": 127.0}, {"lat": 37.6, "lng": 127.1}]})
+        fetch.assert_not_called()  # 다른 키가 섞이거나 숫자가 아니면 그대로 형식 오류
+
     def test_database_errors_are_sanitized(self):
         with patch("llm.tools.stadium.Stadium.objects.filter", side_effect=DatabaseError("password=private")):
             result = self.tools["get_stadium"].invoke({"stadium_id": 1})
@@ -365,7 +394,7 @@ class ExternalDomainToolAdapterTest(SimpleTestCase):
         with patch("travel.directions_provider.fetch_directions", return_value=directions) as fetch:
             self.assertEqual(self.tools["get_directions"].invoke({
                 "mode": "walk", "points": [{"lat": 37.5, "lng": 127.0}, {"lat": 37.6, "lng": 127.1}],
-            }), directions)
+            }), {**directions, "durationMinutes": 0, "distanceKm": 0.0})
         fetch.assert_called_once()
         with patch("travel.tourism_service.search_tourism", return_value=tourism) as search:
             self.assertEqual(self.tools["search_tourism"].invoke({
@@ -375,8 +404,70 @@ class ExternalDomainToolAdapterTest(SimpleTestCase):
         with patch("travel.weather_service.get_stadium_weather", return_value=weather) as get_weather:
             self.assertEqual(self.tools["get_weather"].invoke({
                 "stadium_code": "JAMSIL", "game_date": "2026-09-16", "game_time": "18:30",
-            }), weather)
+            }), {**weather, "precipitation": "없음"})
         get_weather.assert_called_once_with("JAMSIL", "2026-09-16", "18:30")
+
+    def test_weather_without_game_time_uses_stated_default_time(self):
+        from datetime import date, datetime
+        from llm.tools.weather import default_time
+        from travel.weather_service import KST
+        now = datetime(2026, 10, 13, 9, 40, tzinfo=KST)
+        self.assertEqual(default_time(date(2026, 10, 13), now), ("10:00", "오늘 다음 정시 기준(경기 시각 아님)"))
+        self.assertEqual(default_time(date(2026, 10, 13), now.replace(hour=23, minute=30))[0], "23:00")
+        self.assertEqual(default_time(date(2026, 10, 14), now), ("18:30", "18:30 기준(경기 시각 아님)"))
+        weather = {"label": "비", "temperature": 15}
+        with patch("travel.weather_service.get_stadium_weather", return_value=weather) as get_weather:
+            result = self.tools["get_weather"].invoke({"stadium_code": "MUNHAK", "game_date": "2099-01-02"})
+        get_weather.assert_called_once_with("MUNHAK", "2099-01-02", "18:30")
+        self.assertEqual(result, {**weather, "precipitation": "비", "requestedTime": "18:30", "timeBasis": "18:30 기준(경기 시각 아님)"})
+        cloudy = {"label": "흐림", "temperature": 19}
+        with patch("travel.weather_service.get_stadium_weather", return_value=cloudy):
+            self.assertEqual(self.tools["get_weather"].invoke({"stadium_code": "MUNHAK", "game_date": "2099-01-02"})["precipitation"], "없음")
+        with patch("travel.weather_service.get_stadium_weather", return_value=None):
+            missing = self.tools["get_weather"].invoke({"stadium_code": "MUNHAK", "game_date": "2099-01-02"})
+        self.assertEqual((missing["available"], missing["requestedTime"]), (False, "18:30"))
+        with patch("travel.weather_service.get_stadium_weather", return_value=None):
+            self.assertIsNone(self.tools["get_weather"].invoke({"stadium_code": "MUNHAK", "game_date": "2099-01-02", "game_time": "18:30"}))
+        hourly = {**weather, "forecastAt": "2099-01-02T19:00+09:00"}
+        with patch("travel.weather_service.get_stadium_weather", return_value=hourly):
+            result = self.tools["get_weather"].invoke({"stadium_code": "MUNHAK", "game_date": "2099-01-02"})
+        self.assertEqual(result["timeBasis"], "18:30 기준(경기 시각 아님), 실제 예보 시각 19:00")
+        schema = self.tools["get_weather"].tool_call_schema.model_json_schema()
+        self.assertNotIn("game_time", schema.get("required", []))
+        with patch("travel.weather_service.get_stadium_weather") as get_weather:
+            self.tools["get_weather"].invoke({"stadium_code": "MUNHAK", "game_date": "2099-01-02", "game_time": "25:00"})
+        get_weather.assert_not_called()  # 형식이 틀린 시각은 기상청 호출 전에 막힌다
+
+
+    def test_weather_no_data_guides_omitted_null_and_preserves_explicit_none(self):
+        for fields in ({}, {"game_time": None}, {"game_time": "18:30"}):
+            with self.subTest(fields=fields), patch("travel.weather_service.get_stadium_weather", return_value=None) as service:
+                result = self.tools["get_weather"].invoke({"stadium_code": "JAMSIL", "game_date": "2099-01-02", **fields})
+                if fields.get("game_time") is not None:
+                    self.assertIsNone(result)
+                else:
+                    self.assertEqual(result, {"available": False, "requestedTime": "18:30",
+                                             "timeBasis": "18:30 기준(경기 시각 아님)",
+                                             "message": "기상청 단기예보에 해당 시각 예보가 아직 없다"})
+                service.assert_called_once_with("JAMSIL", "2099-01-02", "18:30")
+
+    def test_weather_last_hour_has_truthful_basis(self):
+        from datetime import datetime
+        from travel.weather_service import KST
+        for minute in (0, 30, 59):
+            clock = datetime(2026, 10, 13, 23, minute, tzinfo=KST)
+
+            class FrozenDateTime(datetime):
+                @classmethod
+                def now(cls, tz=None):
+                    return cls.fromtimestamp(clock.timestamp(), tz or KST)
+
+            weather = {"forecastAt": "2026-10-13T23:00+09:00", "label": "맑음"}
+            with self.subTest(minute=minute), patch("llm.tools.weather.datetime", FrozenDateTime), patch(
+                    "travel.weather_service.get_stadium_weather", return_value=weather) as service:
+                result = self.tools["get_weather"].invoke({"stadium_code": "JAMSIL", "game_date": "2026-10-13"})
+            service.assert_called_once_with("JAMSIL", "2026-10-13", "23:00")
+            self.assertEqual(result, {**weather, "precipitation": "없음", "requestedTime": "23:00", "timeBasis": "오늘 마지막 정시 예보 기준(경기 시각 아님)"})
 
 
 class ToolErrorContractTest(__import__("unittest").TestCase):

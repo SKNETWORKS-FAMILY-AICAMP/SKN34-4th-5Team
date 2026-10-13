@@ -51,7 +51,32 @@ class CourseInput(ToolInput):
 
 class DirectionsInput(ToolInput):
     mode: str = Field(pattern="^(car|walk|transit)$")
-    points: list[dict[str, StrictFloat]] = Field(min_length=2, max_length=13)
+    points: list[dict[str, StrictFloat]] = Field(min_length=2, max_length=13,
+                                                description='각 지점은 {"lat": 위도, "lng": 경도}. get_stadium·search_places의 latitude/longitude 이름 그대로 넣어도 된다')
+
+    @model_validator(mode="before")
+    @classmethod
+    def accept_latitude_longitude(cls, data):
+        """구장·장소 도구는 latitude/longitude(문자열 좌표 포함)를 돌려준다. 모델이 그대로 넘기면 첫 호출이
+        형식 오류로 실패하고 호출 한도(2회)만 쓰므로(chat_eval dr-1 route1), 같은 좌표를 lat/lng 숫자로 맞춘다."""
+        if not isinstance(data, dict) or not isinstance(data.get("points"), list):
+            return data
+        def number(value):
+            if isinstance(value, str):
+                try:
+                    return float(value)
+                except ValueError:
+                    return value
+            return value
+        points = []
+        for point in data["points"]:
+            if isinstance(point, dict) and ("latitude" in point or "longitude" in point) and not {"lat", "lng"} & set(point):
+                point = {"lat": point.get("latitude"), "lng": point.get("longitude"),
+                         **{k: v for k, v in point.items() if k not in ("latitude", "longitude")}}
+            if isinstance(point, dict):
+                point = {k: number(v) if k in ("lat", "lng") else v for k, v in point.items()}
+            points.append(point)
+        return {**data, "points": points}
 
     @model_validator(mode="after")
     def validate_points(self):
@@ -84,6 +109,18 @@ def _course_item(course, include_stops=False):
             "tour_content_id", "is_map_point", "is_drawn_point",
         ))
     return item
+
+def with_summary(result):
+    """서비스 응답(미터·초)에 사람이 읽는 분·km 요약을 더한다. 모델이 "2,946초"처럼 안내하지 않게 한다."""
+    if not isinstance(result, dict):
+        return result
+    def minutes(value):
+        return round(value / 60) if isinstance(value, (int, float)) else None
+    def km(value):
+        return round(value / 1000, 1) if isinstance(value, (int, float)) else None
+    legs = [{**leg, "minutes": minutes(leg.get("seconds"))} if isinstance(leg, dict) else leg for leg in result.get("legs") or []]
+    return {**result, "legs": legs, "durationMinutes": minutes(result.get("seconds")), "distanceKm": km(result.get("distance"))}
+
 
 def create_travel_tools():
 
@@ -133,10 +170,11 @@ def create_travel_tools():
         """기존 공개 길찾기 서비스로 선택 지점 사이 경로를 조회한다."""
         from travel.directions_provider import DirectionsError, fetch_directions
         try:
-            return fetch_directions(mode, points)
+            result = fetch_directions(mode, points)
         except DirectionsError as error:
             message = "길찾기 요청이 많아요. 잠시 후 다시 시도해 주세요." if error.status == 429 else "길찾기 정보를 불러오지 못했습니다."
             raise ToolException(message) from None
+        return with_summary(result)
 
     def search_tourism(stadium_code, latitude, longitude):
         """기존 한국관광공사 연동 서비스로 구장 주변 관광지를 조회한다."""
@@ -154,7 +192,7 @@ def create_travel_tools():
         (search_places, 'search_places', '기존 장소 서비스로 주변 장소를 검색하고 최신 결과를 동기화한다.', PlacesInput),
         (search_courses, 'search_courses', '공개 코스를 검색한다.', CourseSearchInput),
         (get_course, 'get_course', 'UUID로 공개 코스 상세를 조회한다.', CourseInput),
-        (get_directions, 'get_directions', '기존 길찾기 서비스로 2~13개 지점의 경로를 조회한다.', DirectionsInput),
+        (get_directions, 'get_directions', '기존 길찾기 서비스로 2~13개 지점(lat·lng 좌표)의 경로를 조회한다. 구장 좌표는 get_stadium, 역·장소 같은 출발지 좌표는 search_places(keyword, 구장 좌표 기준)로 먼저 찾는다. 시간·거리는 결과의 durationMinutes(분)·distanceKm로 안내한다.', DirectionsInput),
         (search_tourism, 'search_tourism', '한국관광공사 연동 서비스로 구장 주변 관광지를 조회한다.', TourismInput),
     )
     return tuple(_tool(*spec) for spec in specs)

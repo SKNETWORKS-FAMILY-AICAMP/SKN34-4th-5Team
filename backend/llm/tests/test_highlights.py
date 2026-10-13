@@ -87,6 +87,22 @@ class ParseTest(TestCase):
         self.assertTrue(highlights.is_highlight(TITLE))
         self.assertFalse(highlights.is_highlight("중요한 순간 역전을 만든 LG트윈스! | 두산 vs LG | 10.7 | 크보모먼트"))
 
+    def test_postseason_titles_with_title_sponsor(self):
+        for title in ("[KT위즈 vs 삼성라이온즈] 10.14(수) 야구 하이라이트｜2026 신한 SOL KBO 포스트시즌｜KBO X TVING",
+                      "[KT위즈 vs 삼성라이온즈] 10.14(수) 야구 하이라이트｜2026 신한 SOL뱅크 KBO 와일드카드 결정전｜KBO X TVING",
+                      "[KIA타이거즈 vs LG트윈스] 10.26(월) 야구 하이라이트｜2026 KBO 한국시리즈｜KBO X TVING"):
+            with self.subTest(title=title):
+                self.assertTrue(highlights.is_highlight(title))
+                self.assertIsNotNone(highlights.parse_title(title)[2])
+        self.assertEqual(highlights.parse_title("[KT위즈 vs 삼성라이온즈] 10.14(수) 야구 하이라이트｜2026 신한 SOL KBO 포스트시즌｜KBO X TVING"),
+                         ("KT", "SAMSUNG", date(2026, 10, 14)))
+        # 실제 10/12 업로드: 포스트시즌 홍보 영상과 크보모먼트는 계속 제외한다.
+        for title in ("진짜 가을은 집으로 돌아가는 여정에서 시작된다. | 2026 신한 SOL KBO 포스트시즌 | 10월 14일 D-Day",
+                      "팀을 준플레이오프로 이끌고 자신의 통산 100홈런이자 시즌 45호 홈런을 그린 KIA 슈퍼스타 김도영! | LG vs KIA | 10.12 | 크보모먼트 | KBO 야구 하이라이트",
+                      "[2026 메디힐 KBO 퓨처스리그 H/L] 한화 vs LG 야구 하이라이트｜KBO X TVING"):
+            with self.subTest(title=title):
+                self.assertFalse(highlights.is_highlight(title))
+
     def test_time_helpers(self):
         self.assertEqual(highlights.seconds("03:07"), 187)
         self.assertEqual(highlights.seconds("1:02:03"), 3723)

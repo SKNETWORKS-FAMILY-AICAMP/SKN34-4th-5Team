@@ -55,10 +55,16 @@ def _http_json(url, body=None, headers=None, timeout=60):
         return json.load(response)
 
 
+# 정규시즌 "2026 KBO 리그"와 가을야구 "2026 신한 SOL KBO 포스트시즌"(타이틀 스폰서가 연도와 KBO 사이에 들어감)을 함께 받는다.
+SPONSOR = r"(?:신한\s*SOL\s*(?:뱅크\s*)?)?"
+COMPETITION = re.compile(r"\d{4}\s*" + SPONSOR + r"KBO\s*(?:리그|포스트시즌|와일드카드|준플레이오프|플레이오프|한국시리즈)", re.I)
+TITLE_YEAR = re.compile(r"(\d{4})\s*" + SPONSOR + r"KBO", re.I)
+
+
 def is_highlight(title):
-    """kbo-highlight.ts isKboLeagueHighlightTitle 과 같은 기준 (퓨처스·크보모먼트 제외)."""
+    """kbo-highlight.ts isKboLeagueHighlightTitle 과 같은 기준 (퓨처스·크보모먼트 제외, 정규시즌·포스트시즌 경기 하이라이트)."""
     return bool(re.match(r"^\[[^\]]+\s+vs\s+[^\]]+\]", title, re.I) and "야구 하이라이트" in title
-                and re.search(r"\d{4}\s*KBO\s*리그", title, re.I) and re.search(r"KBO\s*X\s*TVING", title, re.I)
+                and COMPETITION.search(title) and re.search(r"KBO\s*X\s*TVING", title, re.I)
                 and "퓨처스리그" not in title)
 
 
@@ -71,7 +77,7 @@ def parse_title(title):
     """'[삼성라이온즈 vs KIA타이거즈] 10.6(화) …2026 KBO 리그…' → (원정 코드, 홈 코드, 날짜). 모르면 None."""
     teams = re.match(r"^\[([^\]]+?)\s+vs\s+([^\]]+?)\]", title, re.I)
     when = re.search(r"\]\s*(\d{1,2})\.(\d{1,2})", title)
-    year = re.search(r"(\d{4})\s*KBO", title)
+    year = TITLE_YEAR.search(title)
     day = None
     if when and year:
         try:

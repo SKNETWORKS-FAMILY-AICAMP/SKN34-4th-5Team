@@ -4,14 +4,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends chromium chromi
 # The lodging flow was verified with normal Google Chrome. Xvfb provides the server display.
 RUN apt-get update && curl -fsSLo /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && apt-get install -y --no-install-recommends /tmp/google-chrome.deb xvfb fonts-noto-cjk && rm -f /tmp/google-chrome.deb && rm -rf /var/lib/apt/lists/*
 COPY jev /opt/jev
-COPY read-body.mjs /opt/read-body.mjs
+COPY read-body.mjs chrome-lodging.mjs /opt/
 RUN node -e 'if(JSON.parse(require("fs").readFileSync("/opt/jev/package.json")).version!=="0.16.0")process.exit(1)'
 COPY patch-helper.mjs test-helper.mjs /opt/service/
-RUN node /opt/service/patch-helper.mjs && cd /opt/jev && npm ci --ignore-scripts && node --import tsx /opt/service/test-helper.mjs && npm run build:bundle && ./node_modules/.bin/esbuild /opt/read-body.mjs --bundle --format=esm --platform=node --target=node24 --outfile=/opt/service/read-body.mjs && rm -rf node_modules
+RUN node /opt/service/patch-helper.mjs && cd /opt/jev && npm ci --ignore-scripts && node --import tsx /opt/service/test-helper.mjs && npm run build:bundle && ./node_modules/.bin/esbuild /opt/read-body.mjs /opt/chrome-lodging.mjs --bundle --format=esm --platform=node --target=node24 --out-extension:.js=.mjs --outdir=/opt/service && cp src/snapshot.js /opt/service/snapshot.js && rm -rf node_modules
 RUN python3 -m venv /opt/venv && /opt/venv/bin/pip install --no-cache-dir mcp==1.26.0 langsmith==0.14.4
 COPY squid.conf /etc/squid/squid.conf
 COPY server.py entrypoint.sh /opt/service/
-COPY chrome-lodging.mjs /opt/service/
 RUN sed -i 's/\r$//' /opt/service/entrypoint.sh && chmod +x /opt/service/entrypoint.sh && mkdir -p /home/node/.jev-browse && chown -R node:node /home/node
 ENV PATH="/opt/venv/bin:${PATH}" HOME=/home/node CHROME_PATH=/usr/bin/chromium JEV_PROVIDER=openrouter TEXT_MODEL=gpt-6-luna ANSWER_REVIEW_MODEL=gpt-6-luna NODE_USE_ENV_PROXY=1 HTTP_PROXY=http://127.0.0.1:3128 HTTPS_PROXY=http://127.0.0.1:3128 NO_PROXY=localhost,127.0.0.1 JEV_CHROME_ARGS="--proxy-server=http://127.0.0.1:3128 --proxy-bypass-list=<-loopback> --disable-quic --disable-dev-shm-usage"
 ENV DISPLAY=:99 LODGING_CHROME_PATH=/usr/bin/google-chrome LODGING_CHROME_ARGS="--proxy-server=http://127.0.0.1:3128 --proxy-bypass-list=<-loopback> --disable-quic --disable-dev-shm-usage"

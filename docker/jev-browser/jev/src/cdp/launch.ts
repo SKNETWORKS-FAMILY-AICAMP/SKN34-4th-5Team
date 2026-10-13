@@ -10,6 +10,10 @@ export interface CdpOptions {
   cdpUrl?: string;
   headed?: boolean;
   profileDir?: string;
+  executablePath?: string;
+  chromeArgs?: string;
+  signal?: AbortSignal;
+  retryProfile?: boolean;
 }
 
 export interface Spawned {
@@ -79,9 +83,12 @@ function reapProfileChrome(profileDir: string): boolean {
 }
 
 export async function spawnChrome(opts: CdpOptions): Promise<Spawned | null> {
+  opts.signal?.throwIfAborted();
+
   if (opts.cdpUrl) return null;
 
   const port = await freePort();
+  opts.signal?.throwIfAborted();
 
   const profileDir =
     opts.profileDir ?? process.env.JEV_PROFILE ?? join(homedir(), ".jev-browse", "profile");
@@ -106,11 +113,11 @@ export async function spawnChrome(opts: CdpOptions): Promise<Spawned | null> {
     );
   }
 
-  for (const extra of splitShellWords(process.env.JEV_CHROME_ARGS ?? "")) {
+  for (const extra of splitShellWords(opts.chromeArgs ?? process.env.JEV_CHROME_ARGS ?? "")) {
     args.push(extra);
   }
 
-  const proc = spawn(findChrome(), [...args, "about:blank"], { stdio: "ignore" });
+  const proc = spawn(opts.executablePath ?? findChrome(), [...args, "about:blank"], { stdio: "ignore" });
   proc.on("error", () => {});
 
   return { proc, profileDir, port };
@@ -120,7 +127,7 @@ export async function resolveWsUrl(opts: CdpOptions, spawned: Spawned | null): P
   if (opts.cdpUrl) {
     const base = opts.cdpUrl.replace(/\/+$/, "");
 
-    const info = (await (await fetch(`${base}/json/version`)).json()) as {
+    const info = (await (await fetch(`${base}/json/version`, { signal: opts.signal })).json()) as {
       webSocketDebuggerUrl?: string;
     };
 
@@ -132,9 +139,9 @@ export async function resolveWsUrl(opts: CdpOptions, spawned: Spawned | null): P
   }
 
   try {
-    return await browserWsUrl(spawned!.port);
+    return await browserWsUrl(spawned!.port, 15000, opts.signal);
   } catch (error) {
-    if (!spawned || !reapProfileChrome(spawned.profileDir)) throw error;
+    if (opts.signal?.aborted || opts.retryProfile === false || !spawned || !reapProfileChrome(spawned.profileDir)) throw error;
 
     const port = await freePort();
 
@@ -146,6 +153,6 @@ export async function resolveWsUrl(opts: CdpOptions, spawned: Spawned | null): P
     spawned.proc.on("error", () => {});
     spawned.port = port;
 
-    return browserWsUrl(port);
+    return browserWsUrl(port, 15000, opts.signal);
   }
 }

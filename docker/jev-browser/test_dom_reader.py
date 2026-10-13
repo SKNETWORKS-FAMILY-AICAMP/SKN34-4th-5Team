@@ -2,7 +2,11 @@
 import asyncio
 import json
 import os
+import subprocess
+import tempfile
+import threading
 import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import httpx
 from mcp import ClientSession
@@ -44,6 +48,50 @@ class DOMReaderTests(unittest.IsolatedAsyncioTestCase):
                                 self.assertEqual(len(auxiliary), 8)
                                 self.assertTrue(all(frame["role"] == "auxiliary" for frame in auxiliary))
                                 self.assertNotIn("AUX_MUST_NOT_REACH", result["body"])
+
+
+@unittest.skipUnless(os.getenv("JEV_READER_PATH"), "requires bundled reader and sandboxed Chrome")
+class ChallengeReaderTests(unittest.TestCase):
+    def test_mentions_are_articles_but_challenges_are_blocked(self):
+        fixtures = {
+            "/article": ("<title>Browser advice</title><article><h1>Browser advice</h1>"
+                         "<p>Cloudflare can say verify you are human or Checking your browser.</p></article>", "ok"),
+            "/leading-mention": ("<title>Browser advice</title><article>Verify you are human is a common prompt.</article>", "ok"),
+            "/cloudflare": ("<title>Just a moment...</title><h1>example.test</h1>"
+                            "<p>Verifying you are human. This may take a few seconds.</p>", "blocked"),
+            "/heading": ("<title>example.test</title><p>example.test</p><h2>Verify you are human</h2>", "blocked"),
+            "/checking": ("<title>example.test</title><h1>Checking your browser...</h1>", "blocked"),
+        }
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(fixtures.get(self.path, ("", ""))[0].encode())
+
+            def log_message(self, *args):
+                pass
+
+        with ThreadingHTTPServer(("127.0.0.1", 0), Handler) as server:
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                for path, (_, status) in fixtures.items():
+                    with self.subTest(path=path), tempfile.TemporaryDirectory() as profile:
+                        output = subprocess.check_output(
+                            ["node", os.environ["JEV_READER_PATH"],
+                             f"http://127.0.0.1:{server.server_port}{path}", profile], text=True, timeout=50)
+                        result = json.loads(output)
+                        self.assertEqual(result["status"], status, result)
+                        if status == "ok":
+                            self.assertIn("human", result["body"])
+                        else:
+                            self.assertFalse(result.get("body"))
+                        print(f"PASS real Chrome {path}: {status}", flush=True)
+            finally:
+                server.shutdown()
+                thread.join()
 
 
 if __name__ == "__main__":
