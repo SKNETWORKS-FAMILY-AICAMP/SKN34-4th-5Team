@@ -7,6 +7,7 @@ import { fetchMyCommunityPosts, fetchMyCommunityComments, deleteCommunityPost, d
 import { useMemberAuth } from "@/lib/member-auth";
 import type { TeamCommunityPost } from "@/lib/team-community";
 import { getTeamBoardHref } from "@/lib/team-community";
+import styles from "./community-moderation.module.css";
 
 export const moderationLabel: Record<string, string> = { pending: "비공개 · 검사 대기", review: "비공개 · 운영진 검토", error: "비공개 · 검사 오류", rejected: "비공개 · 보류 확정", approved: "검사 승인" };
 
@@ -90,6 +91,10 @@ function SubmissionContent() {
 type Finding = { id: string; code: string; quote: string; reason: string; resolution: string };
 type Job = { id: number; postId: string | null; commentId: number | null; revision: number; review_revision: number; state: string; manualHidden: boolean; payload: { text: string; mode: string; is_trade: boolean; is_advertisement: boolean; image_ids: string[] }; findings: Finding[]; evidence?: { political?: { score: number; threshold: number; case_id: string } }; error_code: string };
 
+const jobLabels: Record<string, string> = { queued: "검사 대기", running: "검사 중", done: "검사 완료", failed: "검사 실패", cancelled: "검사 취소" };
+const resolutionLabels: Record<string, string> = { open: "검토 필요", dismissed: "사유 해제", confirmed: "보류 확정" };
+const findingLabels: Record<string, string> = { manual_review: "수동 검토", political: "정치 관련" };
+
 async function moderationRequest(path: string, body?: unknown) {
   const response = await memberFetch(`/api/v1/community/admin/moderation/${path}`, { method: body === undefined ? "GET" : "POST", cache: "no-store", headers: { "Content-Type": "application/json" }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
   const data = await response.json();
@@ -110,7 +115,55 @@ function ReviewCard({ job, reload }: { job: Job; reload: () => void }) {
     } catch (cause) { setError(cause instanceof Error ? cause.message : "검토 실패"); }
     finally { setBusy(false); }
   }
-  return <article style={{ padding: "1rem", margin: "1rem 0", border: "1px solid #ddd", borderRadius: 8 }}><h3>{job.commentId ? `댓글 ${job.commentId}` : `게시글 ${job.postId}`} · 버전 {job.revision}</h3><p>검사 상태: {job.state} · 검사 모드: {job.payload.mode}{job.payload.is_trade && " · 거래"}{job.payload.is_advertisement && " · 광고"}</p>{job.evidence?.political && <p>정치 유사도 {job.evidence.political.score.toFixed(3)} / 기준 {job.evidence.political.threshold} · 기준 사례 {job.evidence.political.case_id}</p>}{job.manualHidden && <p>별도 운영 제재로 숨겨진 글입니다. 검사 복구로 제재가 해제되지 않습니다.</p>}<p style={{ whiteSpace: "pre-wrap" }}>{job.payload.text}</p>{job.payload.image_ids.map(id => <PrivateCommunityImage key={id} id={id} />)}{job.error_code && <p role="alert">검사 실패: {job.error_code}</p>}{job.findings.map(item => <div key={item.id}><label><input type="checkbox" disabled={busy} checked={selected.includes(item.id)} onChange={event => setSelected(values => event.target.checked ? [...values, item.id] : values.filter(id => id !== item.id))} /> {item.code} · {item.resolution} — {item.reason}</label><blockquote style={{ whiteSpace: "pre-wrap" }}>{item.quote}</blockquote></div>)}{job.state === "done" && job.findings.length > 0 && <><label>검토 근거 <textarea maxLength={500} value={note} onChange={event => setNote(event.target.value)} /></label><div><button disabled={busy || !selected.length || !note.trim()} onClick={() => void decide("dismiss")}>선택 사유 해제·복구 검토</button> <button disabled={busy || !selected.length || !note.trim()} onClick={() => void decide("confirm")}>선택 사유 확정·비공개 유지</button></div><p>미해제 사유가 모두 없어야 공개됩니다.</p></>}{job.state === "failed" && <button disabled={busy} onClick={() => void decide("retry")}>검사 재시도</button>}{error && <p role="alert">{error}</p>}</article>;
+  return <article className={styles.review} aria-labelledby={`job-${job.id}`} aria-busy={busy}>
+    <header className={styles.reviewHeader}>
+      <div><h3 id={`job-${job.id}`}>{job.commentId ? "댓글" : "게시글"} 검사 <span>#{job.id}</span></h3>
+        <p className={styles.metadata}>버전 {job.revision} · {job.payload.mode === "manual" ? "수동 검토 모드" : job.payload.mode === "openai" ? "자동 검사 모드" : job.payload.mode}{job.payload.is_trade && " · 거래"}{job.payload.is_advertisement && " · 광고"}</p>
+      </div>
+      <span className={styles.status} data-state={job.state}>{jobLabels[job.state] ?? job.state}</span>
+    </header>
+    {job.manualHidden && <p className={styles.warning}>별도 운영 제재로 숨겨진 글입니다. 검사 복구로 제재가 해제되지 않습니다.</p>}
+    {job.error_code && <p className={styles.error} role="alert">검사 실패: {job.error_code}</p>}
+    <div className={styles.reviewBody}>
+      <section className={styles.original} aria-label="검사 대상 원문">
+        <h4>검사 대상 원문</h4>
+        <p className={styles.identifier}>{job.commentId ? `댓글 ID ${job.commentId}` : `게시글 ID ${job.postId}`}</p>
+        <p className={styles.originalText}>{job.payload.text}</p>
+        {job.payload.image_ids.length > 0 && <div className={styles.attachments}>{job.payload.image_ids.map(id => <PrivateCommunityImage key={id} id={id} />)}</div>}
+        {job.evidence?.political && <dl className={styles.evidence}>
+          <div><dt>정치 유사도</dt><dd>{job.evidence.political.score.toFixed(3)} <span>/ 기준 {job.evidence.political.threshold}</span></dd></div>
+          <div><dt>기준 사례</dt><dd>{job.evidence.political.case_id}</dd></div>
+        </dl>}
+      </section>
+      <section className={styles.decision} aria-label="검사 사유 검토">
+        <fieldset className={styles.findings} disabled={busy || job.state !== "done"}>
+          <legend>검사 사유 <span>{job.findings.length}건</span></legend>
+          {job.findings.length > 0 ? <p className={styles.hint}>처리할 사유를 선택한 뒤 검토 근거를 작성하세요.</p> : <p className={styles.hint}>{job.state === "done" ? "검출된 사유가 없습니다." : "검사 완료 후 판정 사유를 확인할 수 있습니다."}</p>}
+          {job.findings.map(item => <label key={item.id} className={styles.finding}>
+            <input type="checkbox" disabled={busy} checked={selected.includes(item.id)} onChange={event => setSelected(values => event.target.checked ? [...values, item.id] : values.filter(id => id !== item.id))} />
+            <span className={styles.findingContent}>
+              <span className={styles.findingTitle}><strong>{findingLabels[item.code] ?? item.code}</strong><span className={styles.resolution} data-resolution={item.resolution}>{resolutionLabels[item.resolution] ?? item.resolution}</span></span>
+              <span className={styles.reason}>{item.reason}</span>
+              {item.quote && <span className={styles.quote}>“{item.quote}”</span>}
+            </span>
+          </label>)}
+        </fieldset>
+        {job.state === "done" && job.findings.length > 0 && <div className={styles.reviewForm}>
+          <label htmlFor={`review-note-${job.id}`}>검토 근거 <span>필수</span></label>
+          <textarea id={`review-note-${job.id}`} aria-describedby={`review-help-${job.id}`} maxLength={500} rows={3} disabled={busy} value={note} placeholder="원문을 확인한 뒤 사유를 해제하거나 확정하는 근거를 남겨 주세요." onChange={event => setNote(event.target.value)} />
+          <div className={styles.formMeta}><span>{selected.length}개 사유 선택</span><span>{note.length}/500</span></div>
+          <div className={styles.actions}>
+            <button className="button button-primary" disabled={busy || !selected.length || !note.trim()} onClick={() => void decide("dismiss")}>선택 사유 해제·복구 검토</button>
+            <button className="button button-secondary" disabled={busy || !selected.length || !note.trim()} onClick={() => void decide("confirm")}>선택 사유 확정·비공개 유지</button>
+          </div>
+          <p id={`review-help-${job.id}`} className={styles.hint}>미해제 사유가 모두 없어야 공개됩니다.</p>
+          {busy && <p role="status" className={styles.hint}>검토 결과를 저장하고 있어요.</p>}
+        </div>}
+        {job.state === "failed" && <button className="button button-secondary" disabled={busy} onClick={() => void decide("retry")}>검사 재시도</button>}
+        {error && <p className={styles.error} role="alert">{error}</p>}
+      </section>
+    </div>
+  </article>;
 }
 
 export function ModerationPanel() {
@@ -119,10 +172,21 @@ export function ModerationPanel() {
   const [next, setNext] = useState(false);
   const [tick, setTick] = useState(0);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
   useEffect(() => {
     let active = true;
-    void moderationRequest(`?page=${page}`).then(data => { if (active) { setJobs(data.results); setNext(Boolean(data.next)); setError(""); } }).catch(cause => { if (active) { setJobs([]); setError(cause.message); } });
+    setLoading(true);
+    void moderationRequest(`?page=${page}`).then(data => { if (active) { setJobs(data.results); setNext(Boolean(data.next)); setError(""); } }).catch(cause => { if (active) { setJobs([]); setNext(false); setError(cause.message); } }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [page, tick]);
-  return <section><h2>비공개 게시 검사</h2><button onClick={() => setTick(value => value + 1)}>새로고침</button>{error && <p role="alert">{error}</p>}{jobs.map(job => <ReviewCard key={`${job.id}:${job.review_revision}:${tick}`} job={job} reload={() => setTick(value => value + 1)} />)}<button disabled={page === 1} onClick={() => setPage(value => value - 1)}>이전</button> {page} <button disabled={!next} onClick={() => setPage(value => value + 1)}>다음</button></section>;
+  return <section className={styles.panel} aria-labelledby="moderation-heading">
+    <header className={styles.panelHeader}><div><h2 id="moderation-heading">비공개 게시 검사</h2><p>게시글과 댓글의 원문을 확인하고, 검사 사유별로 복구 여부를 검토하세요.</p></div><button className="button button-secondary" disabled={loading} onClick={() => setTick(value => value + 1)}>새로고침</button></header>
+    <div className={styles.listHeading}><h3>검사 목록</h3><span>{loading ? "불러오는 중" : `현재 페이지 ${jobs.length}건`}</span></div>
+    {error && <p className={styles.error} role="alert">{error}</p>}
+    {loading ? <div className={styles.empty} role="status">검사 목록을 불러오고 있어요.</div> : <>
+      {!error && jobs.length === 0 && <div className={styles.empty}><h3>표시할 검사 내역이 없습니다</h3><p>새 게시글·댓글의 검사 내역은 새로고침하여 확인할 수 있어요.</p></div>}
+      {jobs.map(job => <ReviewCard key={`${job.id}:${job.review_revision}:${tick}`} job={job} reload={() => setTick(value => value + 1)} />)}
+    </>}
+    <nav className={styles.pagination} aria-label="검사 목록 페이지"><button className="button button-secondary" disabled={loading || page === 1} onClick={() => setPage(value => value - 1)}>이전</button><span aria-current="page">{page} 페이지</span><button className="button button-secondary" disabled={loading || !next} onClick={() => setPage(value => value + 1)}>다음</button></nav>
+  </section>;
 }
