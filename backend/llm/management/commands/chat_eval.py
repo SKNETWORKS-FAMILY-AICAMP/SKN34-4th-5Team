@@ -25,6 +25,8 @@ from django.core.management.base import BaseCommand, CommandError
 URL = re.compile(r"https?://|youtu\.be|youtube\.com/watch", re.I)
 REFUSE = re.compile(r"도와드리기 어렵|도와드릴 수 없|답변드리기 어렵|안내드리기 어렵|제공할 수 없|제공하지 않|범위(를|가)? 벗어|"
                     r"KBO[^.\n]{0,20}(만|관련)[^.\n]{0,20}(도와|안내|답변)|처리할 수 없|할 수 없습니다")
+# 물음표 없이 "…알려주면 같이 골라볼게요!"처럼 끝나는 확인 질문도 인정한다(pc-2 route6).
+ASKING = re.compile(r"어느|어떤|무엇을|뭘 |알려주(시면|면|세요)|말씀해 ?주")
 LOOKUP_FREE = {"present_planning_questions"}  # 되묻기 UI 는 조회가 아니다
 OUT = Path("/app/artifacts/chat_eval")
 
@@ -99,7 +101,7 @@ def grade(case, turn):
     if expect == "clarify":
         if lookups:
             fails.append("되묻기 전에 조회함: " + ",".join(sorted(lookups)))
-        if "?" not in answer and "present_planning_questions" not in names:
+        if "?" not in answer and "present_planning_questions" not in names and not ASKING.search(answer):
             fails.append("되묻는 질문 없음")
     if expect == "no_lookup" and lookups:
         fails.append("조회가 필요 없는데 조회함: " + ",".join(sorted(lookups)))
