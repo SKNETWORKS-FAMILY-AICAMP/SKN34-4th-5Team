@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { createCommunityPost, getCommunityPost, updateCommunityPost, type CommunityPostInput } from "@/lib/community-api";
+import { createCommunityPost, getOwnCommunityPost, updateCommunityPost, type CommunityPostInput } from "@/lib/community-api";
 import { writablePostCategories } from "@/lib/community-post-category";
 import { createCommunitySubmissionKey } from "@/lib/community-post-key";
 import { plainRichDoc } from "@/lib/community-rich-content";
@@ -39,10 +39,10 @@ export function CommunityPostEditor({ board, teamCode = "", editId = "" }: Props
   useEffect(() => {
     if (!editId) return;
     let current = true;
-    void getCommunityPost(editId).then(post => {
+    void getOwnCommunityPost(editId).then(post => {
       if (!current) return;
       setEditing(post);
-      setDraft({ board: post.board, teamCode: post.teamCode, category: post.category, title: post.title, content: post.content, contentDoc: post.contentDoc });
+      setDraft({ board: post.board, teamCode: post.teamCode, category: post.category, title: post.title, content: post.content, contentDoc: post.contentDoc, isTrade: post.isTrade, isAdvertisement: post.isAdvertisement });
       setLoadingEdit(false);
     }).catch(cause => {
       if (!current) return;
@@ -73,7 +73,7 @@ export function CommunityPostEditor({ board, teamCode = "", editId = "" }: Props
     request.current = true; setSaving(true); setError("");
     try {
       const saved = editing ? await updateCommunityPost(editing.id, input) : await createCommunityPost(input, idempotency.current.key);
-      router.replace(postHref(saved));
+      router.replace(`/community/submissions?post=${encodeURIComponent(saved.id)}`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "게시글을 저장하지 못했어요.");
     } finally {
@@ -91,7 +91,7 @@ export function CommunityPostEditor({ board, teamCode = "", editId = "" }: Props
   return <main className={`container ${boardStyles.page} ${styles.page} header-aligned-content`}>
     <p className="eyebrow">COMMUNITY</p>
     <h1>{editId ? "게시글 수정" : "게시글 작성"}</h1>
-    <p className={boardStyles.description}>작성한 글은 선택한 게시판에 등록됩니다.</p>
+    <p className={boardStyles.description}>저장 후 비공개로 검사합니다. 승인되면 선택한 게시판에 공개됩니다.</p>
     {loadingEdit ? <p role="status" className={styles.notice}>게시글을 불러오고 있어요.</p> : editId && !editing ? <div className={styles.notice} role="alert">{error || "게시글을 찾지 못했어요."} <Link href="/community">게시판으로 돌아가기</Link></div> : <form onSubmit={submit} className={`${boardStyles.postDetail} ${styles.form}`}>
       <div className={boardStyles.postHeader}>
         <div className={styles.options}>

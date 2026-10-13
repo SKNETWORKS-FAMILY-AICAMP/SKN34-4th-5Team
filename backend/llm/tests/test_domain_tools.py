@@ -75,7 +75,7 @@ class DomainToolsTest(TestCase):
         baseball.StadiumContent.objects.create(id=990001, record_code="TEST-CONT1", stadium=cls.stadium, content_type="photo", name="포토존", floor="1", location="중앙", official_description="사진 장소", operating_condition="상시", collected_at=now)
         cls.course = Course.objects.create(id=uuid4(), route_number="900001", title="잠실 맛집 코스", stadium="잠실", description="경기 전", content="외부 문자열", duration="3시간", tags=["맛집"], author="공개 작성자", edit_token_hash="secret-hash")
         CourseStop.objects.create(course=cls.course, position=0, name="식당", lat=37.5, lng=127.0, category="식당", visit_id="private-provider-token")
-        CommunityPost.objects.create(source_id="post-1", post_number="900001", board="teams", team_code="LG", owner=None, idempotency_key="private-key", author="작성자", title="잠실 질문", content="외부 문자열", category="질문")
+        CommunityPost.objects.create(moderation_status="approved", approved_revision=0, source_id="post-1", post_number="900001", board="teams", team_code="LG", owner=None, idempotency_key="private-key", author="작성자", title="잠실 질문", content="외부 문자열", category="질문")
         cls.prediction = PredictionGame.objects.create(source_id="prediction-1", game_date=date(2026, 9, 15), starts_at=now, stadium="잠실", away_team_code="OB", away_team_name="두산", home_team_code="LG", home_team_name="LG", status="scheduled", source_fetched_at=now)
         cls.voter_home = get_user_model().objects.create_user(username="domain-home")
         cls.voter_away = get_user_model().objects.create_user(username="domain-away")
@@ -251,7 +251,7 @@ class DomainToolsTest(TestCase):
                 self.assertEqual(self.tools[name].invoke(args), "도구 입력 형식이 올바르지 않습니다. 인자 설명을 확인하세요.")
 
     def test_public_links_hidden_posts_and_separate_facility_catalogue(self):
-        CommunityPost.objects.create(source_id="hidden-test", post_number="900002", board="free", author="공개", title="잠실 숨김", content="hidden-secret", category="질문", is_hidden=True)
+        CommunityPost.objects.create(moderation_status="approved", approved_revision=0, source_id="hidden-test", post_number="900002", board="free", author="공개", title="잠실 숨김", content="hidden-secret", category="질문", is_hidden=True)
         posts = self.tools["search_community_posts"].invoke({"query": "잠실"})
         self.assertNotIn("hidden-secret", json.dumps(posts))
         item = next(row for row in posts["items"] if row["source_id"] == "post-1")

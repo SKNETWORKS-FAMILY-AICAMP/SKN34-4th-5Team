@@ -1,0 +1,50 @@
+name: Community moderation regression
+on:
+  workflow_call:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  django-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: pgvector/pgvector:pg18
+        env:
+          POSTGRES_PASSWORD: test-only
+          POSTGRES_DB: moderation_ci
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      PYTHON_DOTENV_DISABLED: '1'
+      DB_HOST: localhost
+      DB_NAME: moderation_ci
+      DB_USER: postgres
+      DB_PASSWORD: test-only
+      CHAT_CHECKPOINT_SIGNING_KEY: test-only
+      COMMUNITY_MODERATION_MODE: manual
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r backend/requirements.txt
+      - run: python backend/manage.py test community community.moderation_probe llm.tests.test_domain_tools.DomainToolsTest accounts.test.test_point_integration --noinput --verbosity=2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+        working-directory: frontend
+      - run: node --test tests/community-api.test.mjs tests/community-moderation.test.mjs tests/admin-dashboard.test.mjs tests/auth-bridge.test.mjs
+        working-directory: frontend
+  provider-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install deepeval==4.2.8 ragas==0.4.3 langchain-community==0.4.1 Django==6.1.1
+      - run: python -I backend/llm/v2/evaluation/test_community_moderation.py

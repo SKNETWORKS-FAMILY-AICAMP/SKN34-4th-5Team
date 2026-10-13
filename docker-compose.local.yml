@@ -1,6 +1,12 @@
 # Local HTTP startup: reuse the same prebuilt MinIO image as docker-compose.dev.yml.
 # Run: docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
 services:
+  community-moderation-worker:
+    image: skn34-4th-local-backend:latest
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: ${LOCAL_DB_NAME:-mydb}
   course-place-warmer:
     environment:
       COURSE_WEB_VERIFICATION_ENABLED: "true"

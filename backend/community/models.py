@@ -21,7 +21,17 @@ def next_post_number():
         return f"{cursor.fetchone()[0]:06d}"
 
 
-class CommunityPost(models.Model):
+class ModeratedContent(models.Model):
+    moderation_status = models.CharField(max_length=10, default="pending", choices=[(s, s) for s in ("pending", "approved", "review", "rejected", "error")], db_index=True)
+    content_revision = models.PositiveIntegerField(default=0)
+    approved_revision = models.PositiveIntegerField(null=True, blank=True)
+    first_published_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        abstract = True
+
+
+class CommunityPost(ModeratedContent):
     source_id = models.CharField(max_length=40, primary_key=True, default=new_post_source_id, editable=False)
     post_number = models.CharField(max_length=6, unique=True, default=next_post_number, editable=False)
     board = models.CharField(max_length=8, choices=(("free", "free"), ("teams", "teams")))
@@ -46,6 +56,9 @@ class CommunityPost(models.Model):
     is_sample = models.BooleanField(default=False)
     # 신고 처리로 숨긴 글: 공개 목록·상세에서 보이지 않는다
     is_hidden = models.BooleanField(default=False)
+    is_trade = models.BooleanField(default=False)
+    is_advertisement = models.BooleanField(default=False)
+    submission_hash = models.CharField(max_length=64, blank=True, editable=False)
 
     class Meta:
         ordering = ("post_number",)
@@ -75,6 +88,8 @@ class CommunityDraft(models.Model):
     title = models.CharField(max_length=200, blank=True, default="")
     content = models.TextField(max_length=20000, blank=True, default="")
     revision = models.PositiveIntegerField(default=1)
+    is_trade = models.BooleanField(default=False)
+    is_advertisement = models.BooleanField(default=False)
     published_post = models.ForeignKey(
         CommunityPost,
         null=True,
@@ -132,7 +147,7 @@ class CommunityImage(models.Model):
         )
 
 
-class CommunityComment(models.Model):
+class CommunityComment(ModeratedContent):
     post = models.ForeignKey(CommunityPost, on_delete=models.CASCADE, related_name="comments")
     author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="community_comments")
     content = models.TextField(max_length=2000)
@@ -238,3 +253,5 @@ class GamePrediction(models.Model):
             models.UniqueConstraint(fields=("user", "game"), name="community_prediction_user_game_unique"),
             models.CheckConstraint(condition=Q(choice__in=("home", "away")), name="community_prediction_choice_valid"),
         )
+
+from .moderation_models import ModerationAdmission, ModerationJob, ModerationReview  # noqa: E402,F401

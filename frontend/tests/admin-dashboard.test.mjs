@@ -86,13 +86,14 @@ test("failed hold cancellation shows an error, not a success notice", async () =
   assert.equal(view.values[0], "");
   assert.equal(view.values[1], "처리 실패");
 });
-const panels = { AdminMembersPanel: "members-panel", AdminPostsPanel: "posts-panel", AdminReportsPanel: "reports-panel" };
+const panels = { AdminMembersPanel: "members-panel", AdminPostsPanel: "posts-panel", AdminReportsPanel: "reports-panel", ModerationPanel: "moderation-panel" };
 function dashboard(identity, tab = "members", reload = () => {}) {
   return load("../app/admin/page.tsx", {
     "next/link": { __esModule: true, default: "a" },
     "next/navigation": { useSearchParams: () => new URLSearchParams({ tab }) },
     "@/lib/member-auth": { useMemberAuth: () => ({ ...identity, reload }) },
     "@/components/admin-panels": panels,
+    "@/components/community-moderation": { ModerationPanel: panels.ModerationPanel },
   }).AdminDashboard();
 }
 test("dashboard blocks panels while unauthenticated, unavailable, loading or unauthorized", () => {
@@ -104,7 +105,7 @@ test("dashboard blocks panels while unauthenticated, unavailable, loading or una
   ]) assert.equal(nodes(dashboard(identity)).some(n => Object.values(panels).includes(n.type)), false);
 });
 test("each menu mounts only its panel; invalid tabs default to members", () => {
-  for (const [tab, panel] of [["members", "members-panel"], ["posts", "posts-panel"], ["reports", "reports-panel"], ["invalid", "members-panel"]]) {
+  for (const [tab, panel] of [["moderation", "moderation-panel"], ["members", "members-panel"], ["posts", "posts-panel"], ["reports", "reports-panel"], ["invalid", "members-panel"]]) {
     const tree = nodes(dashboard({ status: "authenticated", user: member }, tab));
     assert.deepEqual(tree.filter(n => Object.values(panels).includes(n.type)).map(n => n.type), [panel]);
     assert.equal(tree.filter(n => n.props["aria-current"] === "page").length, 1);
@@ -124,7 +125,7 @@ test("feedback entry shares the primary menu styling and is exclusive to superus
     const tree = nodes(dashboard({ status: "authenticated", user: { ...member, is_superuser } }));
     const menu = tree.find(n => n.type === "nav" && n.props["aria-label"] === "관리 메뉴");
     const links = nodes(menu).filter(n => n.props.href);
-    assert.equal(links.length, is_superuser ? 4 : 3);
+    assert.equal(links.length, is_superuser ? 5 : 4);
     const feedback = tree.filter(n => n.props.href === "/admin/feedback");
     assert.equal(feedback.length, is_superuser ? 1 : 0);
     if (is_superuser) {

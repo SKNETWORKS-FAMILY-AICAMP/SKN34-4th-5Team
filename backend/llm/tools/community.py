@@ -2,7 +2,8 @@
 from datetime import date
 from pydantic import Field, model_validator
 from django.db.models import Q
-from community.models import FREE_CATEGORIES, TEAM_CATEGORIES, TEAM_CODES, CommunityPost, PredictionGame
+from community.models import FREE_CATEGORIES, TEAM_CATEGORIES, TEAM_CODES, PredictionGame
+from community.visibility import public_posts
 
 from .common import LimitInput, _json, _result, _rows, _tool
 
@@ -38,7 +39,7 @@ def create_community_tools():
 
     def search_community_posts(query, board=None, team_code=None, category=None, limit=20):
         """공개 커뮤니티 글을 제목·본문으로 검색한다."""
-        posts = CommunityPost.objects.filter(Q(title__icontains=query) | Q(content__icontains=query), is_hidden=False)
+        posts = public_posts().filter(Q(title__icontains=query) | Q(content__icontains=query))
         if board:
             posts = posts.filter(board=board)
         if team_code:

@@ -61,7 +61,7 @@ function CommunityPostBottomContent({ post, posts, teamCode, isFree = false, wri
     try {
       await createCommunityComment(post.id, content);
       if (!mounted.current) return;
-      setDraft(""); setMessage("댓글을 등록했어요."); setReload(value => value + 1);
+      setDraft(""); setMessage("댓글을 접수했어요. 검사 완료까지 비공개입니다."); setReload(value => value + 1);
     } catch (reason) {
       if (mounted.current) setError(errorMessage(reason, "댓글을 등록하지 못했어요."));
     } finally {
@@ -77,7 +77,7 @@ function CommunityPostBottomContent({ post, posts, teamCode, isFree = false, wri
     try {
       await updateCommunityComment(commentId, content);
       if (!mounted.current) return;
-      setEditingId(null); setEditingContent(""); setMessage("댓글을 수정했어요."); setReload(value => value + 1);
+      setEditingId(null); setEditingContent(""); setMessage("댓글을 수정했어요. 재검사 완료까지 비공개입니다."); setReload(value => value + 1);
     } catch (reason) {
       if (mounted.current) setError(errorMessage(reason, "댓글을 수정하지 못했어요."));
     } finally {
@@ -125,7 +125,7 @@ function CommunityPostBottomContent({ post, posts, teamCode, isFree = false, wri
         <textarea aria-label="댓글 내용" placeholder={actorId ? "댓글을 입력해 주세요." : "로그인 후 댓글을 작성할 수 있어요."} value={draft} onChange={event => setDraft(event.target.value)} maxLength={2000} required disabled={!actorId || saving} />
         <button type="submit" disabled={!actorId || saving}>{saving ? "처리 중" : "등록"}</button>
       </form> : <p className={styles.bottomNote}>댓글 작성은 <Link href="/login">로그인</Link> 후 이용할 수 있어요.</p>}
-      {message && <p role="status" className={styles.bottomNote}>{message}</p>}
+      {message && <p role="status" className={styles.bottomNote}>{message} <Link href="/community/submissions">내 검사 상태</Link></p>}
       {error && <p role="alert" className={styles.errorNote}>{error}</p>}
     </section>
     <nav className={styles.articleNavigation} aria-label="게시글 이동">

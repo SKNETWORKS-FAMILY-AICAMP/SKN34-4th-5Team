@@ -11,7 +11,7 @@ class CommunityAdminApiTests(APITestCase):
         cls.member = users.create_user(username="member", nickname="회원", password="pass-1234!")
         cls.reporter = users.create_user(username="reporter", nickname="신고자")
         cls.staff = users.create_user(username="staff", nickname="운영", is_staff=True)
-        cls.post = CommunityPost.objects.create(post_number="000001", board="free", author="회원", title="관리 대상 글", content="본문", category="잡담", owner=cls.member)
+        cls.post = CommunityPost.objects.create(moderation_status="approved", approved_revision=0, post_number="000001", board="free", author="회원", title="관리 대상 글", content="본문", category="잡담", owner=cls.member)
         cls.report = CommunityReport.objects.create(post=cls.post, reporter=cls.reporter, reason="spam", detail="광고")
 
     def act(self, **body):
@@ -56,7 +56,7 @@ class CommunityAdminApiTests(APITestCase):
         self.assertEqual(self.client.get(f"/api/v1/community/posts/{self.post.source_id}/").status_code, 200)
 
     def test_post_hide_matches_report_policy_and_preserves_records(self):
-        comment = CommunityComment.objects.create(post=self.post, author=self.member, content="댓글")
+        comment = CommunityComment.objects.create(moderation_status="approved", approved_revision=0, post=self.post, author=self.member, content="댓글")
         self.client.force_authenticate(self.staff)
         url = f"/api/v1/community/admin/posts/{self.post.pk}/"
         self.assertEqual(self.client.patch(url, {"action": "hide"}, format="json").status_code, 200)
@@ -70,10 +70,10 @@ class CommunityAdminApiTests(APITestCase):
         self.client.force_authenticate(None)
         self.assertEqual(self.client.get(f"/api/v1/community/posts/{self.post.pk}/").status_code, 404)
         self.client.force_authenticate(self.staff)
-        self.assertEqual(self.client.get(f"/api/v1/community/posts/{self.post.pk}/").status_code, 200)
+        self.assertEqual(self.client.get(f"/api/v1/community/posts/{self.post.pk}/").status_code, 404)
 
     def test_post_without_reports_can_be_hidden(self):
-        post = CommunityPost.objects.create(board="free", author="회원", title="신고 없음", content="본문", category="잡담")
+        post = CommunityPost.objects.create(moderation_status="approved", approved_revision=0, board="free", author="회원", title="신고 없음", content="본문", category="잡담")
         self.client.force_authenticate(self.staff)
         response = self.client.patch(f"/api/v1/community/admin/posts/{post.pk}/", {"action": "hide"}, format="json")
         self.assertEqual(response.status_code, 200)
@@ -104,7 +104,7 @@ class CommunityAdminApiTests(APITestCase):
         rows = listed["results"] if isinstance(listed, dict) else listed
         self.assertFalse(any(row["id"] == self.post.source_id for row in rows))
         self.client.force_authenticate(self.staff)
-        self.assertEqual(self.client.get(f"/api/v1/community/posts/{self.post.source_id}/").status_code, 200)
+        self.assertEqual(self.client.get(f"/api/v1/community/posts/{self.post.source_id}/").status_code, 404)
 
     def test_unhold_returns_report_to_pending_without_changing_post(self):
         self.assertEqual(self.act(action="hold").status_code, 200)
@@ -145,7 +145,7 @@ class CommunityAdminApiTests(APITestCase):
         self.assertEqual(self.act(action="hold", sanction="7d").status_code, 400)
 
     def test_delete_without_sanction_removes_post_comments_and_reports(self):
-        CommunityComment.objects.create(post=self.post, author=self.member, content="댓글")
+        CommunityComment.objects.create(moderation_status="approved", approved_revision=0, post=self.post, author=self.member, content="댓글")
         response = self.act(action="delete", sanction="none")
         self.assertEqual(response.status_code, 200)
         self.assertFalse(CommunityPost.objects.filter(pk=self.post.pk).exists())
@@ -154,7 +154,7 @@ class CommunityAdminApiTests(APITestCase):
 
     def test_delete_with_any_sanction_only_deletes_the_post(self):
         for sanction in ("7d", "30d", "permanent"):
-            post = CommunityPost.objects.create(board="free", author="회원", title=f"삭제 {sanction}", content="본문", category="잡담", owner=self.member)
+            post = CommunityPost.objects.create(moderation_status="approved", approved_revision=0, board="free", author="회원", title=f"삭제 {sanction}", content="본문", category="잡담", owner=self.member)
             report = CommunityReport.objects.create(post=post, reporter=self.reporter, reason="abuse")
             self.client.force_authenticate(self.staff)
             response = self.client.post(f"/api/v1/community/admin/reports/{report.id}/action/", {"action": "delete", "sanction": sanction}, format="json")

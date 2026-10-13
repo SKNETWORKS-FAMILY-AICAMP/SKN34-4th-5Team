@@ -2,6 +2,8 @@
 
 ## 무료 필수 게이트
 
+커뮤니티 검사는 `evaluation-regression.yml`이 `community-moderation.yml`을 재사용한다. disposable PostgreSQL의 `community` 전체 및 `community.moderation_probe`, `llm.tests.test_domain_tools.DomainToolsTest`, `accounts.test.test_point_integration`을 `python backend/manage.py test community community.moderation_probe llm.tests.test_domain_tools.DomainToolsTest accounts.test.test_point_integration --noinput --verbosity=2`로 실행한다. `django-integration` job의 frontend 명령은 `node --test tests/community-api.test.mjs tests/community-moderation.test.mjs tests/admin-dashboard.test.mjs tests/auth-bridge.test.mjs`이며, 분리 환경의 `test_community_moderation.py`(실제 DeepEval·Ragas + synthetic provider 10건)를 실행한다. 이 결과는 실제 모델의 정치·욕설 분류 품질을 승인하지 않는다. 로컬 HTTP A/B 관찰은 `community.moderation_probe`, 채점은 `community_moderation_ab.py`로 재현한다. 자세한 범위는 [커뮤니티 검사 안내](COMMUNITY_MODERATION.md)를 참고한다.
+
 `evaluation-regression.yml`을 dev/prod 배포 워크플로가 재사용합니다. `develop` PR/Push, `main` Push에서 배포는 기존 Django check/Next build와 **두 평가 job 모두 성공**해야 가능합니다. `main` PR은 평가 워크플로가 직접 실행합니다. 경로 필터가 없으므로 테스트·데이터 변경도 항상 실행됩니다.
 
 Python 3.12의 별도 job을 사용하며 운영 requirements는 변경하지 않습니다.

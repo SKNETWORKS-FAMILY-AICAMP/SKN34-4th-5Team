@@ -14,6 +14,7 @@ from rest_framework.views import APIView
 from accounts.admin_views import StaffOnly
 
 from .models import CommunityPost, CommunityReport
+from .serializers import CommunityPostSerializer
 
 
 class AdminPages(PageNumberPagination):
@@ -111,6 +112,12 @@ class AdminPostDetail(generics.DestroyAPIView):
     queryset = CommunityPost.objects.all()
     lookup_field = "source_id"
     lookup_url_kwarg = "source_id"
+
+    @extend_schema(responses=CommunityPostSerializer)
+    def get(self, request, *args, **kwargs):
+        response = Response(CommunityPostSerializer(self.get_object()).data)
+        response['Cache-Control'] = 'private, no-store'
+        return response
 
     @extend_schema(request=AdminPostHideSerializer, responses=AdminPostSerializer)
     def patch(self, request, *args, **kwargs):

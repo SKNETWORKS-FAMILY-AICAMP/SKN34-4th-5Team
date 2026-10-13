@@ -1,0 +1,17 @@
+{
+  "version": "candidate-2026-10-13",
+  "reviewed": false,
+  "notice": "검토 전 후보. 임계값 보정용 정답 데이터가 아니며 독립 검토 후 사용하세요. 실제 인물·정당의 이름 목록으로 차단하지 않습니다.",
+  "cases": [
+    {"id": "p1", "label": "political", "text": "이번 선거에서는 특정 정당을 지지하고 다른 정당은 떨어뜨려야 합니다."},
+    {"id": "p2", "label": "political", "text": "대통령과 국회의 정책을 두고 진보와 보수가 서로 논쟁하고 있습니다."},
+    {"id": "p3", "label": "political", "text": "여당과 야당의 선거 공약을 비교하고 어느 후보에게 투표할지 토론합시다."},
+    {"id": "p4", "label": "political", "text": "Join our political rally and vote for our party in the election."},
+    {"id": "p5", "label": "political", "text": "The president, parliament and political parties are debating government policy."},
+    {"id": "b1", "label": "baseball", "text": "오늘 선발 후보와 감독의 선수 기용 전략을 비교해 봅시다."},
+    {"id": "b2", "label": "baseball", "text": "wtf hanwha Eagles is at another level"},
+    {"id": "b3", "label": "baseball", "text": "한화 유니폼 중고 거래합니다. 직거래 가능합니다."},
+    {"id": "b4", "label": "boundary", "text": "대통령의 야구장 시구 때문에 경기 시작이 지연되었습니다."},
+    {"id": "b5", "label": "boundary", "text": "시의회가 야구장 증축 예산을 의결했다는 소식입니다."}
+  ]
+}

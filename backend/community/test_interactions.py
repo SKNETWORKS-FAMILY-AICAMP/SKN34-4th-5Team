@@ -10,7 +10,7 @@ from .models import CommunityComment, CommunityPost, CommunityReport, CommunityV
 
 
 def make_post(source_id="interaction-post"):
-    return CommunityPost.objects.create(
+    return CommunityPost.objects.create(moderation_status="approved", approved_revision=0,
         source_id=source_id,
         post_number="999998",
         board="free",
@@ -39,15 +39,15 @@ class InteractionApiTests(APITestCase):
 
         self.authenticate()
         created = self.client.post(url, {"content": "  첫 댓글  "}, format="json")
-        self.assertEqual(created.status_code, 201)
+        self.assertEqual(created.status_code, 202)
         self.assertEqual(
             set(created.data),
-            {"id", "postId", "authorId", "author", "content", "createdAt", "updatedAt"},
+            {"id", "postId", "authorId", "author", "content", "createdAt", "updatedAt", "moderationStatus", "revision"},
         )
         self.assertEqual(created.data["content"], "첫 댓글")
         self.assertEqual(created.data["author"], "주인")
         self.post.refresh_from_db()
-        self.assertEqual((self.post.comment_count, self.post.comments.count()), (1, 1))
+        self.assertEqual((self.post.comment_count, self.post.comments.count()), (0, 1))
 
         detail_url = f"/api/v1/community/comments/{created.data['id']}/"
         self.authenticate(self.other)
@@ -56,14 +56,14 @@ class InteractionApiTests(APITestCase):
 
         self.authenticate()
         updated = self.client.patch(detail_url, {"content": "수정 댓글"}, format="json")
-        self.assertEqual((updated.status_code, updated.data["content"]), (200, "수정 댓글"))
+        self.assertEqual((updated.status_code, updated.data["content"]), (202, "수정 댓글"))
         self.assertEqual(self.client.delete(detail_url).status_code, 204)
         self.post.refresh_from_db()
         self.assertEqual((self.post.comment_count, self.post.comments.count()), (0, 0))
 
     def test_comment_order_and_input_validation(self):
-        first = CommunityComment.objects.create(post=self.post, author=self.user, content="먼저")
-        second = CommunityComment.objects.create(post=self.post, author=self.other, content="나중")
+        first = CommunityComment.objects.create(moderation_status="approved", approved_revision=0, post=self.post, author=self.user, content="먼저")
+        second = CommunityComment.objects.create(moderation_status="approved", approved_revision=0, post=self.post, author=self.other, content="나중")
         url = f"/api/v1/community/posts/{self.post.pk}/comments/"
 
         self.assertEqual([item["id"] for item in self.client.get(url).data], [first.id, second.id])

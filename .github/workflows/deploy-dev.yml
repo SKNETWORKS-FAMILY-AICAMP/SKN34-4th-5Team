@@ -53,6 +53,9 @@ jobs:
 
   # 2. CD 배포 (develop 브랜치 push/merge 시 실행)
   cd-deploy:
+    concurrency:
+        group: develop-ec2-deploy
+        cancel-in-progress: false
     needs: [ci-test, evaluation-regression]
     if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest

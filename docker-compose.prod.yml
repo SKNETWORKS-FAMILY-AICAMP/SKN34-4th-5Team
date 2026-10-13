@@ -160,7 +160,6 @@ services:
       dockerfile: Dockerfile.prod
       args:
         # NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?Set NEXT_PUBLIC_API_URL}
-        NEXT_PUBLIC_KAKAO_MAP_KEY: ${NEXT_PUBLIC_KAKAO_MAP_KEY:-}
         YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-}
     restart: unless-stopped
     environment:
