@@ -74,7 +74,7 @@ class ResponsesPayloadTest(TestCase):
         root = Path(__file__).resolve().parents[1]
         paths = [
             "v2/agent/common.py", "tools/knowledge.py",
-            "v1/rag/venue/agent.py", "v2/nearby/agent.py",
+            "v2/venue/agent.py", "v2/nearby/agent.py",
             "v2/course/agent.py", "v2/club/agent.py",
             "v1/rag/assistant/pipeline.py",
         ]

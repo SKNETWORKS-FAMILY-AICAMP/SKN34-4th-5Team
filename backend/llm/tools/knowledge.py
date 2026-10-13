@@ -332,7 +332,7 @@ def transform_query(query: str) -> str:
     """검색어만 변환하며 답변 도구 루프를 시작하지 않는다."""
     global _transformer
     if _transformer is None:
-        from ..v1.rag.venue.prompts import QUERY_TRANSFORM
+        from llm.v2.venue.prompts import QUERY_TRANSFORM
         prompt = ChatPromptTemplate.from_messages([("system", QUERY_TRANSFORM), ("human", "{query}")])
         model = ChatOpenAI(model=os.getenv("LLM_MODEL") or "gpt-6-luna", timeout=25, max_retries=0, reasoning_effort="medium", use_responses_api=True,
                           max_tokens=settings.USAGE_MAX_CALL_OUTPUT_TOKENS)

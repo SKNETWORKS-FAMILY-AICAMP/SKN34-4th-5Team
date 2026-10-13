@@ -164,7 +164,7 @@ class MeterUnitTest(TestCase):
         from llm.v2.club import agent as club
         from llm.v2.course import agent as course
         from llm.v2.nearby import agent as nearby
-        from llm.v1.rag.venue import agent as venue
+        from llm.v2.venue import agent as venue
         from llm.v2.agent import common
         seen = []
         with patch.dict("os.environ", {"OPENAI_API_KEY": "sk-test-only"}), \

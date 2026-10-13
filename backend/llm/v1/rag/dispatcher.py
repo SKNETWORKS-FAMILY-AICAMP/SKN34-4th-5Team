@@ -16,7 +16,7 @@ from .assistant import pipeline as assistant
 from llm.v2.club import agent as club
 from llm.v2.course import agent as course
 from llm.v2.nearby import agent as nearby
-from .venue import agent as venue
+from llm.v2.venue import agent as venue
 from llm.v2.progress import ProgressCancelled, ProgressStorageError, operation
 
 log = logging.getLogger(__name__)

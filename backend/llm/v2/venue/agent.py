@@ -21,7 +21,7 @@ from langchain_openai import ChatOpenAI
 
 from llm.v2.progress import config_kwargs
 
-from ....tools import knowledge
+from llm.tools import knowledge
 from llm.v2.domain_tools import tools_for, visible_text
 from llm.v2.persona import FIXED
 from .prompts import SYSTEM

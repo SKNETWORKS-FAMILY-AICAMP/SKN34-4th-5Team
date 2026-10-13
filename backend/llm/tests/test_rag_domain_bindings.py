@@ -14,7 +14,7 @@ from llm.v2.club import retrieval
 from ..v2.course import agent as course
 from llm.v2.nearby import agent as nearby
 from ..tools import assistant as assistant_tools
-from ..v1.rag.venue import agent as venue
+from llm.v2.venue import agent as venue
 from ..tools import DOMAIN_TOOL_NAMES
 
 
