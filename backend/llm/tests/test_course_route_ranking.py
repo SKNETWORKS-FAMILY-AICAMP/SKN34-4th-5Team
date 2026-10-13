@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 
 from django.test import SimpleTestCase
 
-from llm.v1.progress import ProgressCancelled
+from llm.v2.progress import ProgressCancelled
 from llm.v2.course import agent, geo, route_ranking as ranking, slots, transport
 
 

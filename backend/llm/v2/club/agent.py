@@ -18,7 +18,7 @@ from . import structured
 from .prompts import FEW_SHOT, FIXED, SYSTEM, WARN_SUFFIX
 from .retrieval import date_tokens, embed, keyword_rerank, search
 from .router import PLACE_ALIAS, TEAM_ALIAS, detect_categories, detect_stadium
-from ..domain_tools import invoke as invoke_domain_tool, run_model, visible_text
+from llm.v2.domain_tools import invoke as invoke_domain_tool, run_model, visible_text
 
 READY = True
 LLM_MODEL = os.getenv("LLM_MODEL") or "gpt-6-luna"

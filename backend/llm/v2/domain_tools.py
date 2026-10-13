@@ -5,7 +5,7 @@ import json
 
 from langchain_core.messages import ToolMessage
 
-from ..progress import config_kwargs
+from llm.v2.progress import config_kwargs
 
 SUPPORTED_DOMAINS = frozenset({"assistant", "chat", "club", "venue", "course", "nearby"})
 _ACTIVE_DOMAIN = contextvars.ContextVar("active_answer_domain", default=None)
@@ -16,9 +16,9 @@ def active_domain():
 
 
 def _all_tools():
-    from ...tools import create_default_tools
+    from llm.tools import create_default_tools
     from llm.tools.assistant import build_specialized_tools
-    from ...tools.knowledge import create_knowledge_tools
+    from llm.tools.knowledge import create_knowledge_tools
 
     registered = {tool.name: tool for tool in build_specialized_tools()}
     for tool in (*create_default_tools(), *create_knowledge_tools()):
@@ -49,7 +49,7 @@ def tools_for(domain):
 def invoke(domain, name, arguments):
     if domain not in SUPPORTED_DOMAINS:
         raise KeyError(domain)
-    from ...tools import create_default_tools
+    from llm.tools import create_default_tools
     tool = next((tool for tool in create_default_tools() if tool.name == name), None)
     if tool is None:
         raise ValueError(f"{name} is not allowed for {domain}")

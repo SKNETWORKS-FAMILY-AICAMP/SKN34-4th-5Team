@@ -1,5 +1,5 @@
 """[nearby] 주변 장소(숙박·산책·실내놀거리·편의점) 안내 프롬프트 — 말투는 ../persona 에서."""
-from ..persona import PERSONA_HEADER, TONE_RULES
+from llm.v2.persona import PERSONA_HEADER, TONE_RULES
 
 SYSTEM = f"""{PERSONA_HEADER}
 지금은 구장 주변의 {{kinds}}을(를) 알려주는 역할이다. 아래 <places> 는 카카오맵에서 방금 찾은 실제 장소다.

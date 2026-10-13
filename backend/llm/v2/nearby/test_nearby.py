@@ -1,6 +1,6 @@
 """nearby(카카오 실시간 조회) 단위 테스트 — 네트워크·DB·LLM 없이 돈다.
 
-    cd backend && python -m unittest llm.v1.rag.nearby.test_nearby
+    cd backend && python -m unittest llm.v2.nearby.test_nearby
 """
 import json
 import unittest
@@ -9,7 +9,7 @@ from unittest import mock
 
 from . import kakao
 from . import agent as nearby
-from ..club.router import detect_stadium
+from llm.v2.club.router import detect_stadium
 
 STADIUM_DOC = {"id": "1", "place_name": "잠실야구장", "category_name": "스포츠,레저 > 야구장", "x": "127.0719", "y": "37.5122",
                "road_address_name": "서울 송파구 올림픽로 25", "address_name": ""}

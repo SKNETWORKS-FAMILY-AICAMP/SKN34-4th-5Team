@@ -84,9 +84,9 @@ class MigratedToolsTest(unittest.TestCase):
     def test_nearby_uses_context_stadium_hint(self):
         place = {"placeId": "1", "name": "잠실호텔", "detail": "숙박 > 호텔", "distance": 400, "address": "송파"}
         seen = []
-        with patch("llm.v1.rag.nearby.kakao.enabled", return_value=True), \
-                patch("llm.v1.rag.nearby.lodging.verify", return_value={"requirements": [], "items": [{"id": "1", "name": "잠실호텔", "status": "unknown", "sourceUrl": "", "checks": []}], "checkedCount": 0}), \
-                patch("llm.v1.rag.nearby.kakao.nearby", side_effect=lambda code, kind: seen.append(code) or [place]):
+        with patch("llm.v2.nearby.kakao.enabled", return_value=True), \
+                patch("llm.v2.nearby.lodging.verify", return_value={"requirements": [], "items": [{"id": "1", "name": "잠실호텔", "status": "unknown", "sourceUrl": "", "checks": []}], "checkedCount": 0}), \
+                patch("llm.v2.nearby.kakao.nearby", side_effect=lambda code, kind: seen.append(code) or [place]):
             out = self.run_graph([call("search_nearby_places", {"kind": "stay"}, "n1"), AIMessage("잠실호텔")],
                                  ["tourism"], [HumanMessage("근처 숙소")], {"stadium": "JAMSIL"})
         self.assertEqual(seen, ["JAMSIL"])

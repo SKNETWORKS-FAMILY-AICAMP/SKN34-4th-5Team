@@ -22,7 +22,7 @@ Scope: existing PostgreSQL pgvector documents → Qdrant only. OpenAI `text-embe
 
 ## Active path inventory
 
-- `v1/rag/club/retrieval.search`: used by club agents, assistant initial retrieval and shared `tools/knowledge.search_kbo_rows`; preserves `(rows, elapsed_ms)` and row keys/distance, including nullable `category`, `status`, `evidence_type`. Scalar/list nested metadata uses the top-level `updated_at` fallback without changing stored metadata.
+- `v2/club/retrieval.search`: used by club agents, assistant initial retrieval and shared `tools/knowledge.search_kbo_rows`; preserves `(rows, elapsed_ms)` and row keys/distance, including nullable `category`, `status`, `evidence_type`. Scalar/list nested metadata uses the top-level `updated_at` fallback without changing stored metadata.
 - `tools/knowledge.vector_search` and keyword fallback: venue/place retrieval used by v1/v2 tools; returns content and complete metadata with match type/distance.
 - `v2/course/agent.search_places`, `stadium_anchor`, `course/transport.fetch_rows`, and `club/structured._rows`: Qdrant search/scroll now covers non-vector document enumeration as well as vector queries.
 - `build_index`, `check_index`, `rag_check`, `langsmith_eval.number_grounded`: load/read/check paths now use Qdrant.

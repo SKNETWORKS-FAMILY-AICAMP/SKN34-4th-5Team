@@ -15,7 +15,7 @@ from urllib.parse import quote, urlsplit
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, ConfigDict, Field
 
-from llm.v1.progress import config_kwargs
+from llm.v2.progress import config_kwargs
 from .grounding import address_in_body, title_matches
 
 

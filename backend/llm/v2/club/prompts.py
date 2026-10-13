@@ -3,7 +3,7 @@
 rag_test/chain.py 의 SYSTEM_SERVICE 를 "내용 규칙 / 말투 규칙" 으로 나눈 것.
 이 파일은 형준만 고친다. 말투를 바꾸고 싶으면 ../persona.py.
 """
-from ..persona import PERSONA_HEADER, TONE_RULES
+from llm.v2.persona import PERSONA_HEADER, TONE_RULES
 
 CONTENT_RULES = """<context>와 서버가 허용한 도구 결과 안의 정보만 근거로 답한다.
 

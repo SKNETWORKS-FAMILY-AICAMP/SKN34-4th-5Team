@@ -17,7 +17,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, ConfigDict, Field
 
 from llm.service.chat_runs import Stopped, check_cancelled
-from llm.v1.progress import ProgressCancelled, ProgressStorageError, config_kwargs
+from llm.v2.progress import ProgressCancelled, ProgressStorageError, config_kwargs
 from travel.public_page_reader import PublicReader, extract_text
 from . import grounding, parallel, place_quality, quality_research
 

@@ -19,7 +19,7 @@ from urllib.parse import urlsplit
 
 from django.conf import settings
 from django.core.cache.backends.filebased import FileBasedCache
-from llm.v1.progress import ProgressCancelled, ProgressStorageError
+from llm.v2.progress import ProgressCancelled, ProgressStorageError
 from llm.service.chat_runs import Stopped, check_cancelled
 from .geo import haversine_m
 

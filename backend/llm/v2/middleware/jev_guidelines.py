@@ -311,7 +311,7 @@ def course_destination_text(state) -> str:
         return ""
     from .dynamic_tools import request_args
     from llm.tools.assistant import STADIUMS
-    from llm.v1.rag.club.router import PLACE_ALIAS, TEAM_ALIAS, _hits, detect_stadium
+    from llm.v2.club.router import PLACE_ALIAS, TEAM_ALIAS, _hits, detect_stadium
     hint, question, _ = request_args(state)
     explicit = detect_stadium(question)
     if explicit is None and (_hits(question.upper(), PLACE_ALIAS) or _hits(question.upper(), TEAM_ALIAS)):

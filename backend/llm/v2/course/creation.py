@@ -5,9 +5,9 @@ import re
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
-from llm.v1.progress import config_kwargs
+from llm.v2.progress import config_kwargs
 from .editing import CREATION_RULES, EditPlan, InternalVenueRequest, Preference, RequestedVisit
-from llm.v1.rag.nearby.lodging import Requirement
+from llm.v2.nearby.lodging import Requirement
 
 
 class CreationPlan(BaseModel):
@@ -72,7 +72,7 @@ def interpret(question, stadium_code):
             or (kind in r["label"] and re.search(r"또는|혹은|\bOR\b", r["label"], re.I))
             for r in parsed["lodging_requirements"])}
         if mentioned - covered:
-            from llm.v1.rag.nearby.lodging import requirements
+            from llm.v2.nearby.lodging import requirements
             parsed["lodging_requirements"] = requirements(question, [])
     # Keep the existing memory/generation contract, without making the model emit
     # unused replacement targets, undo actions, durations or leg-edit fields.

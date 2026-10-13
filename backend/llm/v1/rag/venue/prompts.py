@@ -3,7 +3,7 @@
 test.py 의 AGENT_SYSTEM_PROMPT / query_transform_prompt 를 옮긴 것.
 바뀐 점: "팀순위·일정·티켓은 다른 Agent 담당" 규칙 삭제 (디스패처가 그 질문을 여기로 안 보냄), 말투는 persona 에서.
 """
-from ..persona import PERSONA_HEADER, TONE_RULES
+from llm.v2.persona import PERSONA_HEADER, TONE_RULES
 
 CONTENT_RULES = """구장 안팎 정보(먹거리·편의시설·교통·포토존·주변 맛집) 담당이다. search_documents_tool 또는 제공된 장소·구장·구장 콘텐츠·시설·먹거리·교통 도구로 찾은 결과만 근거로 답한다.
 

@@ -168,7 +168,7 @@ class Capture:
 
         stack.enter_context(patch.object(evidence_memory, "search", observed_search))
         stack.enter_context(patch.object(evidence_memory, "enrich", observed_enrich))
-        from llm.v1.rag.nearby import lodging
+        from llm.v2.nearby import lodging
         from llm.v2.course import editing
         lodging_verify, lodging_search, interpret = lodging.verify, lodging.search, editing.interpret
 
@@ -393,7 +393,7 @@ class Command(BaseCommand):
         if not 1 <= options["limit"] <= 30:
             raise CommandError("--limit must be 1..30")
         if options["embedding_input_usd_per_million"] is not None:
-            from llm.v1.rag.club.retrieval import EMBED_MODEL
+            from llm.v2.club.retrieval import EMBED_MODEL
             PRICES[EMBED_MODEL] = {"input": options["embedding_input_usd_per_million"], "output": 0}
         report = {"started_at": datetime.now(timezone.utc).isoformat(), "model": os.getenv("LLM_MODEL"),
                   "method": "Public Django APIClient views + real providers, guest sessions; excludes proxy/browser time",

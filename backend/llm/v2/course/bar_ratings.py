@@ -11,7 +11,7 @@ from datetime import date
 from itertools import islice
 
 from llm.service.chat_runs import Stopped, check_cancelled
-from llm.v1.progress import ProgressCancelled, ProgressStorageError
+from llm.v2.progress import ProgressCancelled, ProgressStorageError
 from . import place_quality as quality
 from .timeline import BAR_WORDS
 

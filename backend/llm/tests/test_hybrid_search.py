@@ -130,7 +130,7 @@ class ScoreFusionTest(SimpleTestCase):
     def test_score_fusion_rescues_keyword_candidate_outside_vector_top(self):
         sparse_index.build_from_documents(report=lambda _: None)
         wrong = vec(2)
-        with patch("llm.v1.rag.club.retrieval.search", return_value=([vector_store.legacy_row(
+        with patch("llm.v2.club.retrieval.search", return_value=([vector_store.legacy_row(
                 {**vector_store.search(wrong, k=1, categories=["RULE"])[0]})], 1.0)):  # 벡터 후보가 1개뿐인 상황
             rows = knowledge.search_kbo_rows("보크 언제 선언돼?", None, ["RULE"], 2, _embed=lambda _: wrong, mode="hybrid_score")
         ids = [r["doc_id"] for r in rows]

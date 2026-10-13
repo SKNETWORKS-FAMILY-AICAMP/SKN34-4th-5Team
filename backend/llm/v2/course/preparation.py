@@ -5,7 +5,7 @@ from time import monotonic
 from zoneinfo import ZoneInfo
 
 from llm.service.chat_runs import Stopped, check_cancelled
-from llm.v1.progress import ProgressCancelled, ProgressStorageError
+from llm.v2.progress import ProgressCancelled, ProgressStorageError
 
 log = logging.getLogger(__name__)
 

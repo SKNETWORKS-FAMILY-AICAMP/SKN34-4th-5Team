@@ -204,7 +204,7 @@ def text_lines(course, lookup, tl, label=None) -> list[str]:
         elif kind_of(p) == "STAY":
             reason = c.get("reason", "")
             out.append(f"{r['time']}  {p.get('name', '')} (숙소 도착)" + (f" — {reason}" if reason else ""))
-            from llm.v1.rag.nearby.lodging import source_url
+            from llm.v2.nearby.lodging import source_url
             if url := source_url(p.get("placeUrl")):
                 out[-1] += f" [야놀자]({url})"
         else:

@@ -19,10 +19,10 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from django.conf import settings
 from langchain_openai import ChatOpenAI
 
-from ...progress import ProgressCancelled, ProgressStorageError, operation
-from ..club.router import detect_stadium
-from ..domain_tools import run_model, visible_text
-from ..persona import FIXED
+from llm.v2.progress import ProgressCancelled, ProgressStorageError, operation
+from llm.v2.club.router import detect_stadium
+from llm.v2.domain_tools import run_model, visible_text
+from llm.v2.persona import FIXED
 from . import kakao
 from .prompts import NO_KEY, NO_PLACES, SYSTEM, USER
 

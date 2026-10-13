@@ -4,7 +4,7 @@
 사용자가 보는 말투는 하나여야 한다. 말투를 바꾸고 싶으면 이 파일만 고친다.
 
 쓰는 법 (각 도메인 prompts.py 에서):
-    from ..persona import TONE_RULES
+    from llm.v1.persona import TONE_RULES
     SYSTEM = f"{내용 규칙}\n\n{TONE_RULES}"
 """
 import re

@@ -4,7 +4,7 @@
     · 장소 이름·좌표·주소 → 코드가 DB 값으로 붙인다 (좌표 환각 0)
     · 시각·도보 거리·코스 목록 → 코드가 계산해서 붙인다 (숫자 환각 0, 출력이 짧아져 응답도 빨라진다)
 """
-from llm.v1.rag.persona import PERSONA_HEADER, TONE_RULES
+from llm.v2.persona import PERSONA_HEADER, TONE_RULES
 
 SYSTEM = f"""{PERSONA_HEADER}
 지금은 "직관 코스"를 짜 주는 역할이다. 경기 전(BEFORE) → 경기 관람(GAME) → 경기 후(AFTER) 순서로

@@ -20,11 +20,11 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from llm.v2.agent.browser_research import allow_new_source_search, structured_search
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
-from llm.v1.progress import config_kwargs, ProgressCancelled, ProgressStorageError
+from llm.v2.progress import config_kwargs, ProgressCancelled, ProgressStorageError
 from llm.service.chat_runs import Stopped
 from travel.place_keyword_memory import retrieve_keyword_memory, record_keyword_memory
 from travel.place_knowledge_models import PlaceKnowledge, PlaceKnowledgeSource, PlaceEnrichmentAttempt, PlaceKnowledgeObservation
-from llm.v1.rag.nearby.lodging import same_property
+from llm.v2.nearby.lodging import same_property
 
 log = logging.getLogger(__name__)
 GENERAL = {"scope": "general", "weekdays": [], "start_minute": None, "end_minute": None}

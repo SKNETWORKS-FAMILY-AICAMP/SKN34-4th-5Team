@@ -19,11 +19,11 @@ import time
 from django.conf import settings
 from langchain_openai import ChatOpenAI
 
-from ...progress import config_kwargs
+from llm.v2.progress import config_kwargs
 
 from ....tools import knowledge
-from ..domain_tools import tools_for, visible_text
-from ..persona import FIXED
+from llm.v2.domain_tools import tools_for, visible_text
+from llm.v2.persona import FIXED
 from .prompts import SYSTEM
 
 log = logging.getLogger(__name__)

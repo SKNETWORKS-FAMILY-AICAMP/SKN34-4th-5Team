@@ -36,13 +36,13 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from django.conf import settings
 from langchain_openai import ChatOpenAI
 
-from llm.v1.rag.club import structured
-from llm.v1.rag.club.retrieval import EF_SEARCH, embed_many
-from llm.v1.rag.club.router import detect_stadium
-from llm.v1.rag.domain_tools import invoke as invoke_domain_tool, run_model, visible_text
-from llm.v1.rag.nearby import agent as nearby_agent
-from llm.v1.rag.nearby import kakao, lodging
-from llm.v1.progress import ProgressCancelled, ProgressStorageError
+from llm.v2.club import structured
+from llm.v2.club.retrieval import EF_SEARCH, embed_many
+from llm.v2.club.router import detect_stadium
+from llm.v2.domain_tools import invoke as invoke_domain_tool, run_model, visible_text
+from llm.v2.nearby import agent as nearby_agent
+from llm.v2.nearby import kakao, lodging
+from llm.v2.progress import ProgressCancelled, ProgressStorageError
 from . import arrival, availability, corridor, feasibility, geo, parallel, place_quality, route_ranking, save, slots, timeline, transport, venue_policy, visit_requests
 from .prompts import NO_GAME, NO_PLACES, SYSTEM, USER_TEMPLATE, WARN_THIRD_PARTY
 
@@ -1073,7 +1073,7 @@ def _answer(question, history=None, hint_stadium=None, origin=None, requested_af
                 route.append(f"carry:{c}")
                 break
     if code is None or code == "OTHER":
-        from llm.v1.rag.persona import FIXED
+        from llm.v2.persona import FIXED
         return {"answer": FIXED["clarify"], "sources": [], "route": "guard:clarify", "places": [], "timing": timings}
 
     from . import preparation

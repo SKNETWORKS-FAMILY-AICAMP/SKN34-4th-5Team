@@ -8,8 +8,8 @@ from travel.public_page_reader import PublicReader
 from llm.v2.agent.browser_research import read_evidence
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, ConfigDict
-from llm.v1.progress import config_kwargs, ProgressCancelled, ProgressStorageError
-from llm.v1.rag.nearby.lodging import same_property
+from llm.v2.progress import config_kwargs, ProgressCancelled, ProgressStorageError
+from llm.v2.nearby.lodging import same_property
 
 
 ALIASES = (("돈까스", "돈가스", "돈카츠"), ("냉모밀", "냉소바"), ("짜장면", "자장면", "짜장", "자장"))

@@ -7,7 +7,7 @@ from django.test import SimpleTestCase
 
 from llm.tools import assistant
 from llm.v2.course import agent as course
-from llm.v1.rag.nearby import lodging
+from llm.v2.nearby import lodging
 
 
 URL = "https://nol.yanolja.com/stay/domestic/3012501"

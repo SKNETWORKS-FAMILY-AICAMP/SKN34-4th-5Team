@@ -5,7 +5,7 @@ from django.test import SimpleTestCase
 
 from llm.tests.test_course_editing import CURRENT, PLACES
 from llm.v2.course import agent, editing, evidence_memory, literal_edits, memory, recommendation_policy
-from llm.v1.rag.nearby import lodging
+from llm.v2.nearby import lodging
 
 
 QUESTION = "난 카페 무조건 메가커피 가야해. 메가커피로 바꿔줘 그리고 산책 말고 숙박으로 일정 수정해줘"

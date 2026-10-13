@@ -296,7 +296,7 @@ class RepairTests(SimpleTestCase):
             self.assertEqual(hours.check(SHOP, DAY), "폐업")
 
     def test_lodging_reference_page_is_checked_without_extra_page_or_model_calls(self):
-        from llm.v1.rag.nearby import lodging
+        from llm.v2.nearby import lodging
         hotel = {"id": "hotel", "name": "가상호텔", "address": SHOP["address"]}
         url = "https://nol.yanolja.com/stay/domestic/123"
         page = {**document("폐업", title="가상호텔 호텔/리조트 예약 | NOL", url=url),

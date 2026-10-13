@@ -1,7 +1,7 @@
 """부분 수정의 경로 근접 조건은 장소 후기 대신 좌표로 판정한다."""
 import math
 
-from llm.v1.progress import ProgressCancelled, ProgressStorageError
+from llm.v2.progress import ProgressCancelled, ProgressStorageError
 from . import arrival, corridor
 
 NEAR_ROUTE_M = 800

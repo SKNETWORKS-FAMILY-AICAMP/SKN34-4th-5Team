@@ -3,7 +3,7 @@ from unittest.mock import patch
 from django.test import SimpleTestCase
 from baseball.stadium_locations import reviewed_venue
 from llm.v2.course import agent
-from llm.v1.rag.nearby import kakao
+from llm.v2.nearby import kakao
 
 
 class StadiumLocationTests(SimpleTestCase):
