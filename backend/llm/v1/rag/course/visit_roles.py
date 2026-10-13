@@ -32,7 +32,7 @@ def explicit_target(question, place, current):
             continue
         for match in re.finditer(reference, question):
             tail = question[match.end():]
-            if not re.match(r'\s*(?:은|는|을|를)?\s*(?:그대로|유지|건드리지|바꾸지)', tail):
+            if not re.match(r'\s*(?:' + re.escape(str(place.get('name') or '')) + r'\s*)?(?:은|는|을|를)?\s*(?:그대로|유지|건드리지|바꾸지)', tail):
                 return True
     return False
 
@@ -56,7 +56,9 @@ def protect_target(question, current, plan):
         tail = question[mention.end():]
         if not re.match(r'\s*(?:먹거리|간식|식당|카페|커피|매장)?\s*(?:은|는|을|를)?\s*(?:그대로|유지|건드리지|바꾸지)', tail):
             return plan
-    if visit_kind(target) == 'BAR' and re.search(r'술집|주점|호프|이자카야', question):
+    if visit_kind(target) == 'BAR' and any(
+            not re.match(r'\s*(?:은|는|을|를)?\s*(?:그대로|유지|건드리지|바꾸지)', question[m.end():])
+            for m in re.finditer(r'술집|주점|호프|이자카야', question)):
         return plan
     source = category(target)
     words = r'식당|음식점|식사' if source == 'FOOD' else r'카페|커피'
@@ -72,5 +74,7 @@ def protect_target(question, current, plan):
     if len(eligible) == 1:
         return {**plan, 'targets':[eligible[0]['visitId']]}
     label = '일반 식당' if source == 'FOOD' else '구장 밖 카페'
+    preserved = {'BAR':'술집은', 'INTERNAL_CAFE':'구장 내부 카페는',
+                 'INTERNAL_FOOD':'구장 내부 먹거리는'}[visit_kind(target)]
     return {**plan, 'operation':'clarify', 'targets':[],
-            'clarification':f'바꿀 {label}을 하나로 확인하지 못했어요. 구장 내부 먹거리는 유지했어요. 변경할 장소 이름이나 번호를 알려 주세요.'}
+            'clarification':f'바꿀 {label}을 하나로 확인하지 못했어요. {preserved} 유지했어요. 변경할 장소 이름이나 번호를 알려 주세요.'}

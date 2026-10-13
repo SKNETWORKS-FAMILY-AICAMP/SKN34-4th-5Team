@@ -39,6 +39,15 @@ CASES = [
     {'id':'explicit-internal', 'kind':'apply', 'question':'구장 안 간식을 다른 매장으로 바꿔줘', 'target':'snack', 'expected':'snack'},
     {'id':'explicit-number', 'kind':'apply', 'question':'2번을 다른 식당으로 바꿔줘', 'target':'snack', 'expected':'snack'},
     {'id':'explicit-bar', 'kind':'apply', 'question':'술집을 다른 곳으로 바꿔줘', 'target':'bar', 'expected':'bar'},
+    {'id':'preserve-bar-role', 'kind':'apply', 'question':'술집은 그대로 두고 식당을 돈카츠로 바꿔줘', 'target':'bar', 'expected':'meal'},
+    {'id':'preserve-number-name', 'kind':'apply', 'question':'2번 STATION은 그대로 두고 식당을 돈카츠로 바꿔줘', 'target':'snack', 'expected':'meal'},
+    {'id':'explicit-bar-name', 'kind':'apply', 'question':'기존 술집을 다른 곳으로 바꿔줘', 'target':'bar', 'expected':'bar'},
+    {'id':'bar-clarification-role', 'kind':'clarify', 'target':'bar', 'expected':'술집은 유지했어요'},
+    {'id':'cafe-clarification-role', 'kind':'clarify', 'target':'snack', 'expected':'구장 내부 카페는 유지했어요'},
+    {'id':'bar-brand-mixed', 'kind':'ratings', 'expected':{'ids':['9101'], 'reads':1}},
+    {'id':'food-brand-mixed-no-io', 'kind':'ratings', 'food':True, 'expected':{'ids':['9102'], 'reads':0}},
+    {'id':'bar-jibun-only', 'kind':'ratings', 'jibun':True, 'expected':{'ids':['9101'], 'reads':1}},
+    {'id':'bar-other-branch', 'kind':'ratings', 'jibun':True, 'other_branch':True, 'expected':{'ids':[], 'reads':1}},
     {'id':'no-external-meal', 'kind':'apply', 'question':'식당을 초밥집으로 바꿔줘', 'target':'snack', 'without_meal':True, 'expected':None},
     {'id':'ambiguous-external-meals', 'kind':'apply', 'question':'식당을 초밥집으로 바꿔줘', 'target':'snack', 'two_meals':True, 'expected':None},
 ]
@@ -53,6 +62,44 @@ def observe(case):
     current = deepcopy(CURRENT)
     if case.get('without_meal'): current['places'].remove(current['places'][0])
     if case.get('two_meals'): current['places'].append({**MEAL,'visitId':'meal2'})
+    if case['kind']=='clarify':
+        from llm.v1.rag.course import visit_roles
+        target = deepcopy(BAR if case['target']=='bar' else SNACK)
+        if case['target']=='snack': target.update(category='CAFE')
+        plan = visit_roles.protect_target('식당을 바꿔줘' if case['target']=='bar' else '카페를 바꿔줘',
+            {'places':[target]}, {'operation':'replace','targets':[target['visitId']]})
+        return next((s.strip() for s in plan.get('clarification','').split('.') if '유지했어요' in s), '')
+    if case['kind']=='ratings':
+        from django.core.cache.backends.locmem import LocMemCache
+        from llm.v1.rag.course import agent, bar_ratings, place_quality, quality_research, visit_requests
+        cache = LocMemCache(case['id'], {})
+        cache.clear()
+        raw = {'id':'9101','place_name':'시험브랜드','x':127.081,'y':37.510,
+               'category_group_code':'FD6','category_name':'음식점 > 술집 > 호프,요리주점',
+               'address_name':'서울 송파구 잠실동 1'}
+        if not case.get('jibun'): raw['road_address_name']='서울 송파구 시험로 1'
+        food = {**raw,'id':'9102','category_name':'음식점 > 한식','place_name':'시험브랜드 식당'}
+        visit = {'kind':'FOOD' if case.get('food') else 'BAR','phase':'AFTER','id':'AFTER:0',
+                 'expression':'시험브랜드 식당' if case.get('food') else '시험브랜드 술집',
+                 'query':'시험브랜드','conditions':[],'internal':False}
+        selector = visit_requests.Selector([visit], {}, 'JAMSIL')
+        def profile(item, url, reader, **kwargs):
+            return {'place':item,'url':url,'rating':4.,'ratingCount':1}
+        real_save = bar_ratings.save
+        def save(item, proof):
+            real_save({**item,'name':'다른 지점'} if case.get('other_branch') else item, proof)
+        with patch.object(place_quality,'verdict_cache',return_value=cache), \
+                patch.object(place_quality,'catalogue',return_value={}), \
+                patch('travel.course_place_warmer.remember'), \
+                patch.object(agent,'invoke_domain_tool',return_value={'places':[raw] if case.get('jibun') else [raw,food]}), \
+                patch.object(editing.availability,'check',return_value=''), \
+                patch.object(quality_research,'discover',return_value=['https://www.diningcode.com/profile.php?rid=Test123456']) as reads, \
+                patch.object(quality_research,'profile',side_effect=profile), \
+                patch.object(quality_research,'interiors',side_effect=AssertionError('No model IO')), \
+                patch.object(bar_ratings,'save',side_effect=save), \
+                recommendation_policy.request('일반 코스'), place_quality.request_scope('JAMSIL'):
+            result = selector.search(MEAL)
+        return {'ids':[p['placeId'] for p in result],'reads':reads.call_count}
     if case['kind']=='interpret':
         plan=literal_edits.interpret(case['question'],current)
         return plan['targets'] if plan else None
