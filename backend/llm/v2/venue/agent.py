@@ -13,11 +13,8 @@ test.py 에서 바뀐 것:
   - 구단 미지정 되묻기는 프롬프트에만 맡기지 않고 코드로도 막는다(채점 가능하게)
 """
 import logging
-import os
 import time
 
-from django.conf import settings
-from langchain_openai import ChatOpenAI
 
 from llm.v2.progress import config_kwargs
 
@@ -36,7 +33,6 @@ except ImportError:                                 # langchain 패키지가 없
     READY = False
     log.warning("langchain.agents.create_agent 를 불러올 수 없어 venue 도메인을 비활성화합니다 (pip install langchain)")
 
-LLM_MODEL = os.getenv("LLM_MODEL") or "gpt-6-luna"
 infer_slots = knowledge.infer_slots
 transform_query = knowledge.transform_query
 search_documents_tool = knowledge.search_documents_tool
@@ -48,8 +44,9 @@ _agent = None
 def llm():
     global _llm
     if _llm is None:
-        _llm = ChatOpenAI(model=LLM_MODEL, timeout=25, max_retries=0, reasoning_effort="medium", use_responses_api=True,
-                          max_tokens=settings.USAGE_MAX_CALL_OUTPUT_TOKENS)
+        # One v2 model factory owns the provider settings for every agent.
+        from llm.v2.agent.common import llm as v2_llm
+        _llm = v2_llm()
     return _llm
 
 def agent():

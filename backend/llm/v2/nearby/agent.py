@@ -11,13 +11,10 @@
 places 는 돌려주지 않는다 — 프론트가 places 를 받으면 "추천 코스"로 보고 지도 코스를 바꾸기 때문.
 """
 import logging
-import os
 import re
 import time
 
 from langchain_core.messages import HumanMessage, SystemMessage
-from django.conf import settings
-from langchain_openai import ChatOpenAI
 
 from llm.v2.progress import ProgressCancelled, ProgressStorageError, operation
 from llm.v2.club.router import detect_stadium
@@ -29,7 +26,6 @@ from .prompts import NO_KEY, NO_PLACES, SYSTEM, USER
 log = logging.getLogger(__name__)
 
 READY = True
-LLM_MODEL = os.getenv("LLM_MODEL") or "gpt-6-luna"
 WALK_M_PER_MIN = 80
 SHOW = 8
 
@@ -52,8 +48,9 @@ _llm = None
 def llm():
     global _llm
     if _llm is None:
-        _llm = ChatOpenAI(model=LLM_MODEL, timeout=25, max_retries=0, reasoning_effort="medium", use_responses_api=True,
-                          max_tokens=settings.USAGE_MAX_CALL_OUTPUT_TOKENS)
+        # One v2 model factory owns the provider settings for every agent.
+        from llm.v2.agent.common import llm as v2_llm
+        _llm = v2_llm()
     return _llm
 
 

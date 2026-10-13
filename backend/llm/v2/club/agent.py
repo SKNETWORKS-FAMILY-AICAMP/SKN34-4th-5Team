@@ -5,14 +5,11 @@ rag_test/chain.py 의 서비스 모드(SV)를 Django + LangChain 으로 옮긴 �
       → 근거 등급 표기 → LangChain ChatOpenAI 1회 → 경고 문구 후처리
 디스패처와의 약속: answer(question, history, hint_stadium) -> {"answer", "sources", "route"} · READY
 """
-import os
 import re
 import time
 from datetime import date, timedelta
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-from django.conf import settings
-from langchain_openai import ChatOpenAI
 
 from . import structured
 from .prompts import FEW_SHOT, FIXED, SYSTEM, WARN_SUFFIX
@@ -21,7 +18,6 @@ from .router import PLACE_ALIAS, TEAM_ALIAS, detect_categories, detect_stadium
 from llm.v2.domain_tools import invoke as invoke_domain_tool, run_model, visible_text
 
 READY = True
-LLM_MODEL = os.getenv("LLM_MODEL") or "gpt-6-luna"
 
 _llm = None
 
@@ -36,8 +32,9 @@ def llm():
     """LangChain ChatOpenAI — 서버 기동 후 한 번만 만든다 (chat_service.py 와 같은 방식)"""
     global _llm
     if _llm is None:
-        _llm = ChatOpenAI(model=LLM_MODEL, timeout=25, max_retries=0, reasoning_effort="medium", use_responses_api=True,
-                          max_tokens=settings.USAGE_MAX_CALL_OUTPUT_TOKENS)
+        # One v2 model factory owns the provider settings for every agent.
+        from llm.v2.agent.common import llm as v2_llm
+        _llm = v2_llm()
     return _llm
 
 
