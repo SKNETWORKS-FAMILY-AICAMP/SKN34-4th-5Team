@@ -6,16 +6,22 @@ import ts from "typescript";
 function load(path, dependencies = {}) {
   const source = readFileSync(new URL(path, import.meta.url), "utf8");
 <<<<<<< HEAD
+<<<<<<< HEAD
   const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } });
   const module = { exports: {} };
   new Function("module", "exports", "require", outputText)(module, module.exports, name => dependencies[name]);
   return module.exports;
 =======
+=======
+>>>>>>> 9e5790a42946c1fb9dc57f552e93912c8b82b75d
   const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } });
   const loadedModule = { exports: {} };
   new Function("module", "exports", "require", outputText)(loadedModule, loadedModule.exports, name => dependencies[name]);
   return loadedModule.exports;
+<<<<<<< HEAD
 >>>>>>> 9b8e8943fd7469c22719b7bbcfe72f8d29f81f24
+=======
+>>>>>>> 9e5790a42946c1fb9dc57f552e93912c8b82b75d
 }
 const categories = load("../lib/community-post-category.ts");
 const filter = load("../lib/community-category-filter.ts", { "./community-post-category": categories });
@@ -39,7 +45,10 @@ test("category uses exact match including punctuation and legacy categories", ()
 });
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
+=======
+>>>>>>> 9e5790a42946c1fb9dc57f552e93912c8b82b75d
 function boardScreen(props) {
   let cursor = 0, dirty = false;
   const states = [];
@@ -134,7 +143,10 @@ for (const section of ["free", "teams"]) {
   });
 }
 
+<<<<<<< HEAD
 >>>>>>> 9b8e8943fd7469c22719b7bbcfe72f8d29f81f24
+=======
+>>>>>>> 9e5790a42946c1fb9dc57f552e93912c8b82b75d
 test("list tags are separate links and category is part of pagination scope", () => {
   const source = readFileSync(new URL("../components/community-board.tsx", import.meta.url), "utf8");
   assert.ok(source.includes('styles.titleLinks}>{categoryLink(post.category)}<Link'));
