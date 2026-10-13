@@ -32,11 +32,7 @@ const job = { id: 9, postId: "p1", commentId: null, revision: 4, review_revision
   payload: { text: "본문", mode: "manual", image_ids: [] }, findings: [{ id: "f1", code: "political", resolution: "open", reason: "확인", quote: "본문" }], error_code: "" };
 function card(h, selected = ["f1"], note = "원문 확인") {
   const panel = h.render(h.exports.ModerationPanel, {}, [[job], 1, false, 0, "", false]);
-<<<<<<< HEAD
   const element = nodes(panel).find(node => typeof node.type === "function" && node.props.job);
-=======
-  const element = nodes(panel).find(node => typeof node.type === "function");
->>>>>>> 2d1eb00a4135200b94446d5ce01c4843b0fedadb
   return h.render(element.type, element.props, [selected, note, false, ""]);
 }
 
@@ -117,7 +113,6 @@ test("loading hides stale review forms and prevents pagination", () => {
   const h = harness();
   const tree = h.render(h.exports.ModerationPanel, {}, [[job], 2, true, 0, "", true]);
   assert.ok(nodes(tree).some(node => node.props.role === "status"));
-<<<<<<< HEAD
   assert.equal(nodes(tree).some(node => typeof node.type === "function" && node.props.job), false);
   assert.ok(nodes(tree).filter(node => node.type === "button").every(node => node.props.disabled));
 });
@@ -157,12 +152,6 @@ test("mode save is disabled before load or with unchanged choice", () => {
   }
 });
 
-=======
-  assert.equal(nodes(tree).some(node => typeof node.type === "function"), false);
-  assert.ok(nodes(tree).filter(node => node.type === "button").every(node => node.props.disabled));
-});
-
->>>>>>> 2d1eb00a4135200b94446d5ce01c4843b0fedadb
 test("empty results explain the next action without masking request errors", () => {
   const h = harness();
   const empty = h.render(h.exports.ModerationPanel, {}, [[], 1, false, 0, "", false]);

@@ -300,11 +300,7 @@ REST_FRAMEWORK = {
 }
 
 # New submissions are private even when providers have not been configured.
-<<<<<<< HEAD
 COMMUNITY_MODERATION_MODE = os.getenv('COMMUNITY_MODERATION_MODE', 'openai')
-=======
-COMMUNITY_MODERATION_MODE = os.getenv('COMMUNITY_MODERATION_MODE', 'manual')
->>>>>>> 2d1eb00a4135200b94446d5ce01c4843b0fedadb
 COMMUNITY_POLICY_VERSION = os.getenv('COMMUNITY_POLICY_VERSION', 'community-v1')
 COMMUNITY_POLICY_MODEL = os.getenv('COMMUNITY_POLICY_MODEL', '')
 COMMUNITY_EMBEDDING_MODEL = os.getenv('COMMUNITY_EMBEDDING_MODEL', 'text-embedding-3-small')

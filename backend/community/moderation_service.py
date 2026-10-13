@@ -13,10 +13,7 @@ from accounts.point_policy import POST, COMMENT, grant_definition
 from accounts.point_service import grant_points
 from .models import CommunityPost, CommunityComment, ModerationAdmission, ModerationJob, ModerationReview
 from .visibility import approved, post_public, public_comments
-<<<<<<< HEAD
 from .moderation_config import current_mode
-=======
->>>>>>> 2d1eb00a4135200b94446d5ce01c4843b0fedadb
 
 
 class ModerationConflict(APIException):
@@ -68,11 +65,7 @@ def enqueue_locked(obj, *, enforce_limit=True):
         'is_advertisement': obj.is_advertisement if is_post else False,
         'image_ids': [str(i) for i in obj.images.values_list('id', flat=True)] if is_post else [],
         'policy_version': settings.COMMUNITY_POLICY_VERSION,
-<<<<<<< HEAD
         'mode': current_mode(),
-=======
-        'mode': settings.COMMUNITY_MODERATION_MODE,
->>>>>>> 2d1eb00a4135200b94446d5ce01c4843b0fedadb
     }
     job = related.create(revision=obj.content_revision, payload=payload)
     if not is_post:

@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 """manual = human review; openai = native moderation; live = legacy snapshots only."""
-=======
-"""manual = explicit human review; live = configured providers, never silent allow."""
->>>>>>> 2d1eb00a4135200b94446d5ce01c4843b0fedadb
 import hashlib
 import json
 import math
@@ -46,11 +42,8 @@ def check(payload):
     if payload['policy_version'] != settings.COMMUNITY_POLICY_VERSION:
         raise RuntimeError('policy version changed; retry with new snapshot')
     text = payload['text']
-<<<<<<< HEAD
     if payload['mode'] == 'openai':
         return check_native(payload)
-=======
->>>>>>> 2d1eb00a4135200b94446d5ce01c4843b0fedadb
     results, evidence = [], {'mode': payload['mode'], 'policy_version': payload['policy_version']}
     for url in sorted(set(re.findall(r'(?:https?://|www\.)[^\s<>"\']+', text, re.I))):
         results.append(finding('external_link_review', url, '악성 URL 제공자 미연결: 목적지를 운영진이 확인해야 합니다.'))
@@ -110,7 +103,6 @@ def check(payload):
         results.append(finding(item.code, item.quote, item.reason))
     evidence['policy_model'] = settings.COMMUNITY_POLICY_MODEL
     return list({r['id']: r for r in results}.values()), evidence
-<<<<<<< HEAD
 
 
 def check_native(payload):
@@ -135,5 +127,3 @@ def check_native(payload):
         'moderation_model': response.model, 'moderation': [
             {'flagged': row.flagged, 'categories': categories, 'scores': scores}],
         'text_only': True}
-=======
->>>>>>> 2d1eb00a4135200b94446d5ce01c4843b0fedadb

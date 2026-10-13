@@ -166,7 +166,6 @@ function ReviewCard({ job, reload }: { job: Job; reload: () => void }) {
   </article>;
 }
 
-<<<<<<< HEAD
 export function ModerationModeControl() {
   const [mode, setMode] = useState("manual");
   const [saved, setSaved] = useState("");
@@ -209,8 +208,6 @@ export function ModerationModeControl() {
   </section>;
 }
 
-=======
->>>>>>> 2d1eb00a4135200b94446d5ce01c4843b0fedadb
 export function ModerationPanel() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [page, setPage] = useState(1);
@@ -226,10 +223,7 @@ export function ModerationPanel() {
   }, [page, tick]);
   return <section className={styles.panel} aria-labelledby="moderation-heading">
     <header className={styles.panelHeader}><div><h2 id="moderation-heading">비공개 게시 검사</h2><p>게시글과 댓글의 원문을 확인하고, 검사 사유별로 복구 여부를 검토하세요.</p></div><button className="button button-secondary" disabled={loading} onClick={() => setTick(value => value + 1)}>새로고침</button></header>
-<<<<<<< HEAD
     <ModerationModeControl />
-=======
->>>>>>> 2d1eb00a4135200b94446d5ce01c4843b0fedadb
     <div className={styles.listHeading}><h3>검사 목록</h3><span>{loading ? "불러오는 중" : `현재 페이지 ${jobs.length}건`}</span></div>
     {error && <p className={styles.error} role="alert">{error}</p>}
     {loading ? <div className={styles.empty} role="status">검사 목록을 불러오고 있어요.</div> : <>

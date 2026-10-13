@@ -11,7 +11,6 @@ from .admin_views import AdminPages
 from .models import CommunityPost, CommunityComment, ModerationJob
 from .serializers import CommunityPostSerializer, CommunityCommentSerializer
 from .moderation_service import review_job, retry_job
-<<<<<<< HEAD
 from .moderation_config import mode_info
 from .models import ModerationSettings
 
@@ -23,8 +22,6 @@ class ModeInput(serializers.Serializer):
 class ModeOutput(ModeInput):
     automaticAvailable = serializers.BooleanField()
     model = serializers.CharField()
-=======
->>>>>>> 2d1eb00a4135200b94446d5ce01c4843b0fedadb
 
 
 class PrivateResponseMixin:
@@ -34,7 +31,6 @@ class PrivateResponseMixin:
         return response
 
 
-<<<<<<< HEAD
 class ModerationSettingsView(PrivateResponseMixin, APIView):
     permission_classes = (StaffOnly,)
 
@@ -54,8 +50,6 @@ class ModerationSettingsView(PrivateResponseMixin, APIView):
         return Response(mode_info())
 
 
-=======
->>>>>>> 2d1eb00a4135200b94446d5ce01c4843b0fedadb
 class OwnPostList(PrivateResponseMixin, generics.ListAPIView):
     permission_classes = (IsAuthenticated,)
     serializer_class = CommunityPostSerializer

@@ -48,7 +48,4 @@ jobs:
           python-version: '3.12'
       - run: pip install deepeval==4.2.8 ragas==0.4.3 langchain-community==0.4.1 Django==6.1.1
       - run: python -I backend/llm/v2/evaluation/test_community_moderation.py
-<<<<<<< HEAD
       - run: python -I backend/llm/v2/evaluation/test_moderation_native.py
-=======
->>>>>>> 2d1eb00a4135200b94446d5ce01c4843b0fedadb
