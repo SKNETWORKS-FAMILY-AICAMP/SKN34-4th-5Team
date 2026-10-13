@@ -10,7 +10,7 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       - in: path
@@ -70,7 +70,7 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       - in: path
@@ -437,7 +437,7 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       tags:
@@ -594,7 +594,7 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       tags:
@@ -984,13 +984,13 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       - name: page_size
         required: false
         in: query
-        description: Number of results to return per page.
+        description: 페이지당 반환할 결과 수.
         schema:
           type: integer
       tags:
@@ -1012,13 +1012,13 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       - name: page_size
         required: false
         in: query
-        description: Number of results to return per page.
+        description: 페이지당 반환할 결과 수.
         schema:
           type: integer
       tags:
@@ -1079,7 +1079,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this facility.
+        description: facility을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -1107,7 +1107,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this facility.
+        description: facility을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -1164,7 +1164,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this facility.
+        description: facility을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -1204,13 +1204,13 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       - name: page_size
         required: false
         in: query
-        description: Number of results to return per page.
+        description: 페이지당 반환할 결과 수.
         schema:
           type: integer
       tags:
@@ -1271,7 +1271,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this food store location.
+        description: food store location을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -1299,7 +1299,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this food store location.
+        description: food store location을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -1356,7 +1356,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this food store location.
+        description: food store location을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -1396,13 +1396,13 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       - name: page_size
         required: false
         in: query
-        description: Number of results to return per page.
+        description: 페이지당 반환할 결과 수.
         schema:
           type: integer
       tags:
@@ -1463,7 +1463,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this food store menu.
+        description: food store menu을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -1491,7 +1491,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this food store menu.
+        description: food store menu을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -1548,7 +1548,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this food store menu.
+        description: food store menu을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -1588,13 +1588,13 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       - name: page_size
         required: false
         in: query
-        description: Number of results to return per page.
+        description: 페이지당 반환할 결과 수.
         schema:
           type: integer
       tags:
@@ -1655,7 +1655,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this food store.
+        description: food store을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -1683,7 +1683,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this food store.
+        description: food store을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -1740,7 +1740,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this food store.
+        description: food store을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -1780,13 +1780,13 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       - name: page_size
         required: false
         in: query
-        description: Number of results to return per page.
+        description: 페이지당 반환할 결과 수.
         schema:
           type: integer
       tags:
@@ -1847,7 +1847,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this game.
+        description: game을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -1875,7 +1875,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this game.
+        description: game을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -1932,7 +1932,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this game.
+        description: game을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -1972,13 +1972,13 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       - name: page_size
         required: false
         in: query
-        description: Number of results to return per page.
+        description: 페이지당 반환할 결과 수.
         schema:
           type: integer
       tags:
@@ -2039,7 +2039,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this home context.
+        description: home context을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -2067,7 +2067,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this home context.
+        description: home context을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -2124,7 +2124,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this home context.
+        description: home context을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -2164,13 +2164,13 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       - name: page_size
         required: false
         in: query
-        description: Number of results to return per page.
+        description: 페이지당 반환할 결과 수.
         schema:
           type: integer
       tags:
@@ -2231,7 +2231,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this postseason stage.
+        description: postseason stage을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -2259,7 +2259,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this postseason stage.
+        description: postseason stage을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -2316,7 +2316,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this postseason stage.
+        description: postseason stage을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -2356,13 +2356,13 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       - name: page_size
         required: false
         in: query
-        description: Number of results to return per page.
+        description: 페이지당 반환할 결과 수.
         schema:
           type: integer
       tags:
@@ -2423,7 +2423,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this seat map asset.
+        description: seat map asset을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -2451,7 +2451,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this seat map asset.
+        description: seat map asset을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -2508,7 +2508,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this seat map asset.
+        description: seat map asset을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -2548,13 +2548,13 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       - name: page_size
         required: false
         in: query
-        description: Number of results to return per page.
+        description: 페이지당 반환할 결과 수.
         schema:
           type: integer
       tags:
@@ -2615,7 +2615,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this seat map.
+        description: seat map을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -2643,7 +2643,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this seat map.
+        description: seat map을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -2700,7 +2700,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this seat map.
+        description: seat map을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -2740,13 +2740,13 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       - name: page_size
         required: false
         in: query
-        description: Number of results to return per page.
+        description: 페이지당 반환할 결과 수.
         schema:
           type: integer
       tags:
@@ -2807,7 +2807,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this seat scope.
+        description: seat scope을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -2835,7 +2835,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this seat scope.
+        description: seat scope을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -2892,7 +2892,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this seat scope.
+        description: seat scope을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -2932,13 +2932,13 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       - name: page_size
         required: false
         in: query
-        description: Number of results to return per page.
+        description: 페이지당 반환할 결과 수.
         schema:
           type: integer
       tags:
@@ -2999,7 +2999,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this seat view.
+        description: seat view을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -3027,7 +3027,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this seat view.
+        description: seat view을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -3084,7 +3084,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this seat view.
+        description: seat view을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -3124,13 +3124,13 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       - name: page_size
         required: false
         in: query
-        description: Number of results to return per page.
+        description: 페이지당 반환할 결과 수.
         schema:
           type: integer
       tags:
@@ -3191,7 +3191,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this seat zone.
+        description: seat zone을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -3219,7 +3219,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this seat zone.
+        description: seat zone을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -3276,7 +3276,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this seat zone.
+        description: seat zone을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -3316,13 +3316,13 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       - name: page_size
         required: false
         in: query
-        description: Number of results to return per page.
+        description: 페이지당 반환할 결과 수.
         schema:
           type: integer
       tags:
@@ -3383,7 +3383,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this stadium content.
+        description: stadium content을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -3411,7 +3411,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this stadium content.
+        description: stadium content을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -3468,7 +3468,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this stadium content.
+        description: stadium content을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -3508,13 +3508,13 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       - name: page_size
         required: false
         in: query
-        description: Number of results to return per page.
+        description: 페이지당 반환할 결과 수.
         schema:
           type: integer
       tags:
@@ -3575,7 +3575,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this stadium.
+        description: stadium을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -3603,7 +3603,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this stadium.
+        description: stadium을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -3660,7 +3660,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this stadium.
+        description: stadium을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -3700,13 +3700,13 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       - name: page_size
         required: false
         in: query
-        description: Number of results to return per page.
+        description: 페이지당 반환할 결과 수.
         schema:
           type: integer
       tags:
@@ -3767,7 +3767,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this standing history.
+        description: standing history을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -3795,7 +3795,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this standing history.
+        description: standing history을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -3852,7 +3852,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this standing history.
+        description: standing history을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -3892,13 +3892,13 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       - name: page_size
         required: false
         in: query
-        description: Number of results to return per page.
+        description: 페이지당 반환할 결과 수.
         schema:
           type: integer
       tags:
@@ -3959,7 +3959,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this team.
+        description: team을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -3987,7 +3987,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this team.
+        description: team을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -4044,7 +4044,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this team.
+        description: team을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -4084,13 +4084,13 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       - name: page_size
         required: false
         in: query
-        description: Number of results to return per page.
+        description: 페이지당 반환할 결과 수.
         schema:
           type: integer
       tags:
@@ -4151,7 +4151,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this ticket policy.
+        description: ticket policy을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -4179,7 +4179,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this ticket policy.
+        description: ticket policy을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -4236,7 +4236,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this ticket policy.
+        description: ticket policy을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -4276,13 +4276,13 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       - name: page_size
         required: false
         in: query
-        description: Number of results to return per page.
+        description: 페이지당 반환할 결과 수.
         schema:
           type: integer
       tags:
@@ -4343,7 +4343,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this ticket price.
+        description: ticket price을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -4371,7 +4371,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this ticket price.
+        description: ticket price을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -4428,7 +4428,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this ticket price.
+        description: ticket price을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -4468,13 +4468,13 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       - name: page_size
         required: false
         in: query
-        description: Number of results to return per page.
+        description: 페이지당 반환할 결과 수.
         schema:
           type: integer
       tags:
@@ -4535,7 +4535,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this transport.
+        description: transport을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -4563,7 +4563,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this transport.
+        description: transport을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -4620,7 +4620,7 @@ paths:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
-        description: A unique value identifying this transport.
+        description: transport을 식별하는 고유한 값.
         required: true
       tags:
       - v1
@@ -4660,13 +4660,13 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       - name: page_size
         required: false
         in: query
-        description: Number of results to return per page.
+        description: 페이지당 반환할 결과 수.
         schema:
           type: integer
       tags:
@@ -4688,13 +4688,13 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       - name: page_size
         required: false
         in: query
-        description: Number of results to return per page.
+        description: 페이지당 반환할 결과 수.
         schema:
           type: integer
       tags:
@@ -4742,13 +4742,13 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       - name: page_size
         required: false
         in: query
-        description: Number of results to return per page.
+        description: 페이지당 반환할 결과 수.
         schema:
           type: integer
       tags:
@@ -4775,13 +4775,13 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       - name: page_size
         required: false
         in: query
-        description: Number of results to return per page.
+        description: 페이지당 반환할 결과 수.
         schema:
           type: integer
       tags:
@@ -4808,13 +4808,13 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       - name: page_size
         required: false
         in: query
-        description: Number of results to return per page.
+        description: 페이지당 반환할 결과 수.
         schema:
           type: integer
       tags:
@@ -4841,13 +4841,13 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       - name: page_size
         required: false
         in: query
-        description: Number of results to return per page.
+        description: 페이지당 반환할 결과 수.
         schema:
           type: integer
       tags:
@@ -4874,13 +4874,13 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       - name: page_size
         required: false
         in: query
-        description: Number of results to return per page.
+        description: 페이지당 반환할 결과 수.
         schema:
           type: integer
       tags:
@@ -4907,13 +4907,13 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       - name: page_size
         required: false
         in: query
-        description: Number of results to return per page.
+        description: 페이지당 반환할 결과 수.
         schema:
           type: integer
       tags:
@@ -4940,13 +4940,13 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       - name: page_size
         required: false
         in: query
-        description: Number of results to return per page.
+        description: 페이지당 반환할 결과 수.
         schema:
           type: integer
       tags:
@@ -4973,13 +4973,13 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       - name: page_size
         required: false
         in: query
-        description: Number of results to return per page.
+        description: 페이지당 반환할 결과 수.
         schema:
           type: integer
       tags:
@@ -5006,13 +5006,13 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       - name: page_size
         required: false
         in: query
-        description: Number of results to return per page.
+        description: 페이지당 반환할 결과 수.
         schema:
           type: integer
       tags:
@@ -5034,13 +5034,13 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       - name: page_size
         required: false
         in: query
-        description: Number of results to return per page.
+        description: 페이지당 반환할 결과 수.
         schema:
           type: integer
       tags:
@@ -5079,13 +5079,13 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       - name: page_size
         required: false
         in: query
-        description: Number of results to return per page.
+        description: 페이지당 반환할 결과 수.
         schema:
           type: integer
       tags:
@@ -5107,13 +5107,13 @@ paths:
       - name: page
         required: false
         in: query
-        description: A page number within the paginated result set.
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
         schema:
           type: integer
       - name: page_size
         required: false
         in: query
-        description: Number of results to return per page.
+        description: 페이지당 반환할 결과 수.
         schema:
           type: integer
       tags:
@@ -5127,6 +5127,79 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaginatedPublicTicketPriceList'
+          description: ''
+  /api/v1/community/admin/moderation/:
+    get:
+      operationId: v1_community_admin_moderation_list
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: 페이지네이션된 결과 집합 내의 페이지 번호.
+        schema:
+          type: integer
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedJobList'
+          description: ''
+  /api/v1/community/admin/moderation/{job_id}/retry/:
+    post:
+      operationId: v1_community_admin_moderation_retry_create
+      parameters:
+      - in: path
+        name: job_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '202':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+          description: ''
+  /api/v1/community/admin/moderation/{job_id}/review/:
+    post:
+      operationId: v1_community_admin_moderation_review_create
+      parameters:
+      - in: path
+        name: job_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewInput'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ReviewInput'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ReviewInput'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
           description: ''
   /api/v1/community/admin/posts/:
     get:
@@ -5155,9 +5228,9 @@ paths:
                 $ref: '#/components/schemas/PaginatedAdminPostList'
           description: ''
   /api/v1/community/admin/posts/{source_id}/:
-    patch:
-      operationId: v1_community_admin_posts_partial_update
-      description: 신고 관리와 동일한 정책으로 게시글과 관련 신고를 숨김 처리합니다. 해제는 지원하지 않습니다.
+    get:
+      operationId: v1_community_admin_posts_retrieve
+      description: 게시글 삭제 (댓글·추천·신고도 함께 삭제된다).
       parameters:
       - in: path
         name: source_id
@@ -5168,33 +5241,44 @@ paths:
       - v1
       security:
       - jwtAuth: []
-      requestBody:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommunityPost'
+          description: ''
+    patch:
+      operationId: v1_community_admin_posts_partial_update
+      description: 게시글 삭제 (댓글·추천·신고도 함께 삭제된다).
+      parameters:
+      - in: path
+        name: source_id
+        schema:
+          type: string
         required: true
+      tags:
+      - v1
+      requestBody:
         content:
           application/json:
             schema:
-              type: object
-              additionalProperties: false
-              required: [action]
-              properties:
-                action:
-                  type: string
-                  enum: [hide]
+              $ref: '#/components/schemas/PatchedAdminPostHide'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedAdminPostHide'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedAdminPostHide'
+      security:
+      - jwtAuth: []
       responses:
         '200':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminPost'
-          description: 숨김 처리된 게시글
-        '400':
-          description: 잘못된 요청
-        '401':
-          description: 로그인 필요
-        '403':
-          description: 운영 관리자 권한 필요
-        '404':
-          description: 게시글 없음
+          description: ''
     delete:
       operationId: v1_community_admin_posts_destroy
       description: 게시글 삭제 (댓글·추천·신고도 함께 삭제된다).
@@ -5355,7 +5439,7 @@ paths:
       security:
       - jwtAuth: []
       responses:
-        '200':
+        '202':
           content:
             application/json:
               schema:
@@ -5647,7 +5731,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/CommunityPost'
           description: ''
-        '201':
+        '202':
           content:
             application/json:
               schema:
@@ -5966,7 +6050,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/CommunityPost'
           description: ''
-        '201':
+        '202':
           content:
             application/json:
               schema:
@@ -6045,7 +6129,7 @@ paths:
       security:
       - jwtAuth: []
       responses:
-        '200':
+        '202':
           content:
             application/json:
               schema:
@@ -6181,7 +6265,7 @@ paths:
       security:
       - jwtAuth: []
       responses:
-        '201':
+        '202':
           content:
             application/json:
               schema:
@@ -6488,6 +6572,58 @@ paths:
               schema:
                 type: object
                 additionalProperties: {}
+          description: ''
+  /api/v1/community/submissions/comments/:
+    get:
+      operationId: v1_community_submissions_comments_list
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CommunityComment'
+          description: ''
+  /api/v1/community/submissions/posts/:
+    get:
+      operationId: v1_community_submissions_posts_list
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CommunityPost'
+          description: ''
+  /api/v1/community/submissions/posts/{source_id}/:
+    get:
+      operationId: v1_community_submissions_posts_retrieve
+      parameters:
+      - in: path
+        name: source_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommunityPost'
           description: ''
   /api/v1/courses/:
     get:
@@ -6851,6 +6987,259 @@ paths:
               schema:
                 type: object
                 additionalProperties: {}
+          description: ''
+  /api/v1/fantasy/admin/context/:
+    get:
+      operationId: v1_fantasy_admin_context_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/fantasy/admin/games/:
+    get:
+      operationId: v1_fantasy_admin_games_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/fantasy/admin/stats/:
+    get:
+      operationId: v1_fantasy_admin_stats_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+    post:
+      operationId: v1_fantasy_admin_stats_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: {}
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              additionalProperties: {}
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: {}
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+    delete:
+      operationId: v1_fantasy_admin_stats_destroy
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/fantasy/admin/test-settlement/:
+    get:
+      operationId: v1_fantasy_admin_test_settlement_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+    post:
+      operationId: v1_fantasy_admin_test_settlement_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: {}
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              additionalProperties: {}
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: {}
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+    delete:
+      operationId: v1_fantasy_admin_test_settlement_destroy
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/fantasy/players/:
+    get:
+      operationId: v1_fantasy_players_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayerPage'
+          description: ''
+  /api/v1/fantasy/points/:
+    get:
+      operationId: v1_fantasy_points_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/fantasy/score/current/:
+    get:
+      operationId: v1_fantasy_score_current_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/fantasy/selections/:
+    get:
+      operationId: v1_fantasy_selections_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Selection'
+          description: ''
+    post:
+      operationId: v1_fantasy_selections_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SelectionCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SelectionCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SelectionCreate'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Selection'
+          description: ''
+  /api/v1/fantasy/selections/{id}/:
+    delete:
+      operationId: v1_fantasy_selections_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/fantasy/week/{which}/:
+    get:
+      operationId: v1_fantasy_week_retrieve
+      parameters:
+      - in: path
+        name: which
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Week'
           description: ''
   /api/v1/places/:
     get:
@@ -8098,6 +8487,99 @@ paths:
               schema:
                 $ref: '#/components/schemas/WeatherErrorResponse'
           description: ''
+  /api/v2/chat/sessions/{session_id}/attachments/:
+    get:
+      operationId: v2_chat_sessions_attachments_retrieve
+      parameters:
+      - in: path
+        name: session_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v2
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: v2_chat_sessions_attachments_create
+      parameters:
+      - in: path
+        name: session_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v2
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v2/chat/sessions/{session_id}/attachments/{attachment_id}/:
+    get:
+      operationId: v2_chat_sessions_attachments_retrieve_2
+      parameters:
+      - in: path
+        name: attachment_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: session_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v2
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: v2_chat_sessions_attachments_destroy
+      parameters:
+      - in: path
+        name: attachment_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: session_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v2
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '204':
+          description: No response body
+  /api/v2/chat/tool-groups/:
+    get:
+      operationId: v2_chat_tool_groups_retrieve
+      tags:
+      - v2
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
 components:
   schemas:
     AdAdmin:
@@ -8401,29 +8883,28 @@ components:
         username:
           type: string
           readOnly: true
-          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
-            only.
+          title: 사용자 이름
+          description: 필수 항목입니다. 150자 이하의 문자, 숫자, @/./+/-/_만 가능합니다.
         is_active:
           type: boolean
           readOnly: true
-          title: Active
-          description: Designates whether this user should be treated as active. Unselect
-            this instead of deleting accounts.
+          title: 활성
+          description: 이 사용자를 활성 상태로 처리할지 여부를 나타냅니다. 계정을 삭제하는 대신 이 옵션을 해제하세요.
         is_staff:
           type: boolean
           readOnly: true
-          title: Staff status
-          description: Designates whether the user can log into this admin site.
+          title: 스태프 상태
+          description: 사용자가 관리 사이트에 로그인할 수 있는지 여부를 나타냅니다.
         is_superuser:
           type: boolean
           readOnly: true
-          title: Superuser status
-          description: Designates that this user has all permissions without explicitly
-            assigning them.
+          title: 최상위 사용자 상태
+          description: 이 사용자에게 명시적으로 권한을 부여하지 않더라도 모든 권한을 갖도록 지정합니다.
         date_joined:
           type: string
           format: date-time
           readOnly: true
+          title: 가입일
       required:
       - date_joined
       - id
@@ -8490,6 +8971,11 @@ components:
       - team_code
       - title
       - views
+    AdminPostHideActionEnum:
+      enum:
+      - hide
+      type: string
+      description: '* `hide` - hide'
     AdminPostOwner:
       type: object
       properties:
@@ -8499,22 +8985,21 @@ components:
         username:
           type: string
           readOnly: true
-          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
-            only.
+          title: 사용자 이름
+          description: 필수 항목입니다. 150자 이하의 문자, 숫자, @/./+/-/_만 가능합니다.
         nickname:
           type: string
           readOnly: true
         is_staff:
           type: boolean
           readOnly: true
-          title: Staff status
-          description: Designates whether the user can log into this admin site.
+          title: 스태프 상태
+          description: 사용자가 관리 사이트에 로그인할 수 있는지 여부를 나타냅니다.
         is_superuser:
           type: boolean
           readOnly: true
-          title: Superuser status
-          description: Designates that this user has all permissions without explicitly
-            assigning them.
+          title: 최상위 사용자 상태
+          description: 이 사용자에게 명시적으로 권한을 부여하지 않더라도 모든 권한을 갖도록 지정합니다.
       required:
       - id
       - is_staff
@@ -8870,13 +9355,21 @@ components:
           type: string
           format: date-time
           readOnly: true
+        moderationStatus:
+          type: string
+          readOnly: true
+        revision:
+          type: integer
+          readOnly: true
       required:
       - author
       - authorId
       - content
       - createdAt
       - id
+      - moderationStatus
       - postId
+      - revision
       - updatedAt
     CommunityCommentWrite:
       type: object
@@ -9003,6 +9496,16 @@ components:
           items:
             $ref: '#/components/schemas/CommunityImageMetadata'
           readOnly: true
+        isTrade:
+          type: boolean
+        isAdvertisement:
+          type: boolean
+        moderationStatus:
+          type: string
+          readOnly: true
+        revision:
+          type: integer
+          readOnly: true
       required:
       - author
       - authorId
@@ -9015,8 +9518,10 @@ components:
       - id
       - images
       - isSample
+      - moderationStatus
       - postNumber
       - recommendations
+      - revision
       - sourceId
       - teamCode
       - title
@@ -9051,6 +9556,10 @@ components:
     CommunityPostWrite:
       type: object
       properties:
+        isTrade:
+          type: boolean
+        isAdvertisement:
+          type: boolean
         board:
           $ref: '#/components/schemas/BoardEnum'
         teamCode:
@@ -9603,7 +10112,7 @@ components:
       type: object
       properties:
         state:
-          $ref: '#/components/schemas/StateEnum'
+          $ref: '#/components/schemas/DetailProgressStateEnum'
         generation:
           type: string
           nullable: true
@@ -9640,6 +10149,14 @@ components:
       - strategy
       - teamDone
       - teamTotal
+    DetailProgressStateEnum:
+      enum:
+      - idle
+      - partial
+      type: string
+      description: |-
+        * `idle` - idle
+        * `partial` - partial
     DirectionsError:
       type: object
       properties:
@@ -9743,6 +10260,14 @@ components:
     DraftInput:
       additionalProperties: false
       properties:
+        isTrade:
+          default: false
+          title: Istrade
+          type: boolean
+        isAdvertisement:
+          default: false
+          title: Isadvertisement
+          type: boolean
         board:
           allOf:
           - $ref: '#/components/schemas/BoardEnum'
@@ -9774,6 +10299,10 @@ components:
     DraftOutputSchema:
       type: object
       properties:
+        isTrade:
+          type: boolean
+        isAdvertisement:
+          type: boolean
         id:
           type: string
           format: uuid
@@ -9808,6 +10337,8 @@ components:
       - createdAt
       - id
       - imageIds
+      - isAdvertisement
+      - isTrade
       - revision
       - teamCode
       - title
@@ -10448,6 +10979,76 @@ components:
       required:
       - hitters
       - pitchers
+    Job:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        postId:
+          type: string
+          readOnly: true
+        commentId:
+          type: integer
+          readOnly: true
+          nullable: true
+        revision:
+          type: integer
+          readOnly: true
+        review_revision:
+          type: integer
+          readOnly: true
+        state:
+          allOf:
+          - $ref: '#/components/schemas/JobStateEnum'
+          readOnly: true
+        payload:
+          readOnly: true
+        findings:
+          readOnly: true
+        evidence:
+          readOnly: true
+        error_code:
+          type: string
+          readOnly: true
+        attempts:
+          type: integer
+          readOnly: true
+        manualHidden:
+          type: boolean
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - attempts
+      - commentId
+      - created_at
+      - error_code
+      - evidence
+      - findings
+      - id
+      - manualHidden
+      - payload
+      - postId
+      - review_revision
+      - revision
+      - state
+    JobStateEnum:
+      enum:
+      - queued
+      - running
+      - done
+      - failed
+      - cancelled
+      type: string
+      description: |-
+        * `queued` - queued
+        * `running` - running
+        * `done` - done
+        * `failed` - failed
+        * `cancelled` - cancelled
     KakaoPlace:
       type: object
       properties:
@@ -10538,16 +11139,17 @@ components:
         username:
           type: string
           readOnly: true
-          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
-            only.
+          title: 사용자 이름
+          description: 필수 항목입니다. 150자 이하의 문자, 숫자, @/./+/-/_만 가능합니다.
         email:
           type: string
           format: email
           readOnly: true
-          title: Email address
+          title: 이메일 주소
         first_name:
           type: string
           readOnly: true
+          title: 이름
         birth_date:
           type: string
           format: date
@@ -10562,20 +11164,18 @@ components:
         is_staff:
           type: boolean
           readOnly: true
-          title: Staff status
-          description: Designates whether the user can log into this admin site.
+          title: 스태프 상태
+          description: 사용자가 관리 사이트에 로그인할 수 있는지 여부를 나타냅니다.
         is_superuser:
           type: boolean
           readOnly: true
-          title: Superuser status
-          description: Designates that this user has all permissions without explicitly
-            assigning them.
+          title: 최상위 사용자 상태
+          description: 이 사용자에게 명시적으로 권한을 부여하지 않더라도 모든 권한을 갖도록 지정합니다.
         is_active:
           type: boolean
           readOnly: true
-          title: Active
-          description: Designates whether this user should be treated as active. Unselect
-            this instead of deleting accounts.
+          title: 활성
+          description: 이 사용자를 활성 상태로 처리할지 여부를 나타냅니다. 계정을 삭제하는 대신 이 옵션을 해제하세요.
         nickname:
           type: string
           readOnly: true
@@ -11002,6 +11602,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/HomeContext'
+    PaginatedJobList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Job'
     PaginatedPostseasonStageList:
       type: object
       required:
@@ -11416,6 +12039,47 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Transport'
+    ParkingMap:
+      type: object
+      properties:
+        imageUrl:
+          type: string
+        sourceUrl:
+          type: string
+          format: uri
+        credit:
+          type: string
+        title:
+          type: string
+        summary:
+          type: string
+        kind:
+          $ref: '#/components/schemas/ParkingMapKindEnum'
+        visualNotes:
+          type: array
+          items:
+            type: string
+        capturedAt:
+          type: string
+          format: date
+        width:
+          type: integer
+        height:
+          type: integer
+      required:
+      - imageUrl
+    ParkingMapKindEnum:
+      enum:
+      - entrance
+      - preferred-area
+      - nearby-alternatives
+      - access-gates
+      type: string
+      description: |-
+        * `entrance` - entrance
+        * `preferred-area` - preferred-area
+        * `nearby-alternatives` - nearby-alternatives
+        * `access-gates` - access-gates
     PasswordUpdateRequest:
       type: object
       properties:
@@ -11535,6 +12199,11 @@ components:
           type: string
           format: date-time
           readOnly: true
+    PatchedAdminPostHide:
+      type: object
+      properties:
+        action:
+          $ref: '#/components/schemas/AdminPostHideActionEnum'
     PatchedChatSession:
       type: object
       properties:
@@ -11562,6 +12231,10 @@ components:
     PatchedCommunityPostPatch:
       type: object
       properties:
+        isTrade:
+          type: boolean
+        isAdvertisement:
+          type: boolean
         board:
           $ref: '#/components/schemas/BoardEnum'
         teamCode:
@@ -11635,6 +12308,10 @@ components:
     PatchedDraftPatchSchema:
       type: object
       properties:
+        isTrade:
+          type: boolean
+        isAdvertisement:
+          type: boolean
         revision:
           type: integer
           minimum: 1
@@ -11825,15 +12502,16 @@ components:
         username:
           type: string
           readOnly: true
-          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
-            only.
+          title: 사용자 이름
+          description: 필수 항목입니다. 150자 이하의 문자, 숫자, @/./+/-/_만 가능합니다.
         email:
           type: string
           format: email
           readOnly: true
-          title: Email address
+          title: 이메일 주소
         first_name:
           type: string
+          title: 이름
           maxLength: 150
         birth_date:
           type: string
@@ -11848,20 +12526,18 @@ components:
         is_staff:
           type: boolean
           readOnly: true
-          title: Staff status
-          description: Designates whether the user can log into this admin site.
+          title: 스태프 상태
+          description: 사용자가 관리 사이트에 로그인할 수 있는지 여부를 나타냅니다.
         is_superuser:
           type: boolean
           readOnly: true
-          title: Superuser status
-          description: Designates that this user has all permissions without explicitly
-            assigning them.
+          title: 최상위 사용자 상태
+          description: 이 사용자에게 명시적으로 권한을 부여하지 않더라도 모든 권한을 갖도록 지정합니다.
         is_active:
           type: boolean
           readOnly: true
-          title: Active
-          description: Designates whether this user should be treated as active. Unselect
-            this instead of deleting accounts.
+          title: 활성
+          description: 이 사용자를 활성 상태로 처리할지 여부를 나타냅니다. 계정을 삭제하는 대신 이 옵션을 해제하세요.
         nickname:
           type: string
           maxLength: 12
@@ -11989,6 +12665,14 @@ components:
           type: string
         asset_role:
           type: string
+        source_url:
+          nullable: true
+          oneOf:
+          - type: string
+            format: uri
+            maxLength: 500
+          - type: string
+            maxLength: 0
     PatchedSeatScope:
       type: object
       properties:
@@ -12534,6 +13218,39 @@ components:
       description: |-
         * `home-club-banner` - 홈 구단 광고
         * `home-route-partner-banner` - 홈 음식점·시설 광고
+    Player:
+      type: object
+      properties:
+        external_code:
+          type: string
+          maxLength: 40
+        name:
+          type: string
+          maxLength: 80
+        team:
+          type: string
+          readOnly: true
+        team_name:
+          type: string
+          readOnly: true
+        positions: {}
+        fantasy_type:
+          type: string
+          readOnly: true
+        image_url:
+          nullable: true
+          oneOf:
+          - type: string
+            format: uri
+            maxLength: 1000
+          - type: string
+            maxLength: 0
+      required:
+      - external_code
+      - fantasy_type
+      - name
+      - team
+      - team_name
     PlayerEntity:
       type: object
       properties:
@@ -12594,6 +13311,26 @@ components:
       required:
       - name
       - teamCode
+    PlayerPage:
+      type: object
+      properties:
+        count:
+          type: integer
+        next:
+          type: integer
+          nullable: true
+        previous:
+          type: integer
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Player'
+      required:
+      - count
+      - next
+      - previous
+      - results
     PostseasonStage:
       type: object
       properties:
@@ -13015,69 +13752,6 @@ components:
       - scope_code
       - scope_name
       - seat_views
-    ParkingMap:
-      type: object
-      properties:
-        imageUrl:
-          type: string
-        sourceUrl:
-          type: string
-          format: uri
-        credit:
-          type: string
-        title:
-          type: string
-        summary:
-          type: string
-        kind:
-          $ref: '#/components/schemas/ParkingMapKindEnum'
-        visualNotes:
-          type: array
-          items:
-            type: string
-        capturedAt:
-          type: string
-          format: date
-        width:
-          type: integer
-        height:
-          type: integer
-      required:
-      - imageUrl
-    ParkingMapKindEnum:
-      enum:
-      - entrance
-      - preferred-area
-      - nearby-alternatives
-      - access-gates
-      type: string
-      description: |-
-        * `entrance` - entrance
-        * `preferred-area` - preferred-area
-        * `nearby-alternatives` - nearby-alternatives
-        * `access-gates` - access-gates
-    SeatingMap:
-      type: object
-      properties:
-        imageUrl:
-          type: string
-        sourceUrl:
-          type: string
-          format: uri
-        title:
-          type: string
-        home_context_id:
-          type: integer
-        season:
-          type: integer
-        team_code:
-          type: string
-      required:
-      - home_context_id
-      - imageUrl
-      - season
-      - team_code
-      - title
     PublicStadium:
       type: object
       properties:
@@ -13294,6 +13968,40 @@ components:
         * `home` - home
         * `away` - away
         * `draw` - draw
+    ReviewInput:
+      type: object
+      properties:
+        revision:
+          type: integer
+          minimum: 1
+        review_revision:
+          type: integer
+          minimum: 0
+        finding_ids:
+          type: array
+          items:
+            type: string
+            maxLength: 64
+          maxItems: 100
+        action:
+          $ref: '#/components/schemas/ReviewInputActionEnum'
+        note:
+          type: string
+          maxLength: 500
+      required:
+      - action
+      - finding_ids
+      - note
+      - review_revision
+      - revision
+    ReviewInputActionEnum:
+      enum:
+      - dismiss
+      - confirm
+      type: string
+      description: |-
+        * `dismiss` - dismiss
+        * `confirm` - confirm
     SanctionEnum:
       enum:
       - none
@@ -13597,6 +14305,67 @@ components:
       - side
       - zone_code
       - zone_name_ko
+    SeatingMap:
+      type: object
+      properties:
+        imageUrl:
+          type: string
+        sourceUrl:
+          type: string
+          format: uri
+        title:
+          type: string
+        home_context_id:
+          type: integer
+        season:
+          type: integer
+        team_code:
+          type: string
+      required:
+      - home_context_id
+      - imageUrl
+      - season
+      - team_code
+      - title
+    Selection:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        week:
+          type: integer
+        player:
+          allOf:
+          - $ref: '#/components/schemas/Player'
+          readOnly: true
+        fantasy_type:
+          type: string
+          readOnly: true
+        is_confirmed:
+          type: boolean
+        weights:
+          type: object
+          additionalProperties: {}
+          readOnly: true
+        selected_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - fantasy_type
+      - id
+      - player
+      - selected_at
+      - week
+      - weights
+    SelectionCreate:
+      type: object
+      properties:
+        player:
+          type: string
+      required:
+      - player
     SendEmail:
       type: object
       description: 이메일을 검증합니다.
@@ -13632,6 +14401,7 @@ components:
         password:
           type: string
           writeOnly: true
+          title: 비밀번호
           maxLength: 128
         re_password:
           type: string
@@ -14141,14 +14911,6 @@ components:
       - snapshot_date
       - team_id
       - wins
-    StateEnum:
-      enum:
-      - idle
-      - partial
-      type: string
-      description: |-
-        * `idle` - idle
-        * `partial` - partial
     StatusResponse:
       type: object
       properties:
@@ -14776,6 +15538,40 @@ components:
           nullable: true
       required:
       - weather
+    Week:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        week_start:
+          type: string
+          format: date
+        week_end:
+          type: string
+          format: date
+        settlement_date:
+          type: string
+          format: date
+        status:
+          $ref: '#/components/schemas/WeekStatusEnum'
+        has_games:
+          type: boolean
+          readOnly: true
+      required:
+      - has_games
+      - id
+      - settlement_date
+      - week_end
+      - week_start
+    WeekStatusEnum:
+      enum:
+      - OPEN
+      - SETTLED
+      type: string
+      description: |-
+        * `OPEN` - Open
+        * `SETTLED` - Settled
   securitySchemes:
     jwtAuth:
       type: http

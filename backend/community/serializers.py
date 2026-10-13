@@ -80,6 +80,10 @@ class CommunityImageMetadataSerializer(serializers.ModelSerializer):
 
 @extend_schema_serializer(component_name="CommunityPost")
 class CommunityPostSerializer(serializers.ModelSerializer):
+    isTrade = serializers.BooleanField(source='is_trade', required=False)
+    isAdvertisement = serializers.BooleanField(source='is_advertisement', required=False)
+    moderationStatus = serializers.CharField(source='moderation_status', read_only=True)
+    revision = serializers.IntegerField(source='content_revision', read_only=True)
     id = serializers.CharField(source="source_id", read_only=True)
     sourceId = serializers.CharField(source="source_id", read_only=True)
     postNumber = serializers.CharField(source="post_number", read_only=True)
@@ -101,7 +105,7 @@ class CommunityPostSerializer(serializers.ModelSerializer):
         fields = (
             "id", "sourceId", "postNumber", "board", "teamCode", "authorId", "author", "title", "content", "contentDoc",
             "category", "createdAt", "views", "recommendations", "downvotes", "commentCount", "isSample",
-            "images",
+            "images", "isTrade", "isAdvertisement", "moderationStatus", "revision",
         )
         read_only_fields = ("author",)
 
@@ -119,7 +123,12 @@ class CommunityPostSerializer(serializers.ModelSerializer):
         return self._count(obj, "downvote_count", "votes", "down")
 
     def get_commentCount(self, obj) -> int:
-        return self._count(obj, "actual_comment_count", "comments")
+        from .visibility import public_comments, post_public
+        if not post_public(obj):
+            return 0
+        if hasattr(obj, 'actual_comment_count'):
+            return obj.actual_comment_count
+        return public_comments(obj.comments.all()).count()
 
     def validate(self, attrs):
         board = attrs.get("board", getattr(self.instance, "board", None))
@@ -162,6 +171,8 @@ class CommunityPostSerializer(serializers.ModelSerializer):
 
 @extend_schema_serializer(component_name="CommunityPostWrite")
 class CommunityPostWriteSerializer(serializers.Serializer):
+    isTrade = serializers.BooleanField(required=False)
+    isAdvertisement = serializers.BooleanField(required=False)
     board = serializers.ChoiceField(choices=("free", "teams"))
     teamCode = serializers.CharField(max_length=2, allow_blank=True)
     category = serializers.ChoiceField(choices=TEAM_CATEGORIES)
@@ -187,6 +198,8 @@ class CommunityCommentWriteSerializer(serializers.Serializer):
 
 @extend_schema_serializer(component_name="CommunityComment")
 class CommunityCommentSerializer(serializers.ModelSerializer):
+    moderationStatus = serializers.CharField(source='moderation_status', read_only=True)
+    revision = serializers.IntegerField(source='content_revision', read_only=True)
     postId = serializers.CharField(source="post_id", read_only=True)
     authorId = serializers.IntegerField(source="author_id", read_only=True)
     author = serializers.SerializerMethodField()
@@ -195,7 +208,7 @@ class CommunityCommentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CommunityComment
-        fields = ("id", "postId", "authorId", "author", "content", "createdAt", "updatedAt")
+        fields = ("id", "postId", "authorId", "author", "content", "createdAt", "updatedAt", "moderationStatus", "revision")
         read_only_fields = ("id",)
 
     def get_author(self, comment) -> str:

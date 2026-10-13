@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 
 from accounts.activity import activity_author
 from .models import CommunityComment
+from .visibility import public_comments
 from .pagination import CommunityPostPagination, CommunityPostQuery
 
 
@@ -40,6 +41,6 @@ class CommunityMemberCommentListView(generics.ListAPIView):
     def get_queryset(self):
         member = activity_author(self.request)
         CommunityPostQuery.from_params(self.request.query_params)
-        return CommunityComment.objects.filter(
+        return public_comments(CommunityComment.objects.filter(
             author=member, post__is_hidden=False,
-        ).select_related("post").order_by("-created_at", "-id")
+        )).select_related("post").order_by("-created_at", "-id")

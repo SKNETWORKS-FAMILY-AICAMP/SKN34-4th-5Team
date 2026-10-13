@@ -18,6 +18,8 @@ env:
   LANGCHAIN_TRACING_V2: 'false'
 
 jobs:
+  community-moderation:
+    uses: ./.github/workflows/community-moderation.yml
   provider-quality-required:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest

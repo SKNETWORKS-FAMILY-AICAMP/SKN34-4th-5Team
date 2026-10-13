@@ -8,8 +8,15 @@ from .interactions import CommentDetailView, CommentListCreateView, ReportCreate
 from .predictions import prediction_game_detail, prediction_game_list, prediction_game_vote
 from .publishing import CommunityDraftPublishView
 from .views import CommunityPostDetailView, CommunityPostListCreateView
+from .moderation_views import OwnPostList, OwnPostDetail, OwnCommentList, ModerationList, ModerationReviewView, ModerationRetryView
 
 urlpatterns = [
+    path('submissions/comments/', OwnCommentList.as_view()),
+    path('submissions/posts/', OwnPostList.as_view()),
+    path('submissions/posts/<str:source_id>/', OwnPostDetail.as_view()),
+    path('admin/moderation/', ModerationList.as_view()),
+    path('admin/moderation/<int:job_id>/review/', ModerationReviewView.as_view()),
+    path('admin/moderation/<int:job_id>/retry/', ModerationRetryView.as_view()),
     path("comments/", CommunityMemberCommentListView.as_view(), name="community-member-comments"),
     path("admin/posts/", AdminPostList.as_view(), name="community-admin-posts"),
     path("admin/posts/<str:source_id>/", AdminPostDetail.as_view(), name="community-admin-post"),

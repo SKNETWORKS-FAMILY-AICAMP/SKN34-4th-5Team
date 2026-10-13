@@ -86,7 +86,7 @@ class ImageApiTests(APITestCase):
     def setUpTestData(cls):
         cls.owner = get_user_model().objects.create_user(username="image-owner")
         cls.other = get_user_model().objects.create_user(username="image-other")
-        cls.post = CommunityPost.objects.create(
+        cls.post = CommunityPost.objects.create(moderation_status="approved", approved_revision=0,
             source_id="image-post",
             post_number="999997",
             board="free",
@@ -199,7 +199,7 @@ class ImageApiTests(APITestCase):
         self.client.force_authenticate(None)
         public_response = self.client.get(f"/api/v1/community/images/{public.pk}/")
         self.assertEqual(public_response.status_code, 200)
-        self.assertEqual(public_response["Cache-Control"], "public, max-age=60")
+        self.assertEqual(public_response["Cache-Control"], "no-store")
 
     def test_delete_is_owner_only_and_refuses_published_attachment(self):
         image = self.create_image()

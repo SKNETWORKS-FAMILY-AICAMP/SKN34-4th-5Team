@@ -6,6 +6,20 @@ x-logging: &default-logging
 
 services:
 
+  community-moderation-worker:
+    build: ./backend
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    volumes:
+      - ./backend:/app
+    command: ["python", "manage.py", "run_moderation_worker"]
+    depends_on:
+      backend:
+        condition: service_started
+    stop_grace_period: 40s
+    logging: *default-logging
+
   course-place-warmer:
     build: ./backend
     restart: unless-stopped

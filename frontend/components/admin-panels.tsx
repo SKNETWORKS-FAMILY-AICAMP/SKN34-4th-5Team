@@ -6,15 +6,13 @@ import { getMemberUser, listAdminMembers, updateAdminRole, type AdminMember, typ
 import { actOnAdminReport, deleteAdminPost, hideAdminPost, listAdminPosts, listAdminReports, reportReasonLabel, reportStatusLabel, sanctionLabel, type AdminPost, type AdminReport, type AdminSanction } from "@/lib/api/admin-community";
 import type { Page } from "@/lib/api/types";
 import { memberRoleLabel } from "@/lib/member-policy";
-import { getTeamBoard, getTeamBoardHref } from "@/lib/team-community";
+import { getTeamBoard } from "@/lib/team-community";
 import styles from "./admin-panels.module.css";
 
 const PAGE_SIZE = 20;
 const errorText = (cause: unknown, fallback: string) => cause instanceof Error ? cause.message : fallback;
 const dateText = (value: string | null) => value ? new Date(value).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" }) : "-";
-const postHref = (post: Pick<AdminPost, "board" | "team_code" | "source_id">) => post.board === "free"
-  ? `/community?post=${encodeURIComponent(post.source_id)}`
-  : getTeamBoardHref(post.team_code, post.source_id);
+const postHref = (post: Pick<AdminPost, "source_id">) => `/admin?tab=posts&preview=${encodeURIComponent(post.source_id)}`;
 const boardLabel = (post: Pick<AdminPost, "board" | "team_code">) => post.board === "free" ? "자유" : getTeamBoard(post.team_code)?.name ?? post.team_code;
 
 function Pager({ page, count, busy, label, onChange }: { page: number; count: number; busy: boolean; label: string; onChange: (page: number) => void }) {
@@ -152,7 +150,7 @@ export function AdminPostsPanel() {
         <thead><tr>{["글 번호", "게시판", "제목", "작성자", "작성일", "조회", "댓글", "신고", "관리"].map(label => <th key={label}>{label}</th>)}</tr></thead>
         <tbody>{data.results.map(post => <tr key={post.source_id}>
           <td className={styles.nowrap}>{post.post_number}</td><td className={styles.nowrap}>{boardLabel(post)}</td>
-          <td><Link href={postHref(post)} target="_blank">{post.title}</Link>{post.is_sample && <span className={styles.muted}> (예시)</span>}{post.is_hidden && <span className={styles.hiddenTag}>숨김</span>}</td>
+          <td><Link href={postHref(post)}>{post.title}</Link>{post.is_sample && <span className={styles.muted}> (예시)</span>}{post.is_hidden && <span className={styles.hiddenTag}>숨김</span>}</td>
           <td className={styles.longText}>{post.author}</td><td className={styles.nowrap}>{dateText(post.created_at)}</td><td className={styles.nowrap}>{post.views}</td><td className={styles.nowrap}>{post.comment_count}</td>
           <td className={styles.nowrap}><span className={`${styles.count}${post.report_count ? ` ${styles.hot}` : ""}`}>{post.report_count}</span></td>
           <td className={styles.nowrap}><div className={styles.actions}><button type="button" className={styles.hide} disabled={busy || list.loading || post.is_hidden} onClick={() => void hide(post)}>{post.is_hidden ? "숨김 처리됨" : "숨김"}</button><button type="button" className={styles.delete} disabled={busy} onClick={() => void remove(post)}>삭제</button></div></td>
@@ -240,7 +238,7 @@ export function AdminReportsPanel() {
         <thead><tr>{["신고일", "게시글", "작성자", "신고자", "사유", "상세 내용", "상태", "처리"].map(label => <th key={label}>{label}</th>)}</tr></thead>
         <tbody>{data.results.map(report => <tr key={report.id}>
           <td className={styles.nowrap}>{dateText(report.created_at)}</td>
-          <td><Link href={postHref(report.post)} target="_blank">#{report.post.post_number} {report.post.title}</Link></td>
+          <td><Link href={postHref(report.post)}>#{report.post.post_number} {report.post.title}</Link></td>
           <td className={styles.longText}>{report.post.author}{report.post.owner && <span className={styles.muted}> ({report.post.owner.username})</span>}</td>
           <td className={styles.longText}>{report.reporter}</td><td className={styles.nowrap}>{reportReasonLabel[report.reason] ?? report.reason}</td>
           <td className={styles.longText}>{report.detail || <span className={styles.muted}>없음</span>}</td>
