@@ -1,5 +1,6 @@
 # 커뮤니티 게시 검사 — 로컬 테스트 안내
 
+<<<<<<< HEAD
 ## 현재 자동/수동 선택 (2026-10-13)
 
 기본값은 OpenAI 기본 검사(`openai`)다. 환경변수나 관리자 DB 설정에 명시적으로 저장한 수동 선택은 유지한다. 0014 migration은 모델 기본값만 변경하며 기존 운영자의 선택을 덮어쓰지 않는다. 기존 수동 작업 전체 재검사는 사용자 요청에 따라 현재 버전의 수동 스냅샷을 대상으로 별도 실행하고, 이전 작업/검토 이력 및 관리자 숨김을 보존한다.
@@ -15,6 +16,8 @@
 
 검증: `test_moderation_mode.py`, 프론트 `community-moderation.test.mjs`, 분리 평가 `test_moderation_native.py`를 `.github/workflows/community-moderation.yml`에 연결한다. 공식 규격: https://developers.openai.com/api/docs/guides/moderation
 
+=======
+>>>>>>> 2d1eb00a4135200b94446d5ce01c4843b0fedadb
 현재 브랜치 `feat/21-member-activity`에 적용. 새 글·초안 게시·댓글·수정본은 DB에 저장하되 `pending`으로 비공개다. DB 작업 큐를 별도 워커가 즉시 처리한다. 일정 간격으로 공개된 글을 사후 차단하는 방식이 아니다. 워커의 2초 대기는 신규 큐 작업 조회 간격이다.
 
 ## 지금 테스트하는 방법

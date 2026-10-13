@@ -206,6 +206,8 @@ class BrowserResearchTest(unittest.TestCase):
         from llm.v2.agent.chain import MAIN_RULES
         self.assertIn("전체 NON_PASS", GUARD_INSTRUCTIONS)
         self.assertIn("유모차 보관소", GUARD_CRITERIA["PASS"])
+        self.assertIn("링크(URL)를 주며 요약", GUARD_CRITERIA["PASS"])
+        self.assertIn("첨부 원문이 KBO·야구 직관과 무관하면", MAIN_RULES)
         self.assertIn("확인 질문만", GROUNDING_RULES)
         self.assertIn("전체 일정 조회", GROUNDING_RULES)
         self.assertIn("관련 대화의 확정 조건 → 화면 기본값", CONTENT_RULES)

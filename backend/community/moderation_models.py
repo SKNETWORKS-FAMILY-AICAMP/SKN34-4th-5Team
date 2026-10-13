@@ -4,6 +4,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 
+<<<<<<< HEAD
 class ModerationSettings(models.Model):
     id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
     mode = models.CharField(max_length=10, choices=(('manual', 'manual'), ('openai', 'openai')), default='openai')
@@ -17,6 +18,8 @@ class ModerationSettings(models.Model):
         ]
 
 
+=======
+>>>>>>> 2d1eb00a4135200b94446d5ce01c4843b0fedadb
 class ModerationAdmission(models.Model):
     account = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     created_at = models.DateTimeField(default=timezone.now)
