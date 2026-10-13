@@ -9,8 +9,13 @@ Python 3.12의 별도 job을 사용하며 운영 requirements는 변경하지 �
 | 환경 | 실제 실행 대상 |
 | --- | --- |
 | DeepEval/backend | seed offline 13개, reviewed boundary offline 26개, test_evaluation 전체, attachment_shared 전체(소유 SQLite runner), test_remaining 전체 및 60-case validate, 기존 attachment offline runner 기본 5개 모듈 전체, relocated test_eval_ragas mock 회귀 |
+| highlight Django/frontend (`deterministic`) | `llm.tests.test_highlights` 전체 28개(실제 Django TestCase/ORM/migrations), `frontend/tests/youtube-highlight.test.mjs` 전체 3개(Node test runner) |
 | highlight isolated | relocated test_highlight_deepeval(DeepEval/Ragas scoring), test_relocation(실제 두 framework offline evaluate 및 legacy CLI/import/data 호환) |
 | CI wiring | `.github/test_evaluation_ci.py`: ID cap/중복/주입 거부, argv 실행, 실행 오류와 품질 불일치 구분, trusted-ref 수동 gate와 배포 needs 확인 |
+
+`deterministic` job은 기존 evaluation requirements/`offline-exec` launcher를 재사용하여 `python -I .github/evaluation_ci.py offline-exec backend/manage.py test llm.tests.test_highlights --settings=llm.tests.highlight_settings --noinput --verbosity=2`를 실행합니다. 전용 `pgvector/pgvector:pg18` service의 loopback DB에만 연결하며 Django가 `test_highlight_ci`를 생성·삭제합니다. 독립 settings는 운영 settings/dotenv를 import하지 않고 DB host/user/name을 고정하며, 로컬 disposable service 포트만 `HIGHLIGHT_TEST_DB_PORT`로 바꿀 수 있습니다. 전체 migration graph에 필요한 앱과 PostgreSQL/vector extension을 유지하므로 migration 생략·AST 대체가 아닙니다. Python socket 차단은 제공자 네트워크를 막고 psycopg/libpq의 전용 DB 연결만 사용합니다. 이는 하이라이트 회귀 증거이며 전체 운영 settings/제공자 품질 검증은 아닙니다.
+
+같은 job의 Node 22에서 `frontend` 작업 디렉터리의 `npm ci` 후 `node --test tests/youtube-highlight.test.mjs`를 실행합니다. 기존 `.github/test_evaluation_ci.py` unittest가 YAML을 읽어 두 명령, 무조건 실행/fail-closed, disposable DB service와 dev/prod reusable workflow 연결을 검사하며 이 guard 자체도 같은 job에서 실행합니다. 두 테스트는 develop PR/Push·main PR/Push 및 배포 전 기존 reusable 필수 게이트에 포함됩니다.
 
 무료 회귀 job은 먼저 `TIKTOKEN_CACHE_DIR=$RUNNER_TEMP/evaluation-tiktoken`에서 `tiktoken.get_encoding("cl100k_base")`를 실행해 공개 tokenizer asset을 내려받고 tiktoken의 지정 SHA-256으로 검증합니다. 이는 모델/API 평가 호출이 아닌 설치 사전준비이며, 다운로드·hash 검증 실패는 job 실패입니다. 이후 동일 cache를 사용하여 네트워크 차단을 유지합니다. 빈 HOME/cache에서도 이 준비 단계를 먼저 수행해야 합니다.
 
