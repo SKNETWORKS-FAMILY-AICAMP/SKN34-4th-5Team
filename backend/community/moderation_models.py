@@ -1,16 +1,22 @@
-<<<<<<< HEAD
-import uuid
-
-=======
->>>>>>> fb643bc13284fe677e02749976243f47627a077a
 from django.conf import settings
 from django.db import models
 from django.db.models import Q
 from django.utils import timezone
 
 
-<<<<<<< HEAD
-=======
+class ModerationSettings(models.Model):
+    id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
+    mode = models.CharField(max_length=10, choices=(('manual', 'manual'), ('openai', 'openai')), default='openai')
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(condition=Q(id=1), name='community_mode_singleton'),
+            models.CheckConstraint(condition=Q(mode__in=('manual', 'openai')), name='community_mode_valid'),
+        ]
+
+
 class ModerationAdmission(models.Model):
     account = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     created_at = models.DateTimeField(default=timezone.now)
@@ -19,7 +25,6 @@ class ModerationAdmission(models.Model):
         indexes = [models.Index(fields=('account', 'created_at'), name='community_admission_hour')]
 
 
->>>>>>> fb643bc13284fe677e02749976243f47627a077a
 class ModerationJob(models.Model):
     post = models.ForeignKey('community.CommunityPost', null=True, blank=True, on_delete=models.CASCADE, related_name='moderation_jobs')
     comment = models.ForeignKey('community.CommunityComment', null=True, blank=True, on_delete=models.CASCADE, related_name='moderation_jobs')

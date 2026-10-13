@@ -3,11 +3,7 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.management import call_command, get_commands
-<<<<<<< HEAD
-from django.test import override_settings
-=======
 from django.test import TransactionTestCase, override_settings
->>>>>>> fb643bc13284fe677e02749976243f47627a077a
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
@@ -232,8 +228,6 @@ class ModerationIntegrationTests(APITestCase):
         self.assertEqual(result.status_code, 429)
         self.assertEqual(CommunityPost.objects.filter(owner=self.owner).count(), 1)
 
-<<<<<<< HEAD
-=======
     @override_settings(COMMUNITY_MODERATION_WRITES_PER_HOUR=1)
     def test_deleted_post_does_not_reset_account_limit(self):
         post = self.submit()
@@ -306,7 +300,6 @@ class ModerationIntegrationTests(APITestCase):
                 changed = self.client.post('/api/v1/community/posts/', {**data, 'content': '다른 본문'}, format='json', HTTP_IDEMPOTENCY_KEY=key)
                 self.assertEqual(changed.status_code, 409)
 
->>>>>>> fb643bc13284fe677e02749976243f47627a077a
     def test_chatbot_search_does_not_leak_pending_content(self):
         post = self.submit()
         from llm.tools.community import create_community_tools
@@ -315,8 +308,6 @@ class ModerationIntegrationTests(APITestCase):
         run_one(lambda payload: ([], {}))
         result = create_community_tools()[0].invoke({'query': 'at another level'})
         self.assertIn(post.pk, str(result))
-<<<<<<< HEAD
-=======
 
 
 @override_settings(COMMUNITY_MODERATION_WRITES_PER_HOUR=1, COMMUNITY_MODERATION_MODE='manual', COMMUNITY_POLICY_VERSION='community-v1')
@@ -355,4 +346,3 @@ class ModerationAdmissionConcurrencyTests(TransactionTestCase):
         self.assertEqual(CommunityPost.objects.filter(owner=owner).count(), 1)
         self.assertEqual(ModerationAdmission.objects.filter(account=owner).count(), 1)
         self.assertEqual(ModerationJob.objects.filter(post__owner=owner).count(), 1)
->>>>>>> fb643bc13284fe677e02749976243f47627a077a

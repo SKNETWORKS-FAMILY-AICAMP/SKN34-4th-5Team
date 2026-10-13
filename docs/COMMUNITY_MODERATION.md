@@ -1,5 +1,20 @@
 # 커뮤니티 게시 검사 — 로컬 테스트 안내
 
+## 현재 자동/수동 선택 (2026-10-13)
+
+기본값은 OpenAI 기본 검사(`openai`)다. 환경변수나 관리자 DB 설정에 명시적으로 저장한 수동 선택은 유지한다. 0014 migration은 모델 기본값만 변경하며 기존 운영자의 선택을 덮어쓰지 않는다. 기존 수동 작업 전체 재검사는 사용자 요청에 따라 현재 버전의 수동 스냅샷을 대상으로 별도 실행하고, 이전 작업/검토 이력 및 관리자 숨김을 보존한다.
+
+관리자 → 게시 검사 → 검사 방식에서 `자동 · OpenAI 기본 검사` 또는 `수동 · 모든 글 운영진 검토`를 선택하고 `방식 저장`을 누른다. 설정은 `ModerationSettings` 단일 행에 저장되어 백엔드/워커가 공유하고 재시작 후 유지된다. API는 관리자 전용 `GET/POST /api/v1/community/admin/moderation/settings/`다. migration `0013_moderationsettings`가 필요하다. DB 설정이 없을 때만 환경변수를 초기값으로 사용한다. 새 접수의 `live` 환경값은 기본 자동 모드 `openai`로 매핑한다.
+
+- 자동: 본문 전체를 한 번에 `omni-moderation-latest`로 검사한다. API의 `flagged=false`면 승인, `true`면 사유를 기록하고 운영진 검토로 보낸다. 정치 임베딩/임계값/별도 문맥 모델/harassment 예외/URL 단독 보류는 사용하지 않는다. 일반 정치글·광고·거래·사기 등을 별도 커뮤니티 정책으로 차단하는 기능은 현재 자동 모드에 없다.
+- 수동: 모든 새 글·댓글·수정본을 운영진 검토로 보낸다.
+- 모드 변경은 새 접수/수정본에만 적용한다. 기존 대기/완료/수동 검토 스냅샷을 자동 전환하거나 공개하지 않는다. 실패 작업을 명시적으로 재시도하면 현재 모드로 새 작업을 만든다.
+- 자동은 서버 `OPENAI_API_KEY`만 필요하다. 키가 없으면 선택/저장을 막는다. 키 존재는 API 유효성 보증이 아니며, API 오류나 결과 누락은 재시도 후에도 실패하면 비공개 오류 상태로 남는다.
+- **자동 검사는 텍스트만 연결되어 있다. 첨부 이미지는 `image_review`로 운영진 확인을 유지한다.** 링크 대상에 접속하거나 검사하지 않는다. 실제 API 결과는 기록하되 모델 분류 정확도를 보장하지 않는다.
+- 아래의 정치/문맥 `live` 설명과 기존 평가 기록은 **이전 스냅샷 호환용**이다. 새 관리자 자동 모드에서는 이 경로를 사용하지 않는다.
+
+검증: `test_moderation_mode.py`, 프론트 `community-moderation.test.mjs`, 분리 평가 `test_moderation_native.py`를 `.github/workflows/community-moderation.yml`에 연결한다. 공식 규격: https://developers.openai.com/api/docs/guides/moderation
+
 현재 브랜치 `feat/21-member-activity`에 적용. 새 글·초안 게시·댓글·수정본은 DB에 저장하되 `pending`으로 비공개다. DB 작업 큐를 별도 워커가 즉시 처리한다. 일정 간격으로 공개된 글을 사후 차단하는 방식이 아니다. 워커의 2초 대기는 신규 큐 작업 조회 간격이다.
 
 ## 지금 테스트하는 방법
@@ -21,11 +36,7 @@
 - `backend/llm/management/commands/run_moderation_worker.py`: Django가 명령을 발견하기 위한 연결 파일. `llm/commands`만으로는 `manage.py`가 명령을 자동 등록하지 않는다.
 - `community/moderation_worker.py`, `community/moderation_checks.py`: 기존 import 호환용. `community/moderation_service.py`의 비공개 접수·공개·운영진 복구 트랜잭션과 ORM 모델은 유지한다.
 
-<<<<<<< HEAD
-새 테이블이나 마이그레이션 없이 기존 큐와 필터 결과를 사용한다. 수정 도중 본문이 바뀌는 문제를 막기 위해 LLM 입력에는 해당 버전의 저장된 스냅샷을 쓴다.
-=======
 워커를 services/llm 명령으로 옮긴 리팩터링 자체는 새 테이블이나 마이그레이션 없이 기존 큐와 필터 결과를 사용한다. 별도 접수 제한 보완은 migration `0012_moderation_admission`이 필요하다. `ModerationAdmission`은 계정 ID와 접수 시각만 저장하여 글·댓글 삭제와 무관하게 최근 1시간 접수량을 유지하며 본문·이미지·검사 사유를 보관하지 않는다. 계정 행의 PostgreSQL `FOR NO KEY UPDATE` 잠금으로 같은 계정 접수를 직렬화하되 새 글의 외래키 key-share 잠금과 교착하지 않는다. 다음 접수에서 그 계정의 만료 기록을 정리하며, migration은 남아 있는 최근 작업의 접수량만 이관하고 기존 작업·리뷰를 수정하지 않는다(이미 삭제된 작업은 복원할 수 없다). 수정 도중 본문이 바뀌는 문제를 막기 위해 LLM 입력에는 해당 버전의 저장된 스냅샷을 쓴다.
->>>>>>> fb643bc13284fe677e02749976243f47627a077a
 
 서버 스케줄러에서 미검사 전체를 수집하고 일회 실행할 명령: `python manage.py filter_unchecked_content` (`backend`에서 실행). 구현은 `llm/commands/filter_unchecked_content.py`와 `services.community_moderation.enqueue_unchecked`에 있다. 현재 내용 버전의 검사 작업이 없는 게시글·댓글을 찾아 비공개 큐에 넣은 뒤 기존 `run_moderation_worker --once`를 호출한다. 과거 승인 버전 0 데이터와 Django 기본 관리자에서 생성하여 작업이 누락된 데이터도 포함한다. 이미 완료·검토·거절된 검사 및 대기·실행 중 작업은 중복 생성하지 않는다. 실패 작업은 기존 명시적 재시도 절차를 유지하며, 아직 재시도 시간이 안 된 작업·다른 워커가 처리 중인 작업은 남은 수를 출력한다. 기존 숨김은 유지한다. 이 명령의 미검사 기준은 현재 버전의 작업 유무이므로, 버전을 올리지 않고 DB나 기본 관리자에서 이미 검사한 본문을 직접 덮어쓰는 경로는 별도로 연결해야 한다.
 

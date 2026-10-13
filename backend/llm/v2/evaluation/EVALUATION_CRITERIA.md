@@ -1,7 +1,12 @@
 # DeepEval 평가 기준 v1.0
 
-<<<<<<< HEAD
-=======
+## 2026-10-13 OpenAI 기본 자동 검사와 관리자 모드 선택
+
+- 사용자 결정: 새 자동 모드는 omni-moderation-latest의 flagged만 사용한다. 정치 임베딩, 별도 문맥 모델, harassment 예외, URL 단독 보류는 적용하지 않는다. 첨부 이미지는 기존 미검사 상태를 명확히 표시하고 운영진 검토를 유지한다.
+- 수동은 전건 검토, 자동은 flagged=false이면 공개, true이면 비공개 검토다. 오류는 공개하지 않는다. 관리자만 DB에 모드를 저장하며 새 접수부터 적용한다. 기존 작업의 스냅샷/검토/포인트는 변경하지 않는다.
+- 고정 synthetic 응답으로 정상·harassment·정치·URL·거래·실패·이미지 경로를 검증한다. 새 계약을 변경 전 A와 변경 후 B에 동일하게 실행하고 DeepEval/Ragas exact 지표로 각각 채점한다. API 호출 0, 의미 정확도는 not-measured. 기존 live 계약은 과거 스냅샷 호환 회귀로 유지한다.
+- 합격: B의 계약 전건 일치, 관리자 전용 권한·모드 영속·새 작업 적용·기존 작업 유지·오류 비공개 회귀 통과. community-moderation.yml의 django-integration 및 provider-contracts에 연결한다. 신규 정답은 사용자 요청에 따른 별도 계약이며 기존 정답을 변경하지 않는다.
+
 ## 코스 리뷰 5건 수정 계약 (2026-10-13)
 
 - 목적: 보존 대상의 번호·상호·술집 언급을 수정 허용으로 오판하는 경계, BAR 방문의 FOOD 상호 혼합 검색에서 평점 조사 누락, 지번 주소 누락, 무료 CI 대상 누락, 보존 안내의 역할 오류를 수정한다.
@@ -26,7 +31,6 @@
 - UI 합격/실패: pending 포함 비공개 글 삭제는 확인 취소 시 호출 0, 성공 시 목록 새로고침, 실패 시 오류 표시와 목록 유지다. 댓글 moderationStatus/revision 누락·오형은 거절한다. 관련 회귀와 community 전체·DomainTools·point/probe를 disposable PostgreSQL CI 명령 및 프론트 4파일 명령에서 실제 발견/실행해야 합격이다.
 - A/B: 수정 전 A와 수정 후 B에서 기존 synthetic 10개 CASES, 정답, DeepEval/Ragas deterministic routing 지표, synthetic 모델/embedding, threshold=0.8, cache off, network 금지 조건을 동결하여 각각 실행한다. 두 프레임워크 각 10/10 및 provider_calls=0이어야 하며 의미 품질은 not-measured다. 실제 유료 호출은 하지 않는다. 실행 오류/미실행은 검증 대기로 보존한다.
 
->>>>>>> fb643bc13284fe677e02749976243f47627a077a
 ## 2026-10-13 커뮤니티 비공개 검사 통합
 
 - 범위: 게시글/댓글 비공개 접수, 영속 작업, 정치 유사도/문맥 정책, 사유별 운영진 해제, 공개 접근 및 최초 포인트 지급.

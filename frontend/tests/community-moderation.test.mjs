@@ -9,11 +9,7 @@ function nodes(tree) {
   if (Array.isArray(tree)) return tree.flatMap(nodes);
   return tree && typeof tree === "object" && tree.props ? [tree, ...nodes(tree.props.children)] : [];
 }
-<<<<<<< HEAD
-function harness({ user = { id: 1 }, response = Response.json({}) } = {}) {
-=======
 function harness({ user = { id: 1 }, response = Response.json({}), confirm = true, deleteError = null } = {}) {
->>>>>>> fb643bc13284fe677e02749976243f47627a077a
   let values = [], index = 0;
   const calls = [];
   const mocks = {
@@ -22,19 +18,11 @@ function harness({ user = { id: 1 }, response = Response.json({}), confirm = tru
     "next/link": { __esModule: true, default: "a" },
     "@/lib/member-auth": { useMemberAuth: () => ({ user, status: user ? "authenticated" : "anonymous" }) },
     "@/lib/member-auth-request": { memberFetch: async (path, init) => { calls.push({ path, init }); return response; }, memberError: (data, fallback) => data.detail || fallback },
-<<<<<<< HEAD
-    "@/lib/community-api": {},
-    "@/lib/team-community": { getTeamBoardHref: () => "/community/teams" },
-    "./community-moderation.module.css": { __esModule: true, default: new Proxy({}, { get: (_, key) => key }) },
-  };
-  const context = { exports: {}, require: name => mocks[name], Error, JSON, window: { confirm: () => true } };
-=======
     "@/lib/community-api": { deleteCommunityPost: async id => { calls.push({ deleted: id }); if (deleteError) throw new Error(deleteError); } },
     "@/lib/team-community": { getTeamBoardHref: () => "/community/teams" },
     "./community-moderation.module.css": { __esModule: true, default: new Proxy({}, { get: (_, key) => key }) },
   };
   const context = { exports: {}, require: name => mocks[name], Error, JSON, window: { confirm: () => confirm } };
->>>>>>> fb643bc13284fe677e02749976243f47627a077a
   vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../components/community-moderation.tsx", import.meta.url), "utf8"), {
     compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, esModuleInterop: true },
   }).outputText, context);
@@ -44,7 +32,7 @@ const job = { id: 9, postId: "p1", commentId: null, revision: 4, review_revision
   payload: { text: "본문", mode: "manual", image_ids: [] }, findings: [{ id: "f1", code: "political", resolution: "open", reason: "확인", quote: "본문" }], error_code: "" };
 function card(h, selected = ["f1"], note = "원문 확인") {
   const panel = h.render(h.exports.ModerationPanel, {}, [[job], 1, false, 0, "", false]);
-  const element = nodes(panel).find(node => typeof node.type === "function");
+  const element = nodes(panel).find(node => typeof node.type === "function" && node.props.job);
   return h.render(element.type, element.props, [selected, note, false, ""]);
 }
 
@@ -76,8 +64,6 @@ test("conflicting review displays error and never retries approval automatically
   assert.equal(h.values[3], "내용이 변경되었습니다.");
 });
 
-<<<<<<< HEAD
-=======
 function submission(h, status = "pending", busy = false) {
   const screen = h.render(h.exports.CommunitySubmissions);
   const element = nodes(screen).find(node => typeof node.type === "function");
@@ -116,7 +102,6 @@ test("failed private post deletion preserves list and displays error", async () 
   assert.equal(h.values[4], false);
 });
 
->>>>>>> fb643bc13284fe677e02749976243f47627a077a
 test("anonymous submission screen cannot render private content", () => {
   const h = harness({ user: null });
   const tree = h.render(h.exports.CommunitySubmissions);
@@ -128,8 +113,43 @@ test("loading hides stale review forms and prevents pagination", () => {
   const h = harness();
   const tree = h.render(h.exports.ModerationPanel, {}, [[job], 2, true, 0, "", true]);
   assert.ok(nodes(tree).some(node => node.props.role === "status"));
-  assert.equal(nodes(tree).some(node => typeof node.type === "function"), false);
+  assert.equal(nodes(tree).some(node => typeof node.type === "function" && node.props.job), false);
   assert.ok(nodes(tree).filter(node => node.type === "button").every(node => node.props.disabled));
+});
+
+test("mode selection saves explicit choice and reports persistence", async () => {
+  const h = harness({ response: Response.json({ mode: "openai", automaticAvailable: true }) });
+  let tree = h.render(h.exports.ModerationModeControl, {}, ["manual", "manual", true, false, "", ""]);
+  nodes(tree).find(n => n.type === "select").props.onChange({ target: { value: "openai" } });
+  tree = h.render(h.exports.ModerationModeControl, {}, h.values);
+  const save = nodes(tree).find(n => n.type === "button" && n.props.children === "방식 저장");
+  assert.equal(save.props.disabled, false);
+  save.props.onClick();
+  assert.equal(h.values[3], true);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(h.calls[0].path, "/api/v1/community/admin/moderation/settings/");
+  assert.deepEqual(JSON.parse(h.calls[0].init.body), { mode: "openai" });
+  assert.equal(h.values[1], "openai");
+  assert.match(h.values[5], /새 게시글/);
+});
+
+test("failed mode save preserves current mode and shows error", async () => {
+  const h = harness({ response: Response.json({ detail: "저장 실패" }, { status: 500 }) });
+  const tree = h.render(h.exports.ModerationModeControl, {}, ["openai", "manual", true, false, "", ""]);
+  nodes(tree).find(n => n.type === "button" && n.props.children === "방식 저장").props.onClick();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(h.values[1], "manual");
+  assert.equal(h.values[4], "저장 실패");
+  assert.equal(h.values[3], false);
+});
+
+test("mode save is disabled before load or with unchanged choice", () => {
+  const h = harness();
+  for (const state of [["manual", "", false, true, "", ""], ["manual", "manual", false, false, "", ""]]) {
+    const tree = h.render(h.exports.ModerationModeControl, {}, state);
+    assert.equal(nodes(tree).find(n => n.type === "button" && n.props.children === "방식 저장").props.disabled, true);
+    assert.equal(nodes(tree).find(n => n.type === "option" && n.props.value === "openai").props.disabled, true);
+  }
 });
 
 test("empty results explain the next action without masking request errors", () => {

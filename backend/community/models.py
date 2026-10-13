@@ -254,8 +254,4 @@ class GamePrediction(models.Model):
             models.CheckConstraint(condition=Q(choice__in=("home", "away")), name="community_prediction_choice_valid"),
         )
 
-<<<<<<< HEAD
-from .moderation_models import ModerationJob, ModerationReview  # noqa: E402,F401
-=======
-from .moderation_models import ModerationAdmission, ModerationJob, ModerationReview  # noqa: E402,F401
->>>>>>> fb643bc13284fe677e02749976243f47627a077a
+from .moderation_models import ModerationAdmission, ModerationJob, ModerationReview, ModerationSettings  # noqa: E402,F401

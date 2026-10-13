@@ -1,4 +1,10 @@
 .panel { min-width: 0; color: var(--foreground); }
+.modeSettings { border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-bottom: 28px; background: var(--background); }
+.modeSettings h3 { font-size: 18px; margin-bottom: 8px; }
+.modeSettings p { color: #59697e; font-size: 13px; line-height: 1.7; margin: 10px 0; }
+.modeSettings select { max-width: 100%; padding: 10px 12px; margin: 8px 8px 8px 0; border: 1px solid var(--border); border-radius: 8px; background: var(--background); color: var(--foreground); font: inherit; }
+.modeSettings button { margin: 4px 0; }
+.modeSettings select:focus-visible { outline: 2px solid #246bf3; outline-offset: 3px; }
 .panel h2, .panel h3, .panel h4 { letter-spacing: -.03em; }
 .panelHeader { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 28px; }
 .panelHeader h2 { font-size: 24px; font-weight: 750; margin-bottom: 8px; }
