@@ -415,7 +415,8 @@ def candidates(target, anchor, plan, fixed):
         for center, radius in areas:
             documents.extend(venue_policy.search_candidates(invoke_domain_tool,
                 {**args, "latitude": float(center["lat"]), "longitude": float(center["lng"]), "radius": radius}, target["category"],
-                candidate_filter=eligible, quality_center=target, quality_reuse=reuse))
+                candidate_filter=eligible, quality_center=target, quality_reuse=reuse,
+                visit_kind=plan.get('visit_kind') or timeline.kind_of(target)))
         for raw in documents:
             try:
                 lat, lng = float(raw["y"]), float(raw["x"])

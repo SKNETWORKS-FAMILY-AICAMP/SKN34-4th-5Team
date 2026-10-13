@@ -611,7 +611,7 @@ def _kakao_step(kind, center, radius, anchor, sl, *, candidate_filter=None, qual
         return row is not None and (candidate_filter is None or candidate_filter(row))
     try:
         items = venue_policy.search_candidates(invoke_domain_tool, args, STEP_CATEGORY[kind],
-                                               candidate_filter=allowed, quality_reuse=quality_reuse)
+                                               candidate_filter=allowed, quality_reuse=quality_reuse, visit_kind=kind)
     except (ProgressCancelled, ProgressStorageError):
         raise
     except Exception:

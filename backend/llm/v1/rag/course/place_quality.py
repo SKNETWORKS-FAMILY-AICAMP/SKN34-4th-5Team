@@ -172,7 +172,7 @@ def canonical(place):
         pid = _id(place)
         lat, lng = float(place.get("lat", place.get("y"))), float(place.get("lng", place.get("x")))
         name = str(place.get("name") or place.get("place_name") or "")
-        address = str(place.get("address") or place.get("road_address_name") or "")
+        address = str(place.get("address") or place.get("road_address_name") or place.get("address_name") or "")
         detail = str(place.get("detail") or place.get("category_name") or place.get("category_detail") or "")
         if not pid or not name or not address or not -90 <= lat <= 90 or not -180 <= lng <= 180:
             return None
@@ -277,11 +277,11 @@ def candidate_allowed(place):
     return _id(place) not in BLOCKED_IDS and not ENTERTAINMENT.search(detail)
 
 
-def verify_candidates(places, category, query="", *, center=None, search_center=None, radius=2500, reuse=True, refresh=False):
+def verify_candidates(places, category, query="", *, center=None, search_center=None, radius=2500, reuse=True, refresh=False, visit_kind=None):
     """A bounded fresh investigation, after provider search and scope filtering."""
     places = list(places)
     from . import bar_ratings, recommendation_policy
-    wants_bar = category == "BAR" or bool(re.search(r"술집|주점|호프|이자카야|맥주|하이볼", query))
+    wants_bar = visit_kind == "BAR" or category == "BAR" or bool(re.search(r"술집|주점|호프|이자카야|맥주|하이볼", query))
     only_bars = bool(places) and all(bar_ratings.is_bar(p, category) for p in places)
     if _SCOPE.get() and (wants_bar or only_bars) and (recommendation_policy.balanced() or not active(category)):
         bar_ratings.investigate(places, category, center=center, radius=radius)
