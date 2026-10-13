@@ -28,7 +28,9 @@ import { CdpSocket, sleep, type TargetList } from "./socket.ts";
 const READ_STATE = loadSnapshotJs();
 
 export class CdpBrowser implements BrowserDriver {
-  private socket!: CdpSocket;
+  socket!: CdpSocket;
+  private signal?: AbortSignal;
+  private abort = () => this.socket?.close();
   session!: string;
   target!: string;
   private proc: ChildProcess | null = null;
@@ -42,8 +44,9 @@ export class CdpBrowser implements BrowserDriver {
 
   private constructor() {}
 
-  static async open(url: string, opts: CdpOptions = {}): Promise<CdpBrowser> {
+  static async launch(opts: CdpOptions = {}, downloads: "allow" | "deny" = "allow"): Promise<CdpBrowser> {
     const browser = new CdpBrowser();
+    browser.signal = opts.signal;
     const spawned = await spawnChrome(opts);
 
     if (spawned) {
@@ -56,18 +59,31 @@ export class CdpBrowser implements BrowserDriver {
 
       if (spawned) browser.proc = spawned.proc;
 
-      browser.socket = await CdpSocket.connect(wsUrl);
+      browser.socket = await CdpSocket.connect(wsUrl, opts.signal);
+      opts.signal?.addEventListener("abort", browser.abort, { once: true });
+      opts.signal?.throwIfAborted();
 
       if (browser.proc) {
-        await browser.socket
-          .call("Browser.setDownloadBehavior", {
-            behavior: "allow",
-            downloadPath: mkdtempSync(join(tmpdir(), "jev-downloads-")),
-            eventsEnabled: true,
-          })
-          .catch(() => {});
+        const setting = browser.socket.call("Browser.setDownloadBehavior", {
+          behavior: downloads,
+          ...(downloads === "allow" && { downloadPath: mkdtempSync(join(tmpdir(), "jev-downloads-")), eventsEnabled: true }),
+        });
+
+        if (downloads === "deny") await setting;
+        else await setting.catch(() => {});
       }
 
+      return browser;
+    } catch (error) {
+      await browser.close();
+      throw error;
+    }
+  }
+
+  static async open(url: string, opts: CdpOptions = {}): Promise<CdpBrowser> {
+    const browser = await CdpBrowser.launch(opts);
+
+    try {
       browser.events.wire(browser.socket);
 
       browser.target = (
@@ -330,6 +346,8 @@ export class CdpBrowser implements BrowserDriver {
   }
 
   async close(): Promise<void> {
+    this.signal?.removeEventListener("abort", this.abort);
+
     try {
       for (const t of this.adopted) {
         await this.socket.call("Target.closeTarget", { targetId: t }).catch(() => {});

@@ -3,6 +3,7 @@ import asyncio
 import json
 import hashlib
 import secrets
+import re
 from datetime import datetime, timezone
 from functools import wraps
 from time import perf_counter
@@ -251,7 +252,16 @@ async def chrome_lodging(name: str, timeout_seconds: float = 45, background: boo
             warm_task = None
 
 
-async def _chrome_lodging(name, timeout_seconds):
+@mcp.tool()
+async def jev_read_lodging(url: str) -> dict:
+    """Read one public NOL domestic property URL with headed JEV Chrome; no search or model calls."""
+    if not re.fullmatch(r"https://nol\.yanolja\.com/stay/domestic/[0-9]+(?:\?verticalCategory=PRODUCT_CATEGORY_KOREA_ACCOMMODATION)?", url):
+        return {"status": "blocked"}
+    await preempt_warm()
+    return await _chrome_lodging("", 45, url)
+
+
+async def _chrome_lodging(name, timeout_seconds, url=None):
     if lock.locked():
         return {"status": "busy"}
     async with lock:
@@ -261,6 +271,7 @@ async def _chrome_lodging(name, timeout_seconds):
             env.update(TMPDIR=profile, TMP=profile, TEMP=profile)
             process = await asyncio.create_subprocess_exec(
                 "node", "/opt/service/chrome-lodging.mjs", profile, name, str(timeout_seconds),
+                *([url] if url is not None else []),
                 env=env, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
                 start_new_session=True,
             )

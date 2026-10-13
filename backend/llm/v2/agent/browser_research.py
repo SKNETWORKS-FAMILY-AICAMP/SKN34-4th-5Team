@@ -59,7 +59,7 @@ _admission = Lock()
 
 
 def transport_status(error):
-    """Only installed transport failures are recoverable; mixed groups still fail closed."""
+    """Known transport/discovery failures are recoverable; mixed groups still fail closed."""
     import httpx
     import anyio
     from mcp.shared.exceptions import McpError
@@ -67,6 +67,8 @@ def transport_status(error):
     if isinstance(error, BaseExceptionGroup):
         statuses = [transport_status(item) for item in error.exceptions]
         return ("timeout" if "timeout" in statuses else "error") if all(statuses) else None
+    if type(error) is RuntimeError and str(error) == "Required JEV MCP tools unavailable":
+        return "error"
     if isinstance(error, (TimeoutError, httpx.TimeoutException)):
         return "timeout"
     if isinstance(error, (httpx.TransportError, anyio.BrokenResourceError, anyio.ClosedResourceError, anyio.EndOfStream)):
@@ -264,7 +266,29 @@ def result_status(value):
     return "ok" if status in {"ok", "done"} else "error"
 
 
+def lodging_url(url):
+    import re
+    return isinstance(url, str) and re.fullmatch(
+        r"https://nol\.yanolja\.com/stay/domestic/[0-9]+/?(?:\?verticalCategory=PRODUCT_CATEGORY_KOREA_ACCOMMODATION)?", url) is not None
+
+
 async def browse(url, goal, *, body=False):
+    if body and lodging_url(url):
+        from travel.chrome_lodging import _remote, _validated
+        page = await asyncio.wait_for(_remote("", 45, url=url), timeout=48)
+        if not isinstance(page, dict):
+            return {"status": "error", "source_url": url}
+        if page.get("status") != "read":
+            return {"status": page.get("status", "error"), "source_url": url}
+        from llm.v1.rag.nearby.lodging import source_url
+        if (source_url(page.get("url")) != source_url(url)
+                or not _validated(page, page)):
+            return {"status": "error", "source_url": url}
+        return {"schema_version": 1, "extractor_version": "jev-dom-v1", "status": "ok",
+                "source_kind": "rendered_dom_snapshot", "requested_url": url,
+                "final_url": page["url"], "source_url": page["url"], "title": page["title"],
+                "body": page["body_text"], "collected_at": page.get("collected_at"),
+                "frames": [], "limitations": ["lodging_detail_snapshot"]}
     tools = await cancellable_call(discover_tools())
     browser = next(t for t in tools if t.name == ("jev_read_body" if body else "jev_browse"))
     return await cancellable_call(browser.ainvoke({"url": url} if body else {"url": url, "goal": goal}))
@@ -284,12 +308,19 @@ def direct_tools():
                 raise ToolException(json.dumps({"status": "busy"}))
             try:
                 try:
-                    content, artifact = asyncio.run(cancellable_call(_tool.coroutine(**arguments)))
+                    if _tool.name == "jev_read_body" and lodging_url(arguments["url"]):
+                        result = validate_body_evidence(asyncio.run(browse(arguments["url"], "", body=True)), arguments["url"])
+                        content, artifact = json.dumps(result, ensure_ascii=False), {"structured_content": result}
+                    else:
+                        content, artifact = asyncio.run(cancellable_call(_tool.coroutine(**arguments)))
                 except Exception as exc:
                     from llm.service.chat_runs import Stopped
                     if isinstance(exc, Stopped):
                         raise
-                    raise ToolException(json.dumps({"status": "timeout" if isinstance(exc, TimeoutError) else "error"})) from exc
+                    status = transport_status(exc)
+                    if status is None and isinstance(exc, RuntimeError) and str(exc) != "JEV_MCP_TOKEN is required":
+                        raise
+                    raise ToolException(json.dumps({"status": status or "error"})) from exc
                 check_cancelled()
                 structured = artifact.get("structured_content") if isinstance(artifact, dict) else None
                 if len(json.dumps(content, ensure_ascii=False).encode()) > MAX_TEXT or (structured is not None and len(json.dumps(structured, ensure_ascii=False).encode()) > MAX_TEXT):

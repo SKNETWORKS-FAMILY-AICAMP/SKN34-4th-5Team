@@ -46,7 +46,6 @@ services:
       - ./data/staging/stadium_places:/data/staging/stadium_places:ro
       - lodging_pages:/app/.cache/lodging-pages
     environment: &backend-environment
-      LODGING_CHROME_TRANSPORT: mcp
       LODGING_WARM_STADIUMS: ${LODGING_WARM_STADIUMS:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:?Set OPENAI_API_KEY}
       JEV_MCP_URL: ${JEV_MCP_URL:-http://jev-browser:8080/mcp}
