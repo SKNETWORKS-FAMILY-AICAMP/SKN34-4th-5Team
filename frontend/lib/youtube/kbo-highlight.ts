@@ -48,7 +48,8 @@ const runtime = globalThis.__kboHighlightRuntimeV3 ??= { value: [], updatedAt: 0
 export function isKboLeagueHighlightTitle(title: string) {
   return /^\[[^\]]+\s+vs\s+[^\]]+\]/i.test(title)
     && title.includes("야구 하이라이트")
-    && /\d{4}\s*KBO\s*리그/i.test(title)
+    // 정규시즌 "2026 KBO 리그"와 가을야구 "2026 신한 SOL KBO 포스트시즌"(타이틀 스폰서 포함)을 함께 받는다.
+    && /\d{4}\s*(?:신한\s*SOL\s*(?:뱅크\s*)?)?KBO\s*(?:리그|포스트시즌|와일드카드|준플레이오프|플레이오프|한국시리즈)/i.test(title)
     && /KBO\s*X\s*TVING/i.test(title)
     && !title.includes("퓨처스리그");
 }
