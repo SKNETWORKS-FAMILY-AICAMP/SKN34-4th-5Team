@@ -1,0 +1,288 @@
+{
+  "schema_version": 1,
+  "notice": "Historical input snapshots only. They do not establish current menu/opening/rating truth or success of the new cases. Independent review and identical isolated A/B restoration are required.",
+  "fixtures": {
+    "gwangju_base": {
+      "provenance": "historical-measured-course-as-input-not-new-evaluation-result",
+      "source_file": "backend/artifacts/bar-rating-merge-gwangju-after.json",
+      "source_sha256": "db5613e995f1fffc7bcc7f63583973eab8c3a003726175bbf3e61737946c7542",
+      "source_report": "docs/test_results/develop-merge-20261013.md",
+      "transformations": [
+        "Session ID, usage, timing, writerState and nested duplicate payload removed.",
+        "Public course fields retained; origin name taken from the same run input; labels and empty legModes supplied."
+      ],
+      "current_course": {
+        "stadiumCode": "GWANGJU",
+        "game": {
+          "date": "2026-10-16",
+          "time": "14:00",
+          "isDemo": true
+        },
+        "origin": {
+          "lat": 35.1659,
+          "lng": 126.9096,
+          "name": "광주역"
+        },
+        "places": [
+          {
+            "name": "황후쟁반짜장",
+            "lat": 35.16988752039389,
+            "lng": 126.9073130286851,
+            "phase": "BEFORE",
+            "category": "FOOD",
+            "placeUrl": "https://place.map.kakao.com/1531841123",
+            "visitId": "course:0:1531841123",
+            "placeId": "1531841123",
+            "address": "전남광주통합특별시 북구 서양로 56",
+            "reason": "경기 전 식사",
+            "time": "11:55",
+            "until": "12:45",
+            "stayMin": 50,
+            "label": "1"
+          },
+          {
+            "name": "STATION",
+            "lat": 35.1684639,
+            "lng": 126.8893241,
+            "phase": "BEFORE",
+            "category": "FOOD",
+            "placeUrl": "https://myseatcheck.com/광주-챔피언스필드-먹거리-1루-3층-station/",
+            "visitId": "course:1:stadium-facility:SC_FOOD_GWANGJU_003:SC_FOOD_GWANGJU_003-reference",
+            "placeId": "stadium-facility:SC_FOOD_GWANGJU_003:SC_FOOD_GWANGJU_003-reference",
+            "address": "1루 3층 · 106블럭",
+            "reason": "구장 대표 메뉴는 크림새우입니다. STATION의 자리어때 메뉴판 사진에서 확인했어요.",
+            "time": "13:30",
+            "until": "14:00",
+            "stayMin": 30,
+            "label": "2"
+          },
+          {
+            "name": "광주-KIA 챔피언스 필드",
+            "lat": 35.16807185,
+            "lng": 126.88895635,
+            "phase": "GAME",
+            "category": "STADIUM",
+            "visitId": "course:2:None",
+            "address": "전남광주통합특별시 북구 서림로 10",
+            "reason": "경기 관람",
+            "time": "14:00",
+            "until": "17:10",
+            "stayMin": 0,
+            "label": "3"
+          },
+          {
+            "name": "월간맥주 광천점",
+            "lat": 35.1607588641325,
+            "lng": 126.885526493689,
+            "phase": "AFTER",
+            "category": "FOOD",
+            "placeUrl": "https://place.map.kakao.com/193434721",
+            "visitId": "course:3:193434721",
+            "placeId": "193434721",
+            "address": "전남광주통합특별시 서구 죽봉대로78번길 19",
+            "reason": "경기 후 술집",
+            "time": "17:34",
+            "until": "18:54",
+            "stayMin": 80,
+            "label": "4"
+          },
+          {
+            "name": "체육공원",
+            "lat": 35.1722923471016,
+            "lng": 126.883328028394,
+            "phase": "AFTER",
+            "category": "WALK",
+            "placeUrl": "https://place.map.kakao.com/10835756",
+            "visitId": "course:4:10835756",
+            "placeId": "10835756",
+            "address": "전남광주통합특별시 북구 운암동",
+            "reason": "경기 후 산책",
+            "time": "19:24",
+            "until": "20:04",
+            "stayMin": 40,
+            "label": "5"
+          }
+        ],
+        "travelMode": "walk",
+        "legModes": {}
+      },
+      "history": [
+        {
+          "role": "user",
+          "content": "10월 16일 광주 경기 자장면 먹고 구장에서 간식 먹은 다음에 술 먹고 산책하고 싶어. 코스짜줘"
+        },
+        {
+          "role": "assistant",
+          "content": "조건에 맞는 후보 코스들의 출발지부터 마지막 장소까지 이동시간을 비교해 골랐어요.\n\n시연용 가상 경기 기준입니다. 실제 공식 경기 일정이 아닙니다.\n\n10월 16일 14:00 광주-KIA 챔피언스 필드 · KIA 타이거즈 홈 vs NC 다이노스 원정 기준 코스예요.\n\n11:55  황후쟁반짜장 (50분) — 경기 전 식사\n13:30  STATION (30분) — 구장 대표 메뉴는 크림새우입니다. STATION의 자리어때 메뉴판 사진에서 확인했어요. · 1루 3층 · 106블럭 [매장 상세 위치](https://myseatcheck.com/광주-챔피언스필드-먹거리-1루-3층-station/) [대표 먹거리 참고](https://notes0236.tistory.com/154) [메뉴판 사진](https://myseatcheck.com/wp-content/uploads/2024/06/광주-편의시설_IMG_0765_mark.webp) (메뉴판 확인 2026-10-07)\n14:00  광주-KIA 챔피언스 필드 경기 관람 · 14:00 경기 시작 (종료 17:10 예상) — 구장 내부 먹거리 방문 후 바로 이어지는 일정\n17:34  월간맥주 광천점 (80분) — 경기 후 술집 · [평점·후기](https://www.diningcode.com/profile.php?rid=3EEtyYAHpibx) 다이닝코드 5/5 · 평가 3명 (확인 2026-10-13)\n19:24  체육공원 (40분) — 경기 후 산책\n\n총 도보 약 6.0km · 99분 · 코스 전체 8시간 9분\n방문 전 해당 매장의 영업 여부를 확인해 주세요.\n선택한 출발지에서 황후쟁반짜장까지는 직선거리 약 0.5km예요.\n구장 내부 먹거리는 자리어때 수집 목록만 사용했어요. 핀은 구장 옆 표시 위치입니다. 실제 위치는 매장 상세 위치 링크를 확인하세요. 현재 영업·메뉴·입장권 필요 여부는 미확인입니다.\n\n거리와 업종을 기준으로 구성했어요. 일부 매장의 평점·실내 상태는 아직 확인되지 않았으며, 영업시간은 방문 전에 확인해 주세요."
+        }
+      ],
+      "server_memory_setup": "Isolated evaluation session only. Restore same date, game source/isDemo, origin, visit conditions and conversation context from this fixture for A and B using the existing session/memory path. Do not trust client isDemo alone or reuse an authenticated user session.",
+      "current_course_sha256": "4ff8237b20bc6aa9c7cab65ef6e9be6250260ff3d0c098ac41b948f0b20b7943"
+    },
+    "jamsil_base": {
+      "provenance": "historical-measured-course-as-input-not-new-evaluation-result",
+      "source_file": "backend/artifacts/bar-rating-merge-jamsil-after.json",
+      "source_sha256": "cdfe60287c54828c2f94fc5b1114934b978eed354f511f31f64b2ae3d4277815",
+      "source_report": "docs/test_results/develop-merge-20261013.md",
+      "transformations": [
+        "Session ID, usage, timing, writerState and nested duplicate payload removed.",
+        "Public course fields retained; origin name taken from the same run input; labels and empty legModes supplied."
+      ],
+      "current_course": {
+        "stadiumCode": "JAMSIL",
+        "game": {
+          "date": "2026-10-16",
+          "time": "17:00",
+          "isDemo": true
+        },
+        "origin": {
+          "lat": 37.5088,
+          "lng": 127.0611,
+          "name": "삼성역 서쪽"
+        },
+        "places": [
+          {
+            "name": "랄프스커피 파르나스몰점",
+            "lat": 37.50904820795106,
+            "lng": 127.06089253574565,
+            "phase": "BEFORE",
+            "category": "CAFE",
+            "placeUrl": "https://place.map.kakao.com/167929891",
+            "visitId": "course:0:167929891",
+            "placeId": "167929891",
+            "address": "서울 강남구 테헤란로 521",
+            "reason": "경기 전 카페",
+            "time": "15:28",
+            "until": "16:08",
+            "stayMin": 40,
+            "label": "1"
+          },
+          {
+            "name": "통밥",
+            "lat": 37.5116913,
+            "lng": 127.0718543,
+            "phase": "BEFORE",
+            "category": "FOOD",
+            "placeUrl": "https://myseatcheck.com/서울-잠실야구장-먹거리-3루-2층-통밥/",
+            "visitId": "course:1:stadium-facility:SC_FOOD_JAMSIL_036:SC_FOOD_JAMSIL_036-reference",
+            "placeId": "stadium-facility:SC_FOOD_JAMSIL_036:SC_FOOD_JAMSIL_036-reference",
+            "address": "3루 2층",
+            "reason": "구장 대표 메뉴는 삼겹살정식 + 김치말이국수입니다. 통밥의 자리어때 메뉴판 사진에서 확인했어요.",
+            "time": "16:30",
+            "until": "17:00",
+            "stayMin": 30,
+            "label": "2"
+          },
+          {
+            "name": "잠실야구장",
+            "lat": 37.5121854,
+            "lng": 127.0718513,
+            "phase": "GAME",
+            "category": "STADIUM",
+            "visitId": "course:2:None",
+            "address": "서울특별시 송파구 올림픽로 25",
+            "reason": "경기 관람",
+            "time": "17:00",
+            "until": "20:10",
+            "stayMin": 0,
+            "label": "3"
+          },
+          {
+            "name": "백세주 마을 삼성점",
+            "lat": 37.5154023587222,
+            "lng": 127.065442572114,
+            "phase": "AFTER",
+            "category": "FOOD",
+            "placeUrl": "https://place.map.kakao.com/7885177",
+            "visitId": "course:3:7885177",
+            "placeId": "7885177",
+            "address": "서울 강남구 봉은사로 641",
+            "reason": "경기 후 술집",
+            "time": "20:39",
+            "until": "21:59",
+            "stayMin": 80,
+            "label": "4"
+          },
+          {
+            "name": "삼성해맞이공원",
+            "lat": 37.51967410286544,
+            "lng": 127.06193847351946,
+            "phase": "AFTER",
+            "category": "WALK",
+            "placeUrl": "https://place.map.kakao.com/34208849",
+            "visitId": "course:4:34208849",
+            "placeId": "34208849",
+            "address": "서울 강남구 삼성동 82",
+            "reason": "경기 후 산책",
+            "time": "22:18",
+            "until": "22:58",
+            "stayMin": 40,
+            "label": "5"
+          }
+        ],
+        "travelMode": "walk",
+        "legModes": {}
+      },
+      "history": [
+        {
+          "role": "user",
+          "content": "10월 16일 잠실 경기 카페 갔다가 구장에서 간식 먹고 술집 가고 산책하고 싶어. 코스 짜줘"
+        },
+        {
+          "role": "assistant",
+          "content": "조건에 맞는 후보 코스들의 출발지부터 마지막 장소까지 이동시간을 비교해 골랐어요.\n\n시연용 가상 경기 기준입니다. 실제 공식 경기 일정이 아닙니다.\n\n10월 16일 17:00 잠실야구장 · 두산 베어스 홈 vs 롯데 자이언츠 원정 기준 코스예요.\n\n15:28  랄프스커피 파르나스몰점 (40분) — 경기 전 카페\n16:30  통밥 (30분) — 구장 대표 메뉴는 삼겹살정식 + 김치말이국수입니다. 통밥의 자리어때 메뉴판 사진에서 확인했어요. · 3루 2층 [매장 상세 위치](https://myseatcheck.com/서울-잠실야구장-먹거리-3루-2층-통밥/) [메뉴판 사진](https://myseatcheck.com/wp-content/uploads/잠실26_20260416_175541_mark.webp) (메뉴판 확인 2026-10-07)\n17:00  잠실야구장 경기 관람 · 17:00 경기 시작 (종료 20:10 예상) — 구장 내부 먹거리 방문 후 바로 이어지는 일정\n20:39  백세주 마을 삼성점 (80분) — 경기 후 술집 · [평점·후기](https://www.diningcode.com/profile.php?rid=AfUG5wxnPqqI) 다이닝코드 4.6/5 · 평가 5명 (확인 2026-10-08)\n22:18  삼성해맞이공원 (40분) — 경기 후 산책\n\n총 도보 약 4.0km · 70분 · 코스 전체 7시간 30분\n방문 전 해당 매장의 영업 여부를 확인해 주세요.\n선택한 출발지에서 랄프스커피 파르나스몰점까지는 직선거리 약 0.0km예요.\n구장 내부 먹거리는 자리어때 수집 목록만 사용했어요. 핀은 구장 옆 표시 위치입니다. 실제 위치는 매장 상세 위치 링크를 확인하세요. 현재 영업·메뉴·입장권 필요 여부는 미확인입니다.\n\n거리와 업종을 기준으로 구성했어요. 일부 매장의 평점·실내 상태는 아직 확인되지 않았으며, 영업시간은 방문 전에 확인해 주세요."
+        }
+      ],
+      "server_memory_setup": "Isolated evaluation session only. Restore same date, game source/isDemo, origin, visit conditions and conversation context from this fixture for A and B using the existing session/memory path. Do not trust client isDemo alone or reuse an authenticated user session.",
+      "current_course_sha256": "2278043a60213976525a47f6905c7654dbb1871582fcf2dfc4f0c911de2ba00f"
+    },
+    "jamsil_selected_cafe": {
+      "provenance": "manual-state-fixture-derived-from-real-place-not-observed-full-course",
+      "source_file": "backend/artifacts/bar-rating-merge-jamsil-after.json",
+      "source_sha256": "cdfe60287c54828c2f94fc5b1114934b978eed354f511f31f64b2ae3d4277815",
+      "source_report": "docs/test_results/develop-merge-20261013.md",
+      "transformations": [
+        "Keep the historical cafe only as a manual selected-place fixture; remove automatic course/game/timetable context."
+      ],
+      "current_course": {
+        "stadiumCode": "JAMSIL",
+        "origin": {
+          "lat": 37.5088,
+          "lng": 127.0611,
+          "name": "삼성역 서쪽"
+        },
+        "places": [
+          {
+            "name": "랄프스커피 파르나스몰점",
+            "lat": 37.50904820795106,
+            "lng": 127.06089253574565,
+            "phase": "BEFORE",
+            "category": "CAFE",
+            "placeUrl": "https://place.map.kakao.com/167929891",
+            "visitId": "course:0:167929891",
+            "placeId": "167929891",
+            "address": "서울 강남구 테헤란로 521",
+            "label": "1"
+          }
+        ],
+        "selectedPlace": {
+          "name": "랄프스커피 파르나스몰점",
+          "lat": 37.50904820795106,
+          "lng": 127.06089253574565,
+          "phase": "BEFORE",
+          "category": "CAFE",
+          "placeUrl": "https://place.map.kakao.com/167929891",
+          "visitId": "course:0:167929891",
+          "placeId": "167929891",
+          "address": "서울 강남구 테헤란로 521",
+          "label": "1"
+        },
+        "travelMode": "walk",
+        "legModes": {}
+      },
+      "history": [],
+      "server_memory_setup": "In a fresh isolated browser session select this actual cafe. Confirm selectedPlace ID matches, then send R10 with the explicit date. Resolve game from server schedule.",
+      "current_course_sha256": "a902ab560d557c973477ec58320fc48db44c3fc70d8b31a2916bf2c06023775a"
+    }
+  }
+}

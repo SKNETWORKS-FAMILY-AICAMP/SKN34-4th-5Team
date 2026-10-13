@@ -59,7 +59,6 @@ jobs:
 
       - name: Build production images
         env:
-          NEXT_PUBLIC_KAKAO_MAP_KEY: ${{ secrets.NEXT_PUBLIC_KAKAO_MAP_KEY }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
         run: |
           set -euo pipefail
@@ -67,7 +66,6 @@ jobs:
           docker tag dev-backend:latest dev-lodging-warmer:latest
           docker build \
             -f frontend/Dockerfile.prod \
-            --build-arg NEXT_PUBLIC_KAKAO_MAP_KEY="$NEXT_PUBLIC_KAKAO_MAP_KEY" \
             --build-arg YOUTUBE_API_KEY="$YOUTUBE_API_KEY" \
             -t dev-frontend:latest \
             frontend

@@ -12,6 +12,12 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 EVAL = 'backend/llm/v2/evaluation/'
 FREE = [
+    ['backend/llm/v2/tests/run_attachment_offline.py', 'llm.tests.test_course_tonkatsu',
+     'llm.tests.test_course_literal_edits', 'llm.tests.test_course_audit_repairs.CourseSelectionRepairTest',
+     'llm.tests.test_course_bar_ratings', 'llm.tests.test_course_quality_research',
+     'llm.tests.test_course_recommendation_policy', 'llm.tests.test_course_visit_requests'],
+    [EVAL + 'tonkatsu_contract.py', 'export', '--output', 'tonkatsu.json'],
+    [EVAL + 'test_course_dataset.py', '-v'],
     [EVAL + 'run.py', 'offline', '--output', 'seed.json'],
     [EVAL + 'run.py', 'offline', '--dataset', EVAL + 'reviewed_boundary.json', '--output', 'boundary.json'],
     [EVAL + 'test_evaluation.py', '-v'],
@@ -161,6 +167,7 @@ def main():
             execute([EVAL + 'test_highlight_deepeval.py', '-v'], offline=True)
             execute([EVAL + 'test_relocation.py', '-v'], offline=True)
             execute([EVAL + 'weather_contract.py', 'scorer-check'], offline=True)
+            execute([EVAL + 'tonkatsu_contract.py', 'scorer-check'], offline=True)
         elif options.mode in ('jev', 'supervisor'):
             require('OPENROUTER_API_KEY')
             if options.mode == 'supervisor':

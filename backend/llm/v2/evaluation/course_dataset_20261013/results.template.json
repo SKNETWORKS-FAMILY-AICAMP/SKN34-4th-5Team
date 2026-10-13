@@ -1,0 +1,1715 @@
+{
+  "schema_version": 1,
+  "dataset_id": "course-presentation-20261013",
+  "dataset_sha256": null,
+  "version_label": null,
+  "run_id": null,
+  "code_sha": null,
+  "working_tree_hashes": {},
+  "settings_snapshot": {},
+  "dataset_reviewed_by": null,
+  "dataset_reviewed_at": null,
+  "session_isolation": null,
+  "started_at": null,
+  "cache_mode": null,
+  "measurement_boundary": null,
+  "price_snapshot": null,
+  "setup_runs": [],
+  "results": [
+    {
+      "case_id": "C01",
+      "repeat": 1,
+      "status": "not_run",
+      "task_complete": null,
+      "stage_success": {},
+      "checks": {
+        "course_complete": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "schedule_demo": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "origin": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "radius": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "source_identity": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "timeline": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "availability": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "saved": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "menu": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "internal": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "bar_rating": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        }
+      },
+      "started_at": null,
+      "done_seconds": null,
+      "stream_end_seconds": null,
+      "map_applied_seconds": null,
+      "stage_seconds": {},
+      "calls": {
+        "jev": null,
+        "chat": null,
+        "embedding": null,
+        "web_search": null,
+        "directions": null
+      },
+      "input_tokens": null,
+      "output_tokens": null,
+      "cached_input_tokens": null,
+      "cost_usd": null,
+      "errors": [],
+      "raw_evidence_refs": [],
+      "before_snapshot_sha256": null,
+      "after_snapshot_sha256": null,
+      "reviewer": null,
+      "notes": null
+    },
+    {
+      "case_id": "C02",
+      "repeat": 1,
+      "status": "not_run",
+      "task_complete": null,
+      "stage_success": {},
+      "checks": {
+        "course_complete": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "schedule_demo": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "origin": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "radius": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "source_identity": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "timeline": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "availability": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "saved": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "internal": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "bar_rating": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        }
+      },
+      "started_at": null,
+      "done_seconds": null,
+      "stream_end_seconds": null,
+      "map_applied_seconds": null,
+      "stage_seconds": {},
+      "calls": {
+        "jev": null,
+        "chat": null,
+        "embedding": null,
+        "web_search": null,
+        "directions": null
+      },
+      "input_tokens": null,
+      "output_tokens": null,
+      "cached_input_tokens": null,
+      "cost_usd": null,
+      "errors": [],
+      "raw_evidence_refs": [],
+      "before_snapshot_sha256": null,
+      "after_snapshot_sha256": null,
+      "reviewer": null,
+      "notes": null
+    },
+    {
+      "case_id": "C03",
+      "repeat": 1,
+      "status": "not_run",
+      "task_complete": null,
+      "stage_success": {},
+      "checks": {
+        "course_complete": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "schedule_demo": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "origin": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "radius": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "source_identity": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "timeline": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "availability": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "saved": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "menu": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "internal": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "bar_rating": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "preserve": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        }
+      },
+      "started_at": null,
+      "done_seconds": null,
+      "stream_end_seconds": null,
+      "map_applied_seconds": null,
+      "stage_seconds": {},
+      "calls": {
+        "jev": null,
+        "chat": null,
+        "embedding": null,
+        "web_search": null,
+        "directions": null
+      },
+      "input_tokens": null,
+      "output_tokens": null,
+      "cached_input_tokens": null,
+      "cost_usd": null,
+      "errors": [],
+      "raw_evidence_refs": [],
+      "before_snapshot_sha256": null,
+      "after_snapshot_sha256": null,
+      "reviewer": null,
+      "notes": null
+    },
+    {
+      "case_id": "C04",
+      "repeat": 1,
+      "status": "not_run",
+      "task_complete": null,
+      "stage_success": {},
+      "checks": {
+        "course_complete": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "schedule_demo": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "origin": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "radius": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "source_identity": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "timeline": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "availability": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "saved": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "brand": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "internal": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "bar_rating": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "preserve": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        }
+      },
+      "started_at": null,
+      "done_seconds": null,
+      "stream_end_seconds": null,
+      "map_applied_seconds": null,
+      "stage_seconds": {},
+      "calls": {
+        "jev": null,
+        "chat": null,
+        "embedding": null,
+        "web_search": null,
+        "directions": null
+      },
+      "input_tokens": null,
+      "output_tokens": null,
+      "cached_input_tokens": null,
+      "cost_usd": null,
+      "errors": [],
+      "raw_evidence_refs": [],
+      "before_snapshot_sha256": null,
+      "after_snapshot_sha256": null,
+      "reviewer": null,
+      "notes": null
+    },
+    {
+      "case_id": "C05",
+      "repeat": 1,
+      "status": "not_run",
+      "task_complete": null,
+      "stage_success": {},
+      "checks": {
+        "course_complete": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "schedule_demo": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "origin": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "radius": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "source_identity": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "timeline": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "availability": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "saved": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "brand": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "internal": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "bar_rating": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "hotel": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "preserve": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        }
+      },
+      "started_at": null,
+      "done_seconds": null,
+      "stream_end_seconds": null,
+      "map_applied_seconds": null,
+      "stage_seconds": {},
+      "calls": {
+        "jev": null,
+        "chat": null,
+        "embedding": null,
+        "web_search": null,
+        "directions": null
+      },
+      "input_tokens": null,
+      "output_tokens": null,
+      "cached_input_tokens": null,
+      "cost_usd": null,
+      "errors": [],
+      "raw_evidence_refs": [],
+      "before_snapshot_sha256": null,
+      "after_snapshot_sha256": null,
+      "reviewer": null,
+      "notes": null
+    },
+    {
+      "case_id": "C06",
+      "repeat": 1,
+      "status": "not_run",
+      "task_complete": null,
+      "stage_success": {},
+      "checks": {
+        "course_complete": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "schedule_demo": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "origin": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "radius": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "source_identity": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "timeline": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "availability": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "saved": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "internal": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "bar_rating": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "preserve": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        }
+      },
+      "started_at": null,
+      "done_seconds": null,
+      "stream_end_seconds": null,
+      "map_applied_seconds": null,
+      "stage_seconds": {},
+      "calls": {
+        "jev": null,
+        "chat": null,
+        "embedding": null,
+        "web_search": null,
+        "directions": null
+      },
+      "input_tokens": null,
+      "output_tokens": null,
+      "cached_input_tokens": null,
+      "cost_usd": null,
+      "errors": [],
+      "raw_evidence_refs": [],
+      "before_snapshot_sha256": null,
+      "after_snapshot_sha256": null,
+      "reviewer": null,
+      "notes": null
+    },
+    {
+      "case_id": "R01",
+      "repeat": 1,
+      "status": "not_run",
+      "task_complete": null,
+      "stage_success": {},
+      "checks": {
+        "course_complete": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "schedule_demo": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "origin": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "radius": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "source_identity": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "timeline": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "availability": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "saved": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "menu": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "internal": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "bar_rating": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        }
+      },
+      "started_at": null,
+      "done_seconds": null,
+      "stream_end_seconds": null,
+      "map_applied_seconds": null,
+      "stage_seconds": {},
+      "calls": {
+        "jev": null,
+        "chat": null,
+        "embedding": null,
+        "web_search": null,
+        "directions": null
+      },
+      "input_tokens": null,
+      "output_tokens": null,
+      "cached_input_tokens": null,
+      "cost_usd": null,
+      "errors": [],
+      "raw_evidence_refs": [],
+      "before_snapshot_sha256": null,
+      "after_snapshot_sha256": null,
+      "reviewer": null,
+      "notes": null
+    },
+    {
+      "case_id": "R02",
+      "repeat": 1,
+      "status": "not_run",
+      "task_complete": null,
+      "stage_success": {},
+      "checks": {
+        "course_complete": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "schedule_demo": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "origin": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "radius": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "source_identity": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "timeline": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "availability": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "saved": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "menu": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        }
+      },
+      "started_at": null,
+      "done_seconds": null,
+      "stream_end_seconds": null,
+      "map_applied_seconds": null,
+      "stage_seconds": {},
+      "calls": {
+        "jev": null,
+        "chat": null,
+        "embedding": null,
+        "web_search": null,
+        "directions": null
+      },
+      "input_tokens": null,
+      "output_tokens": null,
+      "cached_input_tokens": null,
+      "cost_usd": null,
+      "errors": [],
+      "raw_evidence_refs": [],
+      "before_snapshot_sha256": null,
+      "after_snapshot_sha256": null,
+      "reviewer": null,
+      "notes": null
+    },
+    {
+      "case_id": "R03",
+      "repeat": 1,
+      "status": "not_run",
+      "task_complete": null,
+      "stage_success": {},
+      "checks": {
+        "course_complete": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "schedule_demo": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "origin": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "radius": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "source_identity": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "timeline": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "availability": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "saved": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "internal": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "bar_rating": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "preserve": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        }
+      },
+      "started_at": null,
+      "done_seconds": null,
+      "stream_end_seconds": null,
+      "map_applied_seconds": null,
+      "stage_seconds": {},
+      "calls": {
+        "jev": null,
+        "chat": null,
+        "embedding": null,
+        "web_search": null,
+        "directions": null
+      },
+      "input_tokens": null,
+      "output_tokens": null,
+      "cached_input_tokens": null,
+      "cost_usd": null,
+      "errors": [],
+      "raw_evidence_refs": [],
+      "before_snapshot_sha256": null,
+      "after_snapshot_sha256": null,
+      "reviewer": null,
+      "notes": null
+    },
+    {
+      "case_id": "R04",
+      "repeat": 1,
+      "status": "not_run",
+      "task_complete": null,
+      "stage_success": {},
+      "checks": {
+        "course_complete": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "schedule_demo": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "origin": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "radius": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "source_identity": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "timeline": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "availability": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "saved": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "menu": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "internal": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "bar_rating": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "no_extra_model": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        }
+      },
+      "started_at": null,
+      "done_seconds": null,
+      "stream_end_seconds": null,
+      "map_applied_seconds": null,
+      "stage_seconds": {},
+      "calls": {
+        "jev": null,
+        "chat": null,
+        "embedding": null,
+        "web_search": null,
+        "directions": null
+      },
+      "input_tokens": null,
+      "output_tokens": null,
+      "cached_input_tokens": null,
+      "cost_usd": null,
+      "errors": [],
+      "raw_evidence_refs": [],
+      "before_snapshot_sha256": null,
+      "after_snapshot_sha256": null,
+      "reviewer": null,
+      "notes": null
+    },
+    {
+      "case_id": "R05",
+      "repeat": 1,
+      "status": "not_run",
+      "task_complete": null,
+      "stage_success": {},
+      "checks": {
+        "course_complete": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "schedule_demo": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "origin": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "radius": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "source_identity": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "timeline": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "availability": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "saved": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "internal": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "bar_rating": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "no_extra_model": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        }
+      },
+      "started_at": null,
+      "done_seconds": null,
+      "stream_end_seconds": null,
+      "map_applied_seconds": null,
+      "stage_seconds": {},
+      "calls": {
+        "jev": null,
+        "chat": null,
+        "embedding": null,
+        "web_search": null,
+        "directions": null
+      },
+      "input_tokens": null,
+      "output_tokens": null,
+      "cached_input_tokens": null,
+      "cost_usd": null,
+      "errors": [],
+      "raw_evidence_refs": [],
+      "before_snapshot_sha256": null,
+      "after_snapshot_sha256": null,
+      "reviewer": null,
+      "notes": null
+    },
+    {
+      "case_id": "R06",
+      "repeat": 1,
+      "status": "not_run",
+      "task_complete": null,
+      "stage_success": {},
+      "checks": {
+        "course_complete": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "schedule_demo": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "origin": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "radius": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "source_identity": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "timeline": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "availability": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "saved": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        }
+      },
+      "started_at": null,
+      "done_seconds": null,
+      "stream_end_seconds": null,
+      "map_applied_seconds": null,
+      "stage_seconds": {},
+      "calls": {
+        "jev": null,
+        "chat": null,
+        "embedding": null,
+        "web_search": null,
+        "directions": null
+      },
+      "input_tokens": null,
+      "output_tokens": null,
+      "cached_input_tokens": null,
+      "cost_usd": null,
+      "errors": [],
+      "raw_evidence_refs": [],
+      "before_snapshot_sha256": null,
+      "after_snapshot_sha256": null,
+      "reviewer": null,
+      "notes": null
+    },
+    {
+      "case_id": "R07",
+      "repeat": 1,
+      "status": "not_run",
+      "task_complete": null,
+      "stage_success": {},
+      "checks": {
+        "course_complete": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "schedule_demo": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "origin": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "radius": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "source_identity": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "timeline": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "availability": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "saved": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        }
+      },
+      "started_at": null,
+      "done_seconds": null,
+      "stream_end_seconds": null,
+      "map_applied_seconds": null,
+      "stage_seconds": {},
+      "calls": {
+        "jev": null,
+        "chat": null,
+        "embedding": null,
+        "web_search": null,
+        "directions": null
+      },
+      "input_tokens": null,
+      "output_tokens": null,
+      "cached_input_tokens": null,
+      "cost_usd": null,
+      "errors": [],
+      "raw_evidence_refs": [],
+      "before_snapshot_sha256": null,
+      "after_snapshot_sha256": null,
+      "reviewer": null,
+      "notes": null
+    },
+    {
+      "case_id": "R08",
+      "repeat": 1,
+      "status": "not_run",
+      "task_complete": null,
+      "stage_success": {},
+      "checks": {
+        "course_complete": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "schedule_demo": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "origin": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "radius": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "source_identity": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "timeline": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "availability": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "saved": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "internal": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        }
+      },
+      "started_at": null,
+      "done_seconds": null,
+      "stream_end_seconds": null,
+      "map_applied_seconds": null,
+      "stage_seconds": {},
+      "calls": {
+        "jev": null,
+        "chat": null,
+        "embedding": null,
+        "web_search": null,
+        "directions": null
+      },
+      "input_tokens": null,
+      "output_tokens": null,
+      "cached_input_tokens": null,
+      "cost_usd": null,
+      "errors": [],
+      "raw_evidence_refs": [],
+      "before_snapshot_sha256": null,
+      "after_snapshot_sha256": null,
+      "reviewer": null,
+      "notes": null
+    },
+    {
+      "case_id": "R09",
+      "repeat": 1,
+      "status": "not_run",
+      "task_complete": null,
+      "stage_success": {},
+      "checks": {
+        "course_complete": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "schedule_demo": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "origin": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "radius": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "source_identity": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "timeline": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "availability": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "saved": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "internal": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        }
+      },
+      "started_at": null,
+      "done_seconds": null,
+      "stream_end_seconds": null,
+      "map_applied_seconds": null,
+      "stage_seconds": {},
+      "calls": {
+        "jev": null,
+        "chat": null,
+        "embedding": null,
+        "web_search": null,
+        "directions": null
+      },
+      "input_tokens": null,
+      "output_tokens": null,
+      "cached_input_tokens": null,
+      "cost_usd": null,
+      "errors": [],
+      "raw_evidence_refs": [],
+      "before_snapshot_sha256": null,
+      "after_snapshot_sha256": null,
+      "reviewer": null,
+      "notes": null
+    },
+    {
+      "case_id": "R10",
+      "repeat": 1,
+      "status": "not_run",
+      "task_complete": null,
+      "stage_success": {},
+      "checks": {
+        "course_complete": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "schedule_demo": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "origin": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "radius": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "source_identity": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "timeline": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "availability": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "saved": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "menu": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "internal": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "ui": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        }
+      },
+      "started_at": null,
+      "done_seconds": null,
+      "stream_end_seconds": null,
+      "map_applied_seconds": null,
+      "stage_seconds": {},
+      "calls": {
+        "jev": null,
+        "chat": null,
+        "embedding": null,
+        "web_search": null,
+        "directions": null
+      },
+      "input_tokens": null,
+      "output_tokens": null,
+      "cached_input_tokens": null,
+      "cost_usd": null,
+      "errors": [],
+      "raw_evidence_refs": [],
+      "before_snapshot_sha256": null,
+      "after_snapshot_sha256": null,
+      "reviewer": null,
+      "notes": null
+    },
+    {
+      "case_id": "R11",
+      "repeat": 1,
+      "status": "not_run",
+      "task_complete": null,
+      "stage_success": {},
+      "checks": {
+        "course_complete": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "schedule_demo": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "origin": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "radius": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "source_identity": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "timeline": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "availability": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "saved": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "brand": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "internal": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "bar_rating": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "preserve": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        }
+      },
+      "started_at": null,
+      "done_seconds": null,
+      "stream_end_seconds": null,
+      "map_applied_seconds": null,
+      "stage_seconds": {},
+      "calls": {
+        "jev": null,
+        "chat": null,
+        "embedding": null,
+        "web_search": null,
+        "directions": null
+      },
+      "input_tokens": null,
+      "output_tokens": null,
+      "cached_input_tokens": null,
+      "cost_usd": null,
+      "errors": [],
+      "raw_evidence_refs": [],
+      "before_snapshot_sha256": null,
+      "after_snapshot_sha256": null,
+      "reviewer": null,
+      "notes": null
+    },
+    {
+      "case_id": "R12",
+      "repeat": 1,
+      "status": "not_run",
+      "task_complete": null,
+      "stage_success": {},
+      "checks": {
+        "course_complete": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "schedule_demo": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "origin": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "radius": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "source_identity": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "timeline": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "availability": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "saved": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "internal": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "bar_rating": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "no_extra_model": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "preserve": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        }
+      },
+      "started_at": null,
+      "done_seconds": null,
+      "stream_end_seconds": null,
+      "map_applied_seconds": null,
+      "stage_seconds": {},
+      "calls": {
+        "jev": null,
+        "chat": null,
+        "embedding": null,
+        "web_search": null,
+        "directions": null
+      },
+      "input_tokens": null,
+      "output_tokens": null,
+      "cached_input_tokens": null,
+      "cost_usd": null,
+      "errors": [],
+      "raw_evidence_refs": [],
+      "before_snapshot_sha256": null,
+      "after_snapshot_sha256": null,
+      "reviewer": null,
+      "notes": null
+    },
+    {
+      "case_id": "R13",
+      "repeat": 1,
+      "status": "not_run",
+      "task_complete": null,
+      "stage_success": {},
+      "checks": {
+        "course_complete": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "schedule_demo": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "origin": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "radius": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "source_identity": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "timeline": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "availability": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "saved": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "internal": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "bar_rating": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "hotel": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "preserve": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        }
+      },
+      "started_at": null,
+      "done_seconds": null,
+      "stream_end_seconds": null,
+      "map_applied_seconds": null,
+      "stage_seconds": {},
+      "calls": {
+        "jev": null,
+        "chat": null,
+        "embedding": null,
+        "web_search": null,
+        "directions": null
+      },
+      "input_tokens": null,
+      "output_tokens": null,
+      "cached_input_tokens": null,
+      "cost_usd": null,
+      "errors": [],
+      "raw_evidence_refs": [],
+      "before_snapshot_sha256": null,
+      "after_snapshot_sha256": null,
+      "reviewer": null,
+      "notes": null
+    },
+    {
+      "case_id": "R14",
+      "repeat": 1,
+      "status": "not_run",
+      "task_complete": null,
+      "stage_success": {},
+      "checks": {
+        "course_complete": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "schedule_demo": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "origin": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "radius": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "source_identity": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "timeline": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "availability": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "saved": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "internal": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "bar_rating": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        },
+        "ui": {
+          "status": "not_run",
+          "evidence_refs": [],
+          "reason": null
+        }
+      },
+      "started_at": null,
+      "done_seconds": null,
+      "stream_end_seconds": null,
+      "map_applied_seconds": null,
+      "stage_seconds": {},
+      "calls": {
+        "jev": null,
+        "chat": null,
+        "embedding": null,
+        "web_search": null,
+        "directions": null
+      },
+      "input_tokens": null,
+      "output_tokens": null,
+      "cached_input_tokens": null,
+      "cost_usd": null,
+      "errors": [],
+      "raw_evidence_refs": [],
+      "before_snapshot_sha256": null,
+      "after_snapshot_sha256": null,
+      "reviewer": null,
+      "notes": null
+    }
+  ]
+}

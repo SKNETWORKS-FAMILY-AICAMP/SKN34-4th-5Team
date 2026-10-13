@@ -33,10 +33,19 @@ const post = {
   authorId: 7, author: "작성자", title: "제목", content: "본문", category: "잡담", createdAt: null,
   views: 0, recommendations: 0, downvotes: 0, commentCount: 0, isSample: false,
 };
-const comment = { id: 3, postId: post.id, authorId: 7, author: "작성자", content: "댓글", createdAt: "2026-09-15T00:00:00Z", updatedAt: "2026-09-15T00:00:00Z" };
+const comment = { moderationStatus: "approved", revision: 0, id: 3, postId: post.id, authorId: 7, author: "작성자", content: "댓글", createdAt: "2026-09-15T00:00:00Z", updatedAt: "2026-09-15T00:00:00Z" };
 const vote = { vote: "up", recommendations: 1, downvotes: 0 };
 const input = { board: "free", teamCode: "", category: "잡담", title: " 제목 ", content: " 본문 " };
 const idempotencyKey = "550e8400-e29b-41d4-a716-446655440000";
+
+test("private comments reject missing or malformed moderation metadata", async () => {
+  for (const change of [{ moderationStatus: undefined }, { moderationStatus: "unknown" }, { moderationStatus: null }, { moderationStatus: ["approved"] }, { revision: undefined }, { revision: -1 }, { revision: "1" }, { revision: 1.5 }]) {
+    memberHandler = async () => Response.json([{ ...comment, ...change }]);
+    await assert.rejects(api.fetchMyCommunityComments());
+  }
+  memberHandler = async () => Response.json([{ ...comment, moderationStatus: "pending", revision: 1 }]);
+  assert.equal((await api.fetchMyCommunityComments())[0].moderationStatus, "pending");
+});
 
 test("community list is read from the public DB API", async () => {
   const result = await api.fetchCommunityPosts(async (url, init) => {

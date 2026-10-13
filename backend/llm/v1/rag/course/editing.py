@@ -130,6 +130,7 @@ requested_visits가 있으면 개별 장소 조건은 그 방문에 기록한다
 
 def interpret(question, current, history, course_memory=None, *, new_course=False):
     from .agent import llm
+    from .visit_roles import visit_kind
     if not new_course:
         from . import literal_edits
         if literal := literal_edits.interpret(question, current, course_memory, history):
@@ -169,6 +170,9 @@ add(FOOD,before), add(WALK,after), add(CONVENIENCE,after)다. 세 action의 refe
 selectedPlace가 places에 아직 없더라도 그 장소 앞뒤에 일정을 추가하는 요청은 new가 아닌 add/batch다.
 이 경우 선택한 장소도 기준 방문지로 함께 코스에 담는다. 기존 코스에 없던 선택 장소의 교체/삭제/이동은 clarify.
 같은 종류가 여러 곳이고 지칭이 모호하면 clarify. 대상이 없으면 clarify.
+공개 category=FOOD라도 visitKind가 다르면 서로 다른 방문이다. 일반 '식당/식사' 교체는 visitKind=FOOD만 대상으로 삼는다.
+visitKind=INTERNAL_FOOD는 구장 간식/내부 먹거리, BAR는 술집이다. 이름·번호·내부 간식·술집을 명시하지 않은 식당 교체에 이들을 끼워 넣거나 선택지로 제시하지 않는다.
+visitKind=INTERNAL_CAFE도 일반 외부 카페와 구분한다. 내부 매장 이름은 특정 메뉴 판매 근거가 아니다.
 삭제/빼기는 remove(targets 복수 가능), 추가는 add(category, query, reference와 position으로 삽입 위치).
 편의점은 CONVENIENCE. 위치를 말하지 않은 추가는 구장 바로 전, 구장이 없으면 맨 끝. 경기 후는 구장 after.
 체류시간만 변경은 duration. '식사 30분, 카페 한 시간'은 durations에 두 장소와 30,60을 기록한다.
@@ -251,7 +255,8 @@ current.gameConnection.visitId의 구장은 이번 요청을 위해 코드가 �
             "gameConnection": current.get("gameConnection"),
             "origin": (current.get("writerState") or {}).get("origin") or (course_memory or {}).get("origin"),
             "travelMode": current.get("travelMode"), "legModes": current.get("legModes", {}),
-            "places": [{key: p.get(key) for key in ("visitId", "label", "name", "category", "phase", "completed", "time", "until")} for p in current["places"]]},
+            "places": [{**{key: p.get(key) for key in ("visitId", "label", "name", "category", "phase", "completed", "time", "until")},
+                        "visitKind": visit_kind(p), "detail": str(p.get("detail") or "")[:255]} for p in current["places"]]},
             "history": [{"role": m.get("role"), "content": str(m.get("content", ""))[:1200]} for m in (history or [])[-6:]],
             "question": question}, ensure_ascii=False))], **config_kwargs())
     result = response.model_dump() if isinstance(response, EditPlan) else EditPlan.model_validate(response).model_dump()
@@ -345,6 +350,7 @@ def mutate(places, plan, replacement=None):
 
 def candidates(target, anchor, plan, fixed):
     from . import place_quality
+    from .catalog_conditions import menu_hint
     from .agent import invoke_domain_tool
     from ..nearby import kakao
     from .grounding import query_variants, canonical_menu_term
@@ -386,8 +392,13 @@ def candidates(target, anchor, plan, fixed):
     if category:
         queries.append("")
     searched = set()
+    def enough():
+        # Keyword hits include unrelated restaurants. Try the bounded spelling
+        # variants until a specialty is found, rather than stopping at any hit.
+        return bool(found) and (canonical_menu_term(plan["query"]) != "돈까스"
+                                or any(menu_hint(p, "돈까스") for p in found.values()))
     for query in dict.fromkeys(queries):
-        if found and query not in cuisine_queries:
+        if enough() and query not in cuisine_queries:
             continue  # Once a spelling works, only the explicit cuisine supplement remains.
         searched.add(query)
         args = {"method": "keyword" if query else "category", "latitude": float(anchor["lat"]),
@@ -404,7 +415,8 @@ def candidates(target, anchor, plan, fixed):
         for center, radius in areas:
             documents.extend(venue_policy.search_candidates(invoke_domain_tool,
                 {**args, "latitude": float(center["lat"]), "longitude": float(center["lng"]), "radius": radius}, target["category"],
-                candidate_filter=eligible, quality_center=target, quality_reuse=reuse))
+                candidate_filter=eligible, quality_center=target, quality_reuse=reuse,
+                visit_kind=plan.get('visit_kind') or timeline.kind_of(target)))
         for raw in documents:
             try:
                 lat, lng = float(raw["y"]), float(raw["x"])
@@ -436,7 +448,7 @@ def candidates(target, anchor, plan, fixed):
                 **({"_internal_menu_query": raw["_internal_menu_query"]} if raw.get("_internal_menu_query") else {}),
                 "stadiumArea": raw.get("stadiumArea"),
                 "placeUrl": str(raw.get("place_url") or raw.get("url") or "")[:2000]}
-        if query and found and set(cuisine_queries).issubset(searched):
+        if query and enough() and set(cuisine_queries).issubset(searched):
             break  # 지정한 검색어의 후보가 있으면 일반 업종 후보로 희석하지 않는다.
     if plan.get("_route"):
         return edit_route.rank(found.values(), plan["_route"])
@@ -807,6 +819,8 @@ def answer(question, history, current, code, origin, course_memory=None, parsed=
         explicit_date = requested_date(question, [], datetime.now(ZoneInfo("Asia/Seoul")).date().isoformat(), code)
         availability.set_date(explicit_date or (current.get("game") or {}).get("date"))
         plan = parsed or interpret(question, current, history, original)
+        from .visit_roles import protect_target
+        plan = protect_target(question, current, plan)
         if plan["operation"] == "new":
             return None
         selected = current.get("selectedPlace")

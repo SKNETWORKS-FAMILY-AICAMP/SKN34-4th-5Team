@@ -7,6 +7,7 @@ import re
 
 from llm.place_choices import compact, selected_place
 from . import catalog_conditions as catalog
+from .visit_roles import visit_kind
 
 CATEGORIES = {"식당": "FOOD", "음식점": "FOOD", "식사": "FOOD", "카페": "CAFE",
               "커피": "CAFE", "산책": "WALK", "공원": "WALK", "숙박": "STAY", "숙소": "STAY"}
@@ -19,6 +20,8 @@ def _alternatives(values):
 KINDS = _alternatives(CATEGORIES)
 DESTINATIONS = _alternatives({**catalog.TERMS, **CATEGORIES})
 REPLACE = re.compile(
+    r"(?:(?:경기|야구|직관)(?P<phase>전|후)(?:에)?)?"
+    r"(?:(?P<source_menu>" + _alternatives(catalog.MENUS) + r"))?"
     r"(?:(?P<source>" + KINDS + r")(?:은|는|을|를|만|말고|대신))?"
     r"(?P<destination>" + DESTINATIONS + r")(?P<kind>가게|매장|식당|카페)?(?:으로|로)(?:만)?"
     r"(?:일정)?(?:바꿔(?:줘|주세요)|수정해(?:줘|주세요)|변경해(?:줘|주세요))", re.I)
@@ -83,6 +86,8 @@ def pending_selection(question, current, saved):
     """Only a fully parsed single replacement can await a visit selection."""
     targets = []
     for place in current.get("places", []):
+        if visit_kind(place) in {'INTERNAL_FOOD', 'INTERNAL_CAFE', 'BAR'}:
+            continue
         plan = _interpret(question, current, saved, target=place)
         if plan and plan["operation"] == "replace":
             targets.append(place["visitId"])
@@ -128,6 +133,8 @@ def _interpret(question, current, saved=None, *, target=None):
         return None
     actions, preferences, rejected_category = [], [], None
     for clause in clauses:
+        if re.fullmatch(catalog.PRESERVE_REST, clause):
+            continue  # Shared mutate/rebuild path already preserves other visits.
         if preference := PREFERENCE.fullmatch(clause):
             brand = next(v for k, v in catalog.BRANDS.items() if k.casefold() == preference['brand'].casefold())
             preferences.append({"scope": "CAFE", "text": brand + " 브랜드"})
@@ -151,6 +158,17 @@ def _interpret(question, current, saved=None, *, target=None):
                     else CATEGORIES.get(raw))
         source = CATEGORIES[match['source']] if match['source'] else category
         targets = [p for p in current.get('places', []) if _category(p) == source]
+        if source in {'FOOD', 'CAFE'} and target is None:
+            targets = [p for p in targets if visit_kind(p) == source]
+        if match['phase']:
+            phase = 'BEFORE' if match['phase'] == '전' else 'AFTER'
+            targets = [p for p in targets if p.get('phase') == phase]
+        if match['source_menu']:
+            if source != 'FOOD' or not match['source']:
+                return None
+            from .grounding import query_variants
+            variants = query_variants(match['source_menu'])
+            targets = [p for p in targets if any(v in str(p.get('name', '')) + ' ' + str(p.get('reason', '')) for v in variants)]
         if target is not None:
             targets = [p for p in targets if p is target]
         if len(targets) != 1 or not targets[0].get('visitId'):

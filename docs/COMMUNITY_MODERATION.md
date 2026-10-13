@@ -21,7 +21,11 @@
 - `backend/llm/management/commands/run_moderation_worker.py`: Django가 명령을 발견하기 위한 연결 파일. `llm/commands`만으로는 `manage.py`가 명령을 자동 등록하지 않는다.
 - `community/moderation_worker.py`, `community/moderation_checks.py`: 기존 import 호환용. `community/moderation_service.py`의 비공개 접수·공개·운영진 복구 트랜잭션과 ORM 모델은 유지한다.
 
+<<<<<<< HEAD
 새 테이블이나 마이그레이션 없이 기존 큐와 필터 결과를 사용한다. 수정 도중 본문이 바뀌는 문제를 막기 위해 LLM 입력에는 해당 버전의 저장된 스냅샷을 쓴다.
+=======
+워커를 services/llm 명령으로 옮긴 리팩터링 자체는 새 테이블이나 마이그레이션 없이 기존 큐와 필터 결과를 사용한다. 별도 접수 제한 보완은 migration `0012_moderation_admission`이 필요하다. `ModerationAdmission`은 계정 ID와 접수 시각만 저장하여 글·댓글 삭제와 무관하게 최근 1시간 접수량을 유지하며 본문·이미지·검사 사유를 보관하지 않는다. 계정 행의 PostgreSQL `FOR NO KEY UPDATE` 잠금으로 같은 계정 접수를 직렬화하되 새 글의 외래키 key-share 잠금과 교착하지 않는다. 다음 접수에서 그 계정의 만료 기록을 정리하며, migration은 남아 있는 최근 작업의 접수량만 이관하고 기존 작업·리뷰를 수정하지 않는다(이미 삭제된 작업은 복원할 수 없다). 수정 도중 본문이 바뀌는 문제를 막기 위해 LLM 입력에는 해당 버전의 저장된 스냅샷을 쓴다.
+>>>>>>> fb643bc13284fe677e02749976243f47627a077a
 
 서버 스케줄러에서 미검사 전체를 수집하고 일회 실행할 명령: `python manage.py filter_unchecked_content` (`backend`에서 실행). 구현은 `llm/commands/filter_unchecked_content.py`와 `services.community_moderation.enqueue_unchecked`에 있다. 현재 내용 버전의 검사 작업이 없는 게시글·댓글을 찾아 비공개 큐에 넣은 뒤 기존 `run_moderation_worker --once`를 호출한다. 과거 승인 버전 0 데이터와 Django 기본 관리자에서 생성하여 작업이 누락된 데이터도 포함한다. 이미 완료·검토·거절된 검사 및 대기·실행 중 작업은 중복 생성하지 않는다. 실패 작업은 기존 명시적 재시도 절차를 유지하며, 아직 재시도 시간이 안 된 작업·다른 워커가 처리 중인 작업은 남은 수를 출력한다. 기존 숨김은 유지한다. 이 명령의 미검사 기준은 현재 버전의 작업 유무이므로, 버전을 올리지 않고 DB나 기본 관리자에서 이미 검사한 본문을 직접 덮어쓰는 경로는 별도로 연결해야 한다.
 

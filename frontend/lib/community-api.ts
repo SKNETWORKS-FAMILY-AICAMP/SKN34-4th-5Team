@@ -71,6 +71,9 @@ function isComment(value: unknown): value is CommunityComment {
   const comment = value as Record<string, unknown>;
   return isPositiveInteger(comment.id) && typeof comment.postId === "string"
     && isPositiveInteger(comment.authorId)
+    && typeof comment.moderationStatus === "string"
+    && ["pending", "review", "error", "rejected", "approved"].includes(comment.moderationStatus)
+    && isCount(comment.revision)
     && ["author", "content", "createdAt", "updatedAt"].every(field => typeof comment[field] === "string");
 }
 

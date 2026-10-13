@@ -119,12 +119,18 @@ class CommunityPostListCreateView(generics.ListCreateAPIView):
         existing = CommunityPost.objects.filter(owner=request.user, idempotency_key=key).first()
         # A successful idempotent retry must remain valid after later edits/image moves.
         if existing:
+<<<<<<< HEAD
             incoming = {field: request.data.get({'team_code': 'teamCode', 'content_doc': 'contentDoc', 'is_trade': 'isTrade', 'is_advertisement': 'isAdvertisement'}.get(field, field), False if field.startswith('is_') else None) for field in POST_INPUT_FIELDS}
             for field in ('title', 'content', 'team_code'):
                 if isinstance(incoming.get(field), str):
                     incoming[field] = incoming[field].strip()
             if isinstance(incoming.get('team_code'), str):
                 incoming['team_code'] = incoming['team_code'].upper()
+=======
+            # Reuse field normalization, without revalidating moved image ownership.
+            incoming = self.get_serializer().to_internal_value(request.data)
+            incoming['team_code'] = incoming['team_code'].upper()
+>>>>>>> fb643bc13284fe677e02749976243f47627a077a
             if not same_submission(existing, incoming):
                 return Response({'idempotencyKey': '같은 키로 다른 게시글을 만들 수 없습니다.'}, status=409)
             return Response(self.get_serializer(post_queryset().get(pk=existing.pk)).data)

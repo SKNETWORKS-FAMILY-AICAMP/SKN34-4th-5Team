@@ -14,15 +14,15 @@ QUESTION = "난 카페 무조건 메가커피 가야해. 메가커피로 바꿔�
 class LiteralEditTests(SimpleTestCase):
     def test_choice_continues_complete_request_without_reinterpreting_or_rechecking_menu(self):
         current = {**CURRENT, 'places': [
-            {**PLACES[0], 'label': '1', 'name': 'STATION', 'placeId': 'stadium-facility:snack'},
-            *PLACES[1:], {**PLACES[0], 'label': '5', 'name': '술집', 'visitId': 'bar'},
+            {**PLACES[0], 'label': '1', 'name': '첫번째식당', 'placeId': 'first-restaurant'},
+            *PLACES[1:], {**PLACES[0], 'label': '5', 'name': '두번째식당', 'visitId': 'bar'},
         ]}
         prompt = '돈카츠 가게로 바꿀 식당을 골라 주세요.'
         history = [{'role': 'user', 'content': '식당이 좀 별로다. 돈카츠 가게로 수정해줘'},
-                   {'role': 'assistant', 'content': prompt + ': 1번 STATION / 5번 술집'}]
+                   {'role': 'assistant', 'content': prompt + ': 1번 첫번째식당 / 5번 두번째식당'}]
         candidate = {**PLACES[0], 'name': '새 식당', 'detail': '음식점 > 일식 > 돈까스', 'placeId': 'new'}
         unrelated = {**candidate, 'name': '다른 식당', 'detail': '음식점 > 중식', 'placeId': 'other'}
-        for choice, target in [('1번 STATION', 'food'), ('STATION', 'food'), ('5번 술집', 'bar')]:
+        for choice, target in [('1번 첫번째식당', 'food'), ('첫번째식당', 'food'), ('5번 두번째식당', 'bar')]:
             for question in [choice, prompt + ': ' + choice]:
                 with self.subTest(question=question), patch.object(agent, 'llm') as llm, \
                         patch.object(recommendation_policy, 'balanced', return_value=True), \
@@ -41,21 +41,21 @@ class LiteralEditTests(SimpleTestCase):
 
     def test_choice_does_not_erase_conditions_or_guess_stale_targets(self):
         prompt = '돈카츠 가게로 바꿀 식당을 골라 주세요.'
-        current = {**CURRENT, 'places': [{**PLACES[0], 'label': '1', 'name': 'STATION'},
-                                        {**PLACES[0], 'label': '3', 'name': '술집', 'visitId': 'bar'}]}
+        current = {**CURRENT, 'places': [{**PLACES[0], 'label': '1', 'name': '첫번째식당'},
+                                        {**PLACES[0], 'label': '3', 'name': '두번째식당', 'visitId': 'bar'}]}
         for original in ['돈카츠로 바꿔줘 그리고 주차도 가능해야 해', '알레르기 없는 돈카츠로 바꿔줘',
                          '구장 내 돈카츠로 바꿔줘', '메가커피로 바꿔줘', '돈카츠로 바꿔줘. 왜 추천했는지도 설명해줘']:
             history = [{'role': 'user', 'content': original}, {'role': 'assistant', 'content': prompt}]
-            self.assertIsNone(literal_edits.interpret(prompt + ': 1번 STATION', current, history=history))
+            self.assertIsNone(literal_edits.interpret(prompt + ': 1번 첫번째식당', current, history=history))
         history = [{'role': 'user', 'content': '돈카츠로 바꿔줘'}, {'role': 'assistant', 'content': prompt}]
-        for question in ['1번 다른 식당', '3번 STATION', prompt + ': 1번 STATION 그리고 주차도',
-                         prompt + ': 1번 STATION\n카페?: 메가커피', '주차 가능한 ' + prompt + ': 1번 STATION']:
+        for question in ['1번 다른 식당', '3번 첫번째식당', prompt + ': 1번 첫번째식당 그리고 주차도',
+                         prompt + ': 1번 첫번째식당\n카페?: 메가커피', '주차 가능한 ' + prompt + ': 1번 첫번째식당']:
             self.assertIsNone(literal_edits.interpret(question, current, history=history))
-        self.assertIsNone(literal_edits.interpret('STATION', current, history=[]))
-        self.assertIsNone(literal_edits.interpret(prompt + ': 1번 STATION', current, history=[
+        self.assertIsNone(literal_edits.interpret('첫번째식당', current, history=[]))
+        self.assertIsNone(literal_edits.interpret(prompt + ': 1번 첫번째식당', current, history=[
             history[0], {'role': 'assistant', 'content': '수정했어요.'}]))
         duplicates = {**current, 'places': [*current['places'], {**current['places'][0], 'label': '4', 'visitId': 'duplicate'}]}
-        self.assertIsNone(literal_edits.interpret('STATION', duplicates, history=history))
+        self.assertIsNone(literal_edits.interpret('첫번째식당', duplicates, history=history))
 
     def test_choice_supports_other_categories_and_saved_brand_conflicts(self):
         current = {**CURRENT, 'places': [*PLACES, {**PLACES[1], 'label': '4', 'visitId': 'cafe2', 'name': '두번째 카페'}]}

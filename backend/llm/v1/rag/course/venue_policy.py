@@ -227,7 +227,7 @@ def discover_candidates(invoke, args, category, *, diagnostics=None):
 
 
 def search_candidates(invoke, args, category, *, diagnostics=None, candidate_filter=None, quality_center=None, quality_reuse=True,
-                      discovered=None):
+                      discovered=None, visit_kind=None):
     """Discovery may overlap; evidence checks and budget updates remain ordered."""
     places = discover_candidates(invoke, args, category, diagnostics=diagnostics) if discovered is None else discovered
     code, allowed = _PERMISSION.get()
@@ -247,7 +247,7 @@ def search_candidates(invoke, args, category, *, diagnostics=None, candidate_fil
                   and (candidate_filter is None or candidate_filter(p))]
     result = place_quality.verify_candidates(candidates, category, args.get("query", ""),
         center=quality_center or (center if located else None), search_center=center if located else None,
-        radius=args.get("radius", 2500), reuse=quality_reuse)
+        radius=args.get("radius", 2500), reuse=quality_reuse, visit_kind=visit_kind)
     if diagnostics is not None and place_quality.active(category):
         from . import recommendation_policy
         diagnostics.update(source="KAKAO_WITH_QUALITY_CHECK", rawCandidateCount=raw_count,

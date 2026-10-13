@@ -143,8 +143,9 @@ class WiringTest(unittest.TestCase):
             ('POSTGRES_DB', 'POSTGRES_USER', 'POSTGRES_PASSWORD'), 'highlight_ci'))
         self.assertIn('5432:5432', service['ports'])
         backend = 'python -I .github/evaluation_ci.py offline-exec backend/manage.py test llm.tests.test_highlights --settings=llm.tests.highlight_settings --noinput --verbosity=2'
-        frontend = 'node --test tests/youtube-highlight.test.mjs'
-        for command in (backend, frontend, 'python -I .github/test_evaluation_ci.py'):
+        frontend = 'node --test tests/youtube-highlight.test.mjs tests/auth-bridge.test.mjs'
+        for command in (backend, frontend, 'node docker/jev-browser/test-direct-lodging.mjs',
+                        'python -I .github/test_evaluation_ci.py'):
             steps = [step for step in job['steps'] if step.get('run') == command]
             self.assertEqual(len(steps), 1, command)
             self.assertNotIn('if', steps[0])
@@ -167,13 +168,24 @@ class WiringTest(unittest.TestCase):
         for name in ('dev', 'prod'):
             workflow = (HERE / f'workflows/deploy-{name}.yml').read_text()
             self.assertIn('needs: [ci-test, evaluation-regression]', workflow)
-        self.assertEqual(len(ci.FREE), 11)
+        self.assertEqual(len(ci.FREE), 14)
+        self.assertIn(['backend/llm/v2/tests/run_attachment_offline.py', 'llm.tests.test_course_tonkatsu',
+                       'llm.tests.test_course_literal_edits', 'llm.tests.test_course_audit_repairs.CourseSelectionRepairTest',
+                       'llm.tests.test_course_bar_ratings', 'llm.tests.test_course_quality_research',
+                       'llm.tests.test_course_recommendation_policy', 'llm.tests.test_course_visit_requests'], ci.FREE)
+        self.assertIn([ci.EVAL + 'tonkatsu_contract.py', 'export', '--output', 'tonkatsu.json'], ci.FREE)
+        self.assertIn("execute([EVAL + 'tonkatsu_contract.py', 'scorer-check'], offline=True)",
+                      (HERE / 'evaluation_ci.py').read_text())
+        regression = (HERE / 'workflows/evaluation-regression.yml').read_text()
+        self.assertIn('name: course-contract-export', regression)
+        self.assertIn('tonkatsu_contract.py score --input', regression)
         self.assertEqual(ci.FREE[-3:], [
             ['backend/llm/v2/tests/run_attachment_offline.py', 'llm.tests.test_domain_tools.ExternalDomainToolAdapterTest'],
             [ci.EVAL + 'weather_contract.py', 'export', '--output', 'weather.json'],
             ['backend/llm/v2/tests/run_attachment_offline.py', 'llm.tests.test_chat_eval']])
         self.assertIn("execute([EVAL + 'weather_contract.py', 'scorer-check'], offline=True)",
                       (HERE / 'evaluation_ci.py').read_text())
+        self.assertIn([ci.EVAL + 'test_course_dataset.py', '-v'], ci.FREE)
         self.assertTrue(all((ci.ROOT / command[0]).is_file() for command in ci.FREE))
 
 

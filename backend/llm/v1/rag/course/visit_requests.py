@@ -145,7 +145,8 @@ class Selector:
                 category = "FOOD" if visit["kind"] in ("FOOD", "BAR") else visit["kind"]
                 focus = origin if origin and visit["phase"] == "BEFORE" else anchor
                 rows = editing.candidates({**focus, "category": category},
-                                          anchor, {"query": query, "conditions": self.conditions(visit)}, [])
+                                          anchor, {"query": query, "conditions": self.conditions(visit),
+                                                   "visit_kind": visit["kind"]}, [])
             for p in rows:
                 # 검색어 적중만으로 일반 음식점의 실제 업종을 술집으로 바꾸지 않는다.
                 if visit["kind"] == "BAR" and not any(w in p.get("detail", "") for w in agent.timeline.BAR_WORDS):

@@ -30,7 +30,11 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r backend/requirements.txt
+<<<<<<< HEAD
       - run: python backend/manage.py test community.test_moderation community.moderation_probe accounts.test.test_point_integration --noinput
+=======
+      - run: python backend/manage.py test community community.moderation_probe llm.tests.test_domain_tools.DomainToolsTest accounts.test.test_point_integration --noinput --verbosity=2
+>>>>>>> fb643bc13284fe677e02749976243f47627a077a
       - uses: actions/setup-node@v4
         with:
           node-version: '22'

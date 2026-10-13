@@ -33,7 +33,8 @@ STADIUMS = {"GWANGJU", "JAMSIL"}
 FOOD_CATEGORIES = {"FOOD", "FOOD_OUT", "FD6", "BAR", "CAFE", "CE7"}
 # An ordinary izakaya's private room is not an entertainment business.
 ENTERTAINMENT = re.compile(r"룸\s*[살싸]롱|유흥\s*주점|단란\s*주점|노래\s*주점|가라오케")
-BLOCKED_IDS = {"18774818"}  # 밤비: user's explicit exclusion, not an industry allegation.
+# User-requested exclusions (밤비, 입술), not allegations about their business type.
+BLOCKED_IDS = {"18774818", "119189575"}
 NOTICE = "카카오 검색 후보에서 평점·후기와 실내 상태를 확인한 매장을 사용해요. 구장 내부 먹거리는 평점 검사에서 제외해요."
 RESEARCH_VERSION = "shared-pages-v2-review-wraps"
 GENERIC_QUERIES = {"", "카페", "커피", "식당", "음식점", "맛집", "식사", "술집", "먹거리", "간식"}
@@ -171,8 +172,8 @@ def canonical(place):
         pid = _id(place)
         lat, lng = float(place.get("lat", place.get("y"))), float(place.get("lng", place.get("x")))
         name = str(place.get("name") or place.get("place_name") or "")
-        address = str(place.get("address") or place.get("road_address_name") or "")
-        detail = str(place.get("detail") or place.get("category_name") or "")
+        address = str(place.get("address") or place.get("road_address_name") or place.get("address_name") or "")
+        detail = str(place.get("detail") or place.get("category_name") or place.get("category_detail") or "")
         if not pid or not name or not address or not -90 <= lat <= 90 or not -180 <= lng <= 180:
             return None
         return {"placeId": pid, "stadium": _SCOPE.get(), "name": name, "address": address, "lat": lat, "lng": lng,
@@ -209,6 +210,18 @@ def approved(row):
         return False
 
 
+def same_branch(place, row):
+    if _id(place) != row.get("placeId"):
+        return False
+    if _text(place.get("name") or place.get("place_name")) not in {_text(row.get("name")), *map(_text, row.get("aliases", []))}:
+        return False
+    try:
+        distance = haversine_m(float(place.get("lat", place.get("y"))), float(place.get("lng", place.get("x"))), row["lat"], row["lng"])
+        return distance is not None and distance <= 80
+    except (KeyError, TypeError, ValueError, OverflowError):
+        return False
+
+
 def resolve(place, *, include_rejected=False):
     identifier = _id(place)
     if not identifier:
@@ -220,21 +233,24 @@ def resolve(place, *, include_rejected=False):
                     and approved({**row, "status": "approved", "interior": {**row["interior"], "status": "acceptable"}}))
         if not approved(row) and not rejected:
             continue
-        if _text(place.get("name") or place.get("place_name")) not in {_text(row["name"]), *map(_text, row.get("aliases", []))}:
-            continue
-        try:
-            distance = haversine_m(float(place.get("lat", place.get("y"))), float(place.get("lng", place.get("x"))), row["lat"], row["lng"])
-            if distance is not None and distance <= 80:
-                return None if rejected and not include_rejected else row
-        except (TypeError, ValueError, OverflowError):
-            continue
+        if same_branch(place, row):
+            return None if rejected and not include_rejected else row
     return None
 
 
 def filter_place(place, category):
+    from . import bar_ratings
     detail = str(place.get("detail") or place.get("category_name") or place.get("category_detail") or "")
     if _id(place) in BLOCKED_IDS or ENTERTAINMENT.search(detail):
         return None
+    if _SCOPE.get() and bar_ratings.is_bar(place, category):
+        # Applies to external bars across stadiums, including FOOD/FD6 adapters.
+        # Caller-provided rating fields are never treated as verified evidence.
+        if not bar_ratings.resolve(place):
+            return None
+        verdict = resolve(place, include_rejected=True)
+        if verdict and verdict.get("status") == "rejected":
+            return None
     if not active(category):
         return place
     _USED.set(True)
@@ -257,15 +273,20 @@ def filter_place(place, category):
 
 
 def candidate_allowed(place):
-    detail = str(place.get("detail") or place.get("category_name") or "")
+    detail = str(place.get("detail") or place.get("category_name") or place.get("category_detail") or "")
     return _id(place) not in BLOCKED_IDS and not ENTERTAINMENT.search(detail)
 
 
-def verify_candidates(places, category, query="", *, center=None, search_center=None, radius=2500, reuse=True, refresh=False):
+def verify_candidates(places, category, query="", *, center=None, search_center=None, radius=2500, reuse=True, refresh=False, visit_kind=None):
     """A bounded fresh investigation, after provider search and scope filtering."""
     places = list(places)
+    from . import bar_ratings, recommendation_policy
+    wants_bar = visit_kind == "BAR" or category == "BAR" or bool(re.search(r"술집|주점|호프|이자카야|맥주|하이볼", query))
+    only_bars = bool(places) and all(bar_ratings.is_bar(p, category) for p in places)
+    if _SCOPE.get() and (wants_bar or only_bars) and (recommendation_policy.balanced() or not active(category)):
+        bar_ratings.investigate(places, category, center=center, radius=radius)
     if not active(category):
-        return places
+        return [row for p in places if (row := filter_place(p, category)) is not None]
     from travel.course_place_warmer import remember
     remember(places, _SCOPE.get(), query)
     _USED.set(True)
@@ -357,6 +378,9 @@ def verify_candidates(places, category, query="", *, center=None, search_center=
         by_id = {p["place"]["placeId"]: p for p in profiles}
         for item, key in pending:
             proof, interior = by_id.get(item["placeId"]), checks.get(item["placeId"])
+            if proof and item["kind"] == "BAR":
+                # Preserve actual ratings even when interior evidence is unknown.
+                bar_ratings.save(item, proof)
             row = None
             if proof and interior:
                 row = {**item, "status": "approved" if interior["status"] == "acceptable" else "rejected",
@@ -446,6 +470,10 @@ def search_candidates(args, category):
 
 def annotation(place):
     row = resolve(place)
+    if not row:
+        from . import bar_ratings
+        if bar_ratings.is_bar(place):
+            row = bar_ratings.resolve(place)
     if not row:
         return ""
     return (f"[평점·후기]({row['reviewUrl']}) 다이닝코드 {row['rating']:g}/5 · 평가 {row['ratingCount']}명"
