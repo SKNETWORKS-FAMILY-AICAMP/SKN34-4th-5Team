@@ -6,6 +6,7 @@ from datetime import timedelta
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.db.models import F
 from django.utils import timezone
 from rest_framework.exceptions import APIException, PermissionDenied, ValidationError, Throttled
 
@@ -88,7 +89,7 @@ def publish_locked(obj):
         obj.first_published_at = timezone.now()
         obj.save(update_fields=('first_published_at',))
     if is_post:
-        for comment in obj.comments.select_for_update().filter(moderation_status='approved', first_published_at__isnull=True):
+        for comment in obj.comments.select_for_update().filter(approved_revision=F('content_revision'), first_published_at__isnull=True):
             comment.post = obj
             publish_locked(comment)
         sync_comment_count(obj.pk)
@@ -97,7 +98,14 @@ def publish_locked(obj):
 def apply_decision_locked(obj, job):
     states = {item['resolution'] for item in job.findings}
     obj.moderation_status = 'rejected' if 'confirmed' in states else 'review' if 'open' in states else 'approved'
-    obj.approved_revision = obj.content_revision if obj.moderation_status == 'approved' else None
+    # Only provider failure's manual finding is non-blocking; other reasons still hold publication.
+    fallback = (job.payload.get('mode') == 'openai'
+                and job.error_code == 'automatic_check_failed'
+                and job.evidence.get('fallback') == 'manual_review')
+    blocking = any(item['resolution'] == 'confirmed' or
+                   (item['resolution'] == 'open' and not (fallback and item['code'] == 'manual_review'))
+                   for item in job.findings)
+    obj.approved_revision = None if blocking else obj.content_revision
     obj.save(update_fields=('moderation_status', 'approved_revision'))
     publish_locked(obj)
     if isinstance(obj, CommunityComment):

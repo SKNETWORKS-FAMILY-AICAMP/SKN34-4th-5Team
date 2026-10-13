@@ -152,6 +152,18 @@ test("mode save is disabled before load or with unchanged choice", () => {
   }
 });
 
+test("public fallback instructions keep manual review distinct from provider approval", () => {
+  const h = harness();
+  assert.match(h.exports.moderationLabel.review, /운영진 검토/);
+  assert.doesNotMatch(h.exports.moderationLabel.review, /검사 승인|비공개/);
+  const mode = h.render(h.exports.ModerationModeControl, {}, ["openai", "openai", true, false, "", ""]);
+  assert.ok(nodes(mode).some(node => typeof node.props.children === "string" && node.props.children.includes("공개와 운영진 검토를 병행")));
+  assert.ok(nodes(mode).some(node => typeof node.props.children === "string" && node.props.children.includes("비공개 부모 글의 댓글은 비공개로 유지")));
+  const tree = card(h);
+  assert.ok(nodes(tree).some(node => node.props.children === "선택 사유 확정·비공개 처리"));
+  assert.ok(nodes(tree).some(node => typeof node.props.children === "string" && node.props.children.includes("다른 미해제 사유나 확정 사유가 있으면 비공개")));
+});
+
 test("empty results explain the next action without masking request errors", () => {
   const h = harness();
   const empty = h.render(h.exports.ModerationPanel, {}, [[], 1, false, 0, "", false]);

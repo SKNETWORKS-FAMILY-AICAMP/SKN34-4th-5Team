@@ -1,11 +1,26 @@
 # DeepEval 평가 기준 v1.0
 
+## 2026-10-13 사용자 정정: 자동 검사 오류는 공개와 수동 검토 병행
+
+- 앞선 오류 비공개 계약을 supersede한다. A는 HEAD가 아닌 현재 dirty 소스이며 scratch에 보존한다. 환경 모드 제거·DB 관리자 선택·자동 기본 계약은 그대로 유지한다.
+- openai 제공자 오류만 안전한 automatic_check_failed/fallback 근거와 open manual_review를 유지하면서 현재 approved_revision을 허용한다. moderation_status는 review로 남겨 제공자 승인으로 표시하지 않는다. confirm은 rejected/비공개, dismiss는 공개 유지다. 독립 image_review·유해 판정·명시 manual·숨김·비공개 부모는 공개 예외가 아니다.
+- 동일 synthetic 사례·정답·네트워크 차단·cache off·DeepEval/Ragas exact threshold=1로 수정 전 A/후 B를 실행한다. 새 사용자 정책 계약이지 threshold 완화가 아니다. 기존 native/live 성공·유해 계약은 유지한다.
+- 합격: 공개 post/comment·관리자 사후검토 발견·confirm/dismiss·다중사유·부모 복구 시 최초 포인트/댓글수·숨김·revision/lease·storage 오류·권한/이력 무료 회귀 및 두 framework 계약 전건 일치다. community-moderation.yml의 django-integration/community 자동 발견 및 provider-contracts/fallback 명령에서 실제 이름·개수를 검증한다. 프론트 안내 변경은 기존 4파일 node --test CI 명령으로 검증한다. 실제 제공자/운영 DB/유료 의미 품질은 범위 밖이며 needs-review다.
+
+## 2026-10-13 환경 모드 제거와 자동 검사 실패의 수동 검토 이관
+
+- 목적/변경 변수: COMMUNITY_MODERATION_MODE 설정과 읽기를 제거한다. 관리자 DB의 자동/수동 선택만 유지하고 DB 선택이 없으면 항상 openai를 사용한다. OPENAI_API_KEY와 다른 설정은 보존한다.
+- 기대 동작(같은 날 사용자 정정 반영): openai 검사의 키 누락·timeout·결과 누락/오형은 최초 실패에 안전한 error_code/evidence와 manual_review 사유를 남긴 완료 작업으로 전환한다. status=review와 공개 가능한 현재 approved_revision을 병행하되 독립 이미지 사유·숨김·비공개 부모는 비공개로 유지한다. 전역/DB 모드를 바꾸거나 제공자 승인으로 표시하지 않는다. 저장/DB 오류는 검사 실패로 처리하지 않는다.
+- 보존 범위: legacy live 스냅샷의 기존 재시도·실패 계약, flagged 및 이미지 검토, revision/lease 무효 결과 폐기, 검토 권한, 최초 포인트·이력·관리자 숨김을 유지한다. 실제 .env/운영 DB/실제 제공자 호출은 범위 밖이다.
+- A/B: 동일 신규 synthetic 실패 이관 케이스·독립 기대값·DeepEval/Ragas exact 지표·네트워크 차단·cache off를 수정 전 A와 수정 후 B에 실행한다. 기존 native 및 live 정답은 바꾸지 않고 신규 이관 계약을 별도로 평가한다. native 평가도 양 프레임워크의 점수/실행 개수를 assert한다.
+- 합격/실패: B 전건 기대 상태/근거 일치 및 무료 Django 회귀 통과가 합격이다. 누락·오류·미실행은 실패/검증 대기로 보존한다. community-moderation.yml의 django-integration 자동 발견과 provider-contracts 명령에서 신규 대상의 실제 이름/개수를 확인한다. 유료 의미 품질은 not-measured/needs-review다.
+
 ## 2026-10-13 OpenAI 기본 자동 검사와 관리자 모드 선택
 
 - 사용자 결정: 새 자동 모드는 omni-moderation-latest의 flagged만 사용한다. 정치 임베딩, 별도 문맥 모델, harassment 예외, URL 단독 보류는 적용하지 않는다. 첨부 이미지는 기존 미검사 상태를 명확히 표시하고 운영진 검토를 유지한다.
-- 수동은 전건 검토, 자동은 flagged=false이면 공개, true이면 비공개 검토다. 오류는 공개하지 않는다. 관리자만 DB에 모드를 저장하며 새 접수부터 적용한다. 기존 작업의 스냅샷/검토/포인트는 변경하지 않는다.
+- 수동은 전건 검토, 자동은 flagged=false이면 공개, true이면 비공개 검토다. 자동 검사 오류는 같은 날 사용자 정정에 따라 공개와 사후 검토를 병행한다(독립 이미지·숨김·비공개 부모 제외). 관리자만 DB에 모드를 저장하며 새 접수부터 적용한다. 기존 작업의 스냅샷/검토/포인트는 변경하지 않는다.
 - 고정 synthetic 응답으로 정상·harassment·정치·URL·거래·실패·이미지 경로를 검증한다. 새 계약을 변경 전 A와 변경 후 B에 동일하게 실행하고 DeepEval/Ragas exact 지표로 각각 채점한다. API 호출 0, 의미 정확도는 not-measured. 기존 live 계약은 과거 스냅샷 호환 회귀로 유지한다.
-- 합격: B의 계약 전건 일치, 관리자 전용 권한·모드 영속·새 작업 적용·기존 작업 유지·오류 비공개 회귀 통과. community-moderation.yml의 django-integration 및 provider-contracts에 연결한다. 신규 정답은 사용자 요청에 따른 별도 계약이며 기존 정답을 변경하지 않는다.
+- 합격: B의 계약 전건 일치, 관리자 전용 권한·모드 영속·새 작업 적용·기존 작업 유지·정정된 오류 공개/사후검토 및 독립 비공개 사유 회귀 통과. community-moderation.yml의 django-integration 및 provider-contracts에 연결한다. 신규 정답은 사용자 요청에 따른 별도 계약이며 기존 정답을 변경하지 않는다.
 
 ## 코스 리뷰 5건 수정 계약 (2026-10-13)
 

@@ -7,7 +7,7 @@ rejects stale revisions before applying findings and publication state.
 import uuid
 from datetime import timedelta
 from django.conf import settings
-from django.db import transaction
+from django.db import DatabaseError, transaction
 from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
 from community.models import CommunityPost, CommunityComment, ModerationJob
@@ -68,6 +68,18 @@ def finish(ref, result=None, error=None):
     job.lease_token = job.lease_until = None
     if obj is None or obj.content_revision != job.revision:
         job.state = 'cancelled'
+    elif error is not None and job.payload['mode'] == 'openai':
+        if isinstance(error, DatabaseError):
+            raise error
+        from .community_moderation_policy import finding
+        job.error_code = 'automatic_check_failed'
+        job.findings = [finding('manual_review', '', '자동 검사 실패: 운영진의 수동 검토가 필요합니다.')]
+        if job.payload['image_ids']:
+            job.findings.append(finding('image_review', '', '첨부 이미지는 자동 검사에 포함되지 않아 운영진 확인이 필요합니다.'))
+        job.evidence = {'mode': 'openai', 'policy_version': job.payload['policy_version'],
+                        'fallback': 'manual_review', 'error_code': job.error_code}
+        job.state = 'done'
+        apply_decision_locked(obj, job)
     elif error is not None:
         terminal = job.attempts >= settings.COMMUNITY_MODERATION_MAX_ATTEMPTS
         job.state = 'failed' if terminal else 'queued'
@@ -92,7 +104,10 @@ def run_one(checker=None):
         if job.attempts > settings.COMMUNITY_MODERATION_MAX_ATTEMPTS:
             raise RuntimeError('attempts exhausted')
         result = (checker or check)(job.payload)
-        finish(job, result=result)
+    except DatabaseError:
+        raise
     except Exception as error:
         finish(job, error=error)
+    else:
+        finish(job, result=result)
     return True

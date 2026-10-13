@@ -23,7 +23,7 @@ def post_queryset():
     return CommunityPost.objects.prefetch_related("images").annotate(
         upvote_count=Count("votes", filter=Q(votes__value="up"), distinct=True),
         downvote_count=Count("votes", filter=Q(votes__value="down"), distinct=True),
-        actual_comment_count=Count("comments", filter=Q(comments__moderation_status='approved', comments__approved_revision=F('comments__content_revision')), distinct=True),
+        actual_comment_count=Count("comments", filter=Q(comments__approved_revision=F('comments__content_revision')), distinct=True),
     ).order_by("-post_number")
 
 

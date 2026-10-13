@@ -47,4 +47,7 @@ ragas = ragas_evaluate(EvaluationDataset(samples=[SingleTurnSample(user_input=n,
 print(json.dumps({'outputs': outputs, 'deepeval_passed': sum(r.metrics_data[0].score == 1 for r in deep.test_results),
     'ragas_passed': sum(r['moderation_routing'] == 1 for r in ragas.scores), 'provider_calls': 0, 'semantic_quality': 'not-measured'}))
 if '--baseline' not in sys.argv:
+    assert len(deep.test_results) == len(ragas.scores) == len(CASES)
     assert all(a == e for _,a,e in outputs)
+    assert all(r.metrics_data[0].score == 1 for r in deep.test_results)
+    assert all(r['moderation_routing'] == 1 for r in ragas.scores)
