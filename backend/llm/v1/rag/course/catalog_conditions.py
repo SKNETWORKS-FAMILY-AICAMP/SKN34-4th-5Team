@@ -44,8 +44,13 @@ PREFIX = r"(?:(?:경기|야구|직관)(?:전|후)(?:에)?)?(?:구장(?:밖|외�
 EATING = r"먹(?:고(?:싶어(?:요)?)?|기|은(?:뒤|후|다음)(?:에)?)"
 ACTION = (r"(?:(?:에서|에|으로|로|을|를)?(?P<action>식사(?:하고|하기|한뒤)?|갔다가|가기|들르기|들러|들렀다가|방문|방문하기|커피한잔|"
           + EATING + r"))?")
+# A terminal stadium visit is itinerary syntax, not a restaurant property.
+# Consume only this complete positive suffix; unknown/negative trailing text
+# still requires semantic interpretation (parking, allergies, another visit).
+STADIUM_DESTINATION = (r"(?:(?:그다음(?:에)?|이후(?:에)?|그리고)?(?:구장|경기장|야구장)(?:에|으로|로)?"
+                       r"(?:가고싶어(?:요)?|가(?:기|자|요)|갈래(?:요)?|가는코스|방문(?:하고싶어(?:요)?|하기)?|도착))?")
 PATTERN = re.compile(PREFIX + r"(?P<term>" + "|".join(sorted(TERMS, key=len, reverse=True))
-                     + r")(?P<kind>식당|음식점|카페|브랜드|매장|메뉴)?" + ACTION, re.I)
+                     + r")(?P<kind>식당|음식점|카페|브랜드|매장|메뉴)?" + ACTION + STADIUM_DESTINATION, re.I)
 
 
 def parse(conditions):
@@ -124,8 +129,17 @@ def menu_hint(place, term):
     detail = re.sub(r"\s+", "", str(place.get("detail", "")))
     if term == "돈까스":
         return bool(re.search(r"돈까스|돈카츠|돈가스|돈카쓰", name + detail))
-    return bool(term == "짜장면" and re.search(r"(?:짜장|자장)(?:면)?", name)
+    if term == "짜장면":
+        # Product policy: ordinary Chinese restaurants qualify for a jajang
+        # recommendation without a separately photographed menu. A specialist
+        # lamb-skewer/malatang/dim-sum category is not a general Chinese diner.
+        parts = detail.split('>')
+        chinese = ('음식점' in parts and '중식' in parts
+                   and (parts[-1] == '중식' or any(p in parts for p in ('중국요리', '중화요리', '중국집', '중식당')))
+                   and not re.search(r'양꼬치|마라탕|딤섬', detail))
+        return chinese or bool(re.search(r"(?:짜장|자장)(?:면)?", name)
                 and not re.search(r"(?:짜장|자장)(?:밥|소스|떡볶이|라면|범벅|김밥|버거|피자)", name))
+    return False
 
 
 def choose(places, plan, question, *, verified=False):
@@ -145,8 +159,8 @@ def choose(places, plan, question, *, verified=False):
             def hinted(p, term):
                 if term not in menus:
                     return matches(p, term)
-                # A specific specialty/name is useful recommendation evidence.
-                # Generic Chinese/Japanese cuisine is insufficient for a dish.
+                # Use specialty/name hints and the explicit ordinary-Chinese
+                # jajang policy; generic Japanese cuisine is not a dish hint.
                 return menu_hint(p, term)
             candidates = [p for p in places if all(hinted(p, term) for term in terms)]
             if candidates:

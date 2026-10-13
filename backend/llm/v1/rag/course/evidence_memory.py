@@ -35,6 +35,14 @@ _LOCAL_CENTER = ContextVar("course_evidence_local_center", default=None)
 CATALOG_CUISINES = (("한식", "한식집", "한식당", "한국음식"),
                     ("중식", "중식집", "중식당", "중국집", "중국음식", "중국요리"),
                     ("일식", "일식집", "일식당", "일본음식"), ("양식", "양식집", "양식당"))
+# User-approved recommendation policy (2026-10-13): one actual review suffices
+# for these subjective traits. Facilities, exclusions and conflicts stay strict.
+SINGLE_REVIEW = re.compile(r"^(?:(?:매장|카페|실내|공간)(?:의|이)?)?(?:조용(?:함|한)?|정숙함|넓(?:음|은)?(?:매장|공간)?|분위기(?:좋음|좋은)?|좋은분위기)$")
+
+
+def subjective_recommendation(requirement):
+    return (requirement.attribute == "review_feature" and requirement.intent != "exclude"
+            and bool(SINGLE_REVIEW.fullmatch(re.sub(r"\s+", "", requirement.term))))
 
 
 def catalog_cuisine(term):
@@ -64,6 +72,8 @@ def request_budget():
         finally:
             if reader := _BUDGET.get().get("reader"):
                 reader.close()
+            if reader := (_BUDGET.get().get("features") or {}).get("reader"):
+                reader.close()
             _BUDGET.reset(token)
 
 
@@ -85,6 +95,7 @@ class Requirements(Strict):
 
 class Finding(Strict):
     _body_verified: bool = PrivateAttr(default=False)
+    _experience_key: str = PrivateAttr(default="")
     place_id: str
     term: str
     attribute: Literal["menu", "cuisine", "review_feature"]
@@ -135,7 +146,8 @@ OR 대안은 같은 group, AND 조건은 다른 group. 제외 대상이 '한식'
 실제 판매 메뉴는 menu, 업종 분류보다 세부적인 음식 특성(비건 등)은 cuisine,
 조용함/청결/좌석/주차/시설/서비스 등 추가 근거가 필요한 특성은 review_feature.
 예: '중식집에서 자장면'은 catalog=중식과 menu=자장면이다. 중식 업종에 웹 메뉴 근거를 중복 요구하지 않는다.
-분위기 키워드는 '조용함', '매장 청결'처럼 짧고 같은 의미로 정규화. '든든한 식사/저가 카페'는 catalog.
+분위기 키워드는 짧고 같은 의미로 정규화. 조용한/정숙한은 '조용함', 넓은 카페/매장은 '넓은 매장', 분위기 좋은은 '좋은 분위기'다.
+청결은 '매장 청결'이며 콘센트·주차·무료·최근 후기 같은 추가 한정은 보존한다. '든든한 식사/저가 카페'는 catalog.
 식사 원문에서 실제 메뉴를 추출한다. '스테이크 썰고'는 menu=스테이크, '파스타 한 접시'는 menu=파스타다.
 같은 조건의 반복은 하나로 합친다. 단순 '식사/밥 먹고/끼니 해결'은 방문 의도일 뿐 추가 장소 조건이 아니다.
 단순 '카페 들러/커피 한잔/술집에서 술'도 활동 종류다. 구장 내부·경기 전후·방문 순서는 코드가 처리하므로 추가 조건으로 만들지 않는다.
@@ -155,6 +167,11 @@ OR 대안은 같은 group, AND 조건은 다른 group. 제외 대상이 '한식'
     parsed = [r.model_copy(update={"attribute": "catalog"})
               if r.attribute in ("menu", "cuisine") and catalog_cuisine(r.term) else r
               for r in parsed]
+    # The semantic path must use the same menu identity as literal requests,
+    # retrieval variants and evidence matching. Never collapse qualified dishes.
+    from .grounding import canonical_menu_term
+    parsed = [r.model_copy(update={"term": canonical_menu_term(r.term)})
+              if r.attribute == "menu" else r for r in parsed]
     if budget is not None:
         budget["requirements"][key] = parsed
     return parsed
@@ -181,7 +198,8 @@ def investigation_order(candidates, requested):
 
 def reason(place):
     checks = place.get("conditionChecks") or []
-    confirmed = [c["term"] + (" 제외 확인" if c["intent"] == "exclude" else " 근거 확인")
+    confirmed = [c["term"] + (" 업종 기준 추천" if c.get("basis") == "catalog_recommendation"
+                 else " 제외 확인" if c["intent"] == "exclude" else " 근거 확인")
                  for c in checks if c["status"] == "match"]
     unknown = [c["term"] + " 미확인" for c in checks if c["intent"] == "optional" and c["status"] != "match"]
     return " · ".join([*confirmed, *unknown])[:120]
@@ -209,6 +227,8 @@ def verdict(rows, requirement):
     if positive and negative:
         return "unknown"
     needed = 2 if requirement.attribute == "review_feature" else 1
+    if subjective_recommendation(requirement):
+        needed = 1
     independent = lambda rs: len({r.get("experience_key") or r["source"]["url"] for r in rs})
     if independent(positive) >= needed:
         return "mismatch" if requirement.intent == "exclude" else "match"
@@ -224,7 +244,7 @@ def read(place, requirement):
         from .grounding import query_variants, canonical_menu_term
         terms = query_variants(requirement.term) if requirement.attribute == "menu" else [requirement.term]
         rows = list({r["id"]: r for term in terms for r in
-                     retrieve_keyword_memory(term, place_id=identity(place), scope="external_candidate")["items"]}.values())
+                     retrieve_keyword_memory(term, place_id=identity(place), scope="external_candidate", review_max_age_days=None)["items"]}.values())
         old = set(str(pk) for pk in PlaceKnowledgeObservation.objects.filter(
             pk__in=[r["id"] for r in rows], extractor_version__startswith="course-evidence-")
             .exclude(extractor_version=VERSION).values_list("pk", flat=True))
@@ -402,12 +422,15 @@ def checked_rows(place, requested, findings, opened, now):
                 observed = date.fromisoformat(f.observed_on)
             except ValueError:
                 continue
+            age = (now.date() - observed).days
+            # The course policy has no blanket review-age cutoff. The source
+            # must still be readable and match the exact branch and condition.
             if (f.kind != "customer_review" or f.basis != "customer_experience" or f.promotion != "not_disclosed"
-                    or not 0 <= (now.date() - observed).days <= 180):
+                    or age < 0):
                 continue
         basis = "menu_listing" if f.kind == "menu_listing" and f.polarity == "positive" else f.basis
         rows.append({"attribute": f.attribute, "term": f.term, "polarity": f.polarity, "basis": basis,
-                     "experience_key": hashlib.sha256(url.encode()).hexdigest() if observed else "",
+                     "experience_key": (f._experience_key or hashlib.sha256(url.encode()).hexdigest()) if observed else "",
                      "observed_on": observed, "promotion": f.promotion,
                      "review_category": f.review_category if observed else "",
                      "source": {"url": url, "kind": f.kind}})
@@ -457,8 +480,21 @@ def ensure_place(place, now):
     return row if same_property(place, {"name": row.name, "address": row.address}) else None
 
 
-def condition_result(rows, requested, mixed_groups):
+def condition_result(rows, requested, mixed_groups, place=None):
     checks = [{**r.model_dump(), "status": verdict(rows, r)} for r in requested]
+    if place:
+        from . import catalog_conditions, recommendation_policy
+        if recommendation_policy.balanced():
+            for check in checks:
+                # Ordinary Chinese restaurants qualify for a jajang recommendation
+                # even in a compound request. This is a product policy, not a
+                # fabricated menu observation; never override explicit non-sale.
+                if (check["attribute"] == "menu" and check["term"] == "짜장면"
+                        and check["intent"] != "exclude" and check["status"] == "unknown"
+                        and not any(r["attribute"] == "menu" and r["term"] == "짜장면"
+                                    and r["polarity"] == "negative" for r in rows)
+                        and catalog_conditions.menu_hint(place, "짜장면")):
+                    check.update(status="match", basis="catalog_recommendation")
     groups = {}
     for c in checks:
         if c["intent"] == "exclude" and c["status"] != "match":
@@ -570,18 +606,33 @@ def _enrich(candidates, conditions):
             # facts even when the deployment does not permit persistent storage.
             rows.extend(row for row in facts.get(fact_key(p), []) if (row["attribute"], row["term"]) in requested_keys)
         all_rows[id(p)] = rows
-        if not collected_food and any(r.intent != "optional" and verdict(rows, r) == "unknown" for r in requested):
+        checks, _ = condition_result(rows, requested, mixed_groups, p)
+        if not collected_food and any(c["intent"] != "optional" and c["status"] == "unknown" for c in checks):
             pending.append(p)
     def accepted_rows(items):
         result = []
         for p in items:
             rows = all_rows[id(p)]
-            checks, accepted = condition_result(rows, requested, mixed_groups)
+            checks, accepted = condition_result(rows, requested, mixed_groups, p)
             if accepted and not availability.check(p, availability.visit_date()):
                 result.append({**p, "conditionChecks": checks, "verifiedFacts": [
                     {"term": r["term"], "attribute": r["attribute"], "polarity": r["polarity"], "url": r["source"]["url"]}
                     for r in rows]})
         return result
+    # Known branch profiles are already supported by the public profile reader.
+    # The web opt-in gates new source research, not these bounded ordinary reads.
+    # Preserve the required experience count and conflict checks with or without
+    # persistent evidence storage, including on another developer's clean DB.
+    if pending and any(r.attribute in ("menu", "review_feature") for r in requested):
+        from . import profile_features
+        findings, opened = profile_features.collect(pending, requested, budget, center=_LOCAL_CENTER.get())
+        for p in pending:
+            rows = checked_rows(p, requested, findings, opened, timezone.now())
+            all_rows[id(p)].extend(rows)
+            known = facts.setdefault(fact_key(p), [])
+            known.extend(row for row in rows if row not in known)
+        pending = [p for p in pending if any(c["intent"] != "optional" and c["status"] == "unknown"
+                   for c in condition_result(all_rows[id(p)], requested, mixed_groups, p)[0])]
     # A menu-verified nearby option can complete this visit. Do not investigate
     # every other shop before returning it. Unknown facts never become matches;
     # distant cached shops and semantic/negative conditions retain full research.
@@ -686,7 +737,7 @@ def _enrich(candidates, conditions):
                 except (DatabaseError, ValidationError, ValueError):
                     log.warning("place evidence storage unavailable")
             pending = [p for p in pending if not availability.check(p, availability.visit_date())]
-            if failed or any(condition_result(all_rows[id(p)], requested, mixed_groups)[1]
+            if failed or any(condition_result(all_rows[id(p)], requested, mixed_groups, p)[1]
                              and not availability.check(p, availability.visit_date()) for p in active):
                 break
             # Three passes total, even if a nested origin/corridor search calls

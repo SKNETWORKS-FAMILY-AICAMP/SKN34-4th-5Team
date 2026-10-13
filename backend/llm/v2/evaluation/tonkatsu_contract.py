@@ -26,6 +26,29 @@ QUESTIONS = [
     '식당을 돈가스로 바꿔줘. 나머지는 그대로 둬',
 ]
 CASES = [
+    {'id':'chinese-semantic-menu', 'kind':'chinese_compound', 'expected':['meal']},
+    {'id':'chinese-quiet-unconfirmed', 'kind':'chinese_compound', 'quiet':True, 'expected':[]},
+    {'id':'chinese-quiet-confirmed', 'kind':'chinese_compound', 'quiet':True, 'proof':True, 'expected':['meal']},
+    {'id':'chinese-explicit-non-sale', 'kind':'chinese_compound', 'negative':True, 'expected':[]},
+    {'id':'chinese-exclusion', 'kind':'chinese_compound', 'exclude':True, 'expected':[]},
+    {'id':'chinese-internal', 'kind':'chinese_compound', 'internal':True, 'expected':[]},
+    {'id':'chinese-strict-menu-proof', 'kind':'chinese_compound', 'strict':True, 'expected':[]},
+    *[{'id':f'chinese-policy-{i}', 'kind':'chinese_policy', 'question':term+' 먹고', 'detail':detail, 'expected':expected}
+      for i,(term,detail,expected) in enumerate((('자장면','음식점 > 중식 > 중국요리',['meal']),
+                                              ('짜장면','음식점 > 중식',['meal']),
+                                              ('자장면','음식점 > 중식 > 양꼬치',[]),
+                                              ('자장면','음식점 > 중식 > 마라탕',[]),
+                                              ('돈카츠','음식점 > 중식 > 중국요리',[])))],
+    *[{'id':f'new-route-{i}', 'kind':'generation', 'question':q, 'expected':['cutlet']}
+      for i,q in enumerate(('돈카츠먹고 구장 가고 싶어', '돈까스 먹고 경기장에 가고 싶어', '돈가스 먹고 야구장으로 가기'))],
+    {'id':'new-route-extra-condition', 'kind':'generation', 'question':'돈카츠 먹고 구장 가고 싶어. 주차 가능', 'expected':[]},
+    {'id':'new-route-negative', 'kind':'generation', 'question':'돈카츠 먹지 않고 구장 가고 싶어', 'expected':[]},
+    *[{'id':f'profile-menu-{i}', 'kind':'profile_menu', 'question':term+' 먹고', 'menu':menu, 'expected':expected}
+      for i,(term,menu,expected) in enumerate((('자장면','간짜장',['meal']),('짜장면','자장면',['meal']),
+                                             ('돈카츠','돈가스 정식',['meal']),('돈가스','돈카츠',['meal']),
+                                             ('자장면','짜장밥',[]),('돈카츠','돈까스 소스',[]),
+                                             ('자장면','자장면 판매 중단',[])))],
+    {'id':'semantic-menu-alias', 'kind':'requirements', 'question':'돈카츠를 먹을 수 있는 식당', 'expected':['돈까스']},
     *[{'id':f'replace-{i}', 'kind':'interpret', 'question':q, 'expected':['meal']} for i,q in enumerate(QUESTIONS)],
     {'id':'only-internal-bar', 'kind':'interpret', 'question':QUESTIONS[0], 'without_meal':True, 'expected':None},
     {'id':'parking-preserved', 'kind':'interpret', 'question':'돈카츠로 바꿔줘. 주차도 가능해야 해', 'expected':None},
@@ -50,6 +73,73 @@ def encoded(value):
 
 def observe(case):
     from llm.v1.rag.course import literal_edits, editing, evidence_memory, recommendation_policy
+    if case['kind']=='chinese_compound':
+        from llm.v1.rag.course import profile_features
+        place={**MEAL,'name':'시험 중화 식당'}
+        if case.get('internal'):
+            place.update(source='MYSEATCHECK',placeId='stadium-facility:meal')
+        reqs=[evidence_memory.Requirement(term='짜장면',attribute='menu',
+                intent='exclude' if case.get('exclude') else 'required',group='menu')]
+        if case.get('quiet'):
+            reqs.append(evidence_memory.Requirement(term='조용함',attribute='review_feature',intent='required',group='quiet'))
+        rows=[]
+        if case.get('proof'):
+            rows.append(dict(term='조용함',attribute='review_feature',polarity='positive',
+                experience_key='fixture',source={'url':'https://example.org/fixture-review'}))
+        if case.get('negative'):
+            rows.append(dict(term='짜장면',attribute='menu',polarity='negative',
+                basis='explicit_non_sale',source={'url':'https://example.org/fixture-menu'}))
+        with patch.object(recommendation_policy,'balanced',return_value=not case.get('strict')), \
+                patch.object(evidence_memory,'requirements',return_value=reqs), \
+                patch.object(evidence_memory,'read',side_effect=lambda p,r:[x for x in rows if x['term']==r.term]), \
+                patch('travel.stadium_food.resolve_food_place',return_value=None), \
+                patch.object(evidence_memory.settings,'COURSE_WEB_VERIFICATION_ENABLED',False), \
+                patch.object(profile_features,'collect',return_value=([],set())), \
+                patch.object(editing.availability,'check',return_value=None):
+            result=evidence_memory.enrich([place],['자장면을 먹을 수 있는 식당'])
+        return [p['placeId'] for p in result]
+    if case['kind']=='chinese_policy':
+        place={**MEAL,'name':'시험 중화 식당','detail':case['detail']}
+        with patch.object(recommendation_policy,'balanced',return_value=True), \
+                patch.object(editing.availability,'check',return_value=None), \
+                patch.object(evidence_memory,'enrich',return_value=[]):
+            result=editing.choose([place],{'conditions':[case['question']],'all_matches':True},case['question'])
+        return [p['placeId'] for p in result]
+    if case['kind']=='requirements':
+        from llm.v1.rag.course import agent
+        with patch.object(agent,'llm') as model:
+            model.return_value.with_structured_output.return_value.invoke.return_value={'items':[
+                {'term':'돈카츠','attribute':'menu','intent':'required','group':'0'}]}
+            return [r.term for r in evidence_memory.requirements([case['question']])]
+    if case['kind']=='generation':
+        from llm.v1.rag.course import visit_requests, agent
+        raw={'kind':'FOOD','phase':'BEFORE','expression':case['question'],'query':'돈카츠','conditions':[]}
+        visits=visit_requests.normalize(case['question'],[raw])
+        with patch.object(recommendation_policy,'balanced',return_value=True), \
+                patch.object(editing.availability,'check',return_value=None), \
+                patch.object(evidence_memory,'enrich',return_value=[]), patch.object(agent,'llm') as model:
+            selector=visit_requests.Selector(visits,{},'JAMSIL')
+            result=selector.for_visit([{**p,'category':'FOOD_OUT'} for p in [OTHER,SNACK,SPECIALTY]],visits[0])
+        return [p['placeId'] for p in result]
+    if case['kind']=='profile_menu':
+        from llm.v1.rag.course import profile_features, place_quality
+        from unittest.mock import Mock
+        place={**MEAL,'address':'서울 송파구 가상로 10'}
+        url='https://www.diningcode.com/profile.php?rid=contract-menu'
+        page={'body_read':True,'visible_text_complete':True,'title':place['name'],
+              'body_text':place['address']+'\n메뉴 정보\n'+case['menu']+' 10000원\n방문자 리뷰\n맛있어요'}
+        proof={'place':place,'url':url,'reviews':[],'page':page}
+        with patch.object(evidence_memory,'read',return_value=[]), \
+                patch('travel.stadium_food.resolve_food_place',return_value=None), \
+                patch.object(evidence_memory.settings,'COURSE_WEB_VERIFICATION_ENABLED',False), \
+                patch.object(profile_features,'read_profile',return_value=proof), \
+                patch.object(profile_features,'investigation_order',side_effect=lambda p,*a:p), \
+                patch.object(profile_features.quality_research,'ProfileReader',return_value=Mock()), \
+                patch.object(editing.availability,'check',return_value=None), \
+                patch.object(editing.availability,'observe'), \
+                patch.object(place_quality,'probing',return_value=False):
+            result=evidence_memory.enrich([place],[case['question']])
+        return [p['placeId'] for p in result]
     current = deepcopy(CURRENT)
     if case.get('without_meal'): current['places'].remove(current['places'][0])
     if case.get('two_meals'): current['places'].append({**MEAL,'visitId':'meal2'})
