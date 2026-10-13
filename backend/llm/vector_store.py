@@ -82,6 +82,12 @@ def upsert_documents(documents):
                      "external_id": str(doc["id"]), "embedding_model": embedding_model()}))
     if points:
         client().upsert(ensure_collection(create=True), points=points, wait=True)
+        from llm import sparse_index
+        try:  # 하이브리드 검색용 키워드 색인도 같이 갱신한다(없으면 건너뜀, build_sparse_index 로 다시 만들 수 있다)
+            sparse_index.upsert_documents(documents)
+        except Exception as exc:  # noqa: BLE001
+            import logging
+            logging.getLogger(__name__).warning("sparse index upsert skipped: %s: %s", type(exc).__name__, exc)
     return len(points)
 
 

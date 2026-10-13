@@ -230,17 +230,17 @@ async def jev_read_body(url: str) -> dict:
 
 
 @mcp.tool()
-async def chrome_lodging(name: str, timeout_seconds: float = 45, background: bool = False) -> dict:
+async def chrome_lodging(name: str, timeout_seconds: float = 45, background: bool = False, region: str = "") -> dict:
     """Find one NOL property with deterministic Chrome, without JEV/model calls."""
-    if not name.strip() or len(name) > 255 or not 1 <= timeout_seconds <= 45:
+    if not name.strip() or len(name) > 255 or len(region) > 100 or not 1 <= timeout_seconds <= 45:
         return {"status": "error"}
     if not background:
         await preempt_warm()
-        return await _chrome_lodging(name, timeout_seconds)
+        return await _chrome_lodging(name, timeout_seconds, region=region)
     global warm_task
     if lock.locked() or warm_task is not None:
         return {"status": "busy"}
-    task = warm_task = asyncio.create_task(_chrome_lodging(name, timeout_seconds))
+    task = warm_task = asyncio.create_task(_chrome_lodging(name, timeout_seconds, region=region))
     try:
         return await task
     except asyncio.CancelledError:
@@ -261,7 +261,7 @@ async def jev_read_lodging(url: str) -> dict:
     return await _chrome_lodging("", 45, url)
 
 
-async def _chrome_lodging(name, timeout_seconds, url=None):
+async def _chrome_lodging(name, timeout_seconds, url=None, *, region=""):
     if lock.locked():
         return {"status": "busy"}
     async with lock:
@@ -271,7 +271,7 @@ async def _chrome_lodging(name, timeout_seconds, url=None):
             env.update(TMPDIR=profile, TMP=profile, TEMP=profile)
             process = await asyncio.create_subprocess_exec(
                 "node", "/opt/service/chrome-lodging.mjs", profile, name, str(timeout_seconds),
-                *([url] if url is not None else []),
+                *([url] if url is not None else [region]),
                 env=env, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
                 start_new_session=True,
             )

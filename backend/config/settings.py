@@ -53,6 +53,8 @@ COLLECTED_PLACES_DIR = Path(os.getenv("COLLECTED_PLACES_DIR") or BASE_DIR.parent
 PLACE_RAG_PATH = Path(os.getenv("PLACE_RAG_PATH") or BASE_DIR / "artifacts/place-rag/index.sqlite3")
 # Explicit opt-in only; a local knowledge miss must not silently buy web searches.
 COURSE_WEB_VERIFICATION_ENABLED = os.getenv("COURSE_WEB_VERIFICATION_ENABLED", "false").strip().lower() == "true"
+COURSE_PLACE_WARM_ENABLED = os.getenv("COURSE_PLACE_WARM_ENABLED", "false").strip().lower() == "true"
+COURSE_RECOMMENDATION_MODE = os.getenv("COURSE_RECOMMENDATION_MODE", "balanced").strip().lower()
 # Public lodging snapshots are shared by local workers, independently of user wording.
 # This private cache directory must remain outside static/media roots.
 CACHES = {
@@ -175,6 +177,8 @@ DATABASE_ROUTERS = ["travel.knowledge_router.PlaceKnowledgeRouter", "baseball.db
 
 # 식사·숙소 근거 조사를 연속 실행할 수 있는 공개 이벤트 대기 예산. heartbeat는 이 제한을 연장하지 않는다.
 CHAT_STREAM_IDLE_TIMEOUT_SECONDS = positive_int_env("CHAT_STREAM_IDLE_TIMEOUT_SECONDS", 300)
+# Empty keeps production; preview embeds via GOOGLE_API_KEY, verifies via OPENROUTER_API_KEY.
+HIGHLIGHT_MULTIMODAL_CORPUS = os.getenv("HIGHLIGHT_MULTIMODAL_CORPUS", "").strip()
 
 BASEBALL_QUERY_MAX_ROWS = positive_int_env("BASEBALL_QUERY_MAX_ROWS", 200)
 BASEBALL_QUERY_TIMEOUT_MS = positive_int_env("BASEBALL_QUERY_TIMEOUT_MS", 3000)

@@ -1,6 +1,7 @@
 """Exact, positive catalog requests. Anything outside this grammar uses the LLM.
 
-These checks establish category/brand only, never menus, reviews or availability.
+These checks establish category/brand or a labeled specialty hint, never verified
+menu availability, reviews or opening hours.
 """
 import re
 
@@ -31,7 +32,9 @@ def course_scope(text):
 
 
 PREFIX = r"(?:(?:경기|야구|직관)(?:전|후)(?:에)?)?(?:구장(?:밖|외부)(?:의)?)?"
-ACTION = r"(?:(?:에서|에|으로|로)?(?P<action>식사(?:하고|하기|한뒤)?|갔다가|가기|들르기|들러|들렀다가|방문|방문하기|커피한잔))?"
+EATING = r"먹(?:고(?:싶어(?:요)?)?|기|은(?:뒤|후|다음)(?:에)?)"
+ACTION = (r"(?:(?:에서|에|으로|로|을|를)?(?P<action>식사(?:하고|하기|한뒤)?|갔다가|가기|들르기|들러|들렀다가|방문|방문하기|커피한잔|"
+          + EATING + r"))?")
 PATTERN = re.compile(PREFIX + r"(?P<term>" + "|".join(sorted(TERMS, key=len, reverse=True))
                      + r")(?P<kind>식당|음식점|카페|브랜드|매장|메뉴)?" + ACTION, re.I)
 
@@ -54,7 +57,7 @@ def parse(conditions):
         action = match["action"] or ""
         # An activity outside the proven category is a service/menu constraint.
         if (action == "커피한잔" and raw not in BRANDS and term != "카페"
-                or action.startswith("식사") and (raw in BRANDS or term == "카페")):
+                or action.startswith(("식사", "먹")) and (raw in BRANDS or term == "카페")):
             return None
         if kind and ((raw in CUISINES and kind not in ("식당", "음식점"))
                      or (raw in BRANDS and kind not in ("카페", "브랜드", "매장"))
@@ -82,6 +85,24 @@ def matches(place, term):
     return matches(place, "카페") and bool(re.fullmatch(brand + r"(?:\s+\S+점)?", name, re.I))
 
 
+def simple_edit_matches(question, terms):
+    """Only a complete, known replacement sentence can skip raw-text selection.
+
+    An interpreted 'cafe' summary must not erase an unknown brand, menu modifier
+    or another venue condition in the original request.
+    """
+    text = re.sub(r"[\s.!]+", "", question)
+    target = "|".join(sorted(TERMS, key=len, reverse=True))
+    source_menu = "|".join(MENUS)
+    match = re.fullmatch(
+        r"(?:식당이(?:좀)?별로(?:다|야))?"
+        r"(?:(?:경기|야구|직관)(?:전|후))?"
+        + r"(?:(?:(?:" + source_menu + r")?식당|카페|음식점)(?:만|은|는|을|를)?)?"
+        + r"(?P<term>" + target + r")(?:가게|식당|음식점|카페|매장)?(?:으로|로)(?:만)?"
+        + r"(?:바꿔(?:줘|주세요)|수정해(?:줘|주세요)|변경해(?:줘|주세요))", text)
+    return bool(match and TERMS[match["term"]] in terms)
+
+
 def choose(places, plan, question, *, verified=False):
     """None = unsupported; [] = an exact request with no catalog match."""
     conditions = plan.get("conditions") or []
@@ -94,6 +115,26 @@ def choose(places, plan, question, *, verified=False):
         return [{**p, "reason": "요청한 코스의 방문지 후보예요."} for p in places]
     menus = [term for term in terms if term in MENUS.values()]
     if menus and not verified:
+        from . import recommendation_policy
+        if recommendation_policy.balanced():
+            def hinted(p, term):
+                if term not in menus:
+                    return matches(p, term)
+                if p.get("category") not in {"FOOD", "FOOD_OUT", "FOOD_IN"}:
+                    return False
+                name = re.sub(r"\s+", "", str(p.get("name", "")))
+                detail = re.sub(r"\s+", "", str(p.get("detail", "")))
+                # A specific specialty/name is useful recommendation evidence.
+                # Generic Chinese/Japanese cuisine is insufficient for a dish.
+                if term == "돈까스":
+                    return bool(re.search(r"돈까스|돈카츠|돈가스|돈카쓰", name + detail))
+                return bool(re.search(r"(?:짜장|자장)(?:면)?", name)
+                            and not re.search(r"(?:짜장|자장)(?:밥|소스|떡볶이|라면|범벅|김밥|버거|피자)", name))
+            candidates = [p for p in places if all(hinted(p, term) for term in terms)]
+            if candidates:
+                return [{**p, "catalogMenuHint": menus,
+                         "reason": "·".join(menus) + " 관련 상호·전문 업종에 맞는 후보예요. 현재 메뉴는 매장 링크에서 확인해 주세요."}
+                        for p in candidates]
         return None  # Menu names are never evidence of actual menu availability.
     def satisfies(place, term):
         if term not in menus:

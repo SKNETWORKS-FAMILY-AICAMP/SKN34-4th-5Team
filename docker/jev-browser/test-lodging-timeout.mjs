@@ -35,8 +35,14 @@ for (const [seconds, name, expected] of [
     });
     clearTimeout(watchdog);
     assert.equal(code, 0, `${seconds}: ${signal || ''} ${stderr}`);
-    if (expected) assert.deepEqual(JSON.parse(stdout), { status: expected }, `${seconds}: ${stderr}`);
-    else assert.ok(['timeout', 'error'].includes(JSON.parse(stdout).status), stdout);
+    const output = JSON.parse(stdout);
+    if (expected === 'error') assert.deepEqual(output, { status: 'error', stage: 'startup' }, `${seconds}: ${stderr}`);
+    else {
+      assert.ok(['startup', 'search_navigation', 'search_results', 'detail_startup', 'detail_navigation', 'detail_content'].includes(output.stage), stdout);
+      if (expected) assert.equal(output.status, expected, `${seconds}: ${stderr}`);
+      else assert.ok(['timeout', 'error'].includes(output.status), stdout);
+      assert.deepEqual(output, { status: output.status, stage: output.stage }, stdout);
+    }
     assert.ok(!stderr.includes('ERR_OUT_OF_RANGE'), stderr);
     console.log(JSON.stringify({ seconds: seconds ?? 'default', name, code, output: JSON.parse(stdout) }));
   } finally {

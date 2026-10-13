@@ -8,7 +8,13 @@ on:
     branches:
       - develop
 
+permissions:
+  contents: read
+
 jobs:
+  evaluation-regression:
+    uses: ./.github/workflows/evaluation-regression.yml
+
   # 1. CI 검증
   ci-test:
     runs-on: ubuntu-latest
@@ -47,7 +53,7 @@ jobs:
 
   # 2. CD 배포 (develop 브랜치 push/merge 시 실행)
   cd-deploy:
-    needs: ci-test
+    needs: [ci-test, evaluation-regression]
     if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
     steps:
@@ -73,17 +79,18 @@ jobs:
 
   # 3. Discord 알림!
   notify-discord:
-    needs: [ci-test, cd-deploy]
+    needs: [ci-test, evaluation-regression, cd-deploy]
     if: always()
     runs-on: ubuntu-latest
 
     steps:
       - name: Send Discord Notification
-        if: needs.ci-test.result == 'failure' || needs.cd-deploy.result == 'failure'
+        if: needs.ci-test.result == 'failure' || needs.evaluation-regression.result == 'failure' || needs.cd-deploy.result == 'failure'
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
         run: |
-          if [ "${{ needs.ci-test.result }}" = "failure" ]; then
+          if [ "${{ needs.ci-test.result }}" = "failure" ] || [ "${{ needs.evaluation-regression.result }}" = "failure" ]; then
             STATUS="❌ [CI 실패]"
             DETAILS="CI 검증 작업(테스트/빌드) 중 오류가 발생했습니다."
           elif [ "${{ needs.cd-deploy.result }}" = "failure" ]; then
@@ -91,7 +98,6 @@ jobs:
             DETAILS="EC2 배포 작업 중 오류가 발생했습니다."
           fi
 
-          BRANCH="${{ github.head_ref || github.ref_name }}"
           ACTION_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
           MESSAGE="**${STATUS}**

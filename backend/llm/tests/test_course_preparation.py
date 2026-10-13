@@ -11,9 +11,56 @@ from llm.v1 import progress
 from llm.tests.test_course_creation import QUESTION, creation_result
 from llm.tests.test_course_editing import GAME, PLACES
 from llm.v1.rag.course import agent, editing, parallel, preparation
+from llm.v1.rag.course import venue_policy, place_quality
 
 
 class PreparationTests(SimpleTestCase):
+    def test_raw_preparation_is_reused_only_for_the_exact_search_and_still_requires_quality(self):
+        from unittest.mock import Mock
+        args = {"method": "category", "category": "CE7", "latitude": 35.166, "longitude": 126.902,
+                "radius": 800, "sort": "distance", "limit": 15}
+        row = {"id": "999991", "place_name": "미확인카페", "x": "126.902", "y": "35.166",
+               "road_address_name": "광주 북구 중흥로 1", "category_name": "음식점 > 카페"}
+        snapshot = {venue_policy.discovery_key(args, "CAFE"): {"places": [row]}}
+        invoke = Mock(return_value={"places": []})
+        with place_quality.request_scope("GWANGJU"), venue_policy.request_policy("", "GWANGJU"), \
+                venue_policy.prepared_discovery(snapshot), patch.object(place_quality, "search_candidates", return_value=[]), \
+                patch.object(place_quality, "verify_candidates", return_value=[]) as verify:
+            self.assertEqual(venue_policy.search_candidates(invoke, args, "CE7"), [])
+            invoke.assert_not_called()
+            self.assertEqual(verify.call_args.args[0][0]["id"], row["id"])
+            for changes in ({"longitude": 126.901}, {"radius": 1500}, {"query": "메가커피"}):
+                venue_policy.discover_candidates(invoke, {**args, **changes}, "CAFE")
+            self.assertEqual(invoke.call_count, 3)
+        self.assertEqual(venue_policy._DISCOVERY.get(), {})
+
+    def test_internal_cafe_never_consumes_prepared_external_candidates(self):
+        from unittest.mock import Mock
+        from baseball.stadium_locations import reviewed_venue
+        center = reviewed_venue("GWANGJU")
+        args = {"latitude": center["lat"], "longitude": center["lng"], "radius": 2500}
+        snapshot = {venue_policy.discovery_key(args, "CAFE"): {"places": [{"id": "outside"}]}}
+        invoke = Mock()
+        with venue_policy.request_policy("구장 안 카페", "GWANGJU", [{"category": "CAFE", "expression": "구장 안 카페"}]), \
+                venue_policy.prepared_discovery(snapshot):
+            rows = venue_policy.discover_candidates(invoke, args, "CAFE")
+        self.assertTrue(rows)
+        self.assertTrue(all(p.get("source") == "MYSEATCHECK" for p in rows))
+        invoke.assert_not_called()
+
+    def test_origin_is_forwarded_to_preparation_but_invalid_snapshot_is_not_activated(self):
+        origin = {"lat": 35.166, "lng": 126.902}
+        snapshot = {"question": "다른 질문", "code": "GWANGJU", "day": "1900-01-01",
+                    "discovery": {"wrong": "data"}, "elapsed_ms": 1}
+        def generate(*args, **kwargs):
+            self.assertEqual(venue_policy._DISCOVERY.get(), {})
+            return {"answer": "ok", "places": []}
+        with patch.object(preparation, "read", return_value=snapshot) as read, \
+                patch.object(editing, "interpret", return_value={"operation": "new", **creation_result()}), \
+                patch.object(agent, "_answer", side_effect=generate):
+            agent.answer(QUESTION, hint_stadium="GWANGJU", origin=origin, course_request="NEW")
+        read.assert_called_once_with(QUESTION, "GWANGJU", origin=origin)
+
     def test_interpreter_and_read_overlap_with_context_and_main_thread_mutations(self):
         local = ContextVar("preparation_test", default="missing")
         local.set("request")

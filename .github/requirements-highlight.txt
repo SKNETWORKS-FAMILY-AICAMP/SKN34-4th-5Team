@@ -1,0 +1,6 @@
+# Isolated highlight scoring/provider environment, never backend runtime.
+deepeval==4.2.8
+ragas==0.4.3
+langchain-community==0.4.1
+qdrant-client==1.19.1
+python-dotenv==1.2.4

@@ -16,14 +16,16 @@ EXTRA_REQUEST = re.compile(
     r"https?://|왜|이유|근거|설명|비교|분석|번역|영어로|일본어로|중국어로|표로|표\s*형식|json|"
     r"티켓|예매|순위|선수|반입|환불|규정|규칙|날씨|기온|강수|가격|예산|저렴|가성비|예약|빈방|얼마|"
     r"주차\s*(?:요금|비용)", re.I)
-EXTRA_CAPABILITIES = frozenset({"weather", "standings", "players", "baseball_stats", "rules", "community", "courses", "carry_in"})
+EXTRA_CAPABILITIES = frozenset({"weather", "standings", "players", "baseball_stats", "rules", "community", "courses", "carry_in", "highlight"})
 
 
 def course_text(outcome):
-    """Keep every generated warning/link; add only the deterministic past-date note."""
+    """Keep every warning/link and deterministic game provenance/date notes."""
     text = outcome.get("answer")
     if not isinstance(text, str) or not text.strip() or outcome.get("courseOnly") is not True:
         return None
+    from llm.v1.rag.course.game_metadata import annotate
+    text = annotate(text, outcome.get("game"))
     try:
         day = date.fromisoformat((outcome.get("game") or {}).get("date", ""))
     except (ValueError, TypeError):
@@ -37,7 +39,9 @@ class CourseAnswerMiddleware(AgentMiddleware):
     @hook_config(can_jump_to=["tools", "end"])
     def before_model(self, state, runtime):
         decision = state.get("decision") or {}
-        if decision.get("allowed") is not True or decision.get("course_request") != "NEW":
+        from llm.v1.rag.course import recommendation_policy
+        editing = recommendation_policy.enabled() and decision.get("course_request") == "EDIT"
+        if decision.get("allowed") is not True or not (decision.get("course_request") == "NEW" or editing):
             return None
         if set(decision.get("capabilities", [])) & EXTRA_CAPABILITIES:
             return None
@@ -60,14 +64,16 @@ class CourseAnswerMiddleware(AgentMiddleware):
         if not current and context.get("intent") == "route" and "day_plan" in decision.get("capabilities", []):
             from llm.tools.assistant import to_stadium_code
             if to_stadium_code(context.get("stadium")):
-                # The guard already classified NEW; the course tool interprets
+                # The guard classified NEW/EDIT; the course tool interprets
                 # the complete original request. Skip only the model that would
                 # choose ask_course again, preserving its normal tool guards,
                 # cancellation, usage accounting and structured result.
                 check_cancelled()
+                if editing and not context.get("currentCourse"):
+                    return None
                 return {"messages": [AIMessage("요청한 순서와 조건에 맞춰 코스를 확인할게요.", tool_calls=[{
                     "name": "ask_course", "id": uuid4().hex, "type": "tool_call",
-                    "args": {"task": human.content, "summary": "요청한 코스 생성"}}])], "jump_to": "tools"}
+                    "args": {"task": human.content, "summary": "요청한 코스 수정" if editing else "요청한 코스 생성"}}])], "jump_to": "tools"}
         calls = [c for m in current if isinstance(m, AIMessage) for c in m.tool_calls]
         results = [m for m in current if isinstance(m, ToolMessage)]
         if len(calls) != 1 or calls[0]["name"] != "ask_course" or len(results) != 1:
@@ -80,6 +86,8 @@ class CourseAnswerMiddleware(AgentMiddleware):
         if len(artifacts) != 1:
             return None
         artifact = artifacts[0]
+        if editing and artifact.get("course_edit_handled") is not True:
+            return None
         text = artifact.get("course_direct_answer")
         if not public_course(artifact.get("course")) or not isinstance(text, str) or not text.strip():
             return None

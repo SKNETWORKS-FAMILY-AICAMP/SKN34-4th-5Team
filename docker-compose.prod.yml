@@ -43,11 +43,24 @@ services:
       dockerfile: Dockerfile.prod
     restart: unless-stopped
     volumes:
+      # Read-only inputs shared by the baseball data migrations in development and production.
+      - ./data/raw:/data/raw:ro
+      - ./data/preprocessed:/data/preprocessed:ro
+      - ./docs:/docs:ro
       - ./data/staging/stadium_places:/data/staging/stadium_places:ro
       - lodging_pages:/app/.cache/lodging-pages
     environment: &backend-environment
       LODGING_WARM_STADIUMS: ${LODGING_WARM_STADIUMS:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:?Set OPENAI_API_KEY}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      RAG_SEARCH_MODE: ${RAG_SEARCH_MODE:-rerank}
+      RAG_VENUE_SEARCH_MODE: ${RAG_VENUE_SEARCH_MODE:-hybrid}
+      RAG_RERANK_MODEL: ${RAG_RERANK_MODEL:-voyageai/rerank-2.5}
+      RAG_RERANK_CANDIDATES: ${RAG_RERANK_CANDIDATES:-30}
+      RAG_RRF_K: ${RAG_RRF_K:-60}
+      RAG_SPARSE_WEIGHT: ${RAG_SPARSE_WEIGHT:-0.1}
+      RAG_SPARSE_RRF_WEIGHT: ${RAG_SPARSE_RRF_WEIGHT:-1.0}
+      QDRANT_SPARSE_COLLECTION: ${QDRANT_SPARSE_COLLECTION:-kbo_documents_sparse}
       JEV_MCP_URL: ${JEV_MCP_URL:-http://jev-browser:8080/mcp}
       JEV_MCP_TOKEN: ${JEV_MCP_TOKEN:?Set JEV_MCP_TOKEN}
       WEB_RESEARCH_ENABLED: ${WEB_RESEARCH_ENABLED:-false}
@@ -120,7 +133,7 @@ services:
       minio:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz/', timeout=3)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/healthz/', timeout=3)"]
       interval: 10s
       timeout: 5s
       retries: 12

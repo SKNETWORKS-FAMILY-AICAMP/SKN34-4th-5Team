@@ -20,6 +20,7 @@ from urllib.parse import urlsplit
 from django.conf import settings
 from django.core.cache.backends.filebased import FileBasedCache
 from llm.v1.progress import ProgressCancelled, ProgressStorageError
+from llm.service.chat_runs import Stopped, check_cancelled
 from .geo import haversine_m
 
 _SCOPE = ContextVar("course_quality_stadium", default=None)
@@ -131,6 +132,9 @@ def active(category=None):
 
 def missing_notice():
     if active() and _USED.get():
+        from . import recommendation_policy
+        if recommendation_policy.balanced():
+            return recommendation_policy.NOTICE
         state = _RESEARCH.get() or {}
         counts = f"검색·보유 후보 {len(state.get('searched', []))}곳 중 평점·실내 근거를 확인한 곳은 {len(state.get('approved', []))}곳이에요. "
         return counts + "확인 자료가 부족한 곳은 보류했으며, 실제 매장이 없거나 평점이 0점이라는 뜻은 아니에요."
@@ -205,22 +209,26 @@ def approved(row):
         return False
 
 
-def resolve(place):
+def resolve(place, *, include_rejected=False):
     identifier = _id(place)
     if not identifier:
         return None
-    row = catalogue().get(identifier)
-    if not row or not approved(row):
-        row = verdict_cache().get(cache_key(place), {}).get("row")
-    if not row or not approved(row):
-        return None
-    if _text(place.get("name") or place.get("place_name")) not in {_text(row["name"]), *map(_text, row.get("aliases", []))}:
-        return None
-    try:
-        distance = haversine_m(float(place.get("lat", place.get("y"))), float(place.get("lng", place.get("x"))), row["lat"], row["lng"])
-        return row if distance is not None and distance <= 80 else None
-    except (TypeError, ValueError, OverflowError):
-        return None
+    rows = [verdict_cache().get(cache_key(place), {}).get("row"), catalogue().get(identifier)]
+    # A newer refresh (including a proven rejection) supersedes a static seed.
+    for row in sorted((r for r in rows if isinstance(r, dict)), key=lambda r: r.get("checkedAt", ""), reverse=True):
+        rejected = (row.get("status") == "rejected" and row.get("interior", {}).get("status") == "poor"
+                    and approved({**row, "status": "approved", "interior": {**row["interior"], "status": "acceptable"}}))
+        if not approved(row) and not rejected:
+            continue
+        if _text(place.get("name") or place.get("place_name")) not in {_text(row["name"]), *map(_text, row.get("aliases", []))}:
+            continue
+        try:
+            distance = haversine_m(float(place.get("lat", place.get("y"))), float(place.get("lng", place.get("x"))), row["lat"], row["lng"])
+            if distance is not None and distance <= 80:
+                return None if rejected and not include_rejected else row
+        except (TypeError, ValueError, OverflowError):
+            continue
+    return None
 
 
 def filter_place(place, category):
@@ -231,6 +239,13 @@ def filter_place(place, category):
         return place
     _USED.set(True)
     row = resolve(place)
+    from . import recommendation_policy
+    if not row and recommendation_policy.balanced():
+        # Proven exclusions still apply. Missing reviews/interior evidence is
+        # unverified, not a reason to drop the user's entire requested activity.
+        if resolve(place, include_rejected=True):
+            return None
+        return {**place, "qualityUnverified": True}
     if not row or row["stadium"] != _SCOPE.get():
         return None
     expected = "CAFE" if category in ("CAFE", "CE7") else "FOOD"
@@ -246,11 +261,13 @@ def candidate_allowed(place):
     return _id(place) not in BLOCKED_IDS and not ENTERTAINMENT.search(detail)
 
 
-def verify_candidates(places, category, query="", *, center=None, search_center=None, radius=2500, reuse=True):
+def verify_candidates(places, category, query="", *, center=None, search_center=None, radius=2500, reuse=True, refresh=False):
     """A bounded fresh investigation, after provider search and scope filtering."""
     places = list(places)
     if not active(category):
         return places
+    from travel.course_place_warmer import remember
+    remember(places, _SCOPE.get(), query)
     _USED.set(True)
     state = _RESEARCH.get()
     if state is None:
@@ -258,10 +275,22 @@ def verify_candidates(places, category, query="", *, center=None, search_center=
     state["searched"].update(_id(p) for p in places if _id(p))
     def checked():
         rows = [row for p in places if (row := filter_place(p, category)) is not None]
-        state["approved"].update(_id(p) for p in rows if _id(p))
+        state["approved"].update(_id(p) for p in rows if _id(p) and not p.get("qualityUnverified"))
         return sorted(rows, key=lambda p: distance_to(p, center)) if center else rows
+    from . import recommendation_policy
+    if recommendation_policy.balanced():
+        rows = checked()
+        if center and rows:
+            nearest = min(distance_to(p, center) for p in rows)
+            limit = min(radius, LOCAL_REUSE_M, nearest + LOCAL_DISTANCE_SLACK_M)
+            # Prefer reviewed alternatives only within the closest local band.
+            # A remote cached shop never outranks a nearby unreviewed branch.
+            rows.sort(key=lambda p: (distance_to(p, center) > limit,
+                bool(p.get("qualityUnverified")) if distance_to(p, center) <= limit else False,
+                distance_to(p, center)))
+        return rows  # Background worker performs the optional interior research.
     def enough():
-        return reuse and _nearby_choices(places, category, query, center, radius)
+        return not refresh and reuse and _nearby_choices(places, category, query, center, radius)
     if probing():
         from . import availability
         available = [p for p in places if candidate_allowed(p)
@@ -276,7 +305,7 @@ def verify_candidates(places, category, query="", *, center=None, search_center=
     for p in places:
         if not candidate_allowed(p):
             continue
-        if resolve(p):
+        if resolve(p) and not refresh:
             state["approved"].add(_id(p))
             continue
         item = canonical(p)
@@ -284,7 +313,7 @@ def verify_candidates(places, category, query="", *, center=None, search_center=
         cached = verdict_cache().get(key)
         # Old empty verdicts may come from consumed pages or wrapped review
         # quotes. Keep proven approvals/rejections, but retry those misses once.
-        cooling = cached is not None and (cached.get("row") or cached.get("researchVersion") == RESEARCH_VERSION)
+        cooling = not refresh and cached is not None and (cached.get("row") or cached.get("researchVersion") == RESEARCH_VERSION)
         if item and key not in state["tried"] and not cooling:
             missing.append((p, item, key))
     # Match explicit menu/category hints first; do not spend the budget on a
@@ -319,8 +348,9 @@ def verify_candidates(places, category, query="", *, center=None, search_center=
         checks = {}
         if profiles:
             try:
+                check_cancelled()
                 checks = quality_research.interiors(profiles)
-            except (ProgressCancelled, ProgressStorageError):
+            except (Stopped, ProgressCancelled, ProgressStorageError):
                 raise
             except Exception as exc:
                 log.warning("place interior check failed: %s", type(exc).__name__)
@@ -332,7 +362,10 @@ def verify_candidates(places, category, query="", *, center=None, search_center=
                 row = {**item, "status": "approved" if interior["status"] == "acceptable" else "rejected",
                        "rating": proof["rating"], "ratingCount": proof["ratingCount"], "ratingSource": "다이닝코드",
                        "reviewUrl": proof["url"], "checkedAt": date.today().isoformat(), "interior": interior}
-            verdict_cache().set(key, {"row": row, "researchVersion": RESEARCH_VERSION}, 7 * 86400 if row and approved(row) else 3600)
+            # A failed background refresh must not erase a still-valid proof
+            # or extend its expiry. Proven rejection is a real new verdict.
+            if row or not refresh:
+                verdict_cache().set(key, {"row": row, "researchVersion": RESEARCH_VERSION}, 7 * 86400 if row else 3600)
             if row and approved(row):
                 state["approved"].add(item["placeId"])
         pending.clear()
@@ -344,7 +377,7 @@ def verify_candidates(places, category, query="", *, center=None, search_center=
         try:
             urls = quality_research.discover(item, state["reader"])
             return next((row for url in islice(urls, 6) if (row := quality_research.profile(item, url, state["reader"]))), None)
-        except (ProgressCancelled, ProgressStorageError):
+        except (Stopped, ProgressCancelled, ProgressStorageError):
             raise
         except Exception as exc:
             log.warning("place quality read failed: %s", type(exc).__name__)
@@ -352,6 +385,7 @@ def verify_candidates(places, category, query="", *, center=None, search_center=
 
     queue = missing[:10 if query else 6]
     while queue:
+        check_cancelled()
         if len(state["tried"]) >= 24:
             break
         if state["deadline"] is None:

@@ -293,6 +293,12 @@ class PublicReader:
         row = {"url": url, "body_read": False, "body_text": "", "status": "unread"}
         if not allowed_url(url):
             return {**row, "status": "unsupported_host_or_scheme"}
+        from llm.v2.agent.browser_research import shared_body, shared_reader_result
+        from llm.service.chat_runs import check_cancelled
+        check_cancelled()
+        retained = shared_body(url)
+        if retained is not None:
+            return shared_reader_result(retained)
         with self._requests_lock:
             if url in self.attempted_urls:
                 return {**row, "status": "already_attempted_no_retry"}

@@ -28,6 +28,14 @@ def normalize(question, visits):
         if kind == "FOOD" and DESSERT.search(expression):
             kind = "CAFE"
         internal = venue_policy.mentions_internal(expression) and not venue_policy._NEGATIVE.search(expression)
+        phase = raw["phase"]
+        if internal and kind in ("FOOD", "CAFE") and not re.search(r"전\s*(?:과|/|·)?\s*후", question):
+            # Stadium snacks connect to kickoff by default. Preserve an explicit
+            # after-game scope, including a marker before this visit expression.
+            prefix = question[:question.index(expression) + len(expression)]
+            before = max((m.start() for m in slots.BEFORE_ONLY.finditer(prefix)), default=-1)
+            after = max((m.start() for m in slots.AFTER_ONLY.finditer(prefix)), default=-1)
+            phase = "AFTER" if after > before else "BEFORE"
         signature_default = internal and use_default(expression, kind, raw.get("query"), raw.get("conditions"), raw.get("signature_default"))
         conditions = [] if signature_default else list(raw.get("conditions") or [])
         if not internal and re.search(r"구장\s*(?:밖|외부)", expression):
@@ -37,7 +45,7 @@ def normalize(question, visits):
             conditions = [c for c in conditions if not re.fullmatch(r"구장\s*(?:밖|외부)", c.strip())]
         if kind in ("FOOD", "CAFE"):
             conditions = list(dict.fromkeys([*conditions, expression]))
-        result.append({**raw, "id": f"{raw['phase']}:{len(result)}", "kind": kind,
+        result.append({**raw, "phase": phase, "id": f"{phase}:{len(result)}", "kind": kind,
                        "expression": expression, "conditions": conditions,
                        "query": "" if signature_default else raw.get("query") or "",
                        "signature_default": signature_default, "internal": internal})
@@ -139,9 +147,9 @@ class Selector:
                 rows = editing.candidates({**focus, "category": category},
                                           anchor, {"query": query, "conditions": self.conditions(visit)}, [])
             for p in rows:
-                # 술집 검색 결과의 활동 종류를 보존한다.
+                # 검색어 적중만으로 일반 음식점의 실제 업종을 술집으로 바꾸지 않는다.
                 if visit["kind"] == "BAR" and not any(w in p.get("detail", "") for w in agent.timeline.BAR_WORDS):
-                    p = {**p, "detail": p.get("detail", "") + " > 술집"}
+                    continue
                 found.append({**p, "category": agent.STEP_CATEGORY[visit["kind"]], "dist": .25,
                               "distance": round(agent.geo._dist(p, anchor)),
                               "doc_id": p.get("placeUrl") or f"kakao:{p['placeId']}",

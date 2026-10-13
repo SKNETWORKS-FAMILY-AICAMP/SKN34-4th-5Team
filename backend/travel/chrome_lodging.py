@@ -41,7 +41,7 @@ def _validated(candidate, page):
     return {**page, "url": url}
 
 
-async def _remote(name, seconds, *, background=False, url=None):
+async def _remote(name, seconds, *, background=False, url=None, region=""):
     from llm.v2.agent.browser_research import cancellable_call, discover_tools
     from llm.v2.agent.browser_research import lodging_url
     direct = lodging_url(url) if not background else False
@@ -50,7 +50,8 @@ async def _remote(name, seconds, *, background=False, url=None):
         url = source_url(url)
     tools = await cancellable_call(discover_tools({"jev_read_lodging" if direct else "chrome_lodging"}))
     arguments = {"url": url} if direct else {"name": name, "timeout_seconds": seconds,
-                                           **({"background": True} if background else {})}
+                                           **({"background": True} if background else {}),
+                                           **({"region": region} if region else {})}
     value = await cancellable_call(tools[0].ainvoke(arguments))
     if len(json.dumps(value, ensure_ascii=False).encode("utf-8")) > MAX_OUTPUT:
         return {"status": "overflow"}
@@ -118,7 +119,8 @@ def collect(candidate, *, deadline, refresh_before=0, background=False):
             return {"status": "timeout"}
         try:
             page = asyncio.run(asyncio.wait_for(_remote(candidate["name"], seconds,
-                background=background, url=candidate.get("sourceUrl") or candidate.get("url")), timeout=seconds + 3))
+                background=background, url=candidate.get("sourceUrl") or candidate.get("url"),
+                region=" ".join(str(candidate.get("address") or "").split()[:2])), timeout=seconds + 3))
         except Stopped:
             raise
         except TimeoutError:
@@ -135,7 +137,10 @@ def collect(candidate, *, deadline, refresh_before=0, background=False):
             return {"status": "error"}
         if page.get("status") != "read":
             status = page.get("status")
-            return {"status": status if status in {"busy", "timeout", "blocked", "partial", "not_found", "ambiguous", "unavailable", "overflow"} else "error"}
+            stage = page.get("stage")
+            return {"status": status if status in {"busy", "timeout", "blocked", "partial", "not_found", "ambiguous", "unavailable", "overflow"} else "error",
+                    **({"stage": stage} if stage in {"startup", "home_navigation", "search_input", "search_navigation",
+                                                    "search_results", "detail_startup", "detail_navigation", "detail_content"} else {})}
         page = _validated(candidate, page)
         if page is None:
             return {"status": "unverified"}
