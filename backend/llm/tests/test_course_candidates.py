@@ -64,7 +64,7 @@ class CourseCandidatesTest(SimpleTestCase):
             self.assertEqual(args["radius"], 2500)
             if args.get("query") != "돈가스":
                 return {"places": []}
-            return {"places": [{"id": "1", "place_name": "가상 식당", "x": "127.001", "y": "37.5"},
+            return {"places": [{"id": "1", "place_name": "가상 돈가스", "x": "127.001", "y": "37.5"},
                                {"id": "2", "place_name": "범위 밖", "x": "128", "y": "37.5"}]}
 
         with patch.object(course, "invoke_domain_tool", side_effect=lookup):
@@ -72,6 +72,22 @@ class CourseCandidatesTest(SimpleTestCase):
         self.assertEqual(queries, ["돈까스", "돈가스"])
         self.assertEqual([p["placeId"] for p in result], ["1"])
         self.assertEqual(result[0]["_search_query"], "돈가스")
+
+    def test_non_specialty_hit_tries_remaining_spelling_but_not_category(self):
+        from llm.v1.rag.course.editing import candidates
+        anchor = {"lat": 37.5, "lng": 127.0, "category": "FOOD"}
+        queries = []
+
+        def lookup(_domain, _tool, args):
+            queries.append(args.get("query", ""))
+            if args.get("query") != "돈가스":
+                return {"places": []}
+            return {"places": [{"id": "1", "place_name": "가상 식당", "x": "127.001", "y": "37.5"}]}
+
+        with patch.object(course, "invoke_domain_tool", side_effect=lookup):
+            result = candidates(anchor, anchor, {"query": "돈까스"}, [])
+        self.assertEqual(queries, ["돈까스", "돈가스", "돈카츠"])
+        self.assertEqual([p["placeId"] for p in result], ["1"])
 
     def test_requested_menu_searches_specific_keywords_only_for_requested_activity(self):
         from llm.v1.rag.course.evidence_memory import Requirement

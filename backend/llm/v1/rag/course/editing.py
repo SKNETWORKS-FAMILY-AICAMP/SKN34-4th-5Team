@@ -398,8 +398,11 @@ def candidates(target, anchor, plan, fixed):
         return bool(found) and (canonical_menu_term(plan["query"]) != "돈까스"
                                 or any(menu_hint(p, "돈까스") for p in found.values()))
     for query in dict.fromkeys(queries):
-        if enough() and query not in cuisine_queries:
-            continue  # Once a spelling works, only the explicit cuisine supplement remains.
+        if query not in cuisine_queries and (enough() or (found and not query)):
+            # Once a spelling works, only the explicit cuisine supplement remains.
+            # A non-specialty hit may still try spelling variants, but never the
+            # broad category fallback (it cannot add the requested specialty).
+            continue
         searched.add(query)
         args = {"method": "keyword" if query else "category", "latitude": float(anchor["lat"]),
                 "longitude": float(anchor["lng"]), "radius": 2500, "sort": "distance", "limit": 15}

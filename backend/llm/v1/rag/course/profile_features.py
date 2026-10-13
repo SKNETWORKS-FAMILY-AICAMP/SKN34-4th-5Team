@@ -162,9 +162,7 @@ def collect(candidates, requested, budget, *, center=None):
         # Discovery hints order reads only; a Chinese category is not menu proof.
         from .catalog_conditions import menu_hint
         def menu_priority(place):
-            text = str(place.get('detail', ''))
-            hinted = any(menu_hint(place, term) or term == '짜장면' and '중식' in text and '양꼬치' not in text
-                         for term in menu_terms)
+            hinted = any(menu_hint(place, term) for term in menu_terms)
             distance = place_quality.distance_to(place, center) if center else 0
             band = int(distance // 400) if distance != float('inf') else 999
             return band, not hinted
