@@ -28,11 +28,19 @@ global.sessionStorage = {
 };
 const require = createRequire(join(scratch, "entry.cjs"));
 const { clearMemberTokens, saveMemberTokens } = require("./lib/member-auth-request.js");
-const { saveAnswerFeedback, fetchAdminFeedback, fetchAdminFeedbackDetail, ChatClientError, deleteChatMessages, deleteChatSession, editChatMessage, fetchChatHistory, getChatStatus, listChatSessions, renameChatSession, sendChatMessage } = require("./lib/chat/client.js");
+const { fetchChatToolGroups, TOOL_GROUP_IDS, saveAnswerFeedback, fetchAdminFeedback, fetchAdminFeedbackDetail, ChatClientError, deleteChatMessages, deleteChatSession, editChatMessage, fetchChatHistory, getChatStatus, listChatSessions, renameChatSession, sendChatMessage } = require("./lib/chat/client.js");
 const { restoreChatMessages } = require("./lib/chat/history.js");
 const { courseToStops, parseChatCourse } = require("./lib/chat/course.js");
 const { currentCourse } = require("./lib/chat/current-course.js");
 const { parseChatRequest } = require("./lib/chat/validation.js");
+
+test("tool menu accepts the server carry-in group without rejecting the entire menu", async () => {
+  const groups = [{ id: "web_research", label: "웹 조사" }, { id: "carry_in", label: "반입 규정" }, { id: "day_plan", label: "코스" }];
+  global.fetch = async () => json(groups);
+  assert.deepEqual(await fetchChatToolGroups("guest"), groups);
+  global.fetch = async () => json([...groups, { id: "unknown_group", label: "알 수 없음" }]);
+  await assert.rejects(fetchChatToolGroups("guest"), error => error instanceof ChatClientError && error.status === 502);
+});
 
 test("writer metadata survives public response, history and follow-up including an explicitly cleared origin", () => {
   const writerState = { title: "내 코스 제목", origin: { lat: 37.5, lng: 127.1, name: "잠실새내역" }, completed: false };
@@ -204,10 +212,43 @@ test("attachment multipart and private previews reuse Bearer; URL uploads are ex
   await assert.rejects(uploadChatAttachment("guest", SESSION, image), error => error.status === 503);
   await assert.rejects(uploadChatAttachment("guest", SESSION, new File(["svg"], "bad.svg", { type: "image/svg+xml" })), error => error.status === 400);
 });
+test("tool menu accepts the backend registry including carry_in and rejects invalid groups", async () => {
+  const server = readFileSync(join(frontend, "../backend/llm/views/attachments.py"), "utf8");
+  const groups = [...server.split("TOOL_GROUP_LABELS = {")[1].split("}")[0].matchAll(/"([a-z_]+)": "([^"]+)"/g)].map(([, id, label]) => ({ id, label }));
+  assert.ok(groups.some(group => group.id === "carry_in" && group.label === "반입 규정"));
+  global.fetch = async () => json(groups);
+  const loaded = await fetchChatToolGroups("guest");
+  assert.deepEqual(loaded, groups);
+  assert.deepEqual(TOOL_GROUP_IDS, groups.map(group => group.id));
+  for (const invalid of [[...groups, { id: "unknown", label: "Unknown" }], [{ id: 1, label: "Invalid" }], [{ id: "carry_in", label: null }], {}]) {
+    global.fetch = async () => json(invalid);
+    await assert.rejects(fetchChatToolGroups("guest"), error => error.status === 502);
+  }
+});
+
+test("carry_in selection survives POST, PUT and history with strict unknown and duplicate validation", async () => {
+  const calls = [], log = record(calls);
+  global.fetch = async (url, init) => { await log(url, init); return sse(answerEvents()); };
+  const body = { sessionId: SESSION, content: "반입 질문", toolGroupIds: ["carry_in"] };
+  await sendChatMessage("guest", body);
+  await editChatMessage("guest", { ...body, messageId: USER_MSG });
+  assert.deepEqual(calls.map(call => call.body.tool_group_ids), [["carry_in"], ["carry_in"]]);
+  assert.deepEqual(calls.map(call => call.method), ["POST", "PUT"]);
+  for (const toolGroupIds of [["unknown"], ["carry_in", "carry_in"], [1], "carry_in"]) {
+    await assert.rejects(sendChatMessage("guest", { ...body, toolGroupIds }), error => error.status === 400);
+    await assert.rejects(editChatMessage("guest", { ...body, messageId: USER_MSG, toolGroupIds }), error => error.status === 400);
+    global.fetch = async () => json([{ ...row(USER_MSG, "user", body.content), tool_group_ids: toolGroupIds }]);
+    await assert.rejects(fetchChatHistory("guest", SESSION), error => error.status === 502);
+  }
+  assert.equal(calls.length, 2);
+  global.fetch = async () => json([{ ...row(USER_MSG, "user", body.content), tool_group_ids: body.toolGroupIds }]);
+  assert.deepEqual(restoreChatMessages(await fetchChatHistory("guest", SESSION))[0].toolGroupIds, ["carry_in"]);
+});
+
 test("message options map snake_case, PUT omissions preserve and explicit empty clears", async () => {
   const calls = [], log = record(calls); global.fetch = async (url, init) => { await log(url, init); return sse(answerEvents()); };
-  await sendChatMessage("guest", { sessionId: SESSION, content: "question", toolGroupIds: ["rules", "weather"], attachmentIds: [ATTACHMENT] });
-  assert.deepEqual(calls[0].body, { content: "question", tool_group_ids: ["rules", "weather"], attachment_ids: [ATTACHMENT] });
+  await sendChatMessage("guest", { sessionId: SESSION, content: "question", toolGroupIds: ["rules", "weather", "carry_in"], attachmentIds: [ATTACHMENT] });
+  assert.deepEqual(calls[0].body, { content: "question", tool_group_ids: ["rules", "weather", "carry_in"], attachment_ids: [ATTACHMENT] });
   await editChatMessage("guest", { sessionId: SESSION, messageId: 1, content: "edit" });
   assert.equal(Object.hasOwn(calls[1].body, "attachment_ids"), false);
   await editChatMessage("guest", { sessionId: SESSION, messageId: 1, content: "clear", toolGroupIds: [], attachmentIds: [] });
@@ -626,18 +667,19 @@ test("usage DTO is fetched from the owner endpoint and quota errors keep a stabl
 
 test("planning payload is validated on SSE and history; invalid UI keeps text fallback", async () => {
   const payload = { offer_writer: true, questions: [{ question: "동행", choices: ["혼자", "친구"] }, { question: "이동", choices: ["도보", "차", "버스", "미정"] }] };
-  for (const planning of [payload, { offer_writer: true, questions: [{ question: "bad", choices: ["one"] }] }, { offer_writer: true, questions: [{ question: "bad", choices: ["a", "b", "c", "d", "e"] }] }, { offer_writer: "yes", questions: [] }]) {
+  const valid = [{ offer_writer: false, questions: [{ question: "구장", choices: Array.from({ length: 10 }, (_, i) => `구장 ${i}`) }] }, payload, { offer_writer: false, questions: [{ question: "어느 날짜인가요?", choices: [] }] }, { offer_writer: false, questions: [{ question: "어느 팀인가요?", choices: ["두산", "LG"] }] }];
+  for (const planning of [...valid, { offer_writer: false, questions: [] }, { offer_writer: true, questions: [{ question: "bad", choices: ["one"] }] }, { offer_writer: true, questions: [{ question: "bad", choices: Array.from({ length: 11 }, (_, i) => `${i}`) }] }, { offer_writer: "yes", questions: [] }]) {
     const seen = [];
     const feedback = { rating: "up", reason: "", comment: "" };
     global.fetch = async (url, init) => init.method === "GET" ? json([{ ...row(2, "assistant", "텍스트"), planning, feedback }, { ...row(3, "user", "삭제된 답변의 질문"), answer_deleted: true }]) : sse([["planning", planning], ["done", { message_id: "2", assistant_message: "텍스트", tools: [], planning }]]);
     const reply = await sendChatMessage("guest", { sessionId: SESSION, content: "계획" }, undefined, { onPlanning: value => seen.push(value) });
     const history = restoreChatMessages(await fetchChatHistory("guest", SESSION));
     assert.equal(reply.reply, "텍스트");
-    assert.deepEqual(reply.planning, planning === payload ? payload : undefined);
+    assert.deepEqual(reply.planning, valid.includes(planning) ? planning : undefined);
     assert.deepEqual(history[0].planning, reply.planning);
     assert.deepEqual(history[0].feedback, feedback);
     assert.equal(history[1].answerDeleted, true);
-    assert.equal(seen.length, planning === payload ? 1 : 0);
+    assert.equal(seen.length, valid.includes(planning) ? 1 : 0);
   }
 });
 

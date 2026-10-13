@@ -9,7 +9,13 @@ concurrency:
   group: production-deployment
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
+  evaluation-regression:
+    uses: ./.github/workflows/evaluation-regression.yml
+
   ci-test:
     runs-on: ubuntu-latest
     steps:
@@ -45,9 +51,56 @@ jobs:
         run: npm run build
 
   deploy:
-    needs: ci-test
+    needs: [ci-test, evaluation-regression]
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build production images
+        env:
+          NEXT_PUBLIC_KAKAO_MAP_KEY: ${{ secrets.NEXT_PUBLIC_KAKAO_MAP_KEY }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: |
+          set -euo pipefail
+          docker build -f backend/Dockerfile.prod -t dev-backend:latest backend
+          docker tag dev-backend:latest dev-lodging-warmer:latest
+          docker build \
+            -f frontend/Dockerfile.prod \
+            --build-arg NEXT_PUBLIC_KAKAO_MAP_KEY="$NEXT_PUBLIC_KAKAO_MAP_KEY" \
+            --build-arg YOUTUBE_API_KEY="$YOUTUBE_API_KEY" \
+            -t dev-frontend:latest \
+            frontend
+          docker build -f docker/jev-browser/Dockerfile -t dev-jev-browser:latest docker/jev-browser
+          docker save \
+            dev-backend:latest \
+            dev-lodging-warmer:latest \
+            dev-frontend:latest \
+            dev-jev-browser:latest | gzip -1 > "$RUNNER_TEMP/production-images.tar.gz"
+
+      - name: Configure SSH for image transfer
+        env:
+          EC2_HOST: ${{ secrets.PROD_EC2_HOST }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/prod_ec2
+          chmod 600 ~/.ssh/prod_ec2
+          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
+
+      - name: Transfer production images to EC2
+        env:
+          EC2_HOST: ${{ secrets.PROD_EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          set -euo pipefail
+          scp -i ~/.ssh/prod_ec2 \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            "$RUNNER_TEMP/production-images.tar.gz" \
+            "$EC2_USER@$EC2_HOST:production-images.tar.gz"
+
       - name: Deploy to production EC2
         uses: appleboy/ssh-action@v1.2.2
         with:
@@ -60,16 +113,17 @@ jobs:
             cd ~/dev
             git fetch origin main
             git merge --ff-only origin/main
+            docker load -i ~/production-images.tar.gz
+            rm -f ~/production-images.tar.gz
             docker compose stop mailpit || true
-            docker compose -f docker-compose.prod.yml up -d --build backend frontend nginx minio
-            docker compose -f docker-compose.prod.yml exec -T nginx nginx -t
+            docker compose -p dev -f docker-compose.prod.yml up -d --no-build backend frontend nginx minio jev-browser lodging-warmer
+            docker compose -p dev -f docker-compose.prod.yml exec -T nginx nginx -t
             curl --fail --silent --show-error --insecure https://localhost/api/v1/healthz/
             curl --fail --silent --show-error --insecure https://localhost/
             docker image prune -af --filter "until=24h"
-            docker builder prune -af --filter "until=24h"
 
   notify-discord:
-    needs: [ci-test, deploy]
+    needs: [ci-test, evaluation-regression, deploy]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -77,6 +131,7 @@ jobs:
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           CI_RESULT: ${{ needs.ci-test.result }}
+          EVALUATION_RESULT: ${{ needs.evaluation-regression.result }}
           DEPLOY_RESULT: ${{ needs.deploy.result }}
         run: |
           if [ -z "$DISCORD_WEBHOOK_URL" ]; then
@@ -84,7 +139,7 @@ jobs:
             exit 0
           fi
 
-          if [ "$CI_RESULT" = "failure" ]; then
+          if [ "$CI_RESULT" = "failure" ] || [ "$EVALUATION_RESULT" = "failure" ]; then
             STATUS="❌ [운영 CI 실패]"
             DETAILS="운영 배포 전 CI 검증에서 오류가 발생했습니다."
           else

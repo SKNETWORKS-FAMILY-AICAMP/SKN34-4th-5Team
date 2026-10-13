@@ -1,0 +1,96 @@
+name: Evaluation regression
+
+on:
+  workflow_call:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  DEEPEVAL_TELEMETRY_OPT_OUT: 'YES'
+  DEEPEVAL_DISABLE_DOTENV: '1'
+  DEEPEVAL_DISABLE_LEGACY_KEYFILE: '1'
+  PYTHON_DOTENV_DISABLED: '1'
+  RAGAS_DO_NOT_TRACK: 'true'
+  LANGSMITH_TRACING: 'false'
+  LANGCHAIN_TRACING_V2: 'false'
+
+jobs:
+  provider-quality-required:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          path: trusted
+      - name: Report distinct provider quality state (never a mock quality pass)
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          git -C trusted fetch origin "pull/$PR/head"
+          test "$(git -C trusted rev-parse FETCH_HEAD)" = "$HEAD"
+          git -C trusted diff --name-only "$BASE...$HEAD" > "$RUNNER_TEMP/evaluation-paths"
+          python -I - <<'PY'
+          import os, pathlib
+          paths=pathlib.Path(os.environ['RUNNER_TEMP']+'/evaluation-paths').read_text().splitlines()
+          protected=any(p.startswith(('backend/llm/v2/evaluation/','.github/evaluation','.github/test_evaluation','.github/workflows/evaluation')) for p in paths)
+          relevant=protected or any(not p.startswith(('frontend/','docs/','graphify-out/')) and p not in ('README.md','.gitignore') for p in paths)
+          state='required/not-run; approved live A/B and user quality review required' if relevant else 'exempt/non-LLM'
+          modes='jev,supervisor,ragas,highlight' if relevant else 'none'
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f: f.write(f'Provider quality: {state}; required modes: {modes}; protected review required: {protected}\n')
+          if protected:
+              with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f: f.write('Protected criteria/cases/harness changed: explicit independent protected review required in quality decision\n')
+          PY
+  deterministic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r backend/llm/v2/evaluation/requirements.txt
+      - name: Warm hash-verified tokenizer asset before offline tests
+        env:
+          TIKTOKEN_CACHE_DIR: ${{ runner.temp }}/evaluation-tiktoken
+        run: python -I -c 'import tiktoken; tiktoken.get_encoding("cl100k_base")'
+      - run: python -I .github/test_evaluation_ci.py
+      - run: python -I .github/test_evaluation_ab.py
+      - run: python -I .github/test_evaluation_luna.py LunaExportIntegrationTest
+      - run: python -I .github/evaluation_ci.py free --output "$RUNNER_TEMP/evaluation-free"
+        env:
+          TIKTOKEN_CACHE_DIR: ${{ runner.temp }}/evaluation-tiktoken
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: evaluation-free-summary
+          path: ${{ runner.temp }}/evaluation-free/ci-summary.json
+          retention-days: 7
+  highlight-deterministic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r .github/requirements-highlight.txt
+      - run: python -I .github/test_evaluation_luna.py LunaSDKTest
+      - run: python -I .github/evaluation_ci.py highlight-free --output "$RUNNER_TEMP/highlight-free"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: highlight-free-summary
+          path: ${{ runner.temp }}/highlight-free/ci-summary.json
+          retention-days: 7

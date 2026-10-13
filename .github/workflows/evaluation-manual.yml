@@ -1,0 +1,114 @@
+name: Manual evaluation (bounded, paid opt-in)
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Paid except highlight-replay; generate is NOT quality evaluation'
+        required: true
+        type: choice
+        options: [jev, supervisor, generate, remaining-score, ragas, ragas-score, highlight, highlight-replay]
+      dataset:
+        description: 'JEV seed/boundary; supervisor seed/first-action'
+        type: choice
+        default: seed
+        options: [seed, boundary, first-action]
+      ids:
+        description: 'Explicit IDs: max 5 JEV/supervisor, max 3 Ragas (r16,r25,v04)'
+        type: string
+      limit:
+        description: 'Ragas sample cap (1..3); highlight uses frozen 10-case sample'
+        type: choice
+        default: '3'
+        options: ['1', '2', '3']
+      contexts:
+        description: 'Unreviewed candidate contexts, 12 calls/180s maximum'
+        type: choice
+        default: '1'
+        options: ['1', '2', '3']
+      saved_input:
+        description: 'Absolute runner path to existing export JSONL or highlight raw-rows.json'
+        type: string
+      authorize:
+        description: 'Authorize bounded paid calls (or zero-call saved replay)'
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  DEEPEVAL_TELEMETRY_OPT_OUT: 'YES'
+  DEEPEVAL_DISABLE_DOTENV: '1'
+  DEEPEVAL_DISABLE_LEGACY_KEYFILE: '1'
+  PYTHON_DOTENV_DISABLED: '1'
+  RAGAS_DO_NOT_TRACK: 'true'
+  LANGSMITH_TRACING: 'false'
+  LANGCHAIN_TRACING_V2: 'false'
+
+jobs:
+  authorize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reject untrusted refs or absent authorization
+        env:
+          AUTHORIZED: ${{ inputs.authorize }}
+        run: |
+          test "$AUTHORIZED" = true
+          test "$GITHUB_REF" = refs/heads/develop || test "$GITHUB_REF" = refs/heads/main
+  evaluate:
+    needs: authorize
+    # Dedicated, ephemeral, trusted runner with corpus/read-only RAG DB access.
+    runs-on: [self-hosted, linux, evaluation]
+    environment: evaluation
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Create isolated evaluation environments
+        env:
+          MODE: ${{ inputs.mode }}
+        run: |
+          python -m venv "$RUNNER_TEMP/eval-runtime"
+          case "$MODE" in
+            highlight|highlight-replay)
+              "$RUNNER_TEMP/eval-runtime/bin/pip" install -r .github/requirements-highlight.txt ;;
+            *)
+              "$RUNNER_TEMP/eval-runtime/bin/pip" install -r backend/llm/v2/evaluation/requirements.txt ;;
+          esac
+          if [ "$MODE" = ragas ] || [ "$MODE" = ragas-score ]; then
+            python -m venv "$RUNNER_TEMP/eval-ragas"
+            "$RUNNER_TEMP/eval-ragas/bin/pip" install -r backend/llm/v2/evaluation/requirements-ragas.txt
+          fi
+      - name: Run selected bounded evaluation
+        env:
+          MODE: ${{ inputs.mode }}
+          EVAL_DATASET: ${{ inputs.dataset }}
+          EVAL_IDS: ${{ inputs.ids }}
+          EVAL_LIMIT: ${{ inputs.limit }}
+          EVAL_CONTEXTS: ${{ inputs.contexts }}
+          EVAL_SAVED_INPUT: ${{ inputs.saved_input }}
+          EVAL_CORPUS: ${{ vars.EVAL_CORPUS }}
+          OPENAI_API_KEY: ${{ (inputs.mode == 'supervisor' || inputs.mode == 'generate' || inputs.mode == 'ragas' || inputs.mode == 'ragas-score') && secrets.OPENAI_API_KEY || '' }}
+          OPENROUTER_API_KEY: ${{ (inputs.mode == 'jev' || inputs.mode == 'supervisor' || inputs.mode == 'ragas') && secrets.OPENROUTER_API_KEY || '' }}
+          GOOGLE_API_KEY: ${{ inputs.mode == 'highlight' && secrets.GOOGLE_API_KEY || '' }}
+          QDRANT_URL: ${{ vars.EVAL_QDRANT_URL }}
+          QDRANT_API_KEY: ${{ inputs.mode == 'ragas' && secrets.QDRANT_API_KEY || '' }}
+        run: |
+          export RAGAS_PYTHON="$RUNNER_TEMP/eval-ragas/bin/python"
+          "$RUNNER_TEMP/eval-runtime/bin/python" -I .github/evaluation_ci.py "$MODE" --output "$RUNNER_TEMP/evaluation-manual"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: evaluation-manual-summary
+          path: ${{ runner.temp }}/evaluation-manual/ci-summary.json
+          retention-days: 7
+      - name: Remove private outputs and disposable environments
+        if: always()
+        run: |
+          rm -rf "$RUNNER_TEMP/evaluation-manual" "$RUNNER_TEMP/eval-runtime" "$RUNNER_TEMP/eval-ragas"

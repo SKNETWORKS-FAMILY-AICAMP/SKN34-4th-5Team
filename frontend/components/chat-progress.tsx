@@ -1,5 +1,6 @@
 import type { ChatTimelineItem, ChatToolCall, ChatToolStatus } from "@/lib/chat/types";
 import { ChatAnswer } from "./chat-answer";
+import { Icon } from "./icons";
 import "@/styles/chat-progress.css";
 
 const STATUS: Record<ChatToolStatus, { mark: string; label: string }> = {
@@ -90,7 +91,11 @@ export function ChatSubAgentStatus({ items }: { items: ChatTimelineItem[] }) {
   return (
     <ul className="chat-subagent-status" role="status" aria-label="실행 중인 서브에이전트" aria-live="polite">
       {running.map(tool => (
-        <li key={tool.id}><span aria-hidden="true">…</span><span>{TOOL_LABELS[tool.toolName] ?? "정보 조회"}{tool.summary ? ` · ${tool.summary}` : ""} 조회 중</span></li>
+        <li key={tool.id}>
+          <Icon name="search" size={16} className="chat-subagent-icon" />
+          <span className="chat-subagent-copy"><span className="chat-subagent-role">{TOOL_LABELS[tool.toolName] ?? "정보 조회"}</span>{tool.summary && <span className="chat-subagent-summary"> · {tool.summary}</span>}</span>{" "}
+          <span className="chat-subagent-state">조회 중</span>
+        </li>
       ))}
     </ul>
   );

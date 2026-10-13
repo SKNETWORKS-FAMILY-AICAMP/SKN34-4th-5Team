@@ -1,0 +1,91 @@
+import { sleep } from "../sleep.ts";
+import { StalePage, type BrowserDriver, type HistoryEntry, type PageState } from "../types.ts";
+import { giveUpHint } from "./fuses.ts";
+
+const REVEAL_KINDS = new Set(["scroll", "wait", "hover", "back", "forward"]);
+
+export async function confirmDone(
+  browser: BrowserDriver,
+  page: PageState,
+  lastKind?: string,
+): Promise<void> {
+  if (page.pending_nav || page.busy || browser.pendingNav?.()) {
+    const deadline = Date.now() + 2500;
+
+    while (Date.now() < deadline && (page.busy || browser.pendingNav?.())) {
+      if (!(await browser.fresh(page, undefined, "completion"))) {
+        throw new StalePage("Navigation committed while confirming DONE. Choose again.");
+      }
+
+      await sleep(120);
+    }
+
+    if (browser.pendingNav?.()) {
+      throw new StalePage("Navigation still in flight while confirming DONE. Choose again.");
+    }
+
+    if (!(await browser.fresh(page, undefined, "completion"))) {
+      throw new StalePage("Page changed while confirming DONE. Choose again.");
+    }
+  }
+
+  const revealSettle = lastKind !== undefined && REVEAL_KINDS.has(lastKind);
+  const window_ = (page.pending_requests ?? 0) > 0 || revealSettle ? 1500 : 400;
+
+  await (browser.settle?.(window_) ?? sleep(window_));
+
+  if (revealSettle) {
+    const deadline = Date.now() + 8000;
+    let text = page.text;
+
+    while (Date.now() < deadline) {
+      await (browser.settle?.(500, 500) ?? sleep(500));
+
+      const latest = await browser.observe();
+
+      if (latest.text === text && !latest.pending_requests && !latest.pending_nav) break;
+
+      text = latest.text;
+    }
+  }
+
+  if (!(await browser.fresh(page, undefined, "completion"))) {
+    throw new StalePage("Page changed while confirming DONE. Choose again.");
+  }
+}
+
+export interface ProbeOutcome {
+  changed: boolean;
+  entry: HistoryEntry;
+  latest: PageState;
+  hint: string | null;
+}
+
+export async function blockedProbe(
+  browser: BrowserDriver,
+  page: PageState,
+  history: HistoryEntry[],
+  elapsed: () => number,
+  waitEntry: (action: string, page: PageState) => HistoryEntry,
+): Promise<ProbeOutcome> {
+  const entry = waitEntry("Wait for the page to update", page);
+  const started = Date.now();
+  let deadline = started + 4_000;
+
+  for (;;) {
+    await sleep(800);
+    const latest = await browser.observe();
+
+    if ((latest.pending_requests ?? 0) > 0) deadline = started + 10_000;
+
+    const changed = latest.fingerprint !== page.fingerprint;
+
+    if (changed || Date.now() >= deadline) {
+      entry.page_changed = changed;
+      entry.url = latest.url;
+      entry.elapsed_ms = elapsed();
+
+      return { changed, entry, latest, hint: changed ? null : giveUpHint(history, page) };
+    }
+  }
+}

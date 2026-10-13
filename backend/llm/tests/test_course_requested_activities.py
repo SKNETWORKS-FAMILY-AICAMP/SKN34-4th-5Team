@@ -23,6 +23,13 @@ def place(key, category, name, detail=""):
 
 
 class RequestedAfterActivitiesTest(SimpleTestCase):
+    def test_excluded_phase_does_not_move_or_duplicate_lodging_in_summary(self):
+        question = ("경기 관람 후 주차 가능한 호텔 한 곳에서 숙박하는 코스를 만들어줘. "
+                    "경기 전 다른 장소는 넣지 말고, 경기 관람과 숙박만 포함해줘.")
+        self.assertEqual(agent.plan_steps(slots.parse(question), True), ([], ["STAY"]))
+        self.assertEqual(agent.plan_steps(slots.parse("경기 전 호텔에 들르고 경기 후 숙소로 돌아가"), True),
+                         (["STAY"], ["STAY"]))
+
     def test_food_exclusions_are_not_positive_preferences(self):
         for text, excluded, included in (
             ("한식 말고 일식으로 추천해줘", "한식", "일식"),
@@ -174,7 +181,8 @@ class RequestedAfterActivitiesTest(SimpleTestCase):
         result = self.assert_only_requested_stops(
             QUESTION, omit_cafe=True, expected=["식당", "광주-KIA 챔피언스 필드", "산책공원"])
         for text in (result["answer"], result["coursePayload"]["content"]):
-            self.assertIn("경기 전 2번째 카페에 맞는 장소를 찾지 못했어요", text)
+            self.assertIn("경기 전 2번째 카페는 이번 검색에서 메뉴·방문 조건을 확인하지 못해", text)
+            self.assertIn("주변에 해당 매장이 없다는 뜻은 아니", text)
 
     def assert_only_requested_stops(self, question, requested_after=None, expected=None, omit_cafe=False):
         food, cafe = place("food", "FOOD_OUT", "식당"), place("cafe", "CAFE", "카페")
@@ -186,10 +194,10 @@ class RequestedAfterActivitiesTest(SimpleTestCase):
         def generated(_question, _game, cands, *_args):
             by_name = {p["name"]: p["key"] for p in cands}
             return json.dumps({"intro": "불필요한야식집도 들러요", "course": [
-                {"place_key": by_name[food["name"]], "phase": "BEFORE"},
+                {"place_key": by_name.get(food["name"], "nonexistent-food"), "phase": "BEFORE"},
                 {"place_key": by_name.get(cafe["name"], "nonexistent"), "phase": "BEFORE"},
                 {"place_key": "STADIUM", "phase": "GAME"},
-                {"place_key": by_name[night["name"]], "phase": "AFTER"},
+                {"place_key": by_name.get(night["name"], "nonexistent-night"), "phase": "AFTER"},
                 {"place_key": by_name.get(park["name"], "nonexistent"), "phase": "AFTER"},
             ]}), 0
 
@@ -198,6 +206,9 @@ class RequestedAfterActivitiesTest(SimpleTestCase):
                  "_live_candidates": ([food, night] if omit_cafe else [food, cafe, night], {}), "search_places": [],
                  "invoke_domain_tool": {}}
         with ExitStack() as stack:
+            # These synthetic places exercise itinerary enforcement; their IDs
+            # deliberately have no external ratings or production seed matches.
+            stack.enter_context(patch.object(agent.place_quality, "active", return_value=False))
             for name, result in mocks.items():
                 stack.enter_context(patch.object(agent, name, return_value=result))
             stack.enter_context(patch.object(agent.kakao, "nearby", return_value=[park]))

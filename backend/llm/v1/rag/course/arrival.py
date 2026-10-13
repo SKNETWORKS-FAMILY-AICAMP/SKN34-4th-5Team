@@ -3,9 +3,13 @@ import math
 import re
 
 from . import geo, transport
+from .default_origins import station_origin
 from ...progress import ProgressCancelled, ProgressStorageError
 
 RADIUS_M = 2500
+RELATIVE_ORIGINS = {"여기", "내 위치", "현재 위치", "현위치", "지도", "집", "회사", "출발지"}
+STADIUM_ORIGINS = {"구장", "경기장", "야구장"}
+NO_ORIGIN = re.compile(r"^(?:아직\s*)?(?:없|없이|미정|미지정|안\s*(?:정|골|찍|지정)|정하지\s*않|지정하지\s*않)")
 
 
 def coordinate(value):
@@ -22,14 +26,14 @@ def coordinate(value):
     return None
 
 
-def origin_query(question):
+def _origin_reference(question):
     """사용자가 직접 쓴 출발 표현만 읽는다. '경기 후 구장에서 출발'은 새 출발지가 아니다."""
     text = question or ""
     # 마침표/쉼표 단위로 좁혀 앞 문장의 경기·취향을 장소 검색어에 섞지 않는다.
     for clause in reversed(re.split(r"[.!?\n,]", text)):
         if re.search(r"경기\s*(?:후|끝)|관람\s*후", clause):
             continue
-        explicit = re.search(r"출발(?:지|장소|위치)\s*(?:는|은|:|를|을)?\s*(.+?)(?=\s*(?:에서|으로|로|이고|이야|입니다|이거든)|$)", clause)
+        explicit = re.search(r"출발(?:지|장소|위치)(?!\s*(?:에서|부터))\s*(?:는|은|:|를|을)?\s*(.+?)(?=\s*(?:에서|으로|로|이고|이야|입니다|이거든)|$)", clause)
         match = re.search(r"(.+?)(?:에서|부터)\s*(?:(?:도보로?|걸어서|자차로?|자동차로?|차로|택시로|대중교통으로|지하철로|버스로)\s*)?(?:출발|시작|갈\s*거|가려고|갈게)", clause)
         value = explicit[1] if explicit else match[1] if match else None
         if not value:
@@ -37,23 +41,38 @@ def origin_query(question):
         value = re.sub(r"^(?:(?:나는|저는|난|전|우리(?:는)?|오늘|내일|이번엔|지금)\s*)+", "", value.strip())
         value = re.sub(r"^(?:(?:오전|오후)?\s*\d{1,2}(?::\d{2}|시(?:\s*\d{1,2}분)?)\s*(?:에|쯤)?\s*)", "", value)
         value = value.strip(" '“”\"")
-        if value in {"여기", "내 위치", "현재 위치", "현위치", "지도", "구장", "경기장", "집", "회사"}:
-            return None
-        if 1 < len(value) <= 100:
+        if re.fullmatch(r"(?:지도(?:에|에서)?\s*)?(?:(?:찍(?:어\s*놓)?은|지정한|선택한|설정한)\s*)?출발(?:지|장소|위치)", value):
+            value = "출발지"
+        if value in RELATIVE_ORIGINS | STADIUM_ORIGINS or 1 < len(value) <= 100:
             return value
     return None
 
 
+def origin_query(question):
+    value = _origin_reference(question)
+    if not value or value in RELATIVE_ORIGINS | STADIUM_ORIGINS or NO_ORIGIN.search(value):
+        return None
+    return value
+
+
 def resolve_origin(question, history, supplied, anchor, invoke):
+    reference = _origin_reference(question)
     query = origin_query(question)
+    if reference in STADIUM_ORIGINS:
+        return coordinate(anchor), anchor.get("name", "구장"), ""
     if not query and coordinate(supplied):
         name = supplied.get("name")
         label = name.strip()[:100] if isinstance(name, str) and name.strip() else "선택한 출발지"
         return coordinate(supplied), label, ""
-    if not query:
+    if not query and not reference:
         for message in reversed((history or [])[-8:]):
-            if message.get("role") == "user" and (query := origin_query(message.get("content"))):
+            if message.get("role") == "user" and (reference := _origin_reference(message.get("content"))):
+                query = origin_query(message.get("content"))
                 break
+    if reference in STADIUM_ORIGINS:
+        return coordinate(anchor), anchor.get("name", "구장"), ""
+    if reference in RELATIVE_ORIGINS:
+        return None, reference, f"출발지 ‘{reference}’의 위치가 필요해요. 주소를 알려 주시거나 GPS·지도 핀으로 출발지를 지정해 주세요."
     if not query:
         return None, "", ""
     try:
@@ -77,6 +96,18 @@ def resolve_origin(question, history, supplied, anchor, invoke):
     if candidates and all(geo._dist(candidates[0][0], item[0]) < 400 for item in candidates[1:]):
         return candidates[0][0], candidates[0][1], ""
     return None, query, f"출발지 ‘{query}’의 위치를 하나로 확인하지 못했어요. 지역이 포함된 장소 이름이나 주소를 알려 주시거나 지도에서 출발지를 지정해 주세요."
+
+
+def resolve_course_origin(question, history, supplied, anchor, invoke, code):
+    """명시한 출발지의 조회 실패는 기본 역으로 대체하지 않는다. 새 생성에서만 사용한다."""
+    point, label, error = resolve_origin(question, history, supplied, anchor, invoke)
+    if point or error:
+        return point, label, error, ""
+    station = station_origin(code)
+    if not station:
+        return None, "", "", ""
+    notice = f"출발지가 지정되지 않아 {station['name']}에서 출발하는 코스로 구성했어요."
+    return coordinate(station), station["name"], "", notice
 
 
 def _segment_entry(a, b, anchor, radius):

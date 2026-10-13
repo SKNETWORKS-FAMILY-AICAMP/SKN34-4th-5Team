@@ -1,5 +1,5 @@
 import { MAX_HISTORY_MESSAGES, MAX_MESSAGE_LENGTH, MAX_REPLY_LENGTH } from "./types";
-import type { ChatContext, ChatMessage, ChatRequest } from "./types";
+import type { ChatContext, ChatCurrentCourse, ChatMessage, ChatRequest, ChatVideo } from "./types";
 import { isCourseProgress, parseChatCourse } from "./course";
 import { isLegModes } from "../course-directions";
 
@@ -41,8 +41,21 @@ export function parseChatRequest(value: unknown): ChatRequest {
         || raw.places.some(p => !isRecord(p) || typeof p.visitId !== "string" || !p.visitId || p.visitId.length > 255
           || typeof p.label !== "string" || !p.label || p.label.length > 20)
         || new Set(parsed.places.map(p => p.visitId)).size !== parsed.places.length) throw new ChatError("수정할 코스를 확인해 주세요.");
+      let selectedPlace: ChatCurrentCourse["selectedPlace"];
+      if (raw.selectedPlace !== undefined) {
+        const selected = raw.selectedPlace;
+        const selection = isRecord(selected) ? parseChatCourse({ places: [selected], edit: true })?.places[0] : undefined;
+        if (!isRecord(selected) || !selection || typeof selected.visitId !== "string" || !selected.visitId || selected.visitId.length > 255
+          || !["FOOD", "CAFE", "SPOT", "STADIUM", "STAY", "WALK", "INDOOR", "CONVENIENCE"].includes(String(selected.category))
+          || !["BEFORE", "GAME", "AFTER"].includes(String(selected.phase))
+          || typeof selected.label !== "string" || !selected.label || selected.label.length > 20) throw new ChatError("선택한 장소를 확인해 주세요.");
+        const existingIndex = parsed.places.findIndex(p => p.visitId === selected.visitId);
+        selectedPlace = existingIndex >= 0 ? { ...parsed.places[existingIndex], visitId: selected.visitId, label: (raw.places[existingIndex] as { label: string }).label }
+          : { ...selection, visitId: selected.visitId, label: selected.label };
+      }
       const rawPlaces = raw.places as { label: string }[];
       context.currentCourse = { places: parsed.places.map((p, i) => ({ ...p, visitId: p.visitId!, label: rawPlaces[i].label })),
+        ...(selectedPlace ? { selectedPlace } : {}),
         ...(parsed.writerState ? { writerState: parsed.writerState } : {}),
         stadiumCode: raw.stadiumCode, travelMode: parsed.travelMode!, legModes: raw.legModes, ...(parsed.game ? { game: parsed.game } : {}),
         ...(parsed.progress ? { progress: parsed.progress } : {}) };
@@ -81,4 +94,24 @@ export function parseChatRequest(value: unknown): ChatRequest {
   if (value.sessionId !== undefined && (typeof value.sessionId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.sessionId))) throw new ChatError("채팅방 번호를 확인해 주세요.");
   // Only the documented fields reach a provider; client-supplied model/system settings are discarded.
   return { messages, ...(value.sessionId !== undefined ? { sessionId: value.sessionId as string } : {}), ...(context ? { context } : {}) };
+}
+
+const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
+const MAX_VIDEOS = 5;
+
+/** 서버 done/기록의 videos → 하이라이트 영상 카드. 형식이 틀린 항목은 버린다(유효한 카드가 없으면 undefined). */
+export function parseVideos(value: unknown): ChatVideo[] | undefined {
+  if (!Array.isArray(value)) return;
+  const videos: ChatVideo[] = [];
+  for (const raw of value.slice(0, MAX_VIDEOS)) {
+    if (!isRecord(raw)) continue;
+    if (typeof raw.videoId !== "string" || !VIDEO_ID.test(raw.videoId)) continue;
+    if (typeof raw.start !== "number" || !Number.isInteger(raw.start) || raw.start < 0 || raw.start > 6 * 3600) continue;
+    videos.push({
+      videoId: raw.videoId, start: raw.start,
+      label: typeof raw.label === "string" ? raw.label.slice(0, 120) : "",
+      ...(typeof raw.gameDate === "string" ? { gameDate: raw.gameDate.slice(0, 10) } : {}),
+    });
+  }
+  return videos.length ? videos : undefined;
 }

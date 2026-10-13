@@ -36,6 +36,7 @@ const toolPresentation: Record<string, { icon: Parameters<typeof Icon>[0]["name"
   schedule: { icon: "calendar", description: "야구" },
   standings: { icon: "trophy", description: "야구" },
   players: { icon: "userPlus", description: "야구" },
+  highlight: { icon: "sparkles", description: "영상" },
   baseball_stats: { icon: "chart", description: "야구" },
   rules: { icon: "book", description: "야구" },
   stadium_info: { icon: "stadium", description: "구장" },
@@ -99,7 +100,7 @@ export function ChatComposerTools({ disabled, available, children, hint, actions
         <button ref={opener} type="button" className="chat-composer-add" disabled={blocked} aria-label="자료 첨부 및 기능 선택" aria-expanded={menuOpen} popoverTarget={id}><span aria-hidden="true">+</span></button>
         <span className="chat-composer-hint">{hint}</span>
       </div>
-      {actions}
+      <div className="chat-composer-actions">{actions}</div>
     </div>
     <input ref={fileInput} type="file" className="sr-only" tabIndex={-1} multiple accept="image/jpeg,image/png,image/webp,.txt,.md" aria-label="첨부 파일 선택" onChange={event => { chat.onAttach(Array.from(event.target.files ?? [])); event.target.value = ""; }} />
     <div ref={menu} id={id} popover="auto" className="chat-composer-menu" onToggle={event => {

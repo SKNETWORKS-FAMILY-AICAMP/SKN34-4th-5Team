@@ -1,0 +1,416 @@
+import { progressHint, rememberObservation } from "./progress.ts";
+import { trace, tracing } from "../trace.ts";
+import type { Agent } from "../agent.ts";
+import { choose } from "../model/decide.ts";
+import { actionSpace } from "../model/space.ts";
+import { fieldContext, fieldText } from "../model/text.ts";
+import { StalePage, type HistoryEntry, type PageState } from "../types.ts";
+import { sleep } from "../sleep.ts";
+import { blockedProbe } from "./consults.ts";
+import { fusedNow } from "./fuses.ts";
+
+export async function observeStep(a: Agent): Promise<void> {
+    a.page = await a.browser.observe();
+    a.phase = "decide";
+  }
+
+export async function decideStep(a: Agent): Promise<void> {
+    if (a.page.challenge && (a.stopAtChallenge || a.challengeActs >= 2)) {
+      a.blockedCause = "verification_required";
+      a.phase = "blocked";
+      trace("challenge_stop", { reasons: a.page.challenge_reasons, actions_on_challenge: a.challengeActs, page: a.page });
+
+      return;
+    }
+
+    if (!a.startedAt) a.startedAt = performance.now();
+
+    if (a.decisions.length >= a.maxSteps * 2) {
+      a.blockedCause = "decision_budget";
+      a.phase = "blocked";
+
+      return;
+    }
+
+    if (!(await a.browser.fresh(a.page, undefined, "structure"))) {
+      throw new StalePage("Page changed since the last observation. Choose again.");
+    }
+
+    if (a.domFingerprint !== a.page.fingerprint) {
+      a.domFingerprint = a.page.fingerprint;
+      a.domRetried.clear();
+      a.domDead.clear();
+    }
+
+    a.decision = null;
+
+    if (a.followUp) {
+      const fu = a.followUp;
+      a.followUp = null;
+
+      if (fu.type === "DONE") {
+        if (!(await a.confirmDone(a.history[a.history.length - 1]?.kind))) return;
+        a.phase = "done";
+
+        return;
+      }
+
+      const resolved = a.resolveFollowUp(fu);
+
+      if (resolved) {
+        a.lastOperation = "FOLLOW_UP";
+        a.decision = {
+          choice: resolved,
+          operation: "FOLLOW_UP",
+          target: null,
+          confidence: 1,
+          probabilities: { [resolved]: 1 },
+          operation_probabilities: {},
+          target_probabilities: {},
+          target_confidence: null,
+          raw_answers: null,
+          model: "follow-up",
+          usage: null,
+          latency_ms: 0,
+        };
+        a.phase = "act";
+
+        return;
+      }
+    }
+
+    const repair = a.repairHint;
+    a.repairHint = null;
+
+    const conditions = Object.keys(a.expectation).length
+      ? `Required completion evidence (all patterns must match the current observation): ${JSON.stringify(a.expectation)}. Continue toward this evidence; a setup screen is not a completed result.`
+      : "";
+
+    rememberObservation(a.progressObservations, a.page, a.history.length);
+    const goal = [a.goal, conditions, progressHint(a.goalAssessment), repair].filter(Boolean).join("\n\n");
+
+    const dead = new Set(
+      [...a.domDead].flatMap(([node, n]) => (n >= 2 ? [node] : [])),
+    );
+
+    const unavailable = new Set(
+      [...a.unavailableFields].flatMap(([node, seen]) =>
+        seen.fingerprint === a.page.fingerprint || seen.step === a.history.length ? [node] : [],
+      ),
+    );
+
+    const live =
+      dead.size === 0 && unavailable.size === 0
+        ? a.page
+        : {
+            ...a.page,
+            actions: a.page.actions.filter(
+              (a) =>
+                a.node === undefined ||
+                !((a.kind === "click" && dead.has(a.node)) || (a.kind === "fill" && unavailable.has(a.node))),
+            ),
+          };
+
+    const page = live;
+
+    a.decision = await choose(a.client, page, goal, a.history, a.progressObservations);
+    a.decisions.push(a.decision);
+    reportDecision(a, page, Boolean(repair));
+    a.lastOperation = a.decision.operation;
+    a.phase = "act";
+  }
+
+export function reportDecision(a: Agent, page: PageState, repaired: boolean): void {
+    if (!a.onEvent) return;
+
+    const space = actionSpace(page.actions);
+    const decision = a.decision!;
+
+    a.onEvent({
+      type: "decision",
+      elapsed_ms: a.elapsed(),
+      choice: decision.choice,
+      operation: decision.operation,
+      confidence: decision.confidence,
+      follow_up: decision.follow_up ?? null,
+      offered_elements: space.elements.length,
+      offered_controls: Object.keys(space.controls).length,
+      offered_operations: Object.keys(space.targets).length,
+      repaired,
+      url: page.url,
+    });
+  }
+
+export async function actStep(a: Agent): Promise<void> {
+    const decision = a.decision;
+    const page = a.page;
+
+    if (!decision) throw new Error("Choose before acting");
+
+    const untargeted = decision.target === null && ["SCROLL_DOWN", "SCROLL_UP", "WAIT"].includes(decision.operation);
+
+    if (!untargeted && !(await a.browser.fresh(page, undefined, "structure"))) {
+      throw new StalePage("Page changed since the decision. Choose again.");
+    }
+
+    a.decision = null;
+    const selected = decision.choice;
+
+    if (selected !== "DONE" && decision.goal_status === "SATISFIED" && (decision.goal_confidence ?? 1) >= 0.6) {
+      if (await a.confirmDone(a.history.at(-1)?.kind)) a.phase = "done";
+
+      return;
+    }
+
+    if (selected === "DONE" || selected === "BLOCKED") {
+      if (selected === "BLOCKED" && a.earlyWaits < 3 && !a.probeConsulted) {
+        a.earlyWaits++;
+
+        const outcome = await blockedProbe(
+          a.browser,
+          page,
+          a.history,
+          () => a.elapsed(),
+          (action, p) => a.waitEntry(action, p),
+        );
+
+        a.page = outcome.latest;
+
+        if (outcome.changed) {
+          a.phase = "decide";
+
+          return;
+        }
+
+        a.probeConsulted = true;
+        a.repairHint = outcome.hint;
+        a.phase = "decide";
+
+        return;
+      }
+
+      if (selected === "DONE") {
+        if (!(await a.confirmDone(a.history[a.history.length - 1]?.kind))) return;
+      }
+
+      if (selected === "BLOCKED") a.blockedCause = "model_claim";
+
+      a.phase = selected === "DONE" ? "done" : "blocked";
+
+      return;
+    }
+
+    let action = page.actions.find((a) => a.id === selected);
+
+    if (!action) throw new Error(`Decision selected unknown action ${selected}`);
+
+    if (decision.operation === "DOUBLE_CLICK") {
+      action = { ...action, kind: "double_click" };
+    }
+
+    if (decision.operation === "CONTEXT_CLICK") {
+      action = { ...action, kind: "context" };
+    }
+
+    if (decision.operation === "HOVER") {
+      action = { ...action, kind: "hover" };
+    }
+
+    if (decision.operation === "DRAG" && decision.target2) {
+      const dest = page.actions.find((a) => a.id === decision.target2);
+
+      if (!dest?.node) throw new Error(`Drag destination ${decision.target2} is not an element`);
+
+      if (dest.node === action.node) {
+        throw new StalePage("Drag destination is the source itself. Choose again.");
+      }
+
+      action = { ...action, kind: "drag", dragTo: dest.node };
+    }
+
+    if (a.history.length >= a.maxSteps) {
+      a.blockedCause = "step_budget";
+      a.phase = "blocked";
+
+      return;
+    }
+
+    let text: string | null = null;
+    let helper: { model: string; latency_ms: number; usage?: unknown } | null = null;
+
+    if (action.kind === "fill") {
+      if (!(await a.browser.fresh(page, undefined, "page"))) {
+        throw new StalePage("Page changed before text generation. Choose again.");
+      }
+
+      const context = fieldContext(a.goal, action, page, a.history, a.progressObservations);
+
+      if (a.pendingText && JSON.stringify(a.pendingText[0]) === JSON.stringify(context)) {
+        [, text, helper] = a.pendingText;
+      } else {
+        let generated;
+
+        for (let attempt = 0; ; attempt++) {
+          try {
+            generated = await fieldText(context);
+            break;
+          } catch (error) {
+            if (!String(error).includes("no valid field value") || attempt >= 2) throw error;
+          }
+        }
+
+        text = generated.text;
+        helper = generated.helper;
+
+        if (text === null) {
+          a.textCalls.push({ ...helper, field: action.label, value: null });
+
+          if (action.node !== undefined) {
+            a.unavailableFields.set(action.node, { fingerprint: page.fingerprint, step: a.history.length });
+          }
+
+          trace("field_value_unavailable", { action, fingerprint: page.fingerprint });
+          a.repairHint = `Nothing was typed into "${action.label}": its required value is not in the goal or the observed evidence. Obtain that value first with another action that reveals it, such as opening or reading the relevant content. If no available action can supply it, claim BLOCKED. Do not guess a value.`;
+          a.phase = "decide";
+
+          return;
+        }
+
+        a.pendingText = [context, text, helper];
+        a.textCalls.push({ ...helper, field: action.label, value: text });
+      }
+    }
+
+    trace("action_attempt", { action, url: page.url, fingerprint: page.fingerprint });
+
+    if (tracing() && action.node !== undefined && a.browser.inspectTarget) {
+      const details = await a.browser.inspectTarget(action.node).catch(error => ({ error: String(error) }));
+      trace("action_target", { action, details });
+    }
+
+    await a.browser.act(action, page, text);
+    trace("action_dispatched", { action });
+    a.challengeActs = page.challenge ? a.challengeActs + 1 : 0;
+    a.pendingText = null;
+    a.earlyWaits = 0;
+    a.probeConsulted = false;
+
+    const entry: HistoryEntry = {
+      step: a.history.length + 1,
+      action: action.label,
+      kind: action.kind,
+      choice: selected,
+      probability: decision.probabilities[selected],
+      confidence: decision.confidence,
+      latency_ms: decision.latency_ms,
+      text,
+      text_helper: helper?.model ?? null,
+      text_latency_ms: helper?.latency_ms ?? 0,
+      operation: decision.operation,
+      target: decision.target,
+      follow_up: decision.follow_up,
+      page_changed: null,
+      url: page.url,
+      usage: decision.usage,
+      executed_ms: a.elapsed(),
+      elapsed_ms: a.elapsed(),
+    };
+
+    a.history.push(entry);
+    a.staleStreak = 0;
+    a.phase = "settle";
+    a.settleContext = { action, page, text, decision };
+    a.settleEntry = entry;
+  }
+
+export async function settleStep(a: Agent): Promise<void> {
+    const ctx = a.settleContext;
+    const entry = a.settleEntry;
+
+    if (!ctx || !entry) throw new Error("Settle without an executed action");
+    const { action, page, text, decision } = ctx;
+    a.settleContext = null;
+    a.settleEntry = null;
+
+    if (["click", "context", "select", "press"].includes(action.kind)) {
+      const navDeadline = Date.now() + 2500;
+
+      for (let i = 0; i < 2 && !a.browser.pendingNav?.(); i++) await sleep(80);
+
+      while (a.browser.pendingNav?.() && Date.now() < navDeadline) await sleep(120);
+    }
+
+    a.page = await a.browser.observe();
+    entry.page_changed = a.page.fingerprint !== page.fingerprint || a.page.dialog !== undefined;
+
+    if (
+      entry.page_changed === false &&
+      (action.kind === "click" ||
+        action.kind === "hover" ||
+        action.kind === "drag" ||
+        action.kind === "fill") &&
+      action.node !== undefined &&
+      !a.domRetried.has(action.node)
+    ) {
+      a.domRetried.add(action.node);
+
+      try {
+        trace("fallback_attempt", { action, reason: "unchanged observation" });
+        await a.browser.domClick(action, page, text);
+        const retried = await a.browser.observe();
+        trace("fallback_result", { action, page: retried });
+
+        if (retried.fingerprint !== page.fingerprint) {
+          a.page = retried;
+          entry.page_changed = true;
+          entry.action = `${action.label} (dom)`;
+        }
+      } catch (error) {
+        trace("fallback_error", { action, error: String(error) });
+      }
+    }
+
+    if (
+      entry.page_changed === false &&
+      action.kind === "click" &&
+      action.node !== undefined
+    ) {
+      a.domDead.set(action.node, (a.domDead.get(action.node) ?? 0) + 1);
+    }
+
+    const REVEAL_KINDS = new Set(["scroll", "wait", "hover", "back", "forward"]);
+
+    if (
+      decision.follow_up &&
+      decision.follow_up !== "NONE" &&
+      !(decision.follow_up === "DONE_AFTER" && REVEAL_KINDS.has(action.kind))
+    ) {
+      a.followUp = {
+        type: decision.follow_up === "DONE_AFTER" ? "DONE" : decision.follow_up,
+        text,
+        prevNodes: new Set(
+          page.actions.flatMap((a) => (a.node === undefined ? [] : [a.node])),
+        ),
+      };
+    }
+
+    entry.pending_requests = a.page.pending_requests ?? 0;
+    entry.url = a.page.url;
+    entry.elapsed_ms = a.elapsed();
+    a.fingerprints.push(a.page.fingerprint);
+
+    const fused = fusedNow(a.history, a.fingerprints, a.page.fingerprint);
+
+    if (!fused) {
+      a.fuseConsulted = false;
+      a.phase = "decide";
+    } else if (!a.fuseConsulted) {
+      a.fuseConsulted = true;
+      a.repairHint =
+        "Your recent actions made no progress. Try a different approach — scroll, hover, a different element — or claim BLOCKED.";
+      a.phase = "decide";
+    } else {
+      a.blockedCause = "no_progress";
+      a.phase = "blocked";
+    }
+  }

@@ -1,0 +1,2 @@
+# Compatibility include; install only in an isolated evaluation environment.
+-r ../backend/llm/v2/evaluation/requirements-ragas.txt

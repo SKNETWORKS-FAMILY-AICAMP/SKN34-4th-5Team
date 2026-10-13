@@ -33,7 +33,7 @@ class AttachmentBoundaryTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, [{"id": key, "label": label} for key, label in TOOL_GROUP_LABELS.items()])
         self.assertEqual([group["label"] for group in response.data], [
-            "웹 조사", "경기 일정", "순위", "선수 정보", "야구 기록", "규정", "구장 정보", "반입 규정", "주차·교통",
+            "웹 조사", "경기 일정", "순위", "선수 정보", "하이라이트", "야구 기록", "규정", "구장 정보", "반입 규정", "주차·교통",
             "커뮤니티", "주변 장소", "관광", "길찾기", "기존 코스", "날씨", "직관 코스 계획",
         ])
 
@@ -262,7 +262,7 @@ class AttachmentPersistenceTests(TransactionTestCase):
         ChatThread(session.id).delete()
 
 
-class AttachmentApiTests(TestCase):
+class AttachmentApiTests(TransactionTestCase):
     def setUp(self):
         self.guest = uuid.uuid4()
         self.session = ChatSession.objects.create(guest=self.guest)
@@ -451,13 +451,17 @@ class AttachmentApiTests(TestCase):
         row = ChatAttachment.objects.create(session=self.session, kind="url", name="old Naver", source_url="https://example.com", extracted_text="cached untouched")
         human = HumanMessage(row.source_url, id="retry", additional_kwargs={"attachment_ids": [str(row.id)]})
         calls = []
-        graph = build_graph(ScriptedModel(script=[AIMessage("ok")], calls=calls), fake_tools([]))
+        graph = build_graph(ScriptedModel(script=[AIMessage("findings"), AIMessage("ok")], calls=calls), fake_tools([]))
         with patch("llm.v2.middleware.jev_guidelines.classify", return_value={"allowed": True, "capabilities": []}), \
-                patch("llm.v2.agent.browser_research.web_body", side_effect=AssertionError("cached URL must not refetch")):
+                patch("llm.v2.agent.browser_research.web_body", return_value={"status": "ok", "analysis": "fresh page analysis"}) as fetch:
             graph.invoke({"messages": [human], "attachment_session_id": str(self.session.id)})
         self.assertIn(row.source_url, next(m for m in calls[0]["messages"] if isinstance(m, HumanMessage)).text)
         self.assertNotIn("web_search", calls[0]["tools"])
-        self.assertIn("cached untouched", next(m for m in calls[0]["messages"] if isinstance(m, HumanMessage)).text)
+        submitted = next(m for m in calls[0]["messages"] if isinstance(m, HumanMessage)).text
+        self.assertNotIn("fresh page analysis", submitted)
+        self.assertIn("cached untouched", submitted)
+        self.assertIn('"chars"', submitted)
+        fetch.assert_not_called()
         row.refresh_from_db()
         self.assertEqual(row.extracted_text, "cached untouched")
 
@@ -480,6 +484,71 @@ class AttachmentApiTests(TestCase):
                     graph.invoke({"messages": [human], "attachment_session_id": str(self.session.id)})
             read.assert_not_called()
             self.assertEqual(calls, [])
+
+    def test_unavailable_url_current_and_older_turn_reach_model_without_cache(self):
+        from langchain_core.messages import AIMessage
+        from llm.v2.tests.test_chain import ScriptedModel, fake_tools
+        from llm.v2.agent.chain import build_graph
+        row = ChatAttachment.objects.create(session=self.session, kind="url", name="blocked source",
+                                            source_url="https://blog.naver.com/viator5/224226715262")
+        human = HumanMessage("잠실 글을 요약해줘", id="source", additional_kwargs={"attachment_ids": [str(row.id)]})
+        followup = HumanMessage("잠실 야구 관람 준비물은?", id="ordinary")
+        for messages in ([human], [human, AIMessage("본문을 읽을 수 없습니다"), followup]):
+            calls = []
+            graph = build_graph(ScriptedModel(script=[AIMessage("출처 상태 확인"), AIMessage("본문을 붙여 주세요")], calls=calls), fake_tools([]))
+            with patch("llm.v2.middleware.jev_guidelines.classify", return_value={"allowed": True, "capabilities": []}), \
+                    patch("llm.v2.agent.browser_research.web_body", return_value={"status": "blocked", "body": "NEVER USE THIS"}) as fetch:
+                graph.invoke({"messages": messages, "attachment_session_id": str(self.session.id)})
+            submitted = next(m for m in calls[0]["messages"] if isinstance(m, HumanMessage) and m.id == human.id)
+            self.assertIn('"status": "blocked"', submitted.text)
+            self.assertIn('"available_body": false', submitted.text)
+            self.assertIn("untrusted", submitted.text)
+            self.assertIn("접근 제한", submitted.text)
+            self.assertIn("붙여", submitted.text)
+            self.assertNotIn("NEVER USE THIS", submitted.text)
+            self.assertNotIn(row.source_url, calls[0]["system"])
+            self.assertEqual(fetch.call_count, 1 if len(messages) == 1 else 0)
+            row.refresh_from_db()
+            self.assertEqual(row.url_read_result["status"], "blocked")
+            self.assertEqual(row.extracted_text, "")
+            self.assertEqual(human.content, "잠실 글을 요약해줘")
+            if len(messages) > 1:
+                self.assertEqual(next(m for m in calls[0]["messages"] if m.id == followup.id).content, followup.content)
+        from llm.v2.tests.test_web_specialist import observed
+        replacement = ChatAttachment.objects.create(session=self.session, kind="url", name=row.name, source_url=row.source_url)
+        human = human.model_copy(update={"additional_kwargs": {"attachment_ids": [str(replacement.id)]}})
+        with patch("llm.v2.agent.browser_research.web_body", return_value=observed("observed article 14:00 ~ 15:00")):
+            update = AttachmentContextMiddleware.collect({"decision": {"allowed": True},
+                         "attachment_session_id": str(self.session.id), "messages": [human]})
+        self.assertIn("observed article 14:00 ~ 15:00", update["attachment_messages"][human.id].text)
+        self.assertIn('"original_body": true', update["attachment_messages"][human.id].text)
+        row.refresh_from_db()
+        self.assertEqual(row.extracted_text, "")
+        replacement.refresh_from_db()
+        self.assertEqual(replacement.extracted_text, "observed article 14:00 ~ 15:00")
+
+    def test_url_extraction_operational_errors_are_retained_and_stop_limits_propagate(self):
+        row = ChatAttachment.objects.create(session=self.session, kind="url", name="source", source_url="https://example.com/")
+        human = HumanMessage("잠실", id="q", additional_kwargs={"attachment_ids": [str(row.id)]})
+        state = {"decision": {"allowed": True}, "attachment_session_id": str(self.session.id), "messages": [human]}
+        from llm.service.chat_runs import Stopped
+        for error in (ValueError("reader error"), RuntimeError("reader error")):
+            ChatAttachment.objects.filter(pk=row.pk).update(url_read_result={})
+            with patch("llm.v2.agent.browser_research.web_body", side_effect=error) as fetch:
+                update = AttachmentContextMiddleware.collect(state)
+                self.assertIn('"status": "error"', update["attachment_messages"][human.id].text)
+                AttachmentContextMiddleware.collect(state)
+                self.assertEqual(fetch.call_count, 1)
+            row.refresh_from_db()
+            self.assertEqual(row.url_read_result, {"status": "error"})
+        ChatAttachment.objects.filter(pk=row.pk).update(url_read_result={})
+        with patch("llm.v2.agent.browser_research.web_body", side_effect=Stopped()), self.assertRaises(Stopped):
+            AttachmentContextMiddleware.collect(state)
+        with patch("llm.v2.agent.browser_research.web_body", return_value={"status": "overflow"}), \
+                self.assertRaises(attachments.AttachmentProcessingLimit):
+            AttachmentContextMiddleware.collect(state)
+        row.refresh_from_db()
+        self.assertEqual(row.extracted_text, "")
 
     def test_member_ownership_and_url_cache(self):
         from django.contrib.auth import get_user_model

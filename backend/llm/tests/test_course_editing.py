@@ -28,6 +28,28 @@ def plan(op, targets, **kw):
 
 
 class CourseEditingTest(SimpleTestCase):
+    def test_lodging_replacement_keeps_verdict_for_answer_but_not_public_cards(self):
+        operation = plan("replace", ["park"], category="STAY", query="호텔", conditions=["주차 가능"])
+        url = "https://nol.yanolja.com/stay/domestic/123"
+        for status in ("match", "unknown"):
+            check = {"status": status, "checks": [{"condition": "주차 가능", "status": status,
+                     "intent": "required", "evidence": "private source excerpt"}]}
+            stay = {"placeId": "hotel", "name": "검증한 호텔", "lat": 37.51, "lng": 127.075,
+                    "category": "STAY", "placeUrl": url, "lodgingCheck": check}
+            with self.subTest(status=status), patch.object(editing, "candidates", return_value=[stay]), \
+                    patch.object(editing, "choose", return_value=stay), \
+                    patch.object(editing, "route_legs", return_value=[{"minutes": 5, "meters": 400, "by": "walk"}] * 3), \
+                    patch.object(agent, "load_schedule", return_value=({}, 1)), \
+                    patch.object(agent, "find_game", return_value=(GAME, False, [])), \
+                    patch.object(agent, "stadium_anchor", return_value=PLACES[2]):
+                result = editing.answer("산책만 주차 가능한 호텔로 바꿔줘", [], CURRENT, "JAMSIL", None, parsed=operation)
+            self.assertEqual(result["lodgingAssessments"], [{"name": "검증한 호텔", "sourceUrl": url,
+                "status": status, "checks": [{"condition": "주차 가능", "status": status, "intent": "required"}]}])
+            public = public_course(result)
+            self.assertEqual([p["placeId"] for p in public["places"]], ["1", "2", "3", "hotel"])
+            self.assertNotIn("lodgingAssessments", public)
+            self.assertNotIn("lodgingCheck", public["places"][-1])
+
     def test_replacement_keeps_all_other_places_and_original_input(self):
         before = deepcopy(PLACES)
         result = editing.mutate(PLACES, plan("replace", ["cafe"]), REPLACEMENT)
@@ -77,7 +99,7 @@ class CourseEditingTest(SimpleTestCase):
         with patch.object(editing, "interpret", return_value=operation), patch.object(agent, "stadium_anchor", return_value=PLACES[2]), \
                 patch.object(editing, "candidates", return_value=[{**PLACES[0], "placeId": "new"}]), patch.object(editing, "choose", return_value=None):
             result = agent.answer("카페 전에 자장면 먹을 중식집 추가", hint_stadium="JAMSIL", current_course=CURRENT)
-        self.assertIn("1곳의 후보를 찾았지만", result["answer"])
+        self.assertIn("검증 후 남은 1곳의 후보", result["answer"])
         self.assertIn("자장면", result["answer"])
         self.assertNotIn("브랜드나 업종을 알려", result["answer"])
         self.assertEqual(result["places"], [])
@@ -95,7 +117,7 @@ class CourseEditingTest(SimpleTestCase):
         self.assertEqual(schedule.call_args.args[1], "2026-10-06")
         self.assertEqual([c.args[2]["mode"] for c in directions.call_args_list], ["walk", "walk", "transit"])
         self.assertEqual(result["legModes"], {key: "transit"})
-        self.assertEqual([p["time"] for p in result["places"]], ["16:03", "16:49", "17:45", "21:46"])
+        self.assertEqual([p["time"] for p in result["places"]], ["16:28", "17:14", "18:10", "21:46"])
         self.assertEqual(result["game"], CURRENT["game"])
         self.assertIn("16분", result["travel"]["summary"])  # ceil(301 * 3 / 60), 지도 전체 합계와 같은 반올림
         self.assertEqual([p["placeId"] for p in result["places"]], ["2", "1", "3", "4"])
@@ -108,6 +130,39 @@ class CourseEditingTest(SimpleTestCase):
             result = editing.rebuild(places, CURRENT, "JAMSIL", None, "카페 맨 뒤로", [])
         self.assertEqual([p["phase"] for p in result["places"]], ["BEFORE", "GAME", "AFTER", "AFTER"])
         self.assertEqual(len(result["places"]), 4)
+
+    def test_explicit_date_edit_overrides_saved_game_and_recalculates_times(self):
+        changed_game = {**GAME, "date": "2026-10-15", "time": "17:00"}
+        before = deepcopy(CURRENT)
+        with patch.object(editing, "route_legs", return_value=[{"minutes": 5, "meters": 400, "by": "walk"}] * 3), \
+                patch.object(agent, "load_schedule", return_value=({}, 1)) as schedule, \
+                patch.object(agent, "find_game", return_value=(changed_game, False, [])):
+            result = editing.answer("10월 15일로 바꿔줘", [], CURRENT, "JAMSIL", None, parsed=plan("date", []))
+        self.assertEqual(schedule.call_args.args[1], "2026-10-15")
+        self.assertEqual(result["game"], {"date": "2026-10-15", "time": "17:00"})
+        self.assertEqual(next(p for p in result["places"] if p["category"] == "STADIUM")["time"], "16:40")
+        self.assertEqual([p["placeId"] for p in result["places"]], [p["placeId"] for p in CURRENT["places"]])
+        self.assertEqual(CURRENT, before)
+
+    def test_requested_date_with_no_game_preserves_course_without_old_game_fallback(self):
+        with patch.object(editing, "route_legs", return_value=[{"minutes": 5, "meters": 400, "by": "walk"}] * 3), \
+                patch.object(agent, "load_schedule", return_value=({"items": []}, 1)), \
+                patch.object(agent, "find_game", return_value=(None, False, [])):
+            result = editing.answer("10월 15일로 맞춰줘", [], CURRENT, "JAMSIL", None, parsed=plan("date", []))
+        self.assertEqual(result["places"], [])
+        self.assertNotIn("game", result)
+        self.assertIn("다른 날짜로 바꾸지 않고", result["answer"])
+
+    def test_combined_date_and_place_edit_searches_availability_on_requested_day(self):
+        dates = []
+        def candidates(*args):
+            dates.append(editing.availability.visit_date())
+            return []
+        with editing.availability.session(), patch.object(agent, "stadium_anchor", return_value=PLACES[2]), patch.object(editing, "candidates", side_effect=candidates):
+            result = editing.answer("2026-10-15로 바꾸고 카페 교체", [], CURRENT, "JAMSIL", None,
+                                    parsed=plan("replace", ["cafe"], category="CAFE"))
+        self.assertEqual(dates, ["2026-10-15"])
+        self.assertEqual(result["places"], [])
 
     def test_manual_course_without_stadium_has_no_invented_game_or_absolute_time(self):
         with patch.object(editing, "route_legs", return_value=[{"minutes": 8, "meters": 600, "by": "walk"}]), patch.object(agent, "load_schedule") as games:
@@ -143,6 +198,47 @@ class CourseEditingTest(SimpleTestCase):
                 return {"answer": "변경", "places": PLACES, "edit": True}
         with assistant.request_state("JAMSIL", "카페만 바꿔", [], current_course=CURRENT):
             self.assertEqual(assistant.plan_course("엉뚱한 요약", _course=FakeCourse), "변경")
+
+    def test_edit_destination_uses_confirmed_course_not_screen_default(self):
+        from types import SimpleNamespace
+        for current, saved in ((CURRENT, {}), (None, {"current": CURRENT, "stadiumCode": "JAMSIL"})):
+            for question, mode, expected in (("카페만 바꿔줘", "EDIT", "JAMSIL"),
+                                             ("고척으로 바꿔줘", "EDIT", "GOCHEOK"),
+                                             ("새로 짜줘", "NEW", "SAJIK")):
+                with self.subTest(question=question, current=bool(current)), assistant.request_state(
+                        "SAJIK", question, [], current_course=current) as state, patch.object(
+                        editing, "interpret", return_value=plan("clarify", [], clarification="확인")) as interpret, patch.object(
+                        editing, "answer", return_value={"answer": "확인", "places": []}), patch.object(
+                        agent, "_answer", return_value={"answer": "새 코스", "places": []}) as generate:
+                    state.update(course_request=mode, course_memory=deepcopy(saved))
+                    assistant.plan_course("사직 카페 변경", _course=agent)
+                    self.assertEqual(interpret.call_args.args[1]["stadiumCode"], expected)
+                    if mode == "EDIT" and expected == "JAMSIL":
+                        self.assertEqual(interpret.call_args.args[1]["places"], PLACES)
+                        generate.assert_not_called()
+                    if mode == "NEW":
+                        self.assertEqual(interpret.call_args.args[1]["places"], [])
+                        self.assertEqual(interpret.call_args.args[2], [])
+                        generate.assert_called_once()
+        # The V2 middleware must carry EDIT into the same shared caller.
+        request = SimpleNamespace(tool_call={"name": "plan_course", "id": "edit", "args": {}},
+                                  state={"messages": [HumanMessage("카페만 바꿔줘")],
+                                         "decision": {"course_request": "EDIT"},
+                                         "context": {"stadium": "SAJIK", "currentCourse": CURRENT}})
+        with patch.object(agent, "answer", return_value={"answer": "확인"}) as answer:
+            DynamicToolMiddleware(["plan_course"]).wrap_tool_call(request, lambda _: assistant.plan_course("사직 카페"))
+        self.assertEqual(answer.call_args.kwargs["hint_stadium"], "JAMSIL")
+        self.assertEqual(answer.call_args.kwargs["current_course"], CURRENT)
+
+    def test_direct_edit_destination_uses_saved_course_before_hint(self):
+        for kwargs in ({"current_course": CURRENT}, {"course_memory": {"current": CURRENT}}):
+            with self.subTest(kwargs=kwargs), patch.object(editing, "interpret", return_value=plan(
+                    "clarify", [], clarification="확인")) as interpret, patch.object(
+                    editing, "answer", return_value={"answer": "확인"}), patch.object(agent, "_answer") as generate:
+                agent.answer("카페만 바꿔줘", hint_stadium="SAJIK", course_request="EDIT", **kwargs)
+            self.assertEqual(interpret.call_args.args[1]["stadiumCode"], "JAMSIL")
+            self.assertEqual(interpret.call_args.args[1]["places"], PLACES)
+            generate.assert_not_called()
 
     def test_failed_edit_answer_is_not_rewritten_as_success(self):
         from types import SimpleNamespace

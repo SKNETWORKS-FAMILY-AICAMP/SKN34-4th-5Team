@@ -59,10 +59,11 @@ def course_payload(places, *, stadium_ko=None, game=None, walk_summary="",
     } for i, p in enumerate(usable)]
 
     first = usable[0] if usable else {}
+    from .game_metadata import annotate
     return {
         "title": _title(stadium_ko, game, sl.get("companionLabel"))[:MAX_TITLE],
         "stadium": (stadium_ko or "")[:MAX_STADIUM],
-        "content": ((f"시간 안내: {time_warning}\n\n" if time_warning else "") + _content(usable, game, walk_summary, sl, tr))[:MAX_CONTENT],
+        "content": annotate((f"시간 안내: {time_warning}\n\n" if time_warning else "") + _content(usable, game, walk_summary, sl, tr), game)[:MAX_CONTENT],
         "contentFormat": "",                             # 일반 텍스트 (choices 는 "" 아니면 "html")
         "duration": _duration(total_min)[:MAX_DURATION],
         "tags": _tags(game, sl, tr),
@@ -122,5 +123,5 @@ def _content(places, game, walk_summary, sl, tr=None):
     if sl.get("note"):
         lines.append(sl["note"])
     lines += (tr or {}).get("notes") or []
-    lines.append("카카오맵 기준 정보라 가시기 전에 영업 여부만 한 번 확인해 보세요!")
+    lines.append("방문 전 해당 매장의 영업 여부를 확인해 주세요.")
     return "\n".join(lines)

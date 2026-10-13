@@ -194,12 +194,20 @@ _PHASE_MARKER = re.compile(
 )
 _COUNT = re.compile(r"\s*(?:를|을)?\s*(한|두|세|네|다섯|[1-5])\s*(?:곳|군데)")
 _COUNT_VALUE = {"한": 1, "두": 2, "세": 3, "네": 4, "다섯": 5}
+_EXCLUDED_PHASE_VISITS = re.compile(
+    r"(?:" + _PHASE_MARKER.pattern + r")\s*(?:에는|에|은|는|만)?\s*"
+    r"(?:(?:다른|추가)\s*)?(?:장소|방문지|활동|일정)\s*(?:은|는|을|를|도)?\s*"
+    r"(?:넣|추가하|포함하|추천하)지\s*(?:말|마|않)"
+)
 
 
 def requested_itinerary(question):
     """사용자가 명시한 활동의 구간·순서·개수를 고정한다. None일 때만 기본 코스를 허용한다."""
     q = question or ""
     clean, excluded = _EXCLUDED_ACTIVITIES.subn(lambda m: " " * len(m.group()), q)
+    # A negated phase is not a new time marker for a following summary:
+    # '경기 후 호텔 숙박. 경기 전 다른 장소는 넣지 말고, 숙박만 포함'.
+    clean, excluded_phases = _EXCLUDED_PHASE_VISITS.subn(lambda m: " " * len(m.group()), clean)
     markers = list(_PHASE_MARKER.finditer(clean))
     result = {"BEFORE": [], "AFTER": []}
     hits = sorted((m.start(), -m.end(), kind, m.group()) for kind, pattern in AFTER_ACTIVITY.items()
@@ -233,7 +241,7 @@ def requested_itinerary(question):
             if kind != last_kind or phases != last_phases or repeat:
                 result[phase].extend([kind] * count)
         last_end, last_kind, last_phases = end, kind, phases
-    specified = any(result.values()) or excluded or re.search(r"귀가|집(?:에|으로)|바로\s*돌아", clean)
+    specified = any(result.values()) or excluded or excluded_phases or re.search(r"귀가|집(?:에|으로)|바로\s*돌아", clean)
     return result if specified else None
 
 
@@ -333,18 +341,14 @@ def apply_requested_visits(sl, visits, question):
     """Reuse the conversational interpreter's grounded activities, without another model call."""
     if visits is None:
         return sl
+    from .visit_requests import normalize
+    normalized = normalize(question, visits)
+    if normalized is None:
+        return sl
     itinerary = {"BEFORE": [], "AFTER": []}
-    compact = lambda value: re.sub(r"\s+", "", value)
-    for visit in visits:
-        if (not isinstance(visit, dict) or visit.get("kind") not in ACTIVITY_LABEL
-                or visit.get("phase") not in itinerary or not visit.get("expression")
-                or compact(visit["expression"]) not in compact(question)):
-            return sl
-        if (visit["kind"] == "SPOT" and re.search(r"구장|경기장|야구장", visit["expression"])
-                and not re.search(r"투어|박물관|기념관|관광", visit["expression"])):
-            continue
+    for visit in normalized:
         itinerary[visit["phase"]].append(visit["kind"])
-    return {**sl, "itinerary": itinerary, "after_kinds": itinerary["AFTER"],
+    return {**sl, "itinerary": itinerary, "after_kinds": itinerary["AFTER"], "requested_visits": normalized,
             "extras": [k.lower() for k in ("STAY", "WALK", "INDOOR") if any(k in v for v in itinerary.values())]}
 
 
