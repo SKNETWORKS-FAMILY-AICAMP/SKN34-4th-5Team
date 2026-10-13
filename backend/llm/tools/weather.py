@@ -21,7 +21,9 @@ def default_time(day, now):
     """시각을 모를 때 기준 시각과 그 근거. 오늘은 다음 정시, 다른 날은 18:30."""
     if day == now.date():
         nxt = (now + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
-        return ("23:00" if nxt.date() != day else nxt.strftime("%H:%M")), "오늘 다음 정시 기준(경기 시각 아님)"
+        if nxt.date() != day:
+            return "23:00", "오늘 마지막 정시 예보 기준(경기 시각 아님)"
+        return nxt.strftime("%H:%M"), "오늘 다음 정시 기준(경기 시각 아님)"
     return DEFAULT_TIME, f"{DEFAULT_TIME} 기준(경기 시각 아님)"
 
 
@@ -42,7 +44,7 @@ def create_weather_tools():
                 "weather_busy": "날씨 요청이 많아요. 잠시 후 다시 시도해 주세요.",
             }
             raise ToolException(messages.get(error.code, "날씨 정보를 불러오지 못했습니다.")) from None
-        if not basis:
+        if result is None or not basis:
             return result
         forecast_at = str(result.get("forecastAt", ""))[11:16]  # 기상청은 정시 예보라 요청 시각과 다를 수 있다
         if forecast_at and forecast_at != game_time:

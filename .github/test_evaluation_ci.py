@@ -141,7 +141,12 @@ class WiringTest(unittest.TestCase):
         for name in ('dev', 'prod'):
             workflow = (HERE / f'workflows/deploy-{name}.yml').read_text()
             self.assertIn('needs: [ci-test, evaluation-regression]', workflow)
-        self.assertEqual(len(ci.FREE), 8)
+        self.assertEqual(len(ci.FREE), 10)
+        self.assertEqual(ci.FREE[-2:], [
+            ['backend/llm/v2/tests/run_attachment_offline.py', 'llm.tests.test_domain_tools.ExternalDomainToolAdapterTest'],
+            [ci.EVAL + 'weather_contract.py', 'export', '--output', 'weather.json']])
+        self.assertIn("execute([EVAL + 'weather_contract.py', 'scorer-check'], offline=True)",
+                      (HERE / 'evaluation_ci.py').read_text())
         self.assertTrue(all((ci.ROOT / command[0]).is_file() for command in ci.FREE))
 
 

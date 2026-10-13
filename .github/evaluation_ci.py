@@ -20,6 +20,8 @@ FREE = [
     [EVAL + 'remaining.py', 'validate'],
     ['backend/llm/v2/tests/run_attachment_offline.py'],
     ['backend/llm/v2/tests/run_attachment_offline.py', 'llm.v2.evaluation.test_eval_ragas'],
+    ['backend/llm/v2/tests/run_attachment_offline.py', 'llm.tests.test_domain_tools.ExternalDomainToolAdapterTest'],
+    [EVAL + 'weather_contract.py', 'export', '--output', 'weather.json'],
 ]
 
 
@@ -157,6 +159,7 @@ def main():
         elif options.mode == 'highlight-free':
             execute([EVAL + 'test_highlight_deepeval.py', '-v'], offline=True)
             execute([EVAL + 'test_relocation.py', '-v'], offline=True)
+            execute([EVAL + 'weather_contract.py', 'scorer-check'], offline=True)
         elif options.mode in ('jev', 'supervisor'):
             require('OPENROUTER_API_KEY')
             if options.mode == 'supervisor':
