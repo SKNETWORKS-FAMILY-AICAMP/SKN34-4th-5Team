@@ -256,6 +256,7 @@ class VisitConditionsTests(SimpleTestCase):
             # This regression uses synthetic shops to isolate visit order/menu
             # scoping. Review quality has separate tests with reviewed branches.
             stack.enter_context(patch.object(agent.place_quality, "active", return_value=False))
+            stack.enter_context(patch.object(agent.place_quality, "filter_place", side_effect=lambda p, category: p))
             stack.enter_context(patch.object(editing, "interpret", return_value=plan("new", [], requested_visits=visits,
                 internal_venue_requests=[{"category": "FOOD", "expression": "구장 내부에서 츄러스 먹은"}])))
             for name, result in {"load_schedule": ({}, 7), "find_game": (game, False, [game]), "embed_many": ([.1], [.2]),
@@ -318,6 +319,9 @@ class DaejeonEnglishMenuCourseTests(SimpleTestCase):
 
         game = {"date": "2027-10-06", "time": "18:30", "home": "한화", "away": "NC", "status": "scheduled"}
         with ExitStack() as stack:
+            # Synthetic visit-order fixture; real bar admission is covered by
+            # test_course_bar_ratings, including stadiums outside the demo pair.
+            stack.enter_context(patch.object(agent.place_quality, "filter_place", side_effect=lambda p, category: p))
             stack.enter_context(patch.object(editing, "interpret", return_value=plan("new", [], requested_visits=visits,
                 internal_venue_requests=[{"category": "CAFE", "expression": "구장 내부에서 츄러스 먹은"}])))
             # 내부 매장을 초기 후보에 주입하지 않고 실제 저장 메뉴 검색으로 발견하게 한다.

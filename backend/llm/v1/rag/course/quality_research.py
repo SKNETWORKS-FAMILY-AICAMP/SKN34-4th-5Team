@@ -76,7 +76,9 @@ def metadata(html, url):
 def discover(place, reader):
     # Adding a neighbourhood makes this provider substitute popular district
     # results for the exact shop (and misses nearby Gangnam-side branches).
-    region = "광주" if place["stadium"] == "GWANGJU" else "서울"
+    region = {"GWANGJU": "광주", "JAMSIL": "서울", "GOCHEOK": "서울", "SAJIK": "부산",
+              "DAEGU": "대구", "DAEJEON": "대전", "SUWON": "수원", "CHANGWON": "창원", "MUNHAK": "인천"}.get(
+                  place["stadium"], str(place.get("address", "")).split()[0] if place.get("address") else "")
     seen = set()
     for query in (region + " " + place["name"], place["name"]):
         url = "https://www.diningcode.com/list.dc?query=" + quote(query)
@@ -89,7 +91,7 @@ def discover(place, reader):
                 yield candidate
 
 
-def profile(place, url, reader):
+def profile(place, url, reader, *, min_ratings=2):
     page = reader.read(url, [place["name"], place["address"]], complete_text=True, metadata_extractor=metadata)
     data = page.get("metadata", {}).get("profile", {})
     identity = SimpleNamespace(name=place["name"], address=place["address"])
@@ -99,7 +101,7 @@ def profile(place, url, reader):
     rating = data.get("aggregateRating") or {}
     try:
         score, count = float(rating["ratingValue"]), int(rating["reviewCount"])
-        if float(rating.get("bestRating", 5)) != 5 or not 0 < score <= 5 or count < 2:
+        if float(rating.get("bestRating", 5)) != 5 or not 0 < score <= 5 or count < min_ratings:
             return None
     except (KeyError, TypeError, ValueError, OverflowError):
         return None

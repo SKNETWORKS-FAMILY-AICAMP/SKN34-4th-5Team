@@ -96,12 +96,19 @@ jobs:
         env:
           TIKTOKEN_CACHE_DIR: ${{ runner.temp }}/evaluation-tiktoken
       - uses: actions/upload-artifact@v4
+        with:
+          name: course-contract-export
+          path: ${{ runner.temp }}/evaluation-free/tonkatsu.json
+          if-no-files-found: error
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: evaluation-free-summary
           path: ${{ runner.temp }}/evaluation-free/ci-summary.json
           retention-days: 7
   highlight-deterministic:
+    needs: deterministic
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -112,6 +119,12 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r .github/requirements-highlight.txt
+      - uses: actions/download-artifact@v4
+        with:
+          name: course-contract-export
+          path: ${{ runner.temp }}/course-contract
+      - name: Replay actual meal replacement contracts with Ragas (no provider calls)
+        run: python -I .github/evaluation_ci.py offline-exec backend/llm/v2/evaluation/tonkatsu_contract.py score --input "$RUNNER_TEMP/course-contract/tonkatsu.json" --output "$RUNNER_TEMP/course-contract/ragas.json"
       - run: python -I .github/test_evaluation_luna.py LunaSDKTest
       - run: python -I .github/evaluation_ci.py highlight-free --output "$RUNNER_TEMP/highlight-free"
       - uses: actions/upload-artifact@v4

@@ -6,6 +6,8 @@
 
 Python 3.12의 별도 job을 사용하며 운영 requirements는 변경하지 않습니다.
 
+2026-10-13 내부·외부 방문 구분 회귀: `deterministic`의 FREE 목록에 `run_attachment_offline.py llm.tests.test_course_tonkatsu llm.tests.test_course_literal_edits llm.tests.test_course_audit_repairs.CourseSelectionRepairTest`(27개)와 `tonkatsu_contract.py export`(17개 실제 함수 계약/DeepEval)를 추가했습니다. `course-contract-export` artifact를 후속 `highlight-deterministic`에서 내려받아 같은 결과와 고정 정답을 `tonkatsu_contract.py score`로 Ragas 채점합니다. 후속 job은 deterministic 성공에 의존합니다. `scorer-check`는 별도로 정상/오류 점수 대조를 검사합니다. 모두 기존 offline-exec의 네트워크 차단 안에서 실행하며 실제 제공자 품질 점수가 아닙니다.
+
 | 환경 | 실제 실행 대상 |
 | --- | --- |
 | DeepEval/backend | seed offline 13개, reviewed boundary offline 26개, test_evaluation 전체, attachment_shared 전체(소유 SQLite runner), test_remaining 전체 및 60-case validate, 기존 attachment offline runner 기본 5개 모듈 전체, relocated test_eval_ragas mock 회귀, 정확한 `llm.tests.test_domain_tools.ExternalDomainToolAdapterTest`(DB-heavy DomainToolsTest 제외), `weather_contract.py export` 실제 도구 11개 고정 계약/DeepEval |

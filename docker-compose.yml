@@ -37,7 +37,7 @@ services:
     stop_grace_period: 55s
     depends_on:
       jev-browser:
-        condition: service_started
+        condition: service_healthy
     logging: *default-logging
 
   jev-browser:
@@ -47,6 +47,16 @@ services:
     security_opt:
       - seccomp=./docker/jev-browser/seccomp.json
     shm_size: 256m
+    # Xvfb and Squid leave PID/socket files behind after an interrupted stop.
+    # Recreate only browser runtime files on every container start.
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,mode=1777,size=512m
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1',8080),2).close(); socket.create_connection(('127.0.0.1',3128),2).close(); s=socket.socket(socket.AF_UNIX); s.settimeout(2); s.connect('/tmp/.X11-unix/X99'); s.close()"]
+      interval: 15s
+      timeout: 8s
+      retries: 2
+      start_period: 15s
     environment:
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       TEXT_MODEL_API_KEY: ${RESEARCH_API_KEY:-${OPENAI_API_KEY:-}}

@@ -12,12 +12,21 @@ CUISINES = {
     "양식": "양식", "양식집": "양식", "양식당": "양식",
 }
 BRANDS = {"메가MGC커피": "메가MGC커피", "메가커피": "메가MGC커피", "컴포즈커피": "컴포즈커피"}
-MENUS = {"자장면": "짜장면", "짜장면": "짜장면", "돈카츠": "돈까스", "돈까스": "돈까스"}
+MENUS = {"자장면": "짜장면", "짜장면": "짜장면", "돈카츠": "돈까스", "돈까스": "돈까스", "돈가스": "돈까스"}
 GENERIC = {"카페": "카페", "커피": "카페", "식당": "식당", "음식점": "식당", "식사": "식당"}
 TERMS = {**CUISINES, **BRANDS, **GENERIC, **MENUS}
 COURSE_INSTRUCTIONS = frozenset({"모든이동은도보", "모든이동은도보로", "모두도보로이동",
     "도보로이동", "도보이동", "전체도보이동", "각장소는한곳씩", "각장소한곳씩",
     "방문지별한곳씩", "각방문지한곳씩"})
+
+# Exact preservation clauses change no venue requirement. Unknown trailing text
+# is never removed (parking, allergies, exclusions and extra questions survive).
+PRESERVE_REST = r"(?:나머지|다른)(?:일정|코스|방문지)?(?:은|는)?(?:그대로)?(?:유지해(?:줘|주세요)|둬(?:주세요)?|놔둬|그대로)"
+
+
+def without_preservation(question):
+    parts = [re.sub(r"\s+", "", p) for p in re.split(r"[.!?\n]+|\s+그리고\s+", question) if p.strip()]
+    return "".join(p for p in parts if not re.fullmatch(PRESERVE_REST, p))
 
 
 def course_scope(text):
@@ -91,7 +100,7 @@ def simple_edit_matches(question, terms):
     An interpreted 'cafe' summary must not erase an unknown brand, menu modifier
     or another venue condition in the original request.
     """
-    text = re.sub(r"[\s.!]+", "", question)
+    text = without_preservation(question)
     target = "|".join(sorted(TERMS, key=len, reverse=True))
     source_menu = "|".join(MENUS)
     match = re.fullmatch(
@@ -101,6 +110,22 @@ def simple_edit_matches(question, terms):
         + r"(?P<term>" + target + r")(?:가게|식당|음식점|카페|매장)?(?:으로|로)(?:만)?"
         + r"(?:바꿔(?:줘|주세요)|수정해(?:줘|주세요)|변경해(?:줘|주세요))", text)
     return bool(match and TERMS[match["term"]] in terms)
+
+
+def menu_hint(place, term):
+    """Specialty/name evidence only, never a search keyword or menu guarantee."""
+    if place.get("category") not in {"FOOD", "FOOD_OUT"}:
+        return False
+    if (str(place.get("placeId") or "").startswith("stadium-facility:")
+            or place.get("source") == "MYSEATCHECK"
+            or (place.get("stadiumArea") or {}).get("scope") == "internal"):
+        return False
+    name = re.sub(r"\s+", "", str(place.get("name", "")))
+    detail = re.sub(r"\s+", "", str(place.get("detail", "")))
+    if term == "돈까스":
+        return bool(re.search(r"돈까스|돈카츠|돈가스|돈카쓰", name + detail))
+    return bool(term == "짜장면" and re.search(r"(?:짜장|자장)(?:면)?", name)
+                and not re.search(r"(?:짜장|자장)(?:밥|소스|떡볶이|라면|범벅|김밥|버거|피자)", name))
 
 
 def choose(places, plan, question, *, verified=False):
@@ -120,16 +145,9 @@ def choose(places, plan, question, *, verified=False):
             def hinted(p, term):
                 if term not in menus:
                     return matches(p, term)
-                if p.get("category") not in {"FOOD", "FOOD_OUT", "FOOD_IN"}:
-                    return False
-                name = re.sub(r"\s+", "", str(p.get("name", "")))
-                detail = re.sub(r"\s+", "", str(p.get("detail", "")))
                 # A specific specialty/name is useful recommendation evidence.
                 # Generic Chinese/Japanese cuisine is insufficient for a dish.
-                if term == "돈까스":
-                    return bool(re.search(r"돈까스|돈카츠|돈가스|돈카쓰", name + detail))
-                return bool(re.search(r"(?:짜장|자장)(?:면)?", name)
-                            and not re.search(r"(?:짜장|자장)(?:밥|소스|떡볶이|라면|범벅|김밥|버거|피자)", name))
+                return menu_hint(p, term)
             candidates = [p for p in places if all(hinted(p, term) for term in terms)]
             if candidates:
                 return [{**p, "catalogMenuHint": menus,

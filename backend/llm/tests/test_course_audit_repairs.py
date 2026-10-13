@@ -19,10 +19,10 @@ from llm.v2.middleware.dynamic_tools import request_args
 class CourseSelectionRepairTest(SimpleTestCase):
     def setUp(self):
         self.current = {**deepcopy(CURRENT), 'places': [
-            {**PLACES[0], 'label': '1', 'name': 'STATION'},
-            *deepcopy(PLACES[1:]), {**PLACES[0], 'label': '5', 'name': '술집', 'visitId': 'bar'}]}
+            {**PLACES[0], 'label': '1', 'name': '첫번째식당'},
+            *deepcopy(PLACES[1:]), {**PLACES[0], 'label': '5', 'name': '두번째식당', 'visitId': 'bar'}]}
         self.original = '식당이 좀 별로다. 돈카츠 가게로 수정해줘'
-        self.choices = ['1번 STATION', '5번 술집']
+        self.choices = ['1번 첫번째식당', '5번 두번째식당']
         self.saved = {**memory.empty(), 'current': deepcopy(self.current)}
         plan = literal_edits._interpret(self.original, self.current, target=self.current['places'][0])
         plan.update(operation='clarify', targets=[], clarification='대상을 알려 주세요')
@@ -39,7 +39,7 @@ class CourseSelectionRepairTest(SimpleTestCase):
         turns = {'h': {'status': 'completed', 'answer_id': 'a'}}
         self.assertEqual(memory.restore(messages, turns)['pending_selection'], self.saved['pending_selection'])
         projected = _model_history(messages, turns)
-        state = {'messages': [*projected, HumanMessage(prompt + ': 1번 STATION')]}
+        state = {'messages': [*projected, HumanMessage(prompt + ': 1번 첫번째식당')]}
         _, _, history = request_args(state, course=True)
         self.assertNotIn('planning_questions', request_args(state)[2][-1])
         return history
@@ -49,7 +49,7 @@ class CourseSelectionRepairTest(SimpleTestCase):
         for prompt in ['돈카츠 가게로 바꿀 식당을 골라 주세요.', '돈카츠 가게로 변경할 식당을 골라 주세요.',
                        '어느 식당을 돈카츠로 바꿀까요?', '교체할 곳을 선택해 주세요']:
             history = self.history(prompt)
-            for answer in ['1번 STATION', 'STATION', prompt + ': 1번 STATION']:
+            for answer in ['1번 첫번째식당', '첫번째식당', prompt + ': 1번 첫번째식당']:
                 with self.subTest(prompt=prompt, answer=answer), patch.object(agent, 'llm') as model:
                     result = editing.interpret(answer, self.current, history, self.saved)
                     self.assertEqual(result['targets'], ['food'])
@@ -62,7 +62,7 @@ class CourseSelectionRepairTest(SimpleTestCase):
     def test_stale_extra_or_unoffered_selection_never_uses_fast_path(self):
         prompt = '돈카츠 가게로 바꿀 식당을 골라 주세요.'
         history = self.history(prompt)
-        for answer in [prompt + ': 1번 STATION 그리고 주차 가능', '5번 STATION', '기존 카페', '다른 질문: 1번 STATION']:
+        for answer in [prompt + ': 1번 첫번째식당 그리고 주차 가능', '5번 첫번째식당', '기존 카페', '다른 질문: 1번 첫번째식당']:
             self.assertIsNone(literal_edits.interpret(answer, self.current, self.saved, history))
         for change in ['date', 'visit', 'order', 'name', 'category']:
             current = deepcopy(self.current)
@@ -71,28 +71,28 @@ class CourseSelectionRepairTest(SimpleTestCase):
             if change == 'order': current['places'].reverse()
             if change == 'name': current['places'][0]['name'] = '다른 식당'
             if change == 'category': current['places'][0]['category'] = 'CAFE'
-            self.assertIsNone(literal_edits.interpret(prompt + ': 1번 STATION', current, self.saved, history))
+            self.assertIsNone(literal_edits.interpret(prompt + ': 1번 첫번째식당', current, self.saved, history))
         history[0]['content'] = '주차 가능한 돈카츠로 바꿔줘'
-        self.assertIsNone(literal_edits.interpret('STATION', self.current, self.saved, history))
+        self.assertIsNone(literal_edits.interpret('첫번째식당', self.current, self.saved, history))
 
     def test_phase_name_choices_map_to_the_same_visit_and_source_without_guessing(self):
         from llm.v2.agent.chat_ui import with_place_links
         from llm.place_choices import selected_place
-        self.current['places'][0]['placeUrl'] = 'https://myseatcheck.com/station/'
-        self.choices = ['경기 전 STATION', '5번 술집']
+        self.current['places'][0]['placeUrl'] = 'https://place.map.kakao.com/123'
+        self.choices = ['경기 전 첫번째식당', '5번 두번째식당']
         history = self.history('돈카츠 가게로 바꿀 곳이 어디예요?')
-        result = literal_edits.interpret('돈카츠 가게로 바꿀 곳이 어디예요?: 경기 전 STATION', self.current, self.saved, history)
+        result = literal_edits.interpret('돈카츠 가게로 바꿀 곳이 어디예요?: 경기 전 첫번째식당', self.current, self.saved, history)
         self.assertEqual(result['targets'], ['food'])
         payload = with_place_links({'offer_writer': False, 'questions': history[-1]['planning_questions']},
                                    {'context': {'currentCourse': self.current}})
-        self.assertEqual(payload['questions'][0]['choice_links'][0]['url'], 'https://myseatcheck.com/station/')
-        self.assertIsNone(selected_place('경기 후 STATION', self.current['places']))
+        self.assertEqual(payload['questions'][0]['choice_links'][0]['url'], 'https://place.map.kakao.com/123')
+        self.assertIsNone(selected_place('경기 후 첫번째식당', self.current['places']))
 
     def test_detailed_requests_and_other_chat_questions_have_no_course_binding(self):
         for question in ['돈카츠로 바꿔줘 그리고 주차도 가능해야 해', '알레르기 없는 돈카츠로 바꿔줘',
                          '식당을 돈카츠로 바꿔줘 그리고 카페도 메가커피로 바꿔줘', '경기 일정 알려줘']:
             self.assertIsNone(literal_edits.pending_selection(question, self.current, self.saved))
-        self.assertIsNone(literal_edits.interpret('STATION', self.current, {}, self.history('어느 곳?')))
+        self.assertIsNone(literal_edits.interpret('첫번째식당', self.current, {}, self.history('어느 곳?')))
 
 
 @override_settings(COURSE_WEB_VERIFICATION_ENABLED=True, PLACE_EVIDENCE_STORAGE_POLICIES=[])

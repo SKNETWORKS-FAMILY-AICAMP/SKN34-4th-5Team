@@ -30,6 +30,12 @@ class RecommendationPolicyTests(SimpleTestCase):
         with policy.request("술집 코스"), quality.request_scope("GWANGJU"), patch.object(quality, "resolve", return_value=None):
             self.assertIsNone(quality.filter_place({**PLACE, "detail": "술집 > 룸싸롱"}, "FOOD"))
             self.assertIsNone(quality.filter_place({**PLACE, "placeId": "18774818"}, "FOOD"))
+            for code in ("GWANGJU", "JAMSIL"):
+                with self.subTest(code=code), quality.request_scope(code):
+                    excluded = {**PLACE, "placeId": "119189575", "name": "입술", "detail": "음식점 > 술집"}
+                    self.assertFalse(quality.candidate_allowed(excluded))
+                    self.assertIsNone(quality.filter_place(excluded, "FOOD"))
+                    self.assertIsNone(quality.filter_place({"id": "119189575", "place_name": "입술"}, "FD6"))
 
     def test_explicit_research_preserves_strict_gate_and_context_is_reset(self):
         for question in ("평점 있는 술집", "깔끔한 카페", "실제 메뉴 근거를 확인해줘", "주차 가능한 식당"):
