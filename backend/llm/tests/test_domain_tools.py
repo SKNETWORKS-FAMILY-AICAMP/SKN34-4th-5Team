@@ -375,7 +375,7 @@ class ExternalDomainToolAdapterTest(SimpleTestCase):
         with patch("travel.weather_service.get_stadium_weather", return_value=weather) as get_weather:
             self.assertEqual(self.tools["get_weather"].invoke({
                 "stadium_code": "JAMSIL", "game_date": "2026-09-16", "game_time": "18:30",
-            }), weather)
+            }), {**weather, "precipitation": "없음"})
         get_weather.assert_called_once_with("JAMSIL", "2026-09-16", "18:30")
 
     def test_weather_without_game_time_uses_stated_default_time(self):
@@ -390,7 +390,15 @@ class ExternalDomainToolAdapterTest(SimpleTestCase):
         with patch("travel.weather_service.get_stadium_weather", return_value=weather) as get_weather:
             result = self.tools["get_weather"].invoke({"stadium_code": "MUNHAK", "game_date": "2099-01-02"})
         get_weather.assert_called_once_with("MUNHAK", "2099-01-02", "18:30")
-        self.assertEqual(result, {**weather, "requestedTime": "18:30", "timeBasis": "18:30 기준(경기 시각 아님)"})
+        self.assertEqual(result, {**weather, "precipitation": "비", "requestedTime": "18:30", "timeBasis": "18:30 기준(경기 시각 아님)"})
+        cloudy = {"label": "흐림", "temperature": 19}
+        with patch("travel.weather_service.get_stadium_weather", return_value=cloudy):
+            self.assertEqual(self.tools["get_weather"].invoke({"stadium_code": "MUNHAK", "game_date": "2099-01-02"})["precipitation"], "없음")
+        with patch("travel.weather_service.get_stadium_weather", return_value=None):
+            missing = self.tools["get_weather"].invoke({"stadium_code": "MUNHAK", "game_date": "2099-01-02"})
+        self.assertEqual((missing["available"], missing["requestedTime"]), (False, "18:30"))
+        with patch("travel.weather_service.get_stadium_weather", return_value=None):
+            self.assertIsNone(self.tools["get_weather"].invoke({"stadium_code": "MUNHAK", "game_date": "2099-01-02", "game_time": "18:30"}))
         hourly = {**weather, "forecastAt": "2099-01-02T19:00+09:00"}
         with patch("travel.weather_service.get_stadium_weather", return_value=hourly):
             result = self.tools["get_weather"].invoke({"stadium_code": "MUNHAK", "game_date": "2099-01-02"})
