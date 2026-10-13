@@ -174,7 +174,9 @@ class WiringTest(unittest.TestCase):
                        'llm.tests.test_course_literal_edits', 'llm.tests.test_course_audit_repairs.CourseSelectionRepairTest',
                        'llm.tests.test_course_bar_ratings', 'llm.tests.test_course_quality_research',
                        'llm.tests.test_course_recommendation_policy', 'llm.tests.test_course_visit_requests',
-                       'llm.tests.test_course_candidates'], ci.FREE)
+                       'llm.tests.test_course_candidates',
+                       'llm.tests.test_llm_temperature.ResponsesPayloadTest.test_v2_agents_use_the_single_v2_model_factory',
+                       'llm.tests.test_llm_temperature.ResponsesPayloadTest.test_luna_constructors_omit_temperature'], ci.FREE)
         self.assertIn([ci.EVAL + 'tonkatsu_contract.py', 'export', '--output', 'tonkatsu.json'], ci.FREE)
         self.assertIn("execute([EVAL + 'tonkatsu_contract.py', 'scorer-check'], offline=True)",
                       (HERE / 'evaluation_ci.py').read_text())

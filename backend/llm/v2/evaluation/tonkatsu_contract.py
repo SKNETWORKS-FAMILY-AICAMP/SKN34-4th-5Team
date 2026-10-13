@@ -26,6 +26,13 @@ QUESTIONS = [
     '식당을 돈가스로 바꿔줘. 나머지는 그대로 둬',
 ]
 CASES = [
+    {'id':'preserve-cutlet-category-fallback', 'kind':'candidate_sources',
+     'expected':{'queries':['돈까스','돈가스','돈카츠',''], 'ids':['generic','specialty']}},
+    {'id':'preserve-chinese-profile-order', 'kind':'profile_order',
+     'expected':['mala','generic']},
+    {'id':'preserve-agent-model-settings', 'kind':'model_settings',
+     'expected':{'agents':[['gpt-6-luna','medium',25.0,0,True,1200]]*4,
+                 'low':'low','medium_after':'medium','cached':True}},
     {'id':'chinese-semantic-menu', 'kind':'chinese_compound', 'expected':['meal']},
     {'id':'chinese-quiet-unconfirmed', 'kind':'chinese_compound', 'quiet':True, 'expected':[]},
     {'id':'chinese-quiet-confirmed', 'kind':'chinese_compound', 'quiet':True, 'proof':True, 'expected':['meal']},
@@ -82,6 +89,60 @@ def encoded(value):
 
 def observe(case):
     from llm.v2.course import literal_edits, editing, evidence_memory, recommendation_policy
+    if case['kind']=='candidate_sources':
+        from llm.v2.course import agent
+        queries=[]
+        def lookup(_domain,_tool,args):
+            query=args.get('query','')
+            queries.append(query)
+            if query not in ('돈가스',''):
+                return {'places':[]}
+            return {'places':[{'id':'generic' if query else 'specialty',
+                'place_name':'시험 식당' if query else '시험 돈까스',
+                'x':'127.001','y':'37.5'}]}
+        anchor={'lat':37.5,'lng':127.,'category':'FOOD'}
+        with patch.object(agent,'invoke_domain_tool',side_effect=lookup):
+            result=editing.candidates(anchor,anchor,{'query':'돈까스'},[])
+        return {'queries':queries,'ids':[p['placeId'] for p in result]}
+    if case['kind']=='profile_order':
+        from llm.v2.course import profile_features, place_quality
+        from unittest.mock import Mock
+        places=[{**MEAL,'name':'시험 일반 식당','placeId':'generic','detail':'음식점 > 한식'},
+                {**MEAL,'name':'시험 마라 식당','placeId':'mala','detail':'음식점 > 중식 > 마라탕'}]
+        reads=[]
+        def read(place,reader):
+            reads.append(place['placeId'])
+            return None
+        req=evidence_memory.Requirement(term='짜장면',attribute='menu',intent='required',group='menu')
+        with patch.object(profile_features,'investigation_order',side_effect=lambda p,*a:list(p)), \
+                patch.object(profile_features,'read_profile',side_effect=read), \
+                patch.object(profile_features.parallel,'reads',side_effect=lambda jobs:[job() for job in jobs]), \
+                patch.object(profile_features.quality_research,'ProfileReader',return_value=Mock()), \
+                patch.object(place_quality,'probing',return_value=False), \
+                patch.object(evidence_memory,'checked_rows',return_value=[]), \
+                patch.object(evidence_memory,'condition_result',return_value=([],False)):
+            profile_features.collect(places,[req],{})
+        return reads
+    if case['kind']=='model_settings':
+        from llm.v2.course import agent as course
+        from llm.v2.club import agent as club
+        from llm.v2.nearby import agent as nearby
+        from llm.v2.venue import agent as venue
+        from llm.v2.agent import common
+        from django.conf import settings
+        # Constructors only: no provider call; pin the same output cap/settings.
+        common.llm.cache_clear()
+        with patch.dict(os.environ,{'OPENAI_API_KEY':'offline-placeholder','LLM_MODEL':'gpt-6-luna'}), \
+                patch.object(settings,'USAGE_MAX_CALL_OUTPUT_TOKENS',1200), \
+                patch.object(course,'_llm',None), patch.object(club,'_llm',None), \
+                patch.object(nearby,'_llm',None), patch.object(venue,'_llm',None):
+            models=[a.llm() for a in (course,club,nearby,venue)]
+            result={'agents':[[m.model_name,m.reasoning_effort,m.request_timeout,m.max_retries,
+                             m.use_responses_api,m.max_tokens] for m in models],
+                    'low':course.llm(reasoning_effort='low').reasoning_effort,
+                    'medium_after':course.llm().reasoning_effort,'cached':course.llm() is models[0]}
+        common.llm.cache_clear()
+        return result
     if case['kind']=='chinese_compound':
         from llm.v2.course import profile_features
         place={**MEAL,'name':'시험 중화 식당'}

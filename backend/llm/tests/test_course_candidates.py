@@ -73,7 +73,7 @@ class CourseCandidatesTest(SimpleTestCase):
         self.assertEqual([p["placeId"] for p in result], ["1"])
         self.assertEqual(result[0]["_search_query"], "돈가스")
 
-    def test_non_specialty_hit_tries_remaining_spelling_but_not_category(self):
+    def test_non_specialty_hit_preserves_remaining_spelling_and_category(self):
         from llm.v2.course.editing import candidates
         anchor = {"lat": 37.5, "lng": 127.0, "category": "FOOD"}
         queries = []
@@ -86,7 +86,7 @@ class CourseCandidatesTest(SimpleTestCase):
 
         with patch.object(course, "invoke_domain_tool", side_effect=lookup):
             result = candidates(anchor, anchor, {"query": "돈까스"}, [])
-        self.assertEqual(queries, ["돈까스", "돈가스", "돈카츠"])
+        self.assertEqual(queries, ["돈까스", "돈가스", "돈카츠", ""])
         self.assertEqual([p["placeId"] for p in result], ["1"])
 
     def test_requested_menu_searches_specific_keywords_only_for_requested_activity(self):
