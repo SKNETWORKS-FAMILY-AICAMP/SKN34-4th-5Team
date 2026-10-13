@@ -20,15 +20,20 @@ LAST = "오늘 마지막 정시 예보 기준(경기 시각 아님)"
 
 
 def case(id, fields, now, response, time, basis=None):
-    expected = response if basis is None or response is None else {
-        **response, "requestedTime": time, "timeBasis": basis}
+    expected = None if response is None else {
+        **response, "precipitation": response.get("label") if response.get("label") in
+        {"비", "비/눈", "눈", "소나기"} else "없음"}
+    if basis is not None:
+        expected = {"available": False, "requestedTime": time, "timeBasis": basis,
+                    "message": "기상청 단기예보에 해당 시각 예보가 아직 없다"} if response is None else {
+            **expected, "requestedTime": time, "timeBasis": basis}
     return {"id": id, "input": {**BASE, **fields}, "now": now, "response": response,
             "expected": {"result": expected, "calls": [["JAMSIL", fields.get("game_date", BASE["game_date"]), time]]}}
 
 
 CASES = [
-    case("omitted-none", {}, "09:40", None, "10:00"),
-    case("null-none", {"game_time": None}, "09:40", None, "10:00"),
+    case("omitted-none", {}, "09:40", None, "10:00", NEXT),
+    case("null-none", {"game_time": None}, "09:40", None, "10:00", NEXT),
     case("explicit-none", {"game_time": "10:00"}, "09:40", None, "10:00"),
     case("explicit-result", {"game_time": "18:30"}, "09:40", WEATHER, "18:30"),
     case("today-next", {}, "09:40", WEATHER, "10:00", NEXT),

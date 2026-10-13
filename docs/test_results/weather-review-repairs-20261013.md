@@ -70,3 +70,17 @@
 - 새 scorer/harness SHA256 `e2859ee94002118599835f8e25d9fe128bbfe37f210a08e83630695edf5c32b5`; replay는 기존 producing harness SHA를 보존하고 scorer_sha256를 별도로 기록
 
 원시 로그/JSON과 후속 보고서는 동일 scratch의 `scorer-repair/`에 보존했다. 전체 free 및 Docker 24개는 production 해시 일치에 따라 위 기존 결과를 승계했으며 이번에 재실행하지 않았다. 네트워크 차단·dotenv/tracing 비활성·DeepEval read-only 환경이며 유료 호출 0; 독립 최종 검토와 제공자 품질 평가는 여전히 별도다.
+
+## 원격 afcfaaa 통합 — 승인 계약 v2 (2026-10-13)
+
+위 결과는 역사적 v1 계약으로 보존한다. 사용자 승인에 따라 precipitation 명시 및 생략/null 무예보 안내 dict를 유지하는 v2 기준을 먼저 기록하고 독립 기대값을 동결했다. 실제 pinned afcfaaa archive/backend·공개 fixture와 동일 신규 harness로 A를 실행한 다음 `git merge --no-commit --no-ff afcfaaae1e8e01314ad9eba2f7ca523d24b536ca`로 통합했다. weather.py 충돌은 원격 강수/무예보 계약과 로컬23h 마지막 정시를 모두 보존했고 자동 병합 테스트의 이전 None/23h 기대값만 승인 계약에 맞췄다.
+
+- v2 cases SHA256: `ef65f881b9df891cbd78f10e387dd0a15d3c299fecc5a365a83c59bde4ee915c`
+- 동일 A/B harness SHA256: `6127c1c28206d6f747a1293cb49ec0f6b6daf45364c387288b8d48d6ed7288a3`
+- 동일 11개 입력·서비스 fixture(precipitation 사전 주입 없음)·완전 일치 지표·DeepEval4.2.8/Ragas0.4.3·Python3.12.12·설정 유지
+- A 두 framework 각각8/11, 종료1: last-23:00/23:30/23:59의 허위 다음 정시만 실패; B 각각11/11, 종료0
+- 실제 free/highlight-free 모두 종료0, CI wiring10/10, pinned Docker adapter24/24 재실행 성공
+- highlight-free의 정상1/오류0 합성 대조 및 canonical expected/hash/ID/행 변조 거절 유지
+- HEAD48be37e 유지, MERGE_HEAD afcfaaa, unmerged entries 없음, 양쪽 diff check 성공; commit/push 없음
+
+명령은 위 실제 검증 명령과 동일하며 신규 output만 `/Users/yunseongho/.hermes/cache/scratch/weather-push-integration/`으로 변경했다. A-source의 신규 harness도 동일 launcher로 실행했고 score는 같은 frozen canonical harness로 실행했다. 원시 A-export/A-score/B-export/B-score JSON·각 로그, free/highlight-free/wiring/docker-adapter 로그 및 manifest/implementation-report를 이 scratch에 보존한다. 네트워크 차단·dotenv/telemetry/tracing 비활성·read-only 평가, 유료 호출0; 최종 답변·live 제공자·hosted Actions·배포 미측정 및 독립 검토 대기는 유지한다.
