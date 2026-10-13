@@ -8,10 +8,40 @@ import uuid
 from datetime import timedelta
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
-from community.models import ModerationJob
-from community.moderation_service import locked_target, apply_decision_locked
+from community.models import CommunityPost, CommunityComment, ModerationJob
+from community.moderation_service import locked_target, apply_decision_locked, enqueue_locked
+
+
+def enqueue_unchecked():
+    """Backfill absent current-revision jobs; preserve existing results/retry limits.
+
+Materialize candidate IDs before enqueueing so this is a finite scan. Recheck
+under the same parent-before-comment locks as normal submission and review.
+Cancelled jobs may be replaced; failed jobs require the existing explicit retry.
+"""
+    counts = {'posts': 0, 'comments': 0}
+    for model, relation, count_key in (
+        (CommunityPost, 'post_id', 'posts'),
+        (CommunityComment, 'comment_id', 'comments'),
+    ):
+        current_jobs = ModerationJob.objects.filter(
+            **{relation: OuterRef('pk')}, revision=OuterRef('content_revision'),
+        ).exclude(state='cancelled')
+        candidates = list(model.objects.annotate(has_job=Exists(current_jobs))
+                          .filter(has_job=False).values_list('pk', flat=True))
+        for pk in candidates:
+            with transaction.atomic():
+                ref = ModerationJob(**{relation: pk})
+                obj = locked_target(ref)
+                if obj is None or obj.moderation_jobs.filter(
+                    revision=obj.content_revision,
+                ).exclude(state='cancelled').exists():
+                    continue
+                enqueue_locked(obj, enforce_limit=False)
+                counts[count_key] += 1
+    return counts
 
 
 @transaction.atomic

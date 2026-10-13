@@ -7,13 +7,43 @@ from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
-from .models import CommunityPost, ModerationJob, ModerationReview
+from .models import CommunityPost, CommunityComment, ModerationJob, ModerationReview
 from .moderation_checks import check, finding
 from .moderation_worker import claim, finish, run_one
 
 
 @override_settings(COMMUNITY_MODERATION_MODE='manual', COMMUNITY_POLICY_VERSION='community-v1')
 class ModerationIntegrationTests(APITestCase):
+    def test_unchecked_command_backfills_legacy_content_without_rechecking(self):
+        from io import StringIO
+        from services.community_moderation import enqueue_unchecked
+        completed = self.submit(key='completed')
+        run_one()
+        failed = self.submit(key='failed')
+        with override_settings(COMMUNITY_MODERATION_MAX_ATTEMPTS=1):
+            run_one(lambda payload: (_ for _ in ()).throw(TimeoutError()))
+        legacy = CommunityPost.objects.create(owner=self.owner, board='free',
+            title='과거 글', content='야구 이야기', category='잡담',
+            moderation_status='approved', approved_revision=0, is_hidden=True)
+        comment = CommunityComment.objects.create(post=legacy, author=self.owner,
+            content='과거 댓글', moderation_status='approved', approved_revision=0)
+        counts = enqueue_unchecked()
+        self.assertGreaterEqual(counts['posts'], 1)
+        self.assertGreaterEqual(counts['comments'], 1)
+        legacy.refresh_from_db()
+        self.assertEqual(legacy.moderation_status, 'pending')
+        self.assertTrue(legacy.is_hidden)
+        self.assertEqual(enqueue_unchecked(), {'posts': 0, 'comments': 0})
+        with patch('llm.commands.run_moderation_worker.close_old_connections'):
+            call_command('filter_unchecked_content', stdout=StringIO())
+        legacy.refresh_from_db()
+        comment.refresh_from_db()
+        self.assertEqual((legacy.moderation_status, comment.moderation_status), ('review', 'review'))
+        self.assertTrue(legacy.is_hidden)
+        self.assertEqual(completed.moderation_jobs.count(), 1)
+        self.assertEqual(failed.moderation_jobs.get().state, 'failed')
+        self.assertEqual(enqueue_unchecked(), {'posts': 0, 'comments': 0})
+
     def test_llm_command_drains_post_and_comment_through_service(self):
         parent = self.submit(key='parent')
         run_one(lambda payload: ([], {}))
