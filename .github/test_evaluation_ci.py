@@ -168,7 +168,7 @@ class WiringTest(unittest.TestCase):
         for name in ('dev', 'prod'):
             workflow = (HERE / f'workflows/deploy-{name}.yml').read_text()
             self.assertIn('needs: [ci-test, evaluation-regression]', workflow)
-        self.assertEqual(len(ci.FREE), 13)
+        self.assertEqual(len(ci.FREE), 14)
         self.assertIn(['backend/llm/v2/tests/run_attachment_offline.py', 'llm.tests.test_course_tonkatsu',
                        'llm.tests.test_course_literal_edits', 'llm.tests.test_course_audit_repairs.CourseSelectionRepairTest'], ci.FREE)
         self.assertIn([ci.EVAL + 'tonkatsu_contract.py', 'export', '--output', 'tonkatsu.json'], ci.FREE)
@@ -177,9 +177,10 @@ class WiringTest(unittest.TestCase):
         regression = (HERE / 'workflows/evaluation-regression.yml').read_text()
         self.assertIn('name: course-contract-export', regression)
         self.assertIn('tonkatsu_contract.py score --input', regression)
-        self.assertEqual(ci.FREE[-2:], [
+        self.assertEqual(ci.FREE[-3:], [
             ['backend/llm/v2/tests/run_attachment_offline.py', 'llm.tests.test_domain_tools.ExternalDomainToolAdapterTest'],
-            [ci.EVAL + 'weather_contract.py', 'export', '--output', 'weather.json']])
+            [ci.EVAL + 'weather_contract.py', 'export', '--output', 'weather.json'],
+            ['backend/llm/v2/tests/run_attachment_offline.py', 'llm.tests.test_chat_eval']])
         self.assertIn("execute([EVAL + 'weather_contract.py', 'scorer-check'], offline=True)",
                       (HERE / 'evaluation_ci.py').read_text())
         self.assertIn([ci.EVAL + 'test_course_dataset.py', '-v'], ci.FREE)
