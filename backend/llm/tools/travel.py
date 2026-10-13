@@ -51,7 +51,32 @@ class CourseInput(ToolInput):
 
 class DirectionsInput(ToolInput):
     mode: str = Field(pattern="^(car|walk|transit)$")
-    points: list[dict[str, StrictFloat]] = Field(min_length=2, max_length=13)
+    points: list[dict[str, StrictFloat]] = Field(min_length=2, max_length=13,
+                                                description='각 지점은 {"lat": 위도, "lng": 경도}. get_stadium·search_places의 latitude/longitude 이름 그대로 넣어도 된다')
+
+    @model_validator(mode="before")
+    @classmethod
+    def accept_latitude_longitude(cls, data):
+        """구장·장소 도구는 latitude/longitude(문자열 좌표 포함)를 돌려준다. 모델이 그대로 넘기면 첫 호출이
+        형식 오류로 실패하고 호출 한도(2회)만 쓰므로(chat_eval dr-1 route1), 같은 좌표를 lat/lng 숫자로 맞춘다."""
+        if not isinstance(data, dict) or not isinstance(data.get("points"), list):
+            return data
+        def number(value):
+            if isinstance(value, str):
+                try:
+                    return float(value)
+                except ValueError:
+                    return value
+            return value
+        points = []
+        for point in data["points"]:
+            if isinstance(point, dict) and ("latitude" in point or "longitude" in point) and not {"lat", "lng"} & set(point):
+                point = {"lat": point.get("latitude"), "lng": point.get("longitude"),
+                         **{k: v for k, v in point.items() if k not in ("latitude", "longitude")}}
+            if isinstance(point, dict):
+                point = {k: number(v) if k in ("lat", "lng") else v for k, v in point.items()}
+            points.append(point)
+        return {**data, "points": points}
 
     @model_validator(mode="after")
     def validate_points(self):

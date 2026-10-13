@@ -284,6 +284,18 @@ class DomainToolsTest(TestCase):
         self.assertEqual((result["durationMinutes"], result["distanceKm"], result["legs"][0]["minutes"]), (49, 3.1, 49))
         self.assertEqual(with_summary({"mode": "walk", "legs": []})["durationMinutes"], None)
 
+    def test_directions_accepts_latitude_longitude_points_from_place_tools(self):
+        directions = {"mode": "walk", "legs": [], "distance": 3091, "seconds": 2946}
+        with patch("travel.directions_provider.fetch_directions", return_value=directions) as fetch:
+            result = self.tools["get_directions"].invoke({"mode": "walk", "points": [
+                {"latitude": 37.5133, "longitude": 127.1002}, {"latitude": "37.51218540", "longitude": "127.07185130"}]})
+        fetch.assert_called_once_with("walk", [{"lat": 37.5133, "lng": 127.1002}, {"lat": 37.5121854, "lng": 127.0718513}])
+        self.assertEqual(result["durationMinutes"], 49)
+        with patch("travel.directions_provider.fetch_directions") as fetch:
+            self.tools["get_directions"].invoke({"mode": "walk", "points": [{"latitude": 37.5, "longitude": 127.0, "x": 1.0}, {"lat": 37.6, "lng": 127.1}]})
+            self.tools["get_directions"].invoke({"mode": "walk", "points": [{"latitude": "abc", "longitude": 127.0}, {"lat": 37.6, "lng": 127.1}]})
+        fetch.assert_not_called()  # 다른 키가 섞이거나 숫자가 아니면 그대로 형식 오류
+
     def test_database_errors_are_sanitized(self):
         with patch("llm.tools.stadium.Stadium.objects.filter", side_effect=DatabaseError("password=private")):
             result = self.tools["get_stadium"].invoke({"stadium_id": 1})
