@@ -27,6 +27,15 @@ test("accepts an official regular-season full game highlight", () => {
   ), true);
 });
 
+test("accepts official postseason full game highlights with the title sponsor", () => {
+  assert.equal(isKboLeagueHighlightTitle(
+    "[KT위즈 vs 삼성라이온즈] 10.14(수) 야구 하이라이트｜2026 신한 SOL KBO 포스트시즌｜KBO X TVING",
+  ), true);
+  assert.equal(isKboLeagueHighlightTitle(
+    "진짜 가을은 집으로 돌아가는 여정에서 시작된다. | 2026 신한 SOL KBO 포스트시즌 | 10월 14일 D-Day",
+  ), false);
+});
+
 test("rejects Futures League and short-form highlight videos", () => {
   assert.equal(isKboLeagueHighlightTitle(
     "[2026 메디힐 KBO 퓨처스리그 H/L] 한화 vs LG 야구 하이라이트｜KBO X TVING",

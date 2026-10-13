@@ -43,10 +43,13 @@ services:
       dockerfile: Dockerfile.prod
     restart: unless-stopped
     volumes:
+      # Read-only inputs shared by the baseball data migrations in development and production.
+      - ./data/raw:/data/raw:ro
+      - ./data/preprocessed:/data/preprocessed:ro
+      - ./docs:/docs:ro
       - ./data/staging/stadium_places:/data/staging/stadium_places:ro
       - lodging_pages:/app/.cache/lodging-pages
     environment: &backend-environment
-      LODGING_CHROME_TRANSPORT: mcp
       LODGING_WARM_STADIUMS: ${LODGING_WARM_STADIUMS:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:?Set OPENAI_API_KEY}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
@@ -130,7 +133,7 @@ services:
       minio:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz/', timeout=3)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/healthz/', timeout=3)"]
       interval: 10s
       timeout: 5s
       retries: 12

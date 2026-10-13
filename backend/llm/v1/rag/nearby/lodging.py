@@ -433,7 +433,8 @@ def verify(places, question, history=None, _search=None, *, fixed_requirements=N
     for p in places:
         identifier = str(p.get("placeId") or "")
         if identifier and identifier not in {c["id"] for c in candidates} and p.get("name") and p.get("address"):
-            candidates.append({"id": identifier, "name": str(p["name"])[:255], "address": str(p["address"])[:500]})
+            candidates.append({"id": identifier, "name": str(p["name"])[:255], "address": str(p["address"])[:500],
+                               **({"sourceUrl": p["sourceUrl"]} if source_url(p.get("sourceUrl")) else {})})
             categories[identifier] = str(p.get("detail") or "")
     recent = [str(m.get("content") or "")[:1000] for m in (history or [])[-6:] if m.get("role") == "user"][-2:]
     key = "lodging:conditions:chrome-v4:" + hashlib.sha256(json.dumps([candidates, categories, question, recent, fixed_requirements], ensure_ascii=False).encode()).hexdigest()

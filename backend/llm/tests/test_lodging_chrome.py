@@ -38,22 +38,11 @@ class ChromeCollectionTests(SimpleTestCase):
         env.start()
         self.addCleanup(env.stop)
 
-    def test_standard_macos_installations_and_explicit_override(self):
-        for install in (Path("/Applications"), Path("/home/test/Applications")):
-            expected = install / "Google Chrome.app/Contents/MacOS/Google Chrome"
-            with patch.dict(os.environ, {"LODGING_CHROME_PATH": ""}), \
-                    patch.object(chrome_lodging.shutil, "which", return_value=None), \
-                    patch.object(Path, "home", return_value=Path("/home/test")), \
-                    patch.object(Path, "is_file", autospec=True, side_effect=lambda p: p == expected):
-                self.assertEqual(chrome_lodging.chrome_path(), str(expected))
-        with patch.dict(os.environ, {"LODGING_CHROME_PATH": "/custom/chrome"}), \
-                patch.object(chrome_lodging.shutil, "which", return_value=None), \
-                patch.object(Path, "is_file", return_value=True):
-            self.assertEqual(chrome_lodging.chrome_path(), "/custom/chrome")
-        with patch.dict(os.environ, {"LODGING_CHROME_PATH": "/missing/chrome"}), \
-                patch.object(chrome_lodging.shutil, "which", return_value=None), \
-                patch.object(Path, "is_file", return_value=False):
-            self.assertIsNone(chrome_lodging.chrome_path())
+    def test_missing_mcp_never_spawns_local_browser_even_with_legacy_settings(self):
+        with patch.dict(os.environ, {"JEV_MCP_TOKEN": "", "LODGING_CHROME_TRANSPORT": "local"}), \
+                patch("subprocess.Popen", side_effect=AssertionError("no app browser launch")) as spawn:
+            self.assertEqual(self.collect(), {"status": "error"})
+        spawn.assert_not_called()
 
     def collect(self):
         return chrome_lodging.collect(CANDIDATE, deadline=time.monotonic() + 45)
@@ -62,9 +51,9 @@ class ChromeCollectionTests(SimpleTestCase):
         for change in ({"address": "서울 송파구 백제고분로7길 23-5"}, {"name": "잠실 포레스타 2 호텔"},
                        {"url": "https://evil.test/stay/domestic/123"}, {"source_kind": "model_summary"},
                        {"body_read": False}, {"body_text": "model claimed success"}):
-            with self.subTest(change=change), patch.object(chrome_lodging, "_local", return_value={**page(), **change}):
+            with self.subTest(change=change), patch.object(chrome_lodging, "_remote", new_callable=AsyncMock, return_value={**page(), **change}):
                 self.assertEqual(self.collect()["status"], "unverified")
-        with patch.object(chrome_lodging, "_local", return_value=page()):
+        with patch.object(chrome_lodging, "_remote", new_callable=AsyncMock, return_value=page()):
             self.assertEqual(self.collect()["url"], URL)
 
     def test_reordered_hotel_name_still_requires_exact_address_and_branch(self):
@@ -76,20 +65,20 @@ class ChromeCollectionTests(SimpleTestCase):
         self.assertFalse(lodging.same_property(candidate, {**found, "name": "잠실 다른 호텔"}))
 
     def test_busy_and_expired_budget_do_not_start_a_browser(self):
-        with patch.object(chrome_lodging, "_local") as local:
+        with patch.object(chrome_lodging, "_remote", new_callable=AsyncMock) as local:
             with chrome_lodging._admission:
                 self.assertEqual(self.collect()["status"], "busy")
             self.assertEqual(chrome_lodging.collect(CANDIDATE, deadline=time.monotonic()-1)["status"], "timeout")
             local.assert_not_called()
 
     def test_cancellation_propagates_and_releases_admission(self):
-        with patch.object(chrome_lodging, "_local", side_effect=Stopped):
+        with patch.object(chrome_lodging, "_remote", new_callable=AsyncMock, side_effect=Stopped):
             with self.assertRaises(Stopped):
                 self.collect()
         self.assertFalse(chrome_lodging._admission.locked())
 
     def test_property_snapshot_cache_reuses_only_valid_unexpired_identity(self):
-        with patch.object(chrome_lodging, "_local", return_value=page()) as local:
+        with patch.object(chrome_lodging, "_remote", new_callable=AsyncMock, return_value=page()) as local:
             first = self.collect()
             with chrome_lodging._admission:
                 second = self.collect()
@@ -102,33 +91,33 @@ class ChromeCollectionTests(SimpleTestCase):
             self.assertEqual(local.call_count, 2)
 
     def test_cached_page_is_revalidated_and_changed_identity_does_not_reuse_it(self):
-        with patch.object(chrome_lodging, "_local", return_value=page()) as local:
+        with patch.object(chrome_lodging, "_remote", new_callable=AsyncMock, return_value=page()) as local:
             self.collect()
             changed = {**CANDIDATE, "address": "서울 송파구 백제고분로7길 23-5"}
             self.assertEqual(chrome_lodging.collect(changed, deadline=time.monotonic()+45)["status"], "unverified")
             self.assertEqual(local.call_count, 2)
         corrupted = {"expires_at": time.time()+60, "page": {**page(), "body_read": False}}
         with patch.object(chrome_lodging._page_cache(), "get", return_value=corrupted), \
-                patch.object(chrome_lodging, "_local", return_value={"status": "blocked"}):
+                patch.object(chrome_lodging, "_remote", new_callable=AsyncMock, return_value={"status": "blocked"}):
             self.assertEqual(self.collect(), {"status": "blocked"})
 
     def test_failures_never_return_partial_body_or_fall_back_to_search(self):
         with patch.object(browser_research, "structured_search") as search, patch.object(browser_research, "browse") as jev:
             for status in ("blocked", "busy", "timeout", "partial", "not_found"):
-                with patch.object(chrome_lodging, "_local", return_value={**page(), "status": status}):
+                with patch.object(chrome_lodging, "_remote", new_callable=AsyncMock, return_value={**page(), "status": status}):
                     self.assertEqual(self.collect(), {"status": status})
             search.assert_not_called()
             jev.assert_not_called()
 
     def test_unreadable_cache_does_not_prevent_fresh_collection(self):
         with patch.object(chrome_lodging._page_cache(), "get", side_effect=EOFError), \
-                patch.object(chrome_lodging, "_local", return_value=page()) as local:
+                patch.object(chrome_lodging, "_remote", new_callable=AsyncMock, return_value=page()) as local:
             self.assertEqual(self.collect()["status"], "read")
         local.assert_called_once()
 
     def test_failure_stage_is_bounded_and_does_not_expose_source_body(self):
         for stage, expected in (("home_navigation", {"stage": "home_navigation"}), ("untrusted source text", {})):
-            with self.subTest(stage=stage), patch.object(chrome_lodging, "_local", return_value={
+            with self.subTest(stage=stage), patch.object(chrome_lodging, "_remote", new_callable=AsyncMock, return_value={
                     **page(), "status": "timeout", "stage": stage}):
                 self.assertEqual(self.collect(), {"status": "timeout", **expected})
 
@@ -139,27 +128,23 @@ class ChromeCollectionTests(SimpleTestCase):
         discover.assert_awaited_once_with({"chrome_lodging"})
         invoke.assert_awaited_once_with({"name": PLACE["name"], "timeout_seconds": 40})
 
-    def test_local_cancellation_and_timeout_reap_owned_process_before_removing_profile(self):
-        for cancelled in (False, True):
-            process = Mock(pid=987654)
-            process.poll.return_value = None
-            def reap(proc):
-                self.assertIs(proc, process)
-                self.assertTrue(Path(spawn.call_args.args[0][2]).is_dir())
-            with patch.object(chrome_lodging, "chrome_path", return_value="chrome"), \
-                    patch.object(chrome_lodging.shutil, "which", return_value="node"), \
-                    patch.object(Path, "is_file", return_value=True), \
-                    patch.object(chrome_lodging.subprocess, "Popen", return_value=process) as spawn, \
-                    patch.object(chrome_lodging, "_terminate", side_effect=reap) as terminate, \
-                    patch.object(chrome_lodging, "check_cancelled", side_effect=Stopped if cancelled else None):
-                if cancelled:
-                    with self.assertRaises(Stopped):
-                        chrome_lodging._local(PLACE["name"], time.monotonic()+45)
-                else:
-                    self.assertEqual(chrome_lodging._local(PLACE["name"], time.monotonic()-1)["status"], "timeout")
-                profile = Path(spawn.call_args.args[0][2])
-                terminate.assert_called_once()
-            self.assertFalse(profile.exists())
+    def test_known_trailing_slash_url_selects_canonical_direct_mcp(self):
+        invoke = AsyncMock(return_value=page())
+        with patch.object(browser_research, "discover_tools", AsyncMock(return_value=[SimpleNamespace(ainvoke=invoke)])) as discover:
+            asyncio.run(chrome_lodging._remote(PLACE["name"], 40, url=URL + "/"))
+        discover.assert_awaited_once_with({"jev_read_lodging"})
+        invoke.assert_awaited_once_with({"url": URL})
+
+    def test_known_url_selects_direct_mcp_and_background_retains_priority_contract(self):
+        invoke = AsyncMock(return_value=page())
+        with patch.object(browser_research, "discover_tools", AsyncMock(return_value=[SimpleNamespace(ainvoke=invoke)])) as discover:
+            asyncio.run(chrome_lodging._remote(PLACE["name"], 40, url=URL))
+            discover.assert_awaited_with({"jev_read_lodging"})
+            invoke.assert_awaited_with({"url": URL})
+            asyncio.run(chrome_lodging._remote(PLACE["name"], 40, url=URL, background=True))
+            discover.assert_awaited_with({"chrome_lodging"})
+            invoke.assert_awaited_with({"name": PLACE["name"], "timeout_seconds": 40, "background": True})
+
 
 
 class ChromeLodgingIntegrationTests(SimpleTestCase):
@@ -264,7 +249,7 @@ class ChromeLodgingIntegrationTests(SimpleTestCase):
                 {"requirement_id": req, "status": "match" if line else "unknown", "evidence_start": line, "evidence_end": line}]}]}
         model.with_structured_output.return_value.invoke.side_effect = assess
         with patch.dict(os.environ, {"LODGING_CHROME_TRANSPORT": "local"}), \
-                patch.object(chrome_lodging, "_local", return_value=page()) as local, \
+                patch.object(chrome_lodging, "_remote", new_callable=AsyncMock, return_value=page()) as local, \
                 patch.object(agent, "llm", return_value=model), \
                 patch.object(lodging, "requirements", side_effect=[
                     [{"id": "parking", "label": "주차 가능"}], [{"id": "pets", "label": "반려동물 허용"}]]):

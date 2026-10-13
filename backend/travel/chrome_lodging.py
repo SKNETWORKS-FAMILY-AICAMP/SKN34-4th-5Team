@@ -1,14 +1,8 @@
-"""Server-owned Chrome collection. Never calls a search or browser-agent model."""
+"""JEV MCP-owned Chrome collection. Never calls a search or browser-agent model."""
 import asyncio
 import hashlib
 import json
-import os
 import pickle
-from pathlib import Path
-import shutil
-import signal
-import subprocess
-import tempfile
 import time
 from threading import Lock
 
@@ -41,83 +35,28 @@ def _validated(candidate, page):
             or not same_property(candidate, page) or not address_in_body(page.get("address", ""), body)
             or not _compact(page.get("name")) or _compact(page["name"]) not in _compact(body)):
         return None
+    known_url = candidate.get("sourceUrl") or candidate.get("url")
+    if source_url(known_url) and source_url(known_url) != url:
+        return None
     return {**page, "url": url}
 
 
-def chrome_path():
-    explicit = os.getenv("LODGING_CHROME_PATH")
-    if explicit:
-        return shutil.which(explicit) or (explicit if Path(explicit).is_file() else None)
-    for command in ("google-chrome", "google-chrome-stable", "chrome"):
-        if path := shutil.which(command):
-            return path
-    for folder in (Path("/Applications"), Path.home() / "Applications"):
-        path = folder / "Google Chrome.app/Contents/MacOS/Google Chrome"
-        if path.is_file():
-            return str(path)
-    for folder in (os.getenv("PROGRAMFILES"), os.getenv("PROGRAMFILES(X86)"), os.getenv("LOCALAPPDATA")):
-        if folder and (path := Path(folder) / "Google/Chrome/Application/chrome.exe").is_file():
-            return str(path)
-    return None
-
-
-def _terminate(process):
-    if os.name == "nt":
-        if process.poll() is None:
-            subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"],
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                           creationflags=subprocess.CREATE_NO_WINDOW, timeout=10, check=False)
-    else:
-        try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-    process.wait(timeout=10)
-
-
-def _local(name, deadline, *, region=""):
-    executable = chrome_path()
-    node = shutil.which(os.getenv("LODGING_CHROME_NODE", "node"))
-    script = Path(__file__).resolve().parents[2] / "docker/jev-browser/chrome-lodging.mjs"
-    if not executable or not node or not script.is_file():
-        return {"status": "unavailable"}
-    # Browser workers do not need the Django process's provider credentials.
-    allowed = {"PATH", "SYSTEMROOT", "WINDIR", "COMSPEC", "TEMP", "TMP", "HOME", "USERPROFILE",
-               "LOCALAPPDATA", "PROGRAMFILES", "PROGRAMFILES(X86)", "DISPLAY", "XAUTHORITY"}
-    env = {k: v for k, v in os.environ.items() if k.upper() in allowed}
-    env.update(LODGING_CHROME_PATH=executable, LODGING_CHROME_ARGS=os.getenv("LODGING_CHROME_ARGS", ""))
-    options = {"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {"start_new_session": True}
-    with tempfile.TemporaryDirectory(prefix="lodging-chrome-") as profile, tempfile.TemporaryFile() as output:
-        process = subprocess.Popen([node, str(script), profile, name, str(max(1, deadline - time.monotonic())), region],
-                                   stdout=output, stderr=subprocess.DEVNULL, env=env, **options)
-        try:
-            while process.poll() is None:
-                check_cancelled()
-                if time.monotonic() >= deadline:
-                    return {"status": "timeout"}
-                if os.fstat(output.fileno()).st_size > MAX_OUTPUT:
-                    return {"status": "overflow"}
-                time.sleep(.1)
-            check_cancelled()
-            if process.returncode:
-                return {"status": "error"}
-            output.seek(0)
-            raw = output.read(MAX_OUTPUT + 1)
-            if len(raw) > MAX_OUTPUT:
-                return {"status": "overflow"}
-            return json.loads(raw)
-        finally:
-            _terminate(process)
-
-
-async def _remote(name, seconds, *, background=False, region=""):
+async def _remote(name, seconds, *, background=False, url=None, region=""):
     from llm.v2.agent.browser_research import cancellable_call, discover_tools
-    tools = await cancellable_call(discover_tools({"chrome_lodging"}))
-    value = await cancellable_call(tools[0].ainvoke({"name": name, "timeout_seconds": seconds,
-                                                   **({"background": True} if background else {}),
-                                                   **({"region": region} if region else {})}))
+    from llm.v2.agent.browser_research import lodging_url
+    direct = lodging_url(url) if not background else False
+    if direct:
+        from llm.v1.rag.nearby.lodging import source_url
+        url = source_url(url)
+    tools = await cancellable_call(discover_tools({"jev_read_lodging" if direct else "chrome_lodging"}))
+    arguments = {"url": url} if direct else {"name": name, "timeout_seconds": seconds,
+                                           **({"background": True} if background else {}),
+                                           **({"region": region} if region else {})}
+    value = await cancellable_call(tools[0].ainvoke(arguments))
+    if len(json.dumps(value, ensure_ascii=False).encode("utf-8")) > MAX_OUTPUT:
+        return {"status": "overflow"}
     if isinstance(value, list):
-        if len(value) != 1 or value[0].get("type") != "text":
+        if len(value) != 1 or not isinstance(value[0], dict) or value[0].get("type") != "text":
             return {"status": "error"}
         value = value[0]["text"]
     return json.loads(value) if isinstance(value, str) else value
@@ -178,22 +117,21 @@ def collect(candidate, *, deadline, refresh_before=0, background=False):
         seconds = deadline - time.monotonic()
         if seconds < 1:
             return {"status": "timeout"}
-        mode = os.getenv("LODGING_CHROME_TRANSPORT", "local").lower()
         try:
-            if mode == "local":
-                page = _local(candidate["name"], deadline, region=" ".join(str(candidate.get("address") or "").split()[:2]))
-            elif mode == "mcp":
-                page = asyncio.run(asyncio.wait_for(_remote(candidate["name"], seconds,
-                    **({"background": True} if background else {}),
-                    region=" ".join(str(candidate.get("address") or "").split()[:2])), timeout=seconds + 3))
-            else:
-                return {"status": "unavailable"}
+            page = asyncio.run(asyncio.wait_for(_remote(candidate["name"], seconds,
+                background=background, url=candidate.get("sourceUrl") or candidate.get("url"),
+                region=" ".join(str(candidate.get("address") or "").split()[:2])), timeout=seconds + 3))
         except Stopped:
             raise
         except TimeoutError:
             return {"status": "timeout"}
         except (OSError, ValueError, RuntimeError):
             return {"status": "error"}
+        except Exception as error:
+            from llm.v2.agent.browser_research import transport_status
+            if status := transport_status(error):
+                return {"status": status}
+            raise
         check_cancelled()
         if not isinstance(page, dict):
             return {"status": "error"}

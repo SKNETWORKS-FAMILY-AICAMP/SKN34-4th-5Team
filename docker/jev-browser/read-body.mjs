@@ -1,16 +1,12 @@
 // Observed DOM only. CDP uses upstream transport, never the model/browser agent.
-import { spawn } from 'node:child_process';
-import { once } from 'node:events';
-import { readFile } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
-import { CdpSocket } from './jev/src/cdp/socket.ts';
+import { CdpBrowser } from './jev/src/cdp/browser.ts';
 
 const [url, profile] = process.argv.slice(2);
-const chrome = spawn(process.env.CHROME_PATH || '/usr/bin/chromium', [
-  '--headless', '--remote-debugging-port=0', `--user-data-dir=${profile}`,
-  ...(process.env.JEV_CHROME_ARGS || '').split(/\s+/).filter(Boolean), 'about:blank',
-], { stdio: 'ignore' });
-let socket;
+const cancel = new AbortController();
+const signal = AbortSignal.any([cancel.signal, AbortSignal.timeout(44000)]);
+for (const event of ['SIGTERM', 'SIGINT']) process.once(event, () => cancel.abort());
+let browser, socket;
 const frames = [], limitations = [], contexts = new Map();
 const extract = `(() => {
  const candidates = [...document.querySelectorAll('article,main,[role="main"],.se-main-container,#postViewArea,.entry-content,.article-view,.tt_article_useless_p_margin')];
@@ -27,17 +23,15 @@ const extract = `(() => {
    const material=!candidates.length || root?.contains(n) || /article|postview|mainframe/i.test(label);
    return {url:n.src,role:auxiliary?'auxiliary':/map/i.test(label)?'map':material?'article':'auxiliary'};
  });
- return {body:text.slice(0,2097153),url:location.href,title:document.title,article:!!candidates.length,links,ready:document.readyState};
+ const heading = [...document.querySelectorAll('h1,h2,[role="heading"]')].find(n=>n.innerText?.trim())?.innerText.trim() || '';
+ return {body:text.slice(0,2097153),heading,url:location.href,title:document.title,article:!!candidates.length,links,ready:document.readyState};
 })()`;
 try {
-  let port;
-  for (let i=0;i<100;i++) {
-    try { port=(await readFile(`${profile}/DevToolsActivePort`,'utf8')).split('\n')[0]; break; }
-    catch { if(chrome.exitCode!==null) throw Error('error'); await delay(100); }
-  }
-  if(!port) throw Error('timeout');
-  const info=await (await fetch(`http://127.0.0.1:${port}/json/version`)).json();
-  socket=await CdpSocket.connect(info.webSocketDebuggerUrl);
+  browser = await CdpBrowser.launch({
+    executablePath: process.env.CHROME_PATH || '/usr/bin/chromium', profileDir: profile,
+    signal, retryProfile: false,
+  }, 'deny');
+  socket = browser.socket;
   socket.onEvent('Runtime.executionContextCreated',(p,s)=> {
     if(p.context.auxData?.isDefault) contexts.set(`${s}:${p.context.id}`,{session:s,id:p.context.id,frame:p.context.auxData.frameId});
   });
@@ -54,7 +48,6 @@ try {
   }
   const {targetInfos}=await socket.call('Target.getTargets');
   const session=await attach(targetInfos.find(t=>t.type==='page'));
-  await socket.call('Browser.setDownloadBehavior',{behavior:'deny'});
   const nav=await socket.call('Page.navigate',{url},session);
   if(nav.errorText) throw Error('error');
   for(let i=0;i<60;i++) {
@@ -91,7 +84,7 @@ try {
       if(!data || typeof data.body!=='string') throw Error('invalid_context');
       expected.push(...data.links.map(link=>({...link,parent_url:data.url})));
       const role=data.article?'article':/map/i.test(data.url)?'map':c.frame===nav.frameId?'document':'auxiliary';
-      const blocked=/^(?:\s*(?:access denied|403 forbidden|verify you are human|로봇이 아닙니다))/i.test(data.body) || /chrome-error:\/\//.test(data.url) || /^(ERROR: The requested URL could not be retrieved)/.test(data.title);
+      const blocked=/^(?:\s*(?:access denied|403 forbidden|로봇이 아닙니다))/i.test(data.body) || /^(?:Just a moment|Checking your browser)/i.test(data.title) || /^(?:verify you are human|Checking your browser)[.!…\s]*$/i.test(data.heading) || /chrome-error:\/\//.test(data.url) || /^(ERROR: The requested URL could not be retrieved)/.test(data.title);
       frames.push({role,status:blocked?'blocked':'ok',url:data.url,title:data.title,body:blocked?'':data.body});
     } catch { frames.push({role:c.frame===nav.frameId?'document':'unknown',status:'error',url:''}); }
   }
@@ -107,6 +100,7 @@ try {
       if(frame.role==='article') limitations.push('material_article_frame_missing');
     }
   }
+  signal.throwIfAborted();
   const articles=frames.filter(f=>f.role==='article' && f.status==='ok');
   const selected=frames.filter(f=>f.status==='ok' && typeof f.body==='string' && (f.role==='article'||f.role==='map'||(!articles.length && f.role==='document')));
   const body=selected.map(f=>f.body).filter(text=>{if(!text||used.has(text))return false;used.add(text);return true;}).join('\n\n');
@@ -120,8 +114,7 @@ try {
   if(Buffer.byteLength(JSON.stringify(result))>2097152) throw Error('overflow');
   console.log(JSON.stringify(result));
 } catch(error) {
-  console.log(JSON.stringify({status:/timed out/i.test(error.message)?'timeout':['timeout','overflow','blocked'].includes(error.message)?error.message:'error',source_url:url}));
+  console.log(JSON.stringify({status:cancel.signal.aborted?'cancelled':signal.aborted||/timed out/i.test(error.message)?'timeout':['timeout','overflow','blocked'].includes(error.message)?error.message:'error',source_url:url}));
 } finally {
-  socket?.close();
-  if(chrome.exitCode===null) { const exited=once(chrome,'exit'); chrome.kill('SIGKILL'); await exited; }
+  await browser?.close();
 }

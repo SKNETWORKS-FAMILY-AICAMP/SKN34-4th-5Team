@@ -580,6 +580,22 @@ fixture는 테스트 입력·응답을 고정하는 방식이며 그 자체가 �
 
 추가 지표: 잘못된 결과의 통과율, 올바른 결과의 탈락률, 재채점 변동률, 평가 불가율, 평가 시스템 오류율. 각 지표에 실제 분모를 표시한다.
 
+## 날씨 도구 리뷰 수정 — 좁은 오프라인 계약 기준 (2026-10-13)
+
+- 목적/변경 변수: `get_weather`의 시각 생략/null + 정상 무예보(None) 예외와 오늘 23시의 잘못된 다음 정시 표기를 수정한다. 같은 날짜 23:00 cap을 유지하고 오늘 마지막 정시 예보 기준(경기 시각 아님)으로 밝힌다.
+- 기대 동작/범위: 생략·명시 null의 None 그대로 반환, 명시 시각의 결과 불변, 오늘 일반 시각의 다음 정시와 다른 날짜 18:30 유지, 실제 forecastAt 불일치 안내 유지, 잘못된 시각은 서비스 호출 전 거절한다. 23:00·23:30·23:59와 정상/미래 날짜를 고정 KST 시각·서비스 fixture로 검사한다.
+- A/B: `weather_contract.py`의 입력·독립 기대값·동일 harness를 먼저 동결하고 수정 전 A와 수정 후 B의 실제 StructuredTool.invoke 결과/호출/예외를 저장한다. DeepEval custom exact-contract 및 Ragas non-LLM exact-contract 지표를 실제 설치 환경에서 실행한다. 환경 격리 때문에 동일 production export를 별도 framework 환경에서 채점할 수 있다.
+- 합격/실패: 각 사례의 반환값과 서비스 호출 인자가 고정 기대값과 완전히 같아야 통과한다. 예외·허위 기준 시각·불필요 호출은 실패이며 A 실패를 보존한다. 채점기 오류/미실행은 성공이 아니다. 무료 CI는 정확한 ExternalDomainToolAdapterTest와 이 계약 entrypoint를 명시 선택한다.
+- replay 정답 신뢰 경계: 보고서의 해시만 신뢰하지 않고 동결 CASES와 행 수·순서·ID·expected 전체를 채점 전에 대조한다. expected=actual 변조·해시/ID 변조·누락·중복·잘못된 형식은 비정상 종료하며 성공 보고서를 만들지 않는다. 정상 export는 수용하고 실제 framework 점수의 행 수 일치와 유한 숫자를 확인한다. 기존 11개 CASES와 정답은 변경하지 않으며 기존 A 6/11·B 11/11 근거를 보존한다. highlight-free의 기존 scorer-check에 정상/변조 회귀를 연결하고 실제 CLI와 두 framework로 검증한다.
+- 경계: 외부 KMA·LLM·유료 judge 호출은 0이며 최종 답변/제공자 의미 품질은 미측정이다. 일반 LLM 숫자 threshold나 정책을 새로 확정하지 않는다. 새 기준·사례·harness는 독립 검토 대상이다.
+
+## 날씨 원격 통합 — 사용자 승인 계약 v2 (2026-10-13)
+
+- 기존 위 날씨 계약/원시 A/B는 역사적 v1 근거로 보존한다. 사용자가 선택한 원격 afcfaaa 계약으로 v2를 사전 확정한다: dict 응답은 강수 label(비·비/눈·눈·소나기) 또는 `없음`을 precipitation으로 명시한다. 서비스 fixture에는 이 필드를 넣지 않는다.
+- 생략/null 시 무예보는 available=False, requestedTime, timeBasis, `기상청 단기예보에 해당 시각 예보가 아직 없다` message를 반환한다. 명시 시각의 무예보 None은 유지한다. 오늘 23:00·23:30·23:59는 같은 날짜 23:00과 마지막 정시 근거를 유지하며 일반 다음 정시·미래18:30·실제 예보 불일치·잘못된 입력 거절도 유지한다.
+- 동일 11개 입력의 v2 독립 기대값과 harness를 A 실행 전에 동결한다. A는 pinned afcfaaa 실제 StructuredTool.invoke, B는 원격 계약과 로컬23h/CI를 통합한 후보다. 두 framework의 기존 exact 1.0 조건·버전·네트워크 차단 설정과 canonical replay 변조 거절은 불변이며 결과에 맞춘 완화가 아니다.
+- 전 사례 반환/호출 완전 일치가 합격이며 실패/오류 원시 로그를 보존한다. 실제 free/highlight-free/wiring 및 pinned Docker adapter를 재실행한다. 최종 LLM·실제 제공자 품질은 미측정, 유료 호출 없음, 새 기준/harness 독립 검토는 별도다.
+
 ## 공통 원칙과 통과 기준
 
 - 합성 질문은 **후보**이며, 검토 전에는 정답 골든셋으로 승격하지 않음
