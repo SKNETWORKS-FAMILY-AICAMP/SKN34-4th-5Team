@@ -130,6 +130,32 @@ class WiringTest(unittest.TestCase):
         self.assertLess(workflow.index('tiktoken.get_encoding("cl100k_base")'),
                         workflow.index('evaluation_ci.py free'))
 
+    def test_full_highlight_regressions_are_in_required_workflow(self):
+        import yaml
+
+        workflow = yaml.safe_load((HERE / 'workflows/evaluation-regression.yml').read_text())
+        job = workflow['jobs']['deterministic']
+        self.assertNotIn('if', job)
+        self.assertNotIn('continue-on-error', job)
+        service = job['services']['highlight-db']
+        self.assertEqual(service['image'], 'pgvector/pgvector:pg18')
+        self.assertEqual(service['env'], dict.fromkeys(
+            ('POSTGRES_DB', 'POSTGRES_USER', 'POSTGRES_PASSWORD'), 'highlight_ci'))
+        self.assertIn('5432:5432', service['ports'])
+        backend = 'python -I .github/evaluation_ci.py offline-exec backend/manage.py test llm.tests.test_highlights --settings=llm.tests.highlight_settings --noinput --verbosity=2'
+        frontend = 'node --test tests/youtube-highlight.test.mjs'
+        for command in (backend, frontend, 'python -I .github/test_evaluation_ci.py'):
+            steps = [step for step in job['steps'] if step.get('run') == command]
+            self.assertEqual(len(steps), 1, command)
+            self.assertNotIn('if', steps[0])
+            self.assertNotIn('continue-on-error', steps[0])
+            if command == frontend:
+                self.assertEqual(steps[0]['working-directory'], 'frontend')
+        for name in ('dev', 'prod'):
+            deploy = yaml.safe_load((HERE / f'workflows/deploy-{name}.yml').read_text())
+            self.assertEqual(deploy['jobs']['evaluation-regression']['uses'],
+                             './.github/workflows/evaluation-regression.yml')
+
     def test_workflow_trust_and_gates(self):
         manual = (HERE / 'workflows/evaluation-manual.yml').read_text()
         self.assertNotIn('pull_request_target', manual)

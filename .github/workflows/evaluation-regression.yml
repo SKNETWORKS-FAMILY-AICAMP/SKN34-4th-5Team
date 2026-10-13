@@ -51,6 +51,18 @@ jobs:
   deterministic:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      highlight-db:
+        image: pgvector/pgvector:pg18
+        env:
+          POSTGRES_DB: highlight_ci
+          POSTGRES_USER: highlight_ci
+          POSTGRES_PASSWORD: highlight_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U highlight_ci -d highlight_ci"
+          --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
       - uses: actions/checkout@v4
         with:
@@ -63,6 +75,18 @@ jobs:
         env:
           TIKTOKEN_CACHE_DIR: ${{ runner.temp }}/evaluation-tiktoken
         run: python -I -c 'import tiktoken; tiktoken.get_encoding("cl100k_base")'
+      - name: Full highlight Django regression (disposable PostgreSQL, no provider network)
+        run: python -I .github/evaluation_ci.py offline-exec backend/manage.py test llm.tests.test_highlights --settings=llm.tests.highlight_settings --noinput --verbosity=2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - name: Highlight title frontend regression
+        run: node --test tests/youtube-highlight.test.mjs
+        working-directory: frontend
       - run: python -I .github/test_evaluation_ci.py
       - run: python -I .github/test_evaluation_ab.py
       - run: python -I .github/test_evaluation_luna.py LunaExportIntegrationTest

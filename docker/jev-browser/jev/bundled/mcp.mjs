@@ -2,7 +2,7 @@
 
 // src/mcp.ts
 import { createInterface } from "node:readline";
-import { readFileSync as readFileSync4 } from "node:fs";
+import { readFileSync as readFileSync5 } from "node:fs";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
 import { join as join8 } from "node:path";
 
@@ -253,7 +253,7 @@ function completionEvidence(page, expectation) {
 }
 
 // src/cli.ts
-import { mkdirSync as mkdirSync2, readFileSync as readFileSync3, realpathSync, rmSync as rmSync2, writeFileSync as writeFileSync2 } from "node:fs";
+import { mkdirSync as mkdirSync2, readFileSync as readFileSync4, realpathSync, rmSync as rmSync2, writeFileSync as writeFileSync2 } from "node:fs";
 import { homedir as homedir4 } from "node:os";
 import { join as join7 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
@@ -2494,16 +2494,34 @@ function createListenerInit() {
 }
 
 // src/cdp/stop.ts
+import { readFileSync as readFileSync2 } from "node:fs";
+function descendants(pid) {
+  try {
+    const children = readFileSync2(`/proc/${pid}/task/${pid}/children`, "utf8").trim().split(/\s+/).filter(Boolean).map(Number);
+    return children.flatMap((child) => [...descendants(child), child]);
+  } catch {
+    return [];
+  }
+}
 async function stopChrome(proc) {
-  if (proc.pid === void 0 || proc.exitCode !== null || proc.signalCode !== null) return;
-  await new Promise((resolve2) => {
-    const timer = setTimeout(() => proc.kill("SIGKILL"), 2e3);
-    proc.once("exit", () => {
-      clearTimeout(timer);
-      resolve2();
+  if (proc.pid === void 0) return;
+  const children = descendants(proc.pid);
+  if (proc.exitCode === null && proc.signalCode === null) {
+    await new Promise((resolve2) => {
+      const timer = setTimeout(() => proc.kill("SIGKILL"), 2e3);
+      proc.once("exit", () => {
+        clearTimeout(timer);
+        resolve2();
+      });
+      proc.kill("SIGTERM");
     });
-    proc.kill("SIGTERM");
-  });
+  }
+  for (const pid of children) {
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+    }
+  }
 }
 
 // src/target-details.ts
@@ -2578,14 +2596,14 @@ import { tmpdir as tmpdir2 } from "node:os";
 import { join as join5 } from "node:path";
 
 // src/snapshot-loader.ts
-import { existsSync, readFileSync as readFileSync2 } from "node:fs";
+import { existsSync, readFileSync as readFileSync3 } from "node:fs";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 function loadSnapshotJs() {
   const path = fileURLToPath2(new URL("./snapshot.js", import.meta.url));
   if (!existsSync(path)) {
     throw new Error(`jev-browse: snapshot.js not found at ${path}`);
   }
-  return readFileSync2(path, "utf8");
+  return readFileSync3(path, "utf8");
 }
 
 // src/cdp/events.ts
@@ -2747,13 +2765,23 @@ var CdpSocket = class _CdpSocket {
       this.pending.clear();
     });
   }
-  static async connect(wsUrl) {
+  static async connect(wsUrl, signal) {
+    signal?.throwIfAborted();
     const ws = new WebSocket(wsUrl);
     await new Promise((resolve2, reject) => {
-      ws.addEventListener("open", () => resolve2(), { once: true });
-      ws.addEventListener("error", () => reject(new Error(`Cannot connect to ${wsUrl}`)), {
-        once: true
-      });
+      const finish = (error) => {
+        clearTimeout(timer);
+        signal?.removeEventListener("abort", abort);
+        if (error) {
+          ws.close();
+          reject(error);
+        } else resolve2();
+      };
+      const abort = () => finish(new Error("CDP connection aborted"));
+      const timer = setTimeout(() => finish(new Error("CDP connection timed out")), 15e3);
+      signal?.addEventListener("abort", abort, { once: true });
+      ws.addEventListener("open", () => finish(), { once: true });
+      ws.addEventListener("error", () => finish(new Error(`Cannot connect to ${wsUrl}`)), { once: true });
     });
     return new _CdpSocket(ws);
   }
@@ -2833,11 +2861,14 @@ function freePort() {
     });
   });
 }
-async function browserWsUrl(port, timeoutMs = 15e3) {
+async function browserWsUrl(port, timeoutMs = 15e3, signal) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
+    signal?.throwIfAborted();
     try {
-      const response = await fetch(`http://127.0.0.1:${port}/json/version`);
+      const response = await fetch(`http://127.0.0.1:${port}/json/version`, {
+        signal: AbortSignal.any([AbortSignal.timeout(Math.max(1, deadline - Date.now())), ...signal ? [signal] : []])
+      });
       const info = response.ok ? await response.json() : null;
       if (info?.webSocketDebuggerUrl) return info.webSocketDebuggerUrl;
     } catch {
@@ -3389,8 +3420,10 @@ function reapProfileChrome(profileDir) {
   }
 }
 async function spawnChrome(opts) {
+  opts.signal?.throwIfAborted();
   if (opts.cdpUrl) return null;
   const port = await freePort();
+  opts.signal?.throwIfAborted();
   const profileDir = opts.profileDir ?? process.env.JEV_PROFILE ?? join4(homedir2(), ".jev-browse", "profile");
   const args = [
     `--remote-debugging-port=${port}`,
@@ -3408,10 +3441,10 @@ async function spawnChrome(opts) {
       "jev-browse: running as root \u2014 Chrome launched with --no-sandbox, renderer containment is off. Attach to a non-root Chrome via JEV_CDP_URL to keep it.\n"
     );
   }
-  for (const extra of splitShellWords(process.env.JEV_CHROME_ARGS ?? "")) {
+  for (const extra of splitShellWords(opts.chromeArgs ?? process.env.JEV_CHROME_ARGS ?? "")) {
     args.push(extra);
   }
-  const proc = spawn(findChrome(), [...args, "about:blank"], { stdio: "ignore" });
+  const proc = spawn(opts.executablePath ?? findChrome(), [...args, "about:blank"], { stdio: "ignore" });
   proc.on("error", () => {
   });
   return { proc, profileDir, port };
@@ -3419,16 +3452,16 @@ async function spawnChrome(opts) {
 async function resolveWsUrl(opts, spawned) {
   if (opts.cdpUrl) {
     const base = opts.cdpUrl.replace(/\/+$/, "");
-    const info = await (await fetch(`${base}/json/version`)).json();
+    const info = await (await fetch(`${base}/json/version`, { signal: opts.signal })).json();
     if (!info.webSocketDebuggerUrl) {
       throw new Error(`${base} did not report a webSocketDebuggerUrl`);
     }
     return info.webSocketDebuggerUrl;
   }
   try {
-    return await browserWsUrl(spawned.port);
+    return await browserWsUrl(spawned.port, 15e3, opts.signal);
   } catch (error) {
-    if (!spawned || !reapProfileChrome(spawned.profileDir)) throw error;
+    if (opts.signal?.aborted || opts.retryProfile === false || !spawned || !reapProfileChrome(spawned.profileDir)) throw error;
     const port = await freePort();
     const args2 = spawned.proc.spawnargs.map(
       (a) => a.startsWith("--remote-debugging-port=") ? `--remote-debugging-port=${port}` : a
@@ -3437,7 +3470,7 @@ async function resolveWsUrl(opts, spawned) {
     spawned.proc.on("error", () => {
     });
     spawned.port = port;
-    return browserWsUrl(port);
+    return browserWsUrl(port, 15e3, opts.signal);
   }
 }
 
@@ -3445,6 +3478,8 @@ async function resolveWsUrl(opts, spawned) {
 var READ_STATE2 = loadSnapshotJs();
 var CdpBrowser = class _CdpBrowser {
   socket;
+  signal;
+  abort = () => this.socket?.close();
   session;
   target;
   proc = null;
@@ -3457,8 +3492,9 @@ var CdpBrowser = class _CdpBrowser {
   selectAllModifier = 2;
   constructor() {
   }
-  static async open(url, opts = {}) {
+  static async launch(opts = {}, downloads = "allow") {
     const browser = new _CdpBrowser();
+    browser.signal = opts.signal;
     const spawned = await spawnChrome(opts);
     if (spawned) {
       browser.proc = spawned.proc;
@@ -3467,15 +3503,27 @@ var CdpBrowser = class _CdpBrowser {
     try {
       const wsUrl = await resolveWsUrl(opts, spawned);
       if (spawned) browser.proc = spawned.proc;
-      browser.socket = await CdpSocket.connect(wsUrl);
+      browser.socket = await CdpSocket.connect(wsUrl, opts.signal);
+      opts.signal?.addEventListener("abort", browser.abort, { once: true });
+      opts.signal?.throwIfAborted();
       if (browser.proc) {
-        await browser.socket.call("Browser.setDownloadBehavior", {
-          behavior: "allow",
-          downloadPath: mkdtempSync2(join5(tmpdir2(), "jev-downloads-")),
-          eventsEnabled: true
-        }).catch(() => {
+        const setting = browser.socket.call("Browser.setDownloadBehavior", {
+          behavior: downloads,
+          ...downloads === "allow" && { downloadPath: mkdtempSync2(join5(tmpdir2(), "jev-downloads-")), eventsEnabled: true }
+        });
+        if (downloads === "deny") await setting;
+        else await setting.catch(() => {
         });
       }
+      return browser;
+    } catch (error) {
+      await browser.close();
+      throw error;
+    }
+  }
+  static async open(url, opts = {}) {
+    const browser = await _CdpBrowser.launch(opts);
+    try {
       browser.events.wire(browser.socket);
       browser.target = (await browser.socket.call("Target.createTarget", {
         url: "about:blank",
@@ -3675,6 +3723,7 @@ var CdpBrowser = class _CdpBrowser {
     return domClick(this, action, page, text);
   }
   async close() {
+    this.signal?.removeEventListener("abort", this.abort);
     try {
       for (const t of this.adopted) {
         await this.socket.call("Target.closeTarget", { targetId: t }).catch(() => {
@@ -4234,7 +4283,7 @@ async function acquireLock(profileDir, timeoutMs = 3e4) {
       heldLock = dir;
       return;
     } catch {
-      const holder = Number(readFileSync3(join7(dir, "pid"), "utf8"));
+      const holder = Number(readFileSync4(join7(dir, "pid"), "utf8"));
       if (holder && !pidAlive(holder)) {
         rmSync2(join7(dir, "pid"), { force: true });
         continue;
@@ -4249,7 +4298,7 @@ async function acquireLock(profileDir, timeoutMs = 3e4) {
 function releaseLock() {
   if (!heldLock) return;
   try {
-    const holder = Number(readFileSync3(join7(heldLock, "pid"), "utf8"));
+    const holder = Number(readFileSync4(join7(heldLock, "pid"), "utf8"));
     if (holder === process.pid) rmSync2(heldLock, { recursive: true, force: true });
   } catch {
   }
@@ -4426,7 +4475,7 @@ var PROTOCOL_VERSION = "2024-11-05";
 var PKG_VERSION = (() => {
   try {
     const pkg = JSON.parse(
-      readFileSync4(join8(fileURLToPath4(new URL("..", import.meta.url)), "package.json"), "utf8")
+      readFileSync5(join8(fileURLToPath4(new URL("..", import.meta.url)), "package.json"), "utf8")
     );
     return isString(pkg.version) ? pkg.version : "0.0.0";
   } catch {

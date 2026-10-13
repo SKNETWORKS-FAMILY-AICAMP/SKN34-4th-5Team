@@ -78,13 +78,25 @@ export class CdpSocket {
     });
   }
 
-  static async connect(wsUrl: string): Promise<CdpSocket> {
+  static async connect(wsUrl: string, signal?: AbortSignal): Promise<CdpSocket> {
+    signal?.throwIfAborted();
     const ws = new WebSocket(wsUrl);
     await new Promise<void>((resolve, reject) => {
-      ws.addEventListener("open", () => resolve(), { once: true });
-      ws.addEventListener("error", () => reject(new Error(`Cannot connect to ${wsUrl}`)), {
-        once: true,
-      });
+      const finish = (error?: Error) => {
+        clearTimeout(timer);
+        signal?.removeEventListener("abort", abort);
+
+        if (error) {
+          ws.close();
+          reject(error);
+        } else resolve();
+      };
+
+      const abort = () => finish(new Error("CDP connection aborted"));
+      const timer = setTimeout(() => finish(new Error("CDP connection timed out")), 15000);
+      signal?.addEventListener("abort", abort, { once: true });
+      ws.addEventListener("open", () => finish(), { once: true });
+      ws.addEventListener("error", () => finish(new Error(`Cannot connect to ${wsUrl}`)), { once: true });
     });
 
     return new CdpSocket(ws);
@@ -185,12 +197,16 @@ export function freePort(): Promise<number> {
   });
 }
 
-export async function browserWsUrl(port: number, timeoutMs = 15000): Promise<string> {
+export async function browserWsUrl(port: number, timeoutMs = 15000, signal?: AbortSignal): Promise<string> {
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
+    signal?.throwIfAborted();
+
     try {
-      const response = await fetch(`http://127.0.0.1:${port}/json/version`);
+      const response = await fetch(`http://127.0.0.1:${port}/json/version`, {
+        signal: AbortSignal.any([AbortSignal.timeout(Math.max(1, deadline - Date.now())), ...(signal ? [signal] : [])]),
+      });
 
       const info = response.ok
         ? ((await response.json()) as { webSocketDebuggerUrl?: string })

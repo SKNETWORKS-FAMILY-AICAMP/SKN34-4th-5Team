@@ -27,7 +27,6 @@ services:
     env_file:
       - ./.env
     environment:
-      LODGING_CHROME_TRANSPORT: mcp
       JEV_MCP_URL: http://jev-browser:8080/mcp
       JEV_MCP_TOKEN: ${JEV_MCP_TOKEN:-}
       LODGING_WARM_STADIUMS: ${LODGING_WARM_STADIUMS:-}
@@ -108,7 +107,6 @@ services:
       JEV_MCP_TOKEN: ${JEV_MCP_TOKEN:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
       # 숙박 수집은 서버 브라우저의 결정적 Chrome 도구를 사용한다(모델 검색 없음).
-      LODGING_CHROME_TRANSPORT: mcp
       JEV_MCP_URL: http://jev-browser:8080/mcp
       # 로컬 프로필일 때만 API 요청 기반 크롤링을 활성화한다.
       COMPOSE_PROFILES: ${COMPOSE_PROFILES:-}
