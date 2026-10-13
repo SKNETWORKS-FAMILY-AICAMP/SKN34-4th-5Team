@@ -64,6 +64,8 @@ class RoutingRagasMetric(SingleTurnMetric):
 CASES = [
     ('praise', 'wtf hanwha Eagles is at another level', False, False, False, [], False, 'approved'),
     ('trade', '한화 유니폼 중고 판매합니다', False, True, False, [], False, 'approved'),
+    ('untagged-trade', '한화 유니폼 중고 판매합니다', False, False, False, [], False, 'approved'),
+    ('untagged-baseball-ad', '야구 배트 매장 할인 행사입니다', False, False, False, [], False, 'approved'),
     ('baseball-ad', '야구 배트 매장 광고입니다', False, False, True, [], False, 'approved'),
     ('political', '이 정당에게 투표하세요', True, False, False, [], False, 'review'),
     ('scam-even-if-tagged', '돈 보내면 수익 보장', False, True, True, ['fraud'], False, 'review'),

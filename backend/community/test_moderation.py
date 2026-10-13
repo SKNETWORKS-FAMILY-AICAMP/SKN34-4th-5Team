@@ -2,6 +2,7 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.core.management import call_command, get_commands
 from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
@@ -13,6 +14,29 @@ from .moderation_worker import claim, finish, run_one
 
 @override_settings(COMMUNITY_MODERATION_MODE='manual', COMMUNITY_POLICY_VERSION='community-v1')
 class ModerationIntegrationTests(APITestCase):
+    def test_llm_command_drains_post_and_comment_through_service(self):
+        parent = self.submit(key='parent')
+        run_one(lambda payload: ([], {}))
+        response = self.client.post(f'/api/v1/community/posts/{parent.pk}/comments/',
+                                    {'content': '댓글 검사 대상'}, format='json')
+        self.assertEqual(response.status_code, 202)
+        post = self.submit(key='pending-post', content='게시글 검사 대상')
+        self.assertEqual(get_commands()['run_moderation_worker'], 'llm')
+        # APITestCase owns an outer transaction; production connection cleanup
+        # must not close that test-owned connection between worker iterations.
+        with patch('services.community_moderation_policy.check', wraps=check) as provider, \
+                patch('llm.commands.run_moderation_worker.close_old_connections'):
+            call_command('run_moderation_worker', once=True)
+        self.assertEqual(provider.call_count, 2)
+        self.assertEqual({call.args[0]['text'] for call in provider.call_args_list},
+                         {'댓글 검사 대상', '한화 경기\n게시글 검사 대상'})
+        post.refresh_from_db()
+        self.assertEqual(post.moderation_status, 'review')
+        self.assertEqual(parent.comments.get().moderation_status, 'review')
+        self.assertFalse(ModerationJob.objects.filter(state__in=('queued', 'running')).exists())
+        self.assertEqual(self.client.get(f'/api/v1/community/posts/{post.pk}/').status_code, 404)
+        self.assertEqual(self.client.get(f'/api/v1/community/posts/{parent.pk}/comments/').data, [])
+
     def setUp(self):
         self.owner = get_user_model().objects.create_user(username='moderation-owner')
         self.other = get_user_model().objects.create_user(username='moderation-other')

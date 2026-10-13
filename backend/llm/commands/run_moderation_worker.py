@@ -2,7 +2,7 @@ import signal
 import time
 from django.core.management.base import BaseCommand
 from django.db import close_old_connections
-from community.moderation_worker import run_one
+from services import community_moderation
 
 
 class Command(BaseCommand):
@@ -22,7 +22,7 @@ class Command(BaseCommand):
         try:
             while not stopping:
                 close_old_connections()
-                if not run_one():
+                if not community_moderation.run_one():
                     if options['once']:
                         return
                     time.sleep(2)
