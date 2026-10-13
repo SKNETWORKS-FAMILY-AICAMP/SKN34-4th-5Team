@@ -10,6 +10,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from accounts.models import PointTransaction, PointWallet
 from .models import CommunityDraft, CommunityImage, CommunityPost
+from .moderation_worker import run_one
 
 
 class CommunityDraftPublishTests(APITestCase):
@@ -66,7 +67,7 @@ class CommunityDraftPublishTests(APITestCase):
             HTTP_IDEMPOTENCY_KEY="publish-jwt",
         )
 
-        self.assertEqual((created.status_code, retried.status_code), (201, 200))
+        self.assertEqual((created.status_code, retried.status_code), (202, 200))
         self.assertEqual(created.data["id"], retried.data["id"])
         self.assertEqual(created.data["images"], [{
             "id": str(image.pk),
@@ -80,6 +81,8 @@ class CommunityDraftPublishTests(APITestCase):
         self.assertEqual((draft.published_post_id, image.post_id, image.draft_id), (created.data["id"], created.data["id"], None))
         self.assertEqual((draft.title, draft.content), ("게시할 글", "게시할 본문"))
         self.assertEqual(CommunityPost.objects.filter(owner=self.owner).count(), 1)
+        self.assertFalse(PointWallet.objects.filter(user=self.owner).exists())
+        run_one(lambda payload: ([], {}))  # Approved fixture; provider quality is evaluated separately.
         self.assertEqual(PointWallet.objects.get(user=self.owner).balance, 1)
         self.assertEqual(
             PointTransaction.objects.filter(user=self.owner, source_type="post").count(),
@@ -143,7 +146,7 @@ class CommunityDraftPublishTests(APITestCase):
         self.client.force_authenticate(user=None)
         self.assertEqual(self.client.post(f"/api/v1/community/drafts/{draft.pk}/publish/").status_code, 401)
         self.assertEqual(self.publish(draft, user=self.other).status_code, 404)
-        self.assertEqual(self.publish(draft, key="first-key").status_code, 201)
+        self.assertEqual(self.publish(draft, key="first-key").status_code, 202)
         self.assertEqual(self.publish(draft, key="changed-key").status_code, 409)
         stale_publish = self.client.post(
             f"/api/v1/community/drafts/{draft.pk}/publish/",
@@ -217,7 +220,7 @@ class CommunityDraftPublishTests(APITestCase):
         draft = self.make_draft()
         created = self.publish(draft, key="delete-published")
 
-        self.assertEqual(created.status_code, 201)
+        self.assertEqual(created.status_code, 202)
         self.assertEqual(self.client.delete(f"/api/v1/community/posts/{created.data['id']}/").status_code, 204)
         self.assertFalse(CommunityDraft.objects.filter(pk=draft.pk).exists())
         self.assertEqual(self.publish(draft, key="delete-published").status_code, 404)
@@ -254,6 +257,6 @@ class CommunityDraftPublishConcurrencyTests(TransactionTestCase):
         with ThreadPoolExecutor(max_workers=2) as pool:
             results = list(pool.map(lambda _: submit(), range(2)))
 
-        self.assertEqual(sorted(code for code, _ in results), [200, 201])
+        self.assertEqual(sorted(code for code, _ in results), [200, 202])
         self.assertEqual(len({post_id for _, post_id in results}), 1)
         self.assertEqual(CommunityPost.objects.filter(owner=user).count(), 1)

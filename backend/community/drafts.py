@@ -40,6 +40,8 @@ class DraftPagination(PublicPageNumberPagination):
 
 
 class DraftOutputSchema(serializers.Serializer):
+    isTrade = serializers.BooleanField()
+    isAdvertisement = serializers.BooleanField()
     id = serializers.UUIDField()
     board = serializers.ChoiceField(choices=("free", "teams"))
     teamCode = serializers.CharField(allow_blank=True)
@@ -60,6 +62,8 @@ class DraftPageSchema(serializers.Serializer):
 
 
 class DraftPatchSchema(serializers.Serializer):
+    isTrade = serializers.BooleanField(required=False)
+    isAdvertisement = serializers.BooleanField(required=False)
     revision = serializers.IntegerField(min_value=1)
     board = serializers.ChoiceField(choices=("free", "teams"), required=False)
     teamCode = serializers.CharField(max_length=2, allow_blank=True, required=False)
@@ -123,6 +127,8 @@ class CommunityDraftDetailView(APIView):
                     "category": changes.get("category", draft.category),
                     "title": changes.get("title", draft.title),
                     "content": changes.get("content", draft.content),
+                    "is_trade": changes.get('is_trade', draft.is_trade),
+                    "is_advertisement": changes.get('is_advertisement', draft.is_advertisement),
                 },
             ).model_dump()
             if patch.image_ids is not None:

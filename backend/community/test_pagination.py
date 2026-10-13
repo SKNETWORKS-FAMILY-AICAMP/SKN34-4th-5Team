@@ -10,7 +10,7 @@ from .models import CommunityPost
 class CommunityPostPaginationTests(APITestCase):
     def test_category_combines_with_filters_before_pagination(self):
         for index in range(3):
-            CommunityPost.objects.create(
+            CommunityPost.objects.create(moderation_status="approved", approved_revision=0,
                 source_id=f"category-{index}", post_number=f"{900000 + index}",
                 board="teams", team_code="LT", author="분류테스트",
                 title="분류전용 검색", content="본문", category="굿즈",
@@ -31,7 +31,7 @@ class CommunityPostPaginationTests(APITestCase):
         self.assertEqual(self.client.get("/api/v1/community/posts/", params).data, [])
 
     def test_category_validation_and_public_access(self):
-        CommunityPost.objects.create(source_id="category-free", post_number="999998",
+        CommunityPost.objects.create(moderation_status="approved", approved_revision=0, source_id="category-free", post_number="999998",
             board="free", author="테스트", title="질문", content="본문", category="질문")
         for category in ("", "없는분류", "질", " 잡담 "):
             self.assertEqual(self.client.get("/api/v1/community/posts/", {"category": category}).status_code, 400)
@@ -91,7 +91,7 @@ class CommunityPostPaginationTests(APITestCase):
         self.assertEqual((empty.status_code, empty.data["count"], empty.data["results"]), (200, 0, []))
 
     def test_search_is_trimmed_and_applied_before_pagination(self):
-        CommunityPost.objects.create(
+        CommunityPost.objects.create(moderation_status="approved", approved_revision=0,
             source_id="pagination-search",
             post_number="999999",
             board="free",

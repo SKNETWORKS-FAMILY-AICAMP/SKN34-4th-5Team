@@ -11,11 +11,11 @@ class MemberActivityTests(APITestCase):
     def setUp(self):
         self.owner = get_user_model().objects.create_user(username="activity-owner", nickname="야구팬")
         self.viewer = get_user_model().objects.create_user(username="activity-viewer")
-        self.post = CommunityPost.objects.create(
+        self.post = CommunityPost.objects.create(moderation_status="approved", approved_revision=0,
             source_id="activity-free", post_number="900001", owner=self.owner,
             board="free", team_code="", author="야구팬", title="활동 제목", content="본문", category="잡담",
         )
-        self.comment = CommunityComment.objects.create(post=self.post, author=self.owner, content="활동 댓글")
+        self.comment = CommunityComment.objects.create(moderation_status="approved", approved_revision=0, post=self.post, author=self.owner, content="활동 댓글")
         self.authenticate(self.viewer)
 
     def authenticate(self, user):
@@ -121,11 +121,11 @@ class MemberActivityTests(APITestCase):
 
     def test_author_filter_combines_with_existing_filters(self):
         self.publish()
-        team_post = CommunityPost.objects.create(
+        team_post = CommunityPost.objects.create(moderation_status="approved", approved_revision=0,
             source_id="activity-team", post_number="900002", owner=self.owner,
             board="teams", team_code="LG", author="야구팬", title="팀 검색", content="내용", category="잡담",
         )
-        CommunityPost.objects.create(
+        CommunityPost.objects.create(moderation_status="approved", approved_revision=0,
             source_id="activity-other", post_number="900003", owner=self.viewer,
             board="teams", team_code="LG", author="다른팬", title="팀 검색", content="내용", category="잡담",
         )
@@ -138,12 +138,12 @@ class MemberActivityTests(APITestCase):
     def test_pagination_latest_order_and_isolation(self):
         self.publish()
         for number in range(2, 23):
-            post = CommunityPost.objects.create(
+            post = CommunityPost.objects.create(moderation_status="approved", approved_revision=0,
                 source_id=f"activity-{number}", post_number=str(900000 + number), owner=self.owner,
                 board="free", team_code="", author="야구팬", title=f"제목 {number}", content="본문", category="잡담",
             )
-            CommunityComment.objects.create(post=post, author=self.owner, content=f"댓글 {number}")
-        CommunityComment.objects.create(post=self.post, author=self.viewer, content="다른 회원 댓글")
+            CommunityComment.objects.create(moderation_status="approved", approved_revision=0, post=post, author=self.owner, content=f"댓글 {number}")
+        CommunityComment.objects.create(moderation_status="approved", approved_revision=0, post=self.post, author=self.viewer, content="다른 회원 댓글")
         for url in self.activity_urls():
             first = self.client.get(url)
             self.assertEqual((first.data["count"], len(first.data["results"])), (22, 20))

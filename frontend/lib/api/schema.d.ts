@@ -1369,6 +1369,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/community/admin/moderation/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["v1_community_admin_moderation_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/community/admin/moderation/{job_id}/retry/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["v1_community_admin_moderation_retry_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/community/admin/moderation/{job_id}/review/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["v1_community_admin_moderation_review_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/community/admin/posts/": {
         parameters: {
             query?: never;
@@ -1393,14 +1441,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** @description 게시글 삭제 (댓글·추천·신고도 함께 삭제된다). */
+        get: operations["v1_community_admin_posts_retrieve"];
         put?: never;
         post?: never;
         /** @description 게시글 삭제 (댓글·추천·신고도 함께 삭제된다). */
         delete: operations["v1_community_admin_posts_destroy"];
         options?: never;
         head?: never;
-        /** @description 신고 관리와 동일한 정책으로 게시글과 관련 신고를 숨김 처리합니다. 해제는 지원하지 않습니다. */
+        /** @description 게시글 삭제 (댓글·추천·신고도 함께 삭제된다). */
         patch: operations["v1_community_admin_posts_partial_update"];
         trace?: never;
     };
@@ -1683,6 +1732,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/community/submissions/comments/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["v1_community_submissions_comments_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/community/submissions/posts/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["v1_community_submissions_posts_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/community/submissions/posts/{source_id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["v1_community_submissions_posts_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/courses/": {
         parameters: {
             query?: never;
@@ -1743,6 +1840,166 @@ export interface paths {
         put?: never;
         /** @description 익명 브라우저가 보낸 UUID capability마다 코스 조회를 한 번만 집계합니다. 이는 사람이나 계정 식별자가 아닙니다. */
         post: operations["v1_courses_view_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/fantasy/admin/context/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["v1_fantasy_admin_context_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/fantasy/admin/games/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["v1_fantasy_admin_games_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/fantasy/admin/stats/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["v1_fantasy_admin_stats_retrieve"];
+        put?: never;
+        post: operations["v1_fantasy_admin_stats_create"];
+        delete: operations["v1_fantasy_admin_stats_destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/fantasy/admin/test-settlement/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["v1_fantasy_admin_test_settlement_retrieve"];
+        put?: never;
+        post: operations["v1_fantasy_admin_test_settlement_create"];
+        delete: operations["v1_fantasy_admin_test_settlement_destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/fantasy/players/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["v1_fantasy_players_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/fantasy/points/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["v1_fantasy_points_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/fantasy/score/current/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["v1_fantasy_score_current_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/fantasy/selections/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["v1_fantasy_selections_retrieve"];
+        put?: never;
+        post: operations["v1_fantasy_selections_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/fantasy/selections/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["v1_fantasy_selections_destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/fantasy/week/{which}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["v1_fantasy_week_retrieve"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2071,6 +2328,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/chat/sessions/{session_id}/attachments/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["v2_chat_sessions_attachments_retrieve"];
+        put?: never;
+        post: operations["v2_chat_sessions_attachments_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/chat/sessions/{session_id}/attachments/{attachment_id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["v2_chat_sessions_attachments_retrieve_2"];
+        put?: never;
+        post?: never;
+        delete: operations["v2_chat_sessions_attachments_destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/chat/tool-groups/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["v2_chat_tool_groups_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2218,24 +2523,30 @@ export interface components {
         AdminFeedbackRatingEnum: "up" | "down";
         AdminMember: {
             readonly id: number;
-            /** @description Required. 150 characters or fewer. Letters, digits and @/./+/-/_ only. */
+            /**
+             * 사용자 이름
+             * @description 필수 항목입니다. 150자 이하의 문자, 숫자, @/./+/-/_만 가능합니다.
+             */
             readonly username: string;
             /**
-             * Active
-             * @description Designates whether this user should be treated as active. Unselect this instead of deleting accounts.
+             * 활성
+             * @description 이 사용자를 활성 상태로 처리할지 여부를 나타냅니다. 계정을 삭제하는 대신 이 옵션을 해제하세요.
              */
             readonly is_active: boolean;
             /**
-             * Staff status
-             * @description Designates whether the user can log into this admin site.
+             * 스태프 상태
+             * @description 사용자가 관리 사이트에 로그인할 수 있는지 여부를 나타냅니다.
              */
             readonly is_staff: boolean;
             /**
-             * Superuser status
-             * @description Designates that this user has all permissions without explicitly assigning them.
+             * 최상위 사용자 상태
+             * @description 이 사용자에게 명시적으로 권한을 부여하지 않더라도 모든 권한을 갖도록 지정합니다.
              */
             readonly is_superuser: boolean;
-            /** Format: date-time */
+            /**
+             * 가입일
+             * Format: date-time
+             */
             readonly date_joined: string;
         };
         AdminPost: {
@@ -2254,19 +2565,27 @@ export interface components {
             readonly is_hidden: boolean;
             readonly report_count: number;
         };
+        /**
+         * @description * `hide` - hide
+         * @enum {string}
+         */
+        AdminPostHideActionEnum: "hide";
         AdminPostOwner: {
             readonly id: number;
-            /** @description Required. 150 characters or fewer. Letters, digits and @/./+/-/_ only. */
+            /**
+             * 사용자 이름
+             * @description 필수 항목입니다. 150자 이하의 문자, 숫자, @/./+/-/_만 가능합니다.
+             */
             readonly username: string;
             readonly nickname: string;
             /**
-             * Staff status
-             * @description Designates whether the user can log into this admin site.
+             * 스태프 상태
+             * @description 사용자가 관리 사이트에 로그인할 수 있는지 여부를 나타냅니다.
              */
             readonly is_staff: boolean;
             /**
-             * Superuser status
-             * @description Designates that this user has all permissions without explicitly assigning them.
+             * 최상위 사용자 상태
+             * @description 이 사용자에게 명시적으로 권한을 부여하지 않더라도 모든 권한을 갖도록 지정합니다.
              */
             readonly is_superuser: boolean;
         };
@@ -2418,6 +2737,8 @@ export interface components {
             readonly createdAt: string;
             /** Format: date-time */
             readonly updatedAt: string;
+            readonly moderationStatus: string;
+            readonly revision: number;
         };
         CommunityCommentWrite: {
             content: string;
@@ -2460,6 +2781,10 @@ export interface components {
             readonly commentCount: number;
             readonly isSample: boolean;
             readonly images: components["schemas"]["CommunityImageMetadata"][];
+            isTrade?: boolean;
+            isAdvertisement?: boolean;
+            readonly moderationStatus: string;
+            readonly revision: number;
         };
         CommunityPostListResponse: components["schemas"]["CommunityPost"][] | components["schemas"]["CommunityPostPage"];
         CommunityPostPage: {
@@ -2469,6 +2794,8 @@ export interface components {
             results: components["schemas"]["CommunityPost"][];
         };
         CommunityPostWrite: {
+            isTrade?: boolean;
+            isAdvertisement?: boolean;
             board: components["schemas"]["BoardEnum"];
             teamCode: string;
             category: components["schemas"]["CommunityCategoryEnum"];
@@ -2677,7 +3004,7 @@ export interface components {
             code?: string;
         };
         DetailProgress: {
-            state: components["schemas"]["StateEnum"];
+            state: components["schemas"]["DetailProgressStateEnum"];
             generation: string | null;
             /** Format: date-time */
             startedAt: string | null;
@@ -2690,6 +3017,12 @@ export interface components {
             failures: string[];
             strategy: components["schemas"]["StrategyEnum"];
         };
+        /**
+         * @description * `idle` - idle
+         *     * `partial` - partial
+         * @enum {string}
+         */
+        DetailProgressStateEnum: "idle" | "partial";
         DirectionsError: {
             error: string;
         };
@@ -2734,6 +3067,16 @@ export interface components {
         };
         /** DraftInput */
         DraftInput: {
+            /**
+             * Istrade
+             * @default false
+             */
+            isTrade: boolean;
+            /**
+             * Isadvertisement
+             * @default false
+             */
+            isAdvertisement: boolean;
             /** Board */
             board: components["schemas"]["BoardEnum"];
             /**
@@ -2758,6 +3101,8 @@ export interface components {
             content: string;
         };
         DraftOutputSchema: {
+            isTrade: boolean;
+            isAdvertisement: boolean;
             /** Format: uuid */
             id: string;
             board: components["schemas"]["BoardEnum"];
@@ -2991,6 +3336,31 @@ export interface components {
                 [key: string]: unknown;
             }[];
         };
+        Job: {
+            readonly id: number;
+            readonly postId: string;
+            readonly commentId: number | null;
+            readonly revision: number;
+            readonly review_revision: number;
+            readonly state: components["schemas"]["JobStateEnum"];
+            readonly payload: unknown;
+            readonly findings: unknown;
+            readonly evidence: unknown;
+            readonly error_code: string;
+            readonly attempts: number;
+            readonly manualHidden: boolean;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        /**
+         * @description * `queued` - queued
+         *     * `running` - running
+         *     * `done` - done
+         *     * `failed` - failed
+         *     * `cancelled` - cancelled
+         * @enum {string}
+         */
+        JobStateEnum: "queued" | "running" | "done" | "failed" | "cancelled";
         KakaoPlace: {
             id: string;
             place_name: string;
@@ -3027,30 +3397,34 @@ export interface components {
         };
         MemberUser: {
             readonly id: number;
-            /** @description Required. 150 characters or fewer. Letters, digits and @/./+/-/_ only. */
+            /**
+             * 사용자 이름
+             * @description 필수 항목입니다. 150자 이하의 문자, 숫자, @/./+/-/_만 가능합니다.
+             */
             readonly username: string;
             /**
-             * Email address
+             * 이메일 주소
              * Format: email
              */
             readonly email: string;
+            /** 이름 */
             readonly first_name: string;
             /** Format: date */
             readonly birth_date: string | null;
             readonly gender: (components["schemas"]["GenderEnum"] | components["schemas"]["NullEnum"]) | null;
             /**
-             * Staff status
-             * @description Designates whether the user can log into this admin site.
+             * 스태프 상태
+             * @description 사용자가 관리 사이트에 로그인할 수 있는지 여부를 나타냅니다.
              */
             readonly is_staff: boolean;
             /**
-             * Superuser status
-             * @description Designates that this user has all permissions without explicitly assigning them.
+             * 최상위 사용자 상태
+             * @description 이 사용자에게 명시적으로 권한을 부여하지 않더라도 모든 권한을 갖도록 지정합니다.
              */
             readonly is_superuser: boolean;
             /**
-             * Active
-             * @description Designates whether this user should be treated as active. Unselect this instead of deleting accounts.
+             * 활성
+             * @description 이 사용자를 활성 상태로 처리할지 여부를 나타냅니다. 계정을 삭제하는 대신 이 옵션을 해제하세요.
              */
             readonly is_active: boolean;
             readonly nickname: string;
@@ -3291,6 +3665,21 @@ export interface components {
              */
             previous?: string | null;
             results: components["schemas"]["HomeContext"][];
+        };
+        PaginatedJobList: {
+            /** @example 123 */
+            count: number;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?page=4
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?page=2
+             */
+            previous?: string | null;
+            results: components["schemas"]["Job"][];
         };
         PaginatedPostseasonStageList: {
             /** @example 123 */
@@ -3562,6 +3951,28 @@ export interface components {
             previous?: string | null;
             results: components["schemas"]["Transport"][];
         };
+        ParkingMap: {
+            imageUrl: string;
+            /** Format: uri */
+            sourceUrl?: string;
+            credit?: string;
+            title?: string;
+            summary?: string;
+            kind?: components["schemas"]["ParkingMapKindEnum"];
+            visualNotes?: string[];
+            /** Format: date */
+            capturedAt?: string;
+            width?: number;
+            height?: number;
+        };
+        /**
+         * @description * `entrance` - entrance
+         *     * `preferred-area` - preferred-area
+         *     * `nearby-alternatives` - nearby-alternatives
+         *     * `access-gates` - access-gates
+         * @enum {string}
+         */
+        ParkingMapKindEnum: "entrance" | "preferred-area" | "nearby-alternatives" | "access-gates";
         PasswordUpdateRequest: {
             current_password?: string;
             new_password?: string;
@@ -3625,6 +4036,9 @@ export interface components {
             /** Format: date-time */
             readonly updated_at?: string;
         };
+        PatchedAdminPostHide: {
+            action?: components["schemas"]["AdminPostHideActionEnum"];
+        };
         PatchedChatSession: {
             /** Format: uuid */
             readonly id?: string;
@@ -3638,6 +4052,8 @@ export interface components {
             content?: string;
         };
         PatchedCommunityPostPatch: {
+            isTrade?: boolean;
+            isAdvertisement?: boolean;
             board?: components["schemas"]["BoardEnum"];
             teamCode?: string;
             category?: components["schemas"]["CommunityCategoryEnum"];
@@ -3664,6 +4080,8 @@ export interface components {
             stops?: components["schemas"]["CourseStopWrite"][];
         };
         PatchedDraftPatchSchema: {
+            isTrade?: boolean;
+            isAdvertisement?: boolean;
             revision?: number;
             board?: components["schemas"]["BoardEnum"];
             teamCode?: string;
@@ -3734,30 +4152,34 @@ export interface components {
         };
         PatchedMemberUserUpdate: {
             readonly id?: number;
-            /** @description Required. 150 characters or fewer. Letters, digits and @/./+/-/_ only. */
+            /**
+             * 사용자 이름
+             * @description 필수 항목입니다. 150자 이하의 문자, 숫자, @/./+/-/_만 가능합니다.
+             */
             readonly username?: string;
             /**
-             * Email address
+             * 이메일 주소
              * Format: email
              */
             readonly email?: string;
+            /** 이름 */
             first_name?: string;
             /** Format: date */
             birth_date?: string | null;
             gender?: (components["schemas"]["GenderEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
             /**
-             * Staff status
-             * @description Designates whether the user can log into this admin site.
+             * 스태프 상태
+             * @description 사용자가 관리 사이트에 로그인할 수 있는지 여부를 나타냅니다.
              */
             readonly is_staff?: boolean;
             /**
-             * Superuser status
-             * @description Designates that this user has all permissions without explicitly assigning them.
+             * 최상위 사용자 상태
+             * @description 이 사용자에게 명시적으로 권한을 부여하지 않더라도 모든 권한을 갖도록 지정합니다.
              */
             readonly is_superuser?: boolean;
             /**
-             * Active
-             * @description Designates whether this user should be treated as active. Unselect this instead of deleting accounts.
+             * 활성
+             * @description 이 사용자를 활성 상태로 처리할지 여부를 나타냅니다. 계정을 삭제하는 대신 이 옵션을 해제하세요.
              */
             readonly is_active?: boolean;
             nickname?: string;
@@ -3812,6 +4234,7 @@ export interface components {
             asset_no?: number;
             asset_url?: string;
             asset_role?: string;
+            source_url?: (string) | null;
         };
         PatchedSeatScope: {
             id?: number;
@@ -4021,6 +4444,15 @@ export interface components {
          * @enum {string}
          */
         PlacementEnum: "home-club-banner" | "home-route-partner-banner";
+        Player: {
+            external_code: string;
+            name: string;
+            readonly team: string;
+            readonly team_name: string;
+            positions?: unknown;
+            readonly fantasy_type: string;
+            image_url?: (string) | null;
+        };
         PlayerEntity: {
             externalCode: string;
             teamCode: string;
@@ -4041,6 +4473,12 @@ export interface components {
             externalCode?: string;
             teamCode: components["schemas"]["KboTeamCodeEnum"];
             name: string;
+        };
+        PlayerPage: {
+            count: number;
+            next: number | null;
+            previous: number | null;
+            results: components["schemas"]["Player"][];
         };
         PostseasonStage: {
             id: number;
@@ -4180,37 +4618,6 @@ export interface components {
             scope_name: string;
             readonly seat_views: components["schemas"]["SeatView"][];
         };
-        ParkingMap: {
-            imageUrl: string;
-            /** Format: uri */
-            sourceUrl?: string;
-            credit?: string;
-            title?: string;
-            summary?: string;
-            kind?: components["schemas"]["ParkingMapKindEnum"];
-            visualNotes?: string[];
-            /** Format: date */
-            capturedAt?: string;
-            width?: number;
-            height?: number;
-        };
-        /**
-         * @description * `entrance` - entrance
-         *     * `preferred-area` - preferred-area
-         *     * `nearby-alternatives` - nearby-alternatives
-         *     * `access-gates` - access-gates
-         * @enum {string}
-         */
-        ParkingMapKindEnum: "entrance" | "preferred-area" | "nearby-alternatives" | "access-gates";
-        SeatingMap: {
-            imageUrl: string;
-            /** Format: uri */
-            sourceUrl?: string;
-            title: string;
-            home_context_id: number;
-            season: number;
-            team_code: string;
-        };
         PublicStadium: {
             id: number;
             stadium_code: string;
@@ -4290,6 +4697,19 @@ export interface components {
          * @enum {string}
          */
         ResultEnum: "home" | "away" | "draw";
+        ReviewInput: {
+            revision: number;
+            review_revision: number;
+            finding_ids: string[];
+            action: components["schemas"]["ReviewInputActionEnum"];
+            note: string;
+        };
+        /**
+         * @description * `dismiss` - dismiss
+         *     * `confirm` - confirm
+         * @enum {string}
+         */
+        ReviewInputActionEnum: "dismiss" | "confirm";
         /**
          * @description * `none` - none
          *     * `7d` - 7d
@@ -4384,6 +4804,30 @@ export interface components {
             /** etag */
             readonly _etag: string;
         };
+        SeatingMap: {
+            imageUrl: string;
+            /** Format: uri */
+            sourceUrl?: string;
+            title: string;
+            home_context_id: number;
+            season: number;
+            team_code: string;
+        };
+        Selection: {
+            readonly id: number;
+            week: number;
+            readonly player: components["schemas"]["Player"];
+            readonly fantasy_type: string;
+            is_confirmed?: boolean;
+            readonly weights: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            readonly selected_at: string;
+        };
+        SelectionCreate: {
+            player: string;
+        };
         /** @description 이메일을 검증합니다. */
         SendEmail: {
             /** Format: email */
@@ -4398,6 +4842,7 @@ export interface components {
             username: string;
             /** Format: email */
             email: string;
+            /** 비밀번호 */
             password: string;
             re_password: string;
             first_name: string;
@@ -4567,12 +5012,6 @@ export interface components {
             /** etag */
             readonly _etag: string;
         };
-        /**
-         * @description * `idle` - idle
-         *     * `partial` - partial
-         * @enum {string}
-         */
-        StateEnum: "idle" | "partial";
         StatusResponse: {
             data: components["schemas"]["DetailProgress"] | null;
             error: string | null;
@@ -4812,6 +5251,23 @@ export interface components {
         WeatherResponse: {
             weather: components["schemas"]["Weather"] | null;
         };
+        Week: {
+            readonly id: number;
+            /** Format: date */
+            week_start: string;
+            /** Format: date */
+            week_end: string;
+            /** Format: date */
+            settlement_date: string;
+            status?: components["schemas"]["WeekStatusEnum"];
+            readonly has_games: boolean;
+        };
+        /**
+         * @description * `OPEN` - Open
+         *     * `SETTLED` - Settled
+         * @enum {string}
+         */
+        WeekStatusEnum: "OPEN" | "SETTLED";
     };
     responses: never;
     parameters: never;
@@ -4824,7 +5280,7 @@ export interface operations {
     chat_admin_feedback_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
             };
             header?: never;
@@ -4870,7 +5326,7 @@ export interface operations {
     chat_sessions_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
             };
             header?: never;
@@ -5138,7 +5594,7 @@ export interface operations {
     v1_ads_admin_creatives_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
             };
             header?: never;
@@ -5284,7 +5740,7 @@ export interface operations {
     v1_auth_admin_members_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
             };
             header?: never;
@@ -5640,9 +6096,9 @@ export interface operations {
     v1_baseball_games_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
-                /** @description Number of results to return per page. */
+                /** @description 페이지당 반환할 결과 수. */
                 page_size?: number;
             };
             header?: never;
@@ -5664,9 +6120,9 @@ export interface operations {
     v1_baseball_manage_facilities_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
-                /** @description Number of results to return per page. */
+                /** @description 페이지당 반환할 결과 수. */
                 page_size?: number;
             };
             header?: never;
@@ -5731,7 +6187,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this facility. */
+                /** @description facility을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -5761,7 +6217,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this facility. */
+                /** @description facility을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -5814,7 +6270,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this facility. */
+                /** @description facility을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -5872,9 +6328,9 @@ export interface operations {
     v1_baseball_manage_food_store_locations_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
-                /** @description Number of results to return per page. */
+                /** @description 페이지당 반환할 결과 수. */
                 page_size?: number;
             };
             header?: never;
@@ -5939,7 +6395,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this food store location. */
+                /** @description food store location을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -5969,7 +6425,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this food store location. */
+                /** @description food store location을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -6022,7 +6478,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this food store location. */
+                /** @description food store location을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -6080,9 +6536,9 @@ export interface operations {
     v1_baseball_manage_food_store_menus_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
-                /** @description Number of results to return per page. */
+                /** @description 페이지당 반환할 결과 수. */
                 page_size?: number;
             };
             header?: never;
@@ -6147,7 +6603,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this food store menu. */
+                /** @description food store menu을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -6177,7 +6633,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this food store menu. */
+                /** @description food store menu을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -6230,7 +6686,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this food store menu. */
+                /** @description food store menu을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -6288,9 +6744,9 @@ export interface operations {
     v1_baseball_manage_food_stores_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
-                /** @description Number of results to return per page. */
+                /** @description 페이지당 반환할 결과 수. */
                 page_size?: number;
             };
             header?: never;
@@ -6355,7 +6811,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this food store. */
+                /** @description food store을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -6385,7 +6841,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this food store. */
+                /** @description food store을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -6438,7 +6894,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this food store. */
+                /** @description food store을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -6496,9 +6952,9 @@ export interface operations {
     v1_baseball_manage_games_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
-                /** @description Number of results to return per page. */
+                /** @description 페이지당 반환할 결과 수. */
                 page_size?: number;
             };
             header?: never;
@@ -6563,7 +7019,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this game. */
+                /** @description game을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -6593,7 +7049,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this game. */
+                /** @description game을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -6646,7 +7102,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this game. */
+                /** @description game을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -6704,9 +7160,9 @@ export interface operations {
     v1_baseball_manage_home_contexts_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
-                /** @description Number of results to return per page. */
+                /** @description 페이지당 반환할 결과 수. */
                 page_size?: number;
             };
             header?: never;
@@ -6771,7 +7227,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this home context. */
+                /** @description home context을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -6801,7 +7257,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this home context. */
+                /** @description home context을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -6854,7 +7310,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this home context. */
+                /** @description home context을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -6912,9 +7368,9 @@ export interface operations {
     v1_baseball_manage_postseason_stages_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
-                /** @description Number of results to return per page. */
+                /** @description 페이지당 반환할 결과 수. */
                 page_size?: number;
             };
             header?: never;
@@ -6979,7 +7435,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this postseason stage. */
+                /** @description postseason stage을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -7009,7 +7465,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this postseason stage. */
+                /** @description postseason stage을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -7062,7 +7518,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this postseason stage. */
+                /** @description postseason stage을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -7120,9 +7576,9 @@ export interface operations {
     v1_baseball_manage_seat_map_assets_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
-                /** @description Number of results to return per page. */
+                /** @description 페이지당 반환할 결과 수. */
                 page_size?: number;
             };
             header?: never;
@@ -7187,7 +7643,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this seat map asset. */
+                /** @description seat map asset을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -7217,7 +7673,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this seat map asset. */
+                /** @description seat map asset을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -7270,7 +7726,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this seat map asset. */
+                /** @description seat map asset을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -7328,9 +7784,9 @@ export interface operations {
     v1_baseball_manage_seat_maps_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
-                /** @description Number of results to return per page. */
+                /** @description 페이지당 반환할 결과 수. */
                 page_size?: number;
             };
             header?: never;
@@ -7395,7 +7851,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this seat map. */
+                /** @description seat map을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -7425,7 +7881,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this seat map. */
+                /** @description seat map을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -7478,7 +7934,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this seat map. */
+                /** @description seat map을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -7536,9 +7992,9 @@ export interface operations {
     v1_baseball_manage_seat_scopes_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
-                /** @description Number of results to return per page. */
+                /** @description 페이지당 반환할 결과 수. */
                 page_size?: number;
             };
             header?: never;
@@ -7603,7 +8059,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this seat scope. */
+                /** @description seat scope을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -7633,7 +8089,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this seat scope. */
+                /** @description seat scope을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -7686,7 +8142,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this seat scope. */
+                /** @description seat scope을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -7744,9 +8200,9 @@ export interface operations {
     v1_baseball_manage_seat_views_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
-                /** @description Number of results to return per page. */
+                /** @description 페이지당 반환할 결과 수. */
                 page_size?: number;
             };
             header?: never;
@@ -7811,7 +8267,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this seat view. */
+                /** @description seat view을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -7841,7 +8297,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this seat view. */
+                /** @description seat view을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -7894,7 +8350,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this seat view. */
+                /** @description seat view을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -7952,9 +8408,9 @@ export interface operations {
     v1_baseball_manage_seat_zones_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
-                /** @description Number of results to return per page. */
+                /** @description 페이지당 반환할 결과 수. */
                 page_size?: number;
             };
             header?: never;
@@ -8019,7 +8475,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this seat zone. */
+                /** @description seat zone을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -8049,7 +8505,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this seat zone. */
+                /** @description seat zone을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -8102,7 +8558,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this seat zone. */
+                /** @description seat zone을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -8160,9 +8616,9 @@ export interface operations {
     v1_baseball_manage_stadium_contents_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
-                /** @description Number of results to return per page. */
+                /** @description 페이지당 반환할 결과 수. */
                 page_size?: number;
             };
             header?: never;
@@ -8227,7 +8683,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this stadium content. */
+                /** @description stadium content을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -8257,7 +8713,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this stadium content. */
+                /** @description stadium content을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -8310,7 +8766,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this stadium content. */
+                /** @description stadium content을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -8368,9 +8824,9 @@ export interface operations {
     v1_baseball_manage_stadiums_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
-                /** @description Number of results to return per page. */
+                /** @description 페이지당 반환할 결과 수. */
                 page_size?: number;
             };
             header?: never;
@@ -8435,7 +8891,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this stadium. */
+                /** @description stadium을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -8465,7 +8921,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this stadium. */
+                /** @description stadium을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -8518,7 +8974,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this stadium. */
+                /** @description stadium을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -8576,9 +9032,9 @@ export interface operations {
     v1_baseball_manage_standing_histories_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
-                /** @description Number of results to return per page. */
+                /** @description 페이지당 반환할 결과 수. */
                 page_size?: number;
             };
             header?: never;
@@ -8643,7 +9099,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this standing history. */
+                /** @description standing history을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -8673,7 +9129,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this standing history. */
+                /** @description standing history을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -8726,7 +9182,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this standing history. */
+                /** @description standing history을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -8784,9 +9240,9 @@ export interface operations {
     v1_baseball_manage_teams_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
-                /** @description Number of results to return per page. */
+                /** @description 페이지당 반환할 결과 수. */
                 page_size?: number;
             };
             header?: never;
@@ -8851,7 +9307,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this team. */
+                /** @description team을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -8881,7 +9337,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this team. */
+                /** @description team을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -8934,7 +9390,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this team. */
+                /** @description team을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -8992,9 +9448,9 @@ export interface operations {
     v1_baseball_manage_ticket_policies_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
-                /** @description Number of results to return per page. */
+                /** @description 페이지당 반환할 결과 수. */
                 page_size?: number;
             };
             header?: never;
@@ -9059,7 +9515,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this ticket policy. */
+                /** @description ticket policy을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -9089,7 +9545,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this ticket policy. */
+                /** @description ticket policy을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -9142,7 +9598,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this ticket policy. */
+                /** @description ticket policy을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -9200,9 +9656,9 @@ export interface operations {
     v1_baseball_manage_ticket_prices_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
-                /** @description Number of results to return per page. */
+                /** @description 페이지당 반환할 결과 수. */
                 page_size?: number;
             };
             header?: never;
@@ -9267,7 +9723,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this ticket price. */
+                /** @description ticket price을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -9297,7 +9753,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this ticket price. */
+                /** @description ticket price을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -9350,7 +9806,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this ticket price. */
+                /** @description ticket price을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -9408,9 +9864,9 @@ export interface operations {
     v1_baseball_manage_transports_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
-                /** @description Number of results to return per page. */
+                /** @description 페이지당 반환할 결과 수. */
                 page_size?: number;
             };
             header?: never;
@@ -9475,7 +9931,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this transport. */
+                /** @description transport을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -9505,7 +9961,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this transport. */
+                /** @description transport을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -9558,7 +10014,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description A unique value identifying this transport. */
+                /** @description transport을 식별하는 고유한 값. */
                 id: number;
             };
             cookie?: never;
@@ -9616,9 +10072,9 @@ export interface operations {
     v1_baseball_postseason_stages_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
-                /** @description Number of results to return per page. */
+                /** @description 페이지당 반환할 결과 수. */
                 page_size?: number;
             };
             header?: never;
@@ -9640,9 +10096,9 @@ export interface operations {
     v1_baseball_stadiums_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
-                /** @description Number of results to return per page. */
+                /** @description 페이지당 반환할 결과 수. */
                 page_size?: number;
             };
             header?: never;
@@ -9685,9 +10141,9 @@ export interface operations {
     v1_baseball_stadiums_contents_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
-                /** @description Number of results to return per page. */
+                /** @description 페이지당 반환할 결과 수. */
                 page_size?: number;
             };
             header?: never;
@@ -9711,9 +10167,9 @@ export interface operations {
     v1_baseball_stadiums_facilities_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
-                /** @description Number of results to return per page. */
+                /** @description 페이지당 반환할 결과 수. */
                 page_size?: number;
             };
             header?: never;
@@ -9737,9 +10193,9 @@ export interface operations {
     v1_baseball_stadiums_food_stores_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
-                /** @description Number of results to return per page. */
+                /** @description 페이지당 반환할 결과 수. */
                 page_size?: number;
             };
             header?: never;
@@ -9763,9 +10219,9 @@ export interface operations {
     v1_baseball_stadiums_seat_maps_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
-                /** @description Number of results to return per page. */
+                /** @description 페이지당 반환할 결과 수. */
                 page_size?: number;
             };
             header?: never;
@@ -9789,9 +10245,9 @@ export interface operations {
     v1_baseball_stadiums_seat_scopes_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
-                /** @description Number of results to return per page. */
+                /** @description 페이지당 반환할 결과 수. */
                 page_size?: number;
             };
             header?: never;
@@ -9815,9 +10271,9 @@ export interface operations {
     v1_baseball_stadiums_seat_views_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
-                /** @description Number of results to return per page. */
+                /** @description 페이지당 반환할 결과 수. */
                 page_size?: number;
             };
             header?: never;
@@ -9841,9 +10297,9 @@ export interface operations {
     v1_baseball_stadiums_seat_zones_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
-                /** @description Number of results to return per page. */
+                /** @description 페이지당 반환할 결과 수. */
                 page_size?: number;
             };
             header?: never;
@@ -9867,9 +10323,9 @@ export interface operations {
     v1_baseball_stadiums_ticket_prices_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
-                /** @description Number of results to return per page. */
+                /** @description 페이지당 반환할 결과 수. */
                 page_size?: number;
             };
             header?: never;
@@ -9893,9 +10349,9 @@ export interface operations {
     v1_baseball_stadiums_transports_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
-                /** @description Number of results to return per page. */
+                /** @description 페이지당 반환할 결과 수. */
                 page_size?: number;
             };
             header?: never;
@@ -9919,9 +10375,9 @@ export interface operations {
     v1_baseball_standings_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
-                /** @description Number of results to return per page. */
+                /** @description 페이지당 반환할 결과 수. */
                 page_size?: number;
             };
             header?: never;
@@ -9962,9 +10418,9 @@ export interface operations {
     v1_baseball_ticket_policies_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
-                /** @description Number of results to return per page. */
+                /** @description 페이지당 반환할 결과 수. */
                 page_size?: number;
             };
             header?: never;
@@ -9986,9 +10442,9 @@ export interface operations {
     v1_baseball_ticket_prices_list: {
         parameters: {
             query?: {
-                /** @description A page number within the paginated result set. */
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
-                /** @description Number of results to return per page. */
+                /** @description 페이지당 반환할 결과 수. */
                 page_size?: number;
             };
             header?: never;
@@ -10003,6 +10459,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaginatedPublicTicketPriceList"];
+                };
+            };
+        };
+    };
+    v1_community_admin_moderation_list: {
+        parameters: {
+            query?: {
+                /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedJobList"];
+                };
+            };
+        };
+    };
+    v1_community_admin_moderation_retry_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+        };
+    };
+    v1_community_admin_moderation_review_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewInput"];
+                "application/x-www-form-urlencoded": components["schemas"]["ReviewInput"];
+                "multipart/form-data": components["schemas"]["ReviewInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
                 };
             };
         };
@@ -10025,6 +10551,27 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaginatedAdminPostList"];
+                };
+            };
+        };
+    };
+    v1_community_admin_posts_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommunityPost"];
                 };
             };
         };
@@ -10058,16 +10605,14 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": {
-                    /** @enum {string} */
-                    action: "hide";
-                };
+                "application/json": components["schemas"]["PatchedAdminPostHide"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedAdminPostHide"];
+                "multipart/form-data": components["schemas"]["PatchedAdminPostHide"];
             };
         };
         responses: {
-            /** @description 숨김 처리된 게시글 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -10075,34 +10620,6 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["AdminPost"];
                 };
-            };
-            /** @description 잘못된 요청 */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description 로그인 필요 */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description 운영 관리자 권한 필요 */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description 게시글 없음 */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
         };
     };
@@ -10284,7 +10801,7 @@ export interface operations {
             };
         };
         responses: {
-            200: {
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -10583,7 +11100,7 @@ export interface operations {
                     "application/json": components["schemas"]["CommunityPost"];
                 };
             };
-            201: {
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -10914,7 +11431,7 @@ export interface operations {
                     "application/json": components["schemas"]["CommunityPost"];
                 };
             };
-            201: {
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -11052,7 +11569,7 @@ export interface operations {
             };
         };
         responses: {
-            200: {
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -11162,7 +11679,7 @@ export interface operations {
             };
         };
         responses: {
-            201: {
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -11511,6 +12028,65 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    v1_community_submissions_comments_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommunityComment"][];
+                };
+            };
+        };
+    };
+    v1_community_submissions_posts_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommunityPost"][];
+                };
+            };
+        };
+    };
+    v1_community_submissions_posts_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommunityPost"];
                 };
             };
         };
@@ -11964,6 +12540,338 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    v1_fantasy_admin_context_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    v1_fantasy_admin_games_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    v1_fantasy_admin_stats_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    v1_fantasy_admin_stats_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+                "application/x-www-form-urlencoded": {
+                    [key: string]: unknown;
+                };
+                "multipart/form-data": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    v1_fantasy_admin_stats_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    v1_fantasy_admin_test_settlement_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    v1_fantasy_admin_test_settlement_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+                "application/x-www-form-urlencoded": {
+                    [key: string]: unknown;
+                };
+                "multipart/form-data": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    v1_fantasy_admin_test_settlement_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    v1_fantasy_players_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlayerPage"];
+                };
+            };
+        };
+    };
+    v1_fantasy_points_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    v1_fantasy_score_current_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    v1_fantasy_selections_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Selection"];
+                };
+            };
+        };
+    };
+    v1_fantasy_selections_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SelectionCreate"];
+                "application/x-www-form-urlencoded": components["schemas"]["SelectionCreate"];
+                "multipart/form-data": components["schemas"]["SelectionCreate"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Selection"];
+                };
+            };
+        };
+    };
+    v1_fantasy_selections_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    v1_fantasy_week_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                which: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Week"];
                 };
             };
         };
@@ -13384,6 +14292,106 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["WeatherErrorResponse"];
                 };
+            };
+        };
+    };
+    v2_chat_sessions_attachments_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    v2_chat_sessions_attachments_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    v2_chat_sessions_attachments_retrieve_2: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                attachment_id: string;
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    v2_chat_sessions_attachments_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                attachment_id: string;
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    v2_chat_tool_groups_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

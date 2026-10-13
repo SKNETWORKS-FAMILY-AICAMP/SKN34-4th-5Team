@@ -59,7 +59,7 @@ test("public detail/comments use fetch while private reads use memberFetch with 
   const memberCalls = [];
   memberHandler = async (url, init) => {
     memberCalls.push([url, init]);
-    return url.includes("mine=1") ? Response.json([post]) : Response.json(vote);
+    return url.includes("submissions/posts/") ? Response.json([post]) : Response.json(vote);
   };
   try {
     assert.deepEqual(await api.getCommunityPost(post.id), post);
@@ -72,7 +72,7 @@ test("public detail/comments use fetch while private reads use memberFetch with 
     "/api/v1/community/posts/free%2Fsample%201/",
     "/api/v1/community/posts/free%2Fsample%201/comments/?order=newest",
   ]);
-  assert.deepEqual(memberCalls.map(([url]) => url), ["/api/v1/community/posts/?mine=1", "/api/v1/community/posts/free%2Fsample%201/vote/"]);
+  assert.deepEqual(memberCalls.map(([url]) => url), ["/api/v1/community/submissions/posts/", "/api/v1/community/posts/free%2Fsample%201/vote/"]);
   for (const [, init] of [...publicCalls, ...memberCalls]) {
     assert.equal(init.cache, "no-store");
     assert.ok(init.signal instanceof AbortSignal);
