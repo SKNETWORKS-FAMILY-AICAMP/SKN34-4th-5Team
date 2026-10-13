@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.management import call_command, get_commands
-from django.test import override_settings
+from django.test import TransactionTestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
@@ -228,6 +228,78 @@ class ModerationIntegrationTests(APITestCase):
         self.assertEqual(result.status_code, 429)
         self.assertEqual(CommunityPost.objects.filter(owner=self.owner).count(), 1)
 
+    @override_settings(COMMUNITY_MODERATION_WRITES_PER_HOUR=1)
+    def test_deleted_post_does_not_reset_account_limit(self):
+        post = self.submit()
+        self.assertEqual(self.client.delete(f'/api/v1/community/posts/{post.pk}/').status_code, 204)
+        self.assertFalse(ModerationJob.objects.filter(post=post.pk).exists())
+        data = dict(board='free', teamCode='', category='잡담', title='둘째', content='본문')
+        self.assertEqual(self.client.post('/api/v1/community/posts/', data, format='json', HTTP_IDEMPOTENCY_KEY='second').status_code, 429)
+        self.client.force_authenticate(self.other)
+        self.assertEqual(self.client.post('/api/v1/community/posts/', data, format='json', HTTP_IDEMPOTENCY_KEY='second').status_code, 202)
+
+    @override_settings(COMMUNITY_MODERATION_WRITES_PER_HOUR=1)
+    def test_deleted_comment_does_not_reset_account_limit(self):
+        post = CommunityPost.objects.create(owner=self.other, board='free', category='잡담', title='공개', content='본문', moderation_status='approved', approved_revision=0)
+        url = f'/api/v1/community/posts/{post.pk}/comments/'
+        response = self.client.post(url, {'content': '댓글'}, format='json')
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(self.client.delete(f"/api/v1/community/comments/{response.data['id']}/").status_code, 204)
+        self.assertEqual(self.client.post(url, {'content': '둘째'}, format='json').status_code, 429)
+        self.client.force_authenticate(self.other)
+        self.assertEqual(self.client.post(url, {'content': '다른 계정'}, format='json').status_code, 202)
+
+    @override_settings(COMMUNITY_MODERATION_WRITES_PER_HOUR=1)
+    def test_expired_admission_is_pruned_without_retaining_deleted_content(self):
+        from .models import ModerationAdmission
+        post = self.submit()
+        self.client.delete(f'/api/v1/community/posts/{post.pk}/')
+        admission = ModerationAdmission.objects.get(account=self.owner)
+        self.assertEqual({field.name for field in admission._meta.fields}, {'id', 'account', 'created_at'})
+        ModerationAdmission.objects.filter(pk=admission.pk).update(created_at=timezone.now() - timedelta(hours=2))
+        self.submit(key='after-expiry')
+        self.assertEqual(ModerationAdmission.objects.filter(account=self.owner).count(), 1)
+        self.assertFalse(ModerationAdmission.objects.filter(pk=admission.pk).exists())
+
+    def test_admission_migration_preserves_recent_jobs_and_reviews(self):
+        from importlib import import_module
+        from django.apps import apps
+        from django.db import connection
+        from .models import ModerationAdmission
+
+        post = self.submit()
+        run_one()
+        job = post.moderation_jobs.get()
+        self.review(job)
+        before = ModerationJob.objects.get(pk=job.pk)
+        review_id = job.reviews.get().pk
+        comment = CommunityComment.objects.create(post=post, author=self.other, content='댓글')
+        comment_job = comment.moderation_jobs.create(revision=0, payload={'text': '댓글'})
+        old_job = post.moderation_jobs.create(revision=99, payload={'text': '과거'})
+        ModerationJob.objects.filter(pk=old_job.pk).update(created_at=timezone.now() - timedelta(hours=2))
+        ModerationAdmission.objects.all().delete()
+        migration = import_module('community.migrations.0012_moderation_admission')
+        with connection.schema_editor() as schema_editor:
+            migration.seed_recent_admissions(apps, schema_editor)
+        self.assertCountEqual(ModerationAdmission.objects.values_list('account_id', flat=True), [self.owner.pk, self.other.pk])
+        self.assertEqual(ModerationAdmission.objects.get(account=self.other).created_at, comment_job.created_at)
+        job.refresh_from_db()
+        self.assertEqual((job.payload, job.findings, job.state), (before.payload, before.findings, before.state))
+        self.assertTrue(ModerationReview.objects.filter(pk=review_id).exists())
+
+    def test_boolean_submission_retries_use_validated_normalization(self):
+        for index, value in enumerate(('true', 'TRUE', 'false', 0, 1)):
+            with self.subTest(value=value):
+                data = dict(board='free', teamCode='', category='잡담', title='한화 경기', content='본문', isTrade=value, isAdvertisement=value)
+                key = f'boolean-{index}'
+                first = self.client.post('/api/v1/community/posts/', data, format='json', HTTP_IDEMPOTENCY_KEY=key)
+                self.assertEqual(first.status_code, 202, first.data)
+                self.client.patch(f"/api/v1/community/posts/{first.data['id']}/", {'content': '나중 수정'}, format='json')
+                retry = self.client.post('/api/v1/community/posts/', data, format='json', HTTP_IDEMPOTENCY_KEY=key)
+                self.assertEqual(retry.status_code, 200, retry.data)
+                changed = self.client.post('/api/v1/community/posts/', {**data, 'content': '다른 본문'}, format='json', HTTP_IDEMPOTENCY_KEY=key)
+                self.assertEqual(changed.status_code, 409)
+
     def test_chatbot_search_does_not_leak_pending_content(self):
         post = self.submit()
         from llm.tools.community import create_community_tools
@@ -236,3 +308,41 @@ class ModerationIntegrationTests(APITestCase):
         run_one(lambda payload: ([], {}))
         result = create_community_tools()[0].invoke({'query': 'at another level'})
         self.assertIn(post.pk, str(result))
+
+
+@override_settings(COMMUNITY_MODERATION_WRITES_PER_HOUR=1, COMMUNITY_MODERATION_MODE='manual', COMMUNITY_POLICY_VERSION='community-v1')
+class ModerationAdmissionConcurrencyTests(TransactionTestCase):
+    def test_concurrent_account_admission_commits_only_one(self):
+        from concurrent.futures import ThreadPoolExecutor
+        from threading import Barrier
+        from django.db import close_old_connections, connection, transaction
+        from rest_framework.exceptions import Throttled
+        from .models import ModerationAdmission
+        from .moderation_service import enqueue_locked
+
+        if connection.vendor != 'postgresql':
+            self.skipTest('PostgreSQL row locks required')
+        owner = get_user_model().objects.create_user(username='concurrent-admission')
+        barrier = Barrier(2)
+
+        def submit(index):
+            close_old_connections()
+            try:
+                with transaction.atomic():
+                    with connection.cursor() as cursor:
+                        cursor.execute("SET LOCAL lock_timeout = '10s'")
+                    post = CommunityPost.objects.create(owner_id=owner.pk, post_number=f'{900000 + index:06}', board='free', category='잡담', title='경합', content='본문')
+                    barrier.wait(timeout=10)
+                    enqueue_locked(post)
+                return 'accepted'
+            except Throttled:
+                return 'throttled'
+            finally:
+                close_old_connections()
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(executor.map(submit, (1, 2)))
+        self.assertCountEqual(results, ['accepted', 'throttled'])
+        self.assertEqual(CommunityPost.objects.filter(owner=owner).count(), 1)
+        self.assertEqual(ModerationAdmission.objects.filter(account=owner).count(), 1)
+        self.assertEqual(ModerationJob.objects.filter(post__owner=owner).count(), 1)

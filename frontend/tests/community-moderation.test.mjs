@@ -9,7 +9,7 @@ function nodes(tree) {
   if (Array.isArray(tree)) return tree.flatMap(nodes);
   return tree && typeof tree === "object" && tree.props ? [tree, ...nodes(tree.props.children)] : [];
 }
-function harness({ user = { id: 1 }, response = Response.json({}) } = {}) {
+function harness({ user = { id: 1 }, response = Response.json({}), confirm = true, deleteError = null } = {}) {
   let values = [], index = 0;
   const calls = [];
   const mocks = {
@@ -18,10 +18,10 @@ function harness({ user = { id: 1 }, response = Response.json({}) } = {}) {
     "next/link": { __esModule: true, default: "a" },
     "@/lib/member-auth": { useMemberAuth: () => ({ user, status: user ? "authenticated" : "anonymous" }) },
     "@/lib/member-auth-request": { memberFetch: async (path, init) => { calls.push({ path, init }); return response; }, memberError: (data, fallback) => data.detail || fallback },
-    "@/lib/community-api": {},
+    "@/lib/community-api": { deleteCommunityPost: async id => { calls.push({ deleted: id }); if (deleteError) throw new Error(deleteError); } },
     "@/lib/team-community": { getTeamBoardHref: () => "/community/teams" },
   };
-  const context = { exports: {}, require: name => mocks[name], Error, JSON, window: { confirm: () => true } };
+  const context = { exports: {}, require: name => mocks[name], Error, JSON, window: { confirm: () => confirm } };
   vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../components/community-moderation.tsx", import.meta.url), "utf8"), {
     compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, esModuleInterop: true },
   }).outputText, context);
@@ -61,6 +61,44 @@ test("conflicting review displays error and never retries approval automatically
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(h.calls.length, 1);
   assert.equal(h.values[3], "내용이 변경되었습니다.");
+});
+
+function submission(h, status = "pending", busy = false) {
+  const screen = h.render(h.exports.CommunitySubmissions);
+  const element = nodes(screen).find(node => typeof node.type === "function");
+  return h.render(element.type, element.props, [[{ id: "private-1", title: "비공개", content: "본문", moderationStatus: status, revision: 1 }], [], "", 0, busy]);
+}
+
+test("cancelled private post deletion makes zero API calls", async () => {
+  const h = harness({ confirm: false });
+  nodes(submission(h)).find(node => node.type === "button" && node.props.children === "삭제").props.onClick();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(h.calls.length, 0);
+  assert.equal(h.values[3], 0);
+});
+
+test("successful private post deletion refreshes all pending and held states", async () => {
+  for (const status of ["pending", "review", "error", "rejected"]) {
+    const h = harness();
+    nodes(submission(h, status)).find(node => node.type === "button" && node.props.children === "삭제").props.onClick();
+    assert.equal(h.values[4], true);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(h.calls[0].deleted, "private-1");
+    assert.equal(h.values[3], 1);
+    assert.equal(h.values[4], false);
+  }
+  const h = harness();
+  assert.equal(nodes(submission(h, "pending", true)).find(node => node.type === "button" && node.props.children === "삭제").props.disabled, true);
+});
+
+test("failed private post deletion preserves list and displays error", async () => {
+  const h = harness({ deleteError: "삭제 실패" });
+  nodes(submission(h)).find(node => node.type === "button" && node.props.children === "삭제").props.onClick();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(h.values[0][0].id, "private-1");
+  assert.equal(h.values[2], "삭제 실패");
+  assert.equal(h.values[3], 0);
+  assert.equal(h.values[4], false);
 });
 
 test("anonymous submission screen cannot render private content", () => {

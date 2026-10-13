@@ -5,6 +5,7 @@ from io import BytesIO
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Barrier
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -169,6 +170,13 @@ class CommunityRichPostTests(APITestCase):
         self.settings.enable()
         self.addCleanup(self.settings.disable)
         self.addCleanup(self.media.cleanup)
+        self.objects = {}
+        put = patch('community.images.put_object', side_effect=lambda key, body, content_type: self.objects.update({key: body}))
+        get = patch('community.images.get_object', side_effect=lambda key: BytesIO(self.objects[key]))
+        delete = patch('community.images.delete_object', side_effect=lambda key: self.objects.pop(key, None))
+        for storage_patch in (put, get, delete):
+            storage_patch.start()
+            self.addCleanup(storage_patch.stop)
 
     @staticmethod
     def image_file():
@@ -206,6 +214,10 @@ class CommunityRichPostTests(APITestCase):
         edited = self.client.patch(f"/api/v1/community/posts/{created.data['id']}/", {"title": "수정된 서식 글", "content": "직관 사진\n[이미지]", "contentDoc": doc}, format="json")
         self.assertEqual((edited.status_code, edited.data["title"], edited.data["contentDoc"]), (202, "수정된 서식 글", doc))
         self.assertEqual(str(CommunityImage.objects.get(pk=image_id).post_id), created.data["id"])
+        self.client.patch(f"/api/v1/community/posts/{created.data['id']}/", {"content": "이미지 제거", "contentDoc": None}, format="json")
+        self.assertIsNone(CommunityImage.objects.get(pk=image_id).post_id)
+        retried = self.client.post("/api/v1/community/posts/", {"board": "free", "teamCode": "", "category": "잡담", "title": "서식 글", "content": "직관 사진\n[이미지]", "contentDoc": doc}, format="json", HTTP_IDEMPOTENCY_KEY="rich-1")
+        self.assertEqual((retried.status_code, retried.data["id"]), (200, created.data["id"]))
 
     def test_spoofed_files_and_foreign_images_are_rejected(self):
         self.assertEqual(self.client.post("/api/v1/community/images/", {"image": self.image_file()}, format="multipart").status_code, 401)

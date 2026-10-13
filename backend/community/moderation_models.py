@@ -1,9 +1,15 @@
-import uuid
-
 from django.conf import settings
 from django.db import models
 from django.db.models import Q
 from django.utils import timezone
+
+
+class ModerationAdmission(models.Model):
+    account = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        indexes = [models.Index(fields=('account', 'created_at'), name='community_admission_hour')]
 
 
 class ModerationJob(models.Model):

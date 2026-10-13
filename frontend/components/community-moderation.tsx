@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { memberFetch, memberError } from "@/lib/member-auth-request";
-import { fetchMyCommunityPosts, fetchMyCommunityComments, deleteCommunityComment, updateCommunityComment, type CommunityComment } from "@/lib/community-api";
+import { fetchMyCommunityPosts, fetchMyCommunityComments, deleteCommunityPost, deleteCommunityComment, updateCommunityComment, type CommunityComment } from "@/lib/community-api";
 import { useMemberAuth } from "@/lib/member-auth";
 import type { TeamCommunityPost } from "@/lib/team-community";
 import { getTeamBoardHref } from "@/lib/team-community";
@@ -69,12 +69,22 @@ function SubmissionContent() {
   const [comments, setComments] = useState<CommunityComment[]>([]);
   const [error, setError] = useState("");
   const [tick, setTick] = useState(0);
+  const [busy, setBusy] = useState(false);
+  async function removePost(id: string) {
+    if (busy || !window.confirm("게시글을 삭제할까요?")) return;
+    setBusy(true); setError("");
+    try {
+      await deleteCommunityPost(id);
+      setTick(value => value + 1);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "게시글을 삭제하지 못했어요."); }
+    finally { setBusy(false); }
+  }
   useEffect(() => {
     let active = true;
     void Promise.all([fetchMyCommunityPosts(), fetchMyCommunityComments()]).then(([value, replies]) => { if (active) { setPosts(value); setComments(replies); setError(""); } }).catch(() => { if (active) setError("내 게시글을 불러오지 못했어요."); });
     return () => { active = false; };
   }, [tick]);
-  return <section><h1>내 게시 검사 상태</h1><p>새 글과 수정본은 검사 완료까지 비공개입니다. 보류 사유는 운영진이 검토하여 복구할 수 있어요. 별도 운영 제재가 있으면 승인 후에도 비공개입니다.</p><button onClick={() => setTick(value => value + 1)}>상태 새로고침</button>{error && <p role="alert">{error}</p>}{posts.map(post => <article key={post.id} style={{ padding: "1rem 0", borderBottom: "1px solid #ddd" }}><h2>{post.title}</h2><p>{moderationLabel[post.moderationStatus]} · 버전 {post.revision}</p><p style={{ whiteSpace: "pre-wrap" }}>{post.content}</p>{post.images?.map(image => <PrivateCommunityImage key={image.id} id={image.id} />)}<Link href={`/community/write?edit=${encodeURIComponent(post.id)}`}>수정</Link>{post.moderationStatus === "approved" && <> · <Link href={post.board === "free" ? `/community?post=${encodeURIComponent(post.id)}` : getTeamBoardHref(post.teamCode, post.id)}>게시판에서 확인</Link></>}</article>)}<h2>내 댓글 검사</h2>{comments.map(comment => <OwnComment key={`${comment.id}:${comment.revision}`} comment={comment} refresh={() => setTick(value => value + 1)} />)}</section>;
+  return <section><h1>내 게시 검사 상태</h1><p>새 글과 수정본은 검사 완료까지 비공개입니다. 보류 사유는 운영진이 검토하여 복구할 수 있어요. 별도 운영 제재가 있으면 승인 후에도 비공개입니다.</p><button onClick={() => setTick(value => value + 1)}>상태 새로고침</button>{error && <p role="alert">{error}</p>}{posts.map(post => <article key={post.id} style={{ padding: "1rem 0", borderBottom: "1px solid #ddd" }}><h2>{post.title}</h2><p>{moderationLabel[post.moderationStatus]} · 버전 {post.revision}</p><p style={{ whiteSpace: "pre-wrap" }}>{post.content}</p>{post.images?.map(image => <PrivateCommunityImage key={image.id} id={image.id} />)}<Link href={`/community/write?edit=${encodeURIComponent(post.id)}`}>수정</Link> <button disabled={busy} onClick={() => void removePost(post.id)}>삭제</button>{post.moderationStatus === "approved" && <> · <Link href={post.board === "free" ? `/community?post=${encodeURIComponent(post.id)}` : getTeamBoardHref(post.teamCode, post.id)}>게시판에서 확인</Link></>}</article>)}<h2>내 댓글 검사</h2>{comments.map(comment => <OwnComment key={`${comment.id}:${comment.revision}`} comment={comment} refresh={() => setTick(value => value + 1)} />)}</section>;
 }
 
 type Finding = { id: string; code: string; quote: string; reason: string; resolution: string };

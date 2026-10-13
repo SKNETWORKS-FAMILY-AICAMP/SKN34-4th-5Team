@@ -11,7 +11,7 @@ from rest_framework.exceptions import APIException, PermissionDenied, Validation
 
 from accounts.point_policy import POST, COMMENT, grant_definition
 from accounts.point_service import grant_points
-from .models import CommunityPost, CommunityComment, ModerationJob, ModerationReview
+from .models import CommunityPost, CommunityComment, ModerationAdmission, ModerationJob, ModerationReview
 from .visibility import approved, post_public, public_comments
 
 
@@ -45,13 +45,13 @@ def enqueue_locked(obj, *, enforce_limit=True):
     owner_id = obj.owner_id if is_post else obj.author_id
     # Serialize per-account write admission; never trust a client-provided counter.
     if enforce_limit and owner_id:
-        get_user_model().objects.select_for_update().get(pk=owner_id)
+        get_user_model().objects.select_for_update(no_key=True).get(pk=owner_id)
         since = timezone.now() - timedelta(hours=1)
-        from django.db.models import Q
-        count = ModerationJob.objects.filter(created_at__gte=since).filter(
-            Q(post__owner_id=owner_id) | Q(comment__author_id=owner_id)).count()
-        if count >= settings.COMMUNITY_MODERATION_WRITES_PER_HOUR:
+        admissions = ModerationAdmission.objects.filter(account_id=owner_id)
+        admissions.filter(created_at__lt=since).delete()
+        if admissions.count() >= settings.COMMUNITY_MODERATION_WRITES_PER_HOUR:
             raise Throttled(detail='게시 요청이 많습니다. 잠시 후 다시 시도해 주세요.')
+        ModerationAdmission.objects.create(account_id=owner_id)
     related = obj.moderation_jobs
     related.filter(state__in=('queued', 'running')).update(state='cancelled', lease_token=None, lease_until=None)
     obj.content_revision += 1
