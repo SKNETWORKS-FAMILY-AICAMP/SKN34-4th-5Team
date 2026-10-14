@@ -230,7 +230,7 @@ jobs:
             wait_for_endpoint() {
               endpoint=$1
               attempt=1
-              max_attempts=30
+              max_attempts=6
 
               while [ "$attempt" -le "$max_attempts" ]; do
                 if curl --fail --silent --show-error --insecure \
