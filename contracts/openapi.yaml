@@ -9537,8 +9537,13 @@ components:
           nullable: true
         authorRank:
           type: integer
+<<<<<<< HEAD
           nullable: true
           readOnly: true
+=======
+          readOnly: true
+          nullable: true
+>>>>>>> 0b56bb6d9f4edcc6820294062d232ee6616d3e96
         author:
           type: string
           readOnly: true
