@@ -37,7 +37,13 @@ so the backup is self-contained, including committed WAL contents. SQLite SHM lo
 bytes are excluded from source-change detection because read-only SQLite readers
 update them; main DB/WAL checksums and file stat changes still detect writes.
 
-The SHA-256 manifest checks exact inventory, sizes, contents and SQLite logical
+Only incidental regular files named `.DS_Store` are excluded from corpus inventories
+and mutation checks; their creation/change must not block restore. Symlinks with that
+name still fail, and any `.DS_Store` explicitly listed in an older trusted manifest
+is copied and checksum/stat-checked for compatibility. Other hidden/unexpected files
+and all expected media/vector/SQLite changes remain checked.
+
+The SHA-256 manifest checks exact corpus inventory, sizes, contents and SQLite logical
 integrity. It is not a signature: trust the Git/DVC revision that supplies it.
 Copying is staged on the destination filesystem and published by an exclusive native
 rename (macOS/Linux); failures clean only the tool's stage and leave unrelated paths
@@ -138,7 +144,7 @@ still required for subsequent chat queries, but **restore itself calls no provid
 python -I .github/evaluation_ci.py offline-exec scripts/tests/test_highlight_corpus.py
 ```
 
-Ten stdlib unittest cases cover exact backup/restore, SQLite integrity/online WAL,
+Eleven stdlib unittest cases cover exact backup/restore, SQLite integrity/online WAL,
 existing destination and publication-race refusal, malformed/tampered manifest,
 path/symlink escapes, unfinished/missing corpus, source mutation and staging cleanup,
 overlap and disk checks. `.github/test_evaluation_ci.py` guards this exact command.

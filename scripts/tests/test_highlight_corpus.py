@@ -52,6 +52,56 @@ class CorpusTests(unittest.TestCase):
             if 'sqlite' not in item:
                 self.assertEqual((self.restored / name).read_bytes(), (self.source / name).read_bytes())
 
+    def test_incidental_metadata_changes_and_legacy_checks(self):
+        manifest = self.make_backup()
+        digest = corpus.digest
+        def metadata_during_copy(path):
+            stage = next((parent for parent in path.parents if parent.name == 'corpus'
+                          and parent.parent.name.startswith('.highlight-stage-')), None)
+            if stage is not None:
+                (stage / '.DS_Store').write_text(str(path))
+                (stage / 'clips/.DS_Store').write_text(str(path))
+            return digest(path)
+        with patch.object(corpus, 'digest', side_effect=metadata_during_copy):
+            corpus.transfer(self.backup, self.restored, restore=True)
+        self.assertEqual(corpus.validate(self.restored), manifest)
+        readiness = corpus.readiness
+        def change_during_validation(root, name):
+            result = readiness(root)
+            (root / name).write_text('changed during validation')
+            return result
+        for name, accepted in (('.DS_Store', True), ('.unexpected', False), ('clips/one.mp4', False)):
+            with self.subTest(name=name):
+                original = (self.restored / name).read_bytes() if (self.restored / name).exists() else None
+                with patch.object(corpus, 'readiness', side_effect=lambda root: change_during_validation(root, name)):
+                    if accepted:
+                        corpus.validate(self.restored)
+                    else:
+                        with self.assertRaises(ValueError):
+                            corpus.validate(self.restored)
+                if original is None:
+                    (self.restored / name).unlink()
+                else:
+                    (self.restored / name).write_bytes(original)
+        metadata = self.restored / '.DS_Store'
+        metadata.unlink()
+        metadata.symlink_to(self.source / 'segments.json')
+        with self.assertRaises(ValueError):
+            corpus.validate(self.restored)
+        metadata.unlink()
+        # Older trusted manifests may explicitly include metadata: copy/check it, not ignore it.
+        metadata = self.backup / 'clips/.DS_Store'
+        metadata.write_text('legacy tracked metadata')
+        manifest['files']['clips/.DS_Store'] = {'size': metadata.stat().st_size, 'sha256': digest(metadata)}
+        (self.backup / corpus.MANIFEST).write_text(json.dumps(manifest))
+        corpus.validate(self.backup)
+        legacy = self.root / 'legacy-runtime'
+        corpus.transfer(self.backup, legacy, restore=True)
+        self.assertEqual((legacy / 'clips/.DS_Store').read_bytes(), metadata.read_bytes())
+        metadata.write_text('tampered legacy metadata')
+        with self.assertRaises(ValueError):
+            corpus.validate(self.backup)
+
     def test_live_sqlite_online_backup(self):
         with closing(sqlite3.connect(self.source / 'transcripts.sqlite3')) as db, db:
             db.execute('PRAGMA journal_mode=WAL')

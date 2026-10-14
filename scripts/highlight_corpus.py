@@ -23,7 +23,7 @@ def safe_root(value):
     return path
 
 
-def inventory(root):
+def inventory(root, include_metadata=()):
     result = {}
     if not root.is_dir():
         raise ValueError('Missing corpus directory')
@@ -32,13 +32,17 @@ def inventory(root):
         if stat.S_ISLNK(info.st_mode) or not (stat.S_ISREG(info.st_mode) or stat.S_ISDIR(info.st_mode)):
             raise ValueError(f'Unsafe corpus path: {path}')
         if path.is_file():
-            result[path.relative_to(root).as_posix()] = (info.st_size, info.st_mtime_ns, info.st_ctime_ns, info.st_ino)
+            name = path.relative_to(root).as_posix()
+            # Ignore only incidental OS metadata; legacy manifest entries remain checked.
+            if path.name == '.DS_Store' and name not in include_metadata:
+                continue
+            result[name] = (info.st_size, info.st_mtime_ns, info.st_ctime_ns, info.st_ino)
     return result
 
 
-def source_inventory(root):
+def source_inventory(root, include_metadata=()):
     # SQLite readers update shared-memory lock bytes; main DB and WAL still detect writes.
-    return {name: info for name, info in inventory(root).items() if not name.endswith('-shm')}
+    return {name: info for name, info in inventory(root, include_metadata).items() if not name.endswith('-shm')}
 
 
 def digest(path):
@@ -104,11 +108,13 @@ def publish(stage, destination):
 
 
 def validate(root):
-    before = inventory(root)
+    # Check path types before opening the manifest, including ignored metadata symlinks.
+    inventory(root)
     manifest = json.loads((root / MANIFEST).read_text())
     if not isinstance(manifest, dict) or manifest.get('version') != 1 or not isinstance(manifest.get('files'), dict):
         raise ValueError('Invalid backup manifest')
     files = manifest['files']
+    before = inventory(root, files)
     for name, item in files.items():
         path = Path(name)
         if (not name or path.is_absolute() or path.as_posix() != name or '\\' in name
@@ -126,7 +132,7 @@ def validate(root):
             raise ValueError(f'SQLite logical mismatch: {name}')
     if readiness(root) != manifest.get('corpus'):
         raise ValueError('Backup corpus metadata mismatch')
-    if inventory(root) != before:
+    if inventory(root, files) != before:
         raise ValueError('Backup changed during validation')
     return manifest
 
@@ -137,13 +143,14 @@ def transfer(source, destination, restore=False):
         raise FileExistsError(f'Destination already exists: {destination}')
     if source == destination or source in destination.parents or destination in source.parents:
         raise ValueError('Source and destination must not overlap')
-    before = source_inventory(source)
+    manifest = validate(source) if restore else None
+    include_metadata = manifest['files'] if restore else ()
+    before = source_inventory(source, include_metadata)
     if MANIFEST in before and not restore:
         raise ValueError('Source already has a backup manifest')
-    manifest = validate(source) if restore else None
     corpus = readiness(source)
     hashes = {name: digest(source / name) for name in before}
-    if source_inventory(source) != before:
+    if source_inventory(source, include_metadata) != before:
         raise ValueError('Source changed during preflight')
     destination.parent.mkdir(parents=True, exist_ok=True)
     size = sum(item[0] for item in before.values())
@@ -175,9 +182,9 @@ def transfer(source, destination, restore=False):
             files[name] = {'size': dst.stat().st_size, 'sha256': digest(dst)}
             if is_sqlite:
                 files[name]['sqlite'] = sql or sqlite_info(dst)
-        if source_inventory(source) != before or any(digest(source / name) != hashes[name] for name in before):
+        if source_inventory(source, include_metadata) != before or any(digest(source / name) != hashes[name] for name in before):
             raise ValueError('Source changed during copy')
-        if source_inventory(source) != before:
+        if source_inventory(source, include_metadata) != before:
             raise ValueError('Source changed during final checksum')
         if restore:
             shutil.copyfile(source / MANIFEST, stage / MANIFEST)
@@ -186,7 +193,7 @@ def transfer(source, destination, restore=False):
                         'source_sha256': hashes, 'omitted': [name for name in before if transient(name)]}
             (stage / MANIFEST).write_text(json.dumps(manifest, indent=2, sort_keys=True) + '\n')
         validate(stage)
-        if source_inventory(source) != before:
+        if source_inventory(source, include_metadata) != before:
             raise ValueError('Source changed before publication')
         publish(stage, destination)
     return manifest
