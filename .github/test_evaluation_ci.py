@@ -21,7 +21,7 @@ class WiringTest(unittest.TestCase):
         self.assertIn(unittest.mock.call(['backend/llm/tests/test_highlight_youtube_verifier.py', '-v'], offline=True), run.call_args_list)
         self.assertIn(unittest.mock.call(['backend/llm/tests/test_highlight_separate_ingestion.py', '-v'], offline=True), run.call_args_list)
         self.assertIn(unittest.mock.call([ci.EVAL + 'highlight_langchain_contract.py', '--output',
-            str(Path(root) / 'out/langchain-contract')], offline=True), run.call_args_list)
+            str((Path(root) / 'out/langchain-contract').resolve())], offline=True), run.call_args_list)
         selected = [call.args[0][0] for call in run.call_args_list]
         for obsolete in ('test_highlight_joint.py', 'test_highlight_transcript_ingestion.py', 'test_highlight_ingestion_resume.py'):
             self.assertFalse(any(path.endswith(obsolete) for path in selected))
@@ -147,6 +147,13 @@ class WiringTest(unittest.TestCase):
         import yaml
 
         workflow = yaml.safe_load((HERE / 'workflows/evaluation-regression.yml').read_text())
+        highlight = workflow['jobs']['highlight-deterministic']
+        checkouts = [step for step in highlight['steps'] if step.get('uses') == 'actions/checkout@v4']
+        self.assertEqual(len(checkouts), 1)
+        self.assertEqual(checkouts[0]['with'].get('fetch-depth'), 0)
+        self.assertIs(checkouts[0]['with']['persist-credentials'], False)
+        self.assertIn('python -I .github/evaluation_ci.py highlight-free --output "$RUNNER_TEMP/highlight-free"',
+                      [step.get('run') for step in highlight['steps']])
         job = workflow['jobs']['deterministic']
         self.assertNotIn('if', job)
         self.assertNotIn('continue-on-error', job)
@@ -155,7 +162,7 @@ class WiringTest(unittest.TestCase):
         self.assertEqual(service['env'], dict.fromkeys(
             ('POSTGRES_DB', 'POSTGRES_USER', 'POSTGRES_PASSWORD'), 'highlight_ci'))
         self.assertIn('5432:5432', service['ports'])
-        backend = 'python -I .github/evaluation_ci.py offline-exec backend/manage.py test llm.tests.test_highlights --settings=llm.tests.highlight_settings --noinput --verbosity=2'
+        backend = 'python -I .github/evaluation_ci.py offline-exec backend/manage.py test llm.tests.test_highlights llm.tests.test_highlight_multimodal_web.MultimodalHTTPTests --settings=llm.tests.highlight_settings --noinput --verbosity=2'
         frontend = 'node --test tests/youtube-highlight.test.mjs'
         for command in (backend, frontend, 'python -I .github/test_evaluation_ci.py'):
             steps = [step for step in job['steps'] if step.get('run') == command]
