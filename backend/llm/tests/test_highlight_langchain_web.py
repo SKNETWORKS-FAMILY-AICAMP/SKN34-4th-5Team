@@ -109,7 +109,7 @@ class LangChainWebTests(SimpleTestCase):
             self.assertNotIn(original_image['image_url']['url'].split(',')[1], str(result))
             for _, body in transport.requests:
                 self.assertIn(original_image['image_url']['url'].split(',')[1], str(body))
-            from llm.v1.progress import LABELS
+            from llm.v2.progress import LABELS
             self.assertEqual(LABELS['review_highlight_candidate'], '하이라이트 영상 판정 중')
             self.assertEqual(LABELS['inspect_highlight_candidate'], '다음 하이라이트 후보 확인 중')
             self.assertEqual(result.additional_kwargs['highlight_status'], 'success' if recover else 'block')
