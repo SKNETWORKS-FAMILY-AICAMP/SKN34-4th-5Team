@@ -73,8 +73,9 @@ export function CommunityPostEditor({ board, teamCode = "", editId = "" }: Props
     if (idempotency.current.signature !== signature) idempotency.current = { signature, key: createCommunitySubmissionKey() };
     request.current = true; setSaving(true); setError("");
     try {
-      const saved = editing ? await updateCommunityPost(editing.id, input) : await createCommunityPost(input, idempotency.current.key);
-      router.replace(`/community/submissions?post=${encodeURIComponent(saved.id)}`);
+      if (editing) await updateCommunityPost(editing.id, input);
+      else await createCommunityPost(input, idempotency.current.key);
+      router.replace(listHref);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "게시글을 저장하지 못했어요.");
     } finally {
