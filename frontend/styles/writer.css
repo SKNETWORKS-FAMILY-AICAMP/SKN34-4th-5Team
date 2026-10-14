@@ -276,7 +276,9 @@
 .driver-popover.route-guide-popover { min-width: 280px; max-width: 340px; padding: 20px 20px 16px; border-radius: 16px; background: #fff; color: #18263b; font-family: inherit; box-shadow: 0 18px 50px #0b142440; }
 .driver-popover.route-guide-popover .driver-popover-title { font-size: 18px; font-weight: 800; letter-spacing: -.3px; line-height: 1.4; }
 .driver-popover.route-guide-popover .driver-popover-description { margin-top: 8px; word-break: keep-all; font-size: 14px; line-height: 1.65; color: #4b5b73; }
-.driver-popover.route-guide-popover .driver-popover-footer { margin-top: 16px; }
+.driver-popover.route-guide-popover .driver-popover-footer { margin-top: 16px; flex-direction: column; align-items: flex-end; gap: 8px; }
+.driver-popover.route-guide-popover .driver-popover-navigation-btns { order: 1; }
+.driver-popover.route-guide-popover .driver-popover-progress-text { order: 2; align-self: flex-end; color: #65748a; font-size: 11px; line-height: 1.4; font-variant-numeric: tabular-nums; }
 .driver-popover.route-guide-popover .driver-popover-footer button { padding: 8px 16px; border: 0; border-radius: 9px; background: #2465ec; color: #fff; font: inherit; font-size: 14px; font-weight: 700; text-shadow: none; }
 .driver-popover.route-guide-popover .driver-popover-footer button:hover { background: #1b56cf; }
 .driver-popover.route-guide-popover .driver-popover-close-btn { color: #8a97ab; }
@@ -300,7 +302,8 @@
 .route-guide-save-dialog { position: fixed; inset: 0; z-index: 2; height: fit-content; background: #fff; }
 .route-guide-save-dialog .button { pointer-events: none; }
 .driver-popover.route-guide-popover.route-guide-final .driver-popover-footer { justify-content: flex-end; }
-.driver-popover.route-guide-popover.route-guide-final .driver-popover-prev-btn { display: none; }
+.driver-popover.route-guide-popover .driver-popover-prev-btn { margin-right: 8px; background: #edf2fa; color: #334560; }
+.driver-popover.route-guide-popover .driver-popover-prev-btn:hover { background: #dfe8f5; }
 /* 가이드 샘플 화면: 실제 작성 화면 위를 덮는 같은 화면 (driver.js 오버레이 z-index 10000 아래) */
 .route-guide-sandbox { position: fixed; inset: 0; z-index: 9000; overflow-y: auto; overscroll-behavior: contain; background: var(--background, #fff); }
 .route-guide-sandbox-content { position: relative; min-height: 100%; }
