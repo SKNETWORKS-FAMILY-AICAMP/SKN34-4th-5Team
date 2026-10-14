@@ -1,0 +1,40 @@
+# Auto-selected by default local Compose; explicitly selected by deployment callers.
+services:
+  vector-init:
+    image: dev-vector-init:latest
+    build:
+      context: .
+      dockerfile: docker/vector-startup.Dockerfile
+    restart: "no"
+    depends_on:
+      qdrant:
+        condition: service_started
+    environment:
+      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+      QDRANT_API_KEY: ${QDRANT_API_KEY:?Set QDRANT_API_KEY}
+      QDRANT_DOCUMENT_COLLECTION: ${QDRANT_DOCUMENT_COLLECTION:-kbo_documents_openai}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+    secrets:
+      - dvc_config
+      - drive_user
+    volumes:
+      - vector_cache:/vector-cache
+      - vector_runtime:/vector-runtime
+  backend:
+    depends_on:
+      vector-init:
+        condition: service_completed_successfully
+    environment:
+      HIGHLIGHT_MULTIMODAL_CORPUS: /vector-runtime/highlight-corpus
+    volumes:
+      - vector_runtime:/vector-runtime
+
+secrets:
+  dvc_config:
+    file: ${VECTOR_DVC_CONFIG:?Provision server-only DVC config path}
+  drive_user:
+    file: ${VECTOR_DRIVE_USER:?Provision server-only Drive token path}
+
+volumes:
+  vector_cache:
+  vector_runtime:

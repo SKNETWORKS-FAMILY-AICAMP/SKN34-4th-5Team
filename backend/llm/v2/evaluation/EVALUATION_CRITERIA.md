@@ -978,6 +978,12 @@ fixture는 테스트 입력·응답을 고정하는 방식이며 그 자체가 �
 - 동결 A/B: HEAD778a48a의 영향 source를 scratch에 보존하고 동일 합성 SDK/compiled graph·독립 기대값으로 새 순차 계약을 A부터 실행한다. 실제 설치된 DeepEval exact·Ragas ExactMatch로 같은 관측을 채점한다. 1위 조기종료, 1→2 및 1→2→3, 도구 미선택/잘못된·중복·건너뛴 ID, 정상 음성/기술 미완료, 원문·이미지·callback/usage·시각 경계와 stale 카드 제거를 관련 기존 CI runner에 연결한다.
 - 합격/한계: 독립 기대값 전부 일치 및 변경 테스트의 실제 CI 하위 명령 실행이 오프라인 계약 합격이다. 실제 Gemini 의미 판단/정확도·HTTP 운영·유료 호출·성능 측정은 이번 범위 밖이다. 기존18만 요청 token capacity/TPM 보호는 해제하지 않으며 한 영상도 초과하면 명시 실패한다. 평가 실패/오류/미실행은 그대로 보존하고 새 일반 품질 threshold·정답 완화·원본 corpus 수정·재시작/배포는 하지 않는다.
 
+## DVC Docker 기동 준비 계약 (2026-10-15, 구현 전)
+
+- 목적/범위: 문서 dense 네이티브 snapshot과 highlight backup을 별도 init에서 pull→검증→새 runtime 복원하고 backend는 init 성공 이후에만 시작한다. 검색·모델·prompt·sparse·정답은 변경하지 않는 non-LLM 인프라 변경으로 DeepEval/Ragas 제공자 평가는 면제한다.
+- 합격: 첫 복원과 provenance 기반 재사용, 원본 불변, 손상/누락/비호환/외부 기존 대상의 비파괴 거절, secret-safe 실패, local/dev/prod dependency 및 CI 실행 연결을 오프라인 회귀로 확인한다. 저장 벡터 query는 disposable Qdrant collection에서만 확인하며 provider 호출은 없다.
+- 실패/경계: 인증·다운로드·검증·복원 실패는 backend 시작을 차단한다. 서버 인증 설치·실제 hosted 배포·유료 품질·새 전체 Drive pull을 실행한 것으로 주장하지 않는다. 갱신/기존 대상 채택은 자동 수행하지 않는다.
+
 ## 현재 앱 소스 10문항 단일 live 재검증 준비 (2026-10-14, 실행 전)
 
 - 목적/범위: 현재 worktree production bytes와 실제 local dependency를 동결하고 기존10문항/10영상922구간/약한 라벨(4양성 장면의8변형+쉬운 음성2)/canonical DeepEval·Ragas 채점기를 그대로 재사용한다. video top8 한 번→기존 중복·누락·시간겹침 제외→최대3→병렬3 URL 검증, text prefix/taskType 미지정/768, gemini-embedding-2 및 gemini-3.8-flash/temperature0/strict JSON/output4000은 불변이다. 이전 결과는 설명용 반복 비교이며 causal RRF A/B·이미지 품질 근거가 아니다.

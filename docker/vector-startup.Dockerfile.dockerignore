@@ -1,0 +1,9 @@
+**
+!scripts
+!scripts/highlight_corpus.py
+!scripts/vector_startup.py
+!scripts/requirements-data.txt
+!data
+!data/artifacts
+!data/artifacts/document-vectors.dvc
+!data/artifacts/highlight-corpus.dvc

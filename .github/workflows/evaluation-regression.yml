@@ -77,6 +77,8 @@ jobs:
         env:
           TIKTOKEN_CACHE_DIR: ${{ runner.temp }}/evaluation-tiktoken
         run: python -I -c 'import tiktoken; tiktoken.get_encoding("cl100k_base")'
+      - name: Vector startup preparation (non-LLM, no provider network)
+        run: python -I .github/evaluation_ci.py offline-exec scripts/tests/test_vector_startup.py
       - name: Highlight corpus backup and restore (non-LLM, no provider network)
         run: python -I .github/evaluation_ci.py offline-exec scripts/tests/test_highlight_corpus.py
       - name: Full highlight Django regression (disposable PostgreSQL, no provider network)

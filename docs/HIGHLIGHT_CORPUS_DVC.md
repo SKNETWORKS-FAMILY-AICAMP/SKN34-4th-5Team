@@ -110,7 +110,7 @@ python -I scripts/highlight_corpus.py restore data/artifacts/highlight-corpus /a
 
 The runtime destination **must not exist**. Restore validates before publication and
 copies rather than linking, so mutable runtime data cannot affect the DVC artifact
-or cache. No reembedding, transcription, ingestion, or automatic startup pull occurs.
+or cache. No reembedding, transcription or ingestion occurs. The manual command remains available; the Docker init below now automates startup pull.
 To roll back, deliberately select a prior trusted `.dvc` revision through your normal
 Git workflow, pull that revision, restore to another **new** runtime location and
 switch the mount after verification. Never overwrite an existing runtime or reuse
@@ -135,6 +135,65 @@ start the backend with your existing project/profile and this override, e.g.
 Choose the deployment's actual project name/options; this is an explicit operator
 step, not an instruction to restart current stacks. Normal provider credentials are
 still required for subsequent chat queries, but **restore itself calls no provider**.
+
+## Docker 자동 준비 (문서 + highlight, 2026-10-15)
+
+`docker-compose.override.yml`은 기본 local Compose에서 자동 선택되고 dev/prod 배포
+workflow도 명시적으로 선택한다. backend는 `vector-init`의 성공 종료를 기다린다.
+CI는 `dev-vector-init:latest`를 별도 빌드·이미지 묶음에 포함하며 이미지에는 Python/DVC,
+검증 코드, **두 Git 포인터만** 들어간다. backend에는 DVC 패키지를 추가하지 않는다.
+
+서버 운영자가 기존 인증 절차로 private `highlight-drive` remote와 refresh token을
+먼저 준비하고 ignored `.env`에 다음 **서버상의 절대 파일 경로**를 지정한다:
+
+```dotenv
+VECTOR_DVC_CONFIG=/absolute/private/dvc-config
+VECTOR_DRIVE_USER=/absolute/private/drive-user.json
+```
+
+DVC config의 `[remote "highlight-drive"]`(DVC의 따옴표 section도 지원)에 `gdrive://`
+폴더와 필요 시 custom OAuth client 설정을 둔다. credentials는 선택 remote에만 적용한다.
+두 파일은 Compose secret으로 init에만 마운트하며 빌드/백엔드/프론트에는 전달하지 않는다.
+서버 credentials 설치·OAuth·실제 배포는 이 코드 변경으로 수행되지 않는다.
+없는 파일/잘못된 인증은 실패하고 대화형 OAuth는 실행하지 않는다. 갱신은 임시 사본에서
+하며 원본 token/config는 바꾸지 않는다. Google API 외 목적지 및 HTTP redirect는 거절한다.
+
+```sh
+# Local default (실제 기동은 운영자가 승인한 시점에만)
+docker compose up -d --build --wait --wait-timeout 4500 backend
+# Explicit dev/prod callers must include the overlay:
+docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.override.yml up -d --wait --wait-timeout 4500 backend
+docker compose -f docker-compose.prod.yml -f docker-compose.override.yml up -d --wait --wait-timeout 4500 backend
+```
+
+`vector_cache`는 별도 no-SCM DVC workspace/cache에 정확한 이미지 포인터를 pull하며
+copy cache를 사용한다. `vector_runtime`은 immutable source와 다른 쓰기 가능한 볼륨이다.
+유지할 디스크는 cache/workspace/runtime 합계 약 7GB 이상과 Qdrant 복원 여유를 확보한다.
+첫 2.3GB pull은 3600초, 각 Qdrant HTTP는 300초로 제한하고 배포 wait 4500초/SSH 90분을
+사용한다. 두 native flock은 동시 init을 비파괴 거절한다. 다운로드/검증/복원 실패는
+backend 시작을 차단하며 재임베딩·유료 모델 호출은 없다.
+
+문서는 Qdrant 1.19.2, text-embedding-3-small/1536/Cosine와 snapshot SHA/크기를 검증하고
+비어 있는 **새 컬렉션을 독점 생성**하여 업로드한다. 복원 성공 뒤 collection metadata의
+snapshot provenance를 기록한다. 재실행은 provenance·모델·차원·비영 건수를 확인한다:
+건수가 같다는 이유만으로 기존 외부 컬렉션을 채택하지 않으며 정상 app 추가 건수는 허용한다.
+Highlight는 기존 `transfer(..., restore=True)`로 새 디렉터리에 복사하고 receipt를 남긴다.
+재실행은 receipt/원본 manifest, 완료/media/layout/dimension/저장 행수만 확인한다. 쓰기 가능한
+runtime 전체 checksum이나 QdrantClient 재개방을 하지 않으므로 정상 runtime 갱신/lock을 보존한다.
+backend의 effective 경로는 `/vector-runtime/highlight-corpus`이며 기존 개인 Compose/mount는
+수정하지 않는다. 문서는 **dense만** 복원하고 sparse index/retrieval 정책은 변경하지 않는다.
+
+기존 populated collection/corpus, 불완전한 복원, 다른 포인터로의 자동 갱신은 거절한다.
+실패 중 생성된 pending collection/runtime은 삭제하지 않는다. 운영자는 원인을 확인하고
+별도 승인 아래 새 collection·새 Compose project/runtime으로 복원·검증·전환한다.
+기존 자료의 자동 adoption/overwrite/delete/refresh는 없다. `down -v`는 데이터를 지우므로
+사용하지 않는다. 원래 수동 restore와 이전 revision rollback 절차는 그대로 유효하다.
+
+새 회귀의 실제 CI 연결: `evaluation-regression.yml` → `deterministic` →
+`python -I .github/evaluation_ci.py offline-exec scripts/tests/test_vector_startup.py`.
+first/reuse, 손상/누락, foreign/empty/incomplete, symlink/overlap/version,
+404-only missing/redirect 금지, secret-safe CLI 실패, deployment build/save/dependency를 검사한다.
+이 offline 검사나 held-artifact smoke는 새 Drive 전송/hosted CI/서버 배포의 증거가 아니다.
 
 ## Regression evidence boundary
 
