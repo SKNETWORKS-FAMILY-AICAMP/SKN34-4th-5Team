@@ -1,25 +1,10 @@
 import { apiRequest } from "./client";
 import type { Page } from "./types";
 import { memberFetch } from "../member-auth-request";
+import type { components } from "./schema";
 
 // 운영 관리자용 게시글·신고 관리 API (backend/community/admin_views.py).
-// 스키마(schema.d.ts)를 다시 생성하기 전까지는 백엔드 직렬화 필드를 그대로 옮긴 타입을 쓴다.
-export type AdminPost = {
-  source_id: string;
-  post_number: string;
-  board: "free" | "teams";
-  team_code: string;
-  category: string;
-  title: string;
-  author: string;
-  created_at: string | null;
-  views: number;
-  comment_count: number;
-  is_sample: boolean;
-  is_hidden: boolean;
-  is_reviewed: boolean;
-  report_count: number;
-};
+export type AdminPost = components["schemas"]["AdminPost"];
 
 export type AdminPostOwner = {
   id: number;
