@@ -230,11 +230,11 @@ jobs:
             wait_for_endpoint() {
               endpoint=$1
               attempt=1
-              max_attempts=5
+              max_attempts=6
 
               while [ "$attempt" -le "$max_attempts" ]; do
                 if curl --fail --silent --show-error --insecure \
-                  --connect-timeout 2 --max-time 3 \
+                  --connect-timeout 2 --max-time 10 \
                   --output /dev/null "$endpoint"; then
                   echo "Healthy: $endpoint"
                   return 0

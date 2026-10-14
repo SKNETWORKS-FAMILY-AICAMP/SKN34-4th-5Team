@@ -8,8 +8,17 @@ test('development and production deploy explicitly start the moderation worker w
     const workflow = read(`.github/workflows/deploy-${name}.yml`);
     const commands = workflow.replace(/\\\r?\n\s*/g, ' ');
     assert.match(commands, /up -d --no-build[^\n]*--wait[^\n]*community-moderation-worker/);
-    assert.match(workflow, /-t dev-backend:latest/);
-    assert.match(workflow, /docker save[\s\S]*?dev-backend:latest/);
+    const archive = `${name === 'dev' ? 'development' : 'production'}-images.tar.gz`;
+    for (const image of ['backend', 'frontend', 'jev-browser']) {
+      assert.match(commands, new RegExp(`docker buildx build [^\\n]*--load[^\\n]*-t dev-${image}:latest`));
+    }
+    assert.match(commands, /docker tag dev-backend:latest dev-lodging-warmer:latest/);
+    assert.match(commands, /docker save\s+dev-backend:latest\s+dev-lodging-warmer:latest\s+dev-frontend:latest\s+dev-jev-browser:latest/);
+    assert.ok(commands.includes(`| gzip -1 > "$RUNNER_TEMP/${archive}"`));
+    assert.ok(commands.includes(`"$EC2_USER@$EC2_HOST:${archive}"`));
+    assert.match(commands, new RegExp(`docker load -i (?:"\\$HOME/|~/)${archive.replaceAll('.', '\\.')}"?`));
+    assert.match(workflow, /max_attempts=6/);
+    assert.match(workflow, /--connect-timeout 2 --max-time 10/);
   }
 });
 test('workers wait for migrated healthy backend and share its deployment configuration', () => {
