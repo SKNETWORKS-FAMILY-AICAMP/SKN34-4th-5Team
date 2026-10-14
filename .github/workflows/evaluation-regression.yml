@@ -77,6 +77,8 @@ jobs:
         env:
           TIKTOKEN_CACHE_DIR: ${{ runner.temp }}/evaluation-tiktoken
         run: python -I -c 'import tiktoken; tiktoken.get_encoding("cl100k_base")'
+      - name: Highlight corpus backup and restore (non-LLM, no provider network)
+        run: python -I .github/evaluation_ci.py offline-exec scripts/tests/test_highlight_corpus.py
       - name: Full highlight Django regression (disposable PostgreSQL, no provider network)
         run: python -I .github/evaluation_ci.py offline-exec backend/manage.py test llm.tests.test_highlights llm.tests.test_highlight_multimodal_web.MultimodalHTTPTests --settings=llm.tests.highlight_settings --noinput --verbosity=2
       - name: Course menu evidence regression (same disposable PostgreSQL, no provider network)

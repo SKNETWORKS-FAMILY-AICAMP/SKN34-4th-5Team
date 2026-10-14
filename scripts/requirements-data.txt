@@ -1,0 +1,2 @@
+# Isolated operator environment only; not backend runtime dependencies.
+dvc[gdrive]==3.67.1

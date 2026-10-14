@@ -173,6 +173,7 @@ class WiringTest(unittest.TestCase):
         backend = 'python -I .github/evaluation_ci.py offline-exec backend/manage.py test llm.tests.test_highlights llm.tests.test_highlight_multimodal_web.MultimodalHTTPTests --settings=llm.tests.highlight_settings --noinput --verbosity=2'
         frontend = 'node --test tests/youtube-highlight.test.mjs tests/auth-bridge.test.mjs'
         for command in (backend, frontend, 'node docker/jev-browser/test-direct-lodging.mjs',
+                        'python -I .github/evaluation_ci.py offline-exec scripts/tests/test_highlight_corpus.py',
                         'python -I .github/test_evaluation_ci.py'):
             steps = [step for step in job['steps'] if step.get('run') == command]
             self.assertEqual(len(steps), 1, command)
