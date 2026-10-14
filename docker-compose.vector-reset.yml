@@ -1,0 +1,18 @@
+# Explicit one-time recovery only: use this file ALONE with down --volumes.
+services:
+  backend:
+    image: dev-backend:latest
+    volumes:
+      - vector_runtime:/vector-runtime
+  qdrant:
+    image: qdrant/qdrant:v1.19.2
+    volumes:
+      - qdrant_data:/qdrant/storage
+  vector-init:
+    image: dev-vector-init:latest
+    volumes:
+      - vector_runtime:/vector-runtime
+
+volumes:
+  qdrant_data:
+  vector_runtime:

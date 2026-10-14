@@ -3,6 +3,7 @@ import importlib.util
 import json
 import hashlib
 import stat
+import re
 import zipfile
 from pathlib import Path
 import subprocess
@@ -336,6 +337,41 @@ class StartupTests(unittest.TestCase):
         self.assertIn('Vector startup failed:', result.stderr)
         self.assertNotIn('Traceback', result.stderr)
         self.assertNotIn('/missing', result.stderr)
+
+    def test_one_time_reset_scope(self):
+        text = (ROOT / 'docker-compose.vector-reset.yml').read_text()
+        services, volumes = text.split('\nvolumes:\n')
+        self.assertEqual(re.findall(r'^  ([\w-]+):$', services, re.M), ['backend', 'qdrant', 'vector-init'])
+        self.assertEqual(volumes.splitlines(), ['  qdrant_data:', '  vector_runtime:'])
+        self.assertEqual(re.findall(r'^      - (.+)$', services, re.M), [
+            'vector_runtime:/vector-runtime', 'qdrant_data:/qdrant/storage', 'vector_runtime:/vector-runtime'])
+        self.assertEqual(re.findall(r'^    image: (.+)$', services, re.M), [
+            'dev-backend:latest', 'qdrant/qdrant:v1.19.2', 'dev-vector-init:latest'])
+        # No reset execution, alternate volume names, mounts or dependencies hidden in this down-only file.
+        self.assertEqual(set(re.findall(r'^\s*([\w-]+):', text, re.M)), {
+            'services', 'backend', 'qdrant', 'vector-init', 'image', 'volumes', 'qdrant_data', 'vector_runtime'})
+
+    def test_one_time_reset_is_not_normal_startup(self):
+        for path in list(ROOT.glob('docker-compose*.yml')) + list((ROOT / '.github/workflows').glob('*.yml')):
+            if path.name == 'docker-compose.vector-reset.yml':
+                continue
+            with self.subTest(path=path.name):
+                self.assertNotIn('docker-compose.vector-reset.yml', path.read_text())
+        self.assertIn('condition: service_completed_successfully', (ROOT / 'docker-compose.override.yml').read_text())
+
+    def test_one_time_reset_documented_invocation(self):
+        text = (ROOT / 'docs/QDRANT_HANDOFF.md').read_text()
+        reset = 'docker compose -p dev -f docker-compose.vector-reset.yml down --volumes'
+        self.assertIn('\n   ' + reset + '\n', text)
+        original = 'docker compose -p dev -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.override.yml'
+        self.assertIn(original + ' ps -a', text)
+        self.assertIn('xargs ' + original + ' stop', text)
+        self.assertIn(original + ' up -d --no-build --force-recreate --wait --wait-timeout 4500', text)
+        self.assertIn('logs --no-color --tail 100 vector-init', text)
+        self.assertLess(text.index(original + ' stop'), text.index(reset))
+        self.assertLess(text.index(reset), text.index(original + ' up'))
+        for retained in ('vector_cache', 'postgres_data', 'minio_data', 'Drive'):
+            self.assertIn(retained, text)
 
     def test_ci_and_deployment_wiring(self):
         command = 'python -I .github/evaluation_ci.py offline-exec scripts/tests/test_vector_startup.py'

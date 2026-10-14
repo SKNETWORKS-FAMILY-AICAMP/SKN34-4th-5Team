@@ -45,6 +45,35 @@ Google 차단 해제는 보장하지 않는다. 수동 DVC remote/포인터/원�
 
 이 산출물은 dense 문서 컬렉션만 백업한다. 파생 sparse 색인, 하이라이트 로컬 SQLite 코퍼스, PostgreSQL 및 서비스 설정은 포함하지 않는다. 독립 empty-cache Pull/격리 복원은 후속 검증 대상이며, 앱 로직/테스트 변경이 없어 새 CI job이나 DeepEval/Ragas 유료 평가는 추가하지 않는다.
 
+## 일회성 벡터 볼륨 복구 (운영자 명시 승인 후에만 실행)
+
+일반 배포/시작은 기존 데이터를 재사용한다. 아래는 초기화 실패 시 **한 번만 명시적으로 실행하는 복구**이며, EC2의 `vector-init` exit 1 내부 원인이 확인되었거나 이 절차로 해결된다는 뜻은 아니다. 이 변경 자체는 서버 삭제·배포 승인이 아니다.
+
+`qdrant_data`의 **모든 컬렉션**과 `vector_runtime`을 삭제한다. DVC 백업에 없는 런타임 추가 벡터는 되돌릴 수 없으므로 필요한 컬렉션의 검토된 스냅샷을 먼저 별도 보관한다. DVC 문서 백업은 dense만 포함한다. 파생 sparse 색인과 새 런타임 추가분은 별도 백업/재구축이 필요하다. `vector_cache`(DVC 다운로드), `postgres_data`, `minio_data`/uploads, 원본 데이터셋과 공개 Drive 백업은 보존한다.
+
+1. 기존 배포 디렉터리에서 `docker compose ls`와 아래 `ps -a`로 **현재 dev 프로젝트가 `dev`인지**, 서비스 ID와 실제 마운트 볼륨이 `dev_qdrant_data`/`dev_vector_runtime`인지 확인한다. 다르면 중단하고 실제 프로젝트/파일 구성을 검토한다. 볼륨의 사용자 지정 `name`/`external` 설정이 있으면 이 절차를 그대로 쓰지 않는다.
+   ```sh
+   docker compose -p dev -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.override.yml ps -a
+   # 위 출력에서 확인한 컨테이너 ID만 지정; 환경변수/인증 정보는 출력하지 않는다.
+   docker inspect --format '{{.Name}} {{json .Config.Labels}} {{json .Mounts}}' <확인한_컨테이너_ID>
+   ```
+2. 트래픽을 차단하고 크롤러·외부 worker 등 모든 벡터 writer를 일시 중지한다. 다음은 원래 파일 세트에서 **존재하는 서비스만** 골라 중지한다(선택 서비스가 없어도 실패하지 않음). 그 외 대상 볼륨을 잡고 있는 서비스가 발견되면 삭제 전에 함께 중지하고 절차를 재검토한다.
+   ```sh
+   docker compose -p dev -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.override.yml config --services |
+     grep -Ex 'backend|community-moderation-worker|lodging-warmer|course-place-warmer|qdrant|vector-init' |
+     xargs docker compose -p dev -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.override.yml stop
+   ```
+3. **새 파일 하나만** 사용한다. 기존 base/dev/override와 병합하면 보존할 다른 볼륨까지 삭제 대상이 되므로 병합하지 않는다. orphan 서비스는 보존하며 `--remove-orphans`, 광범위한 `down -v`, `volume prune`, `system prune`을 사용하지 않는다.
+   ```sh
+   docker compose -p dev -f docker-compose.vector-reset.yml down --volumes
+   ```
+   이 명령은 같은 프로젝트의 `backend`/`qdrant`/`vector-init` 컨테이너와 선언된 두 볼륨만 제거한다. 다른 서비스가 쓰는 기본 네트워크는 사용 중이면 남는다. 볼륨 사용 중 오류가 나면 강제 삭제하지 말고 holder를 확인한다.
+4. 기존 파일 세트로 재시도한다. `backend`의 기존 `vector-init: service_completed_successfully` 게이트를 우회하지 않으며, 필요한 기존 선택 worker는 확인 후 별도로 재개한다. 성공 확인 전 트래픽과 외부 writer를 재개하지 않는다.
+   ```sh
+   docker compose -p dev -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.override.yml up -d --no-build --force-recreate --wait --wait-timeout 4500 backend frontend jev-browser lodging-warmer community-moderation-worker
+   ```
+   실패가 계속되면 같은 원래 파일 세트의 `ps -a`와 `logs --no-color --tail 100 vector-init`을 로컬에서 확인하고, 비밀·URL 토큰·개인정보를 제거한 로그와 종료 코드를 보존한다. 복원 실패를 성공으로 처리하거나 삭제를 자동 반복하지 않는다. 공개 DVC 전송의 체크섬/외부 데이터 거부 검사는 그대로 유지한다.
+
 ## Active path inventory
 
 - `v2/club/retrieval.search`: used by club agents, assistant initial retrieval and shared `tools/knowledge.search_kbo_rows`; preserves `(rows, elapsed_ms)` and row keys/distance, including nullable `category`, `status`, `evidence_type`. Scalar/list nested metadata uses the top-level `updated_at` fallback without changing stored metadata.
