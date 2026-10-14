@@ -47,7 +47,9 @@ class FakeQdrant:
     def upload(self, path, snapshot):
         self.uploads += 1
         self.info['points_count'] = 1
-        self.info['config']['metadata'] = {'embedding_model': 'text-embedding-3-small', 'dimension': 1536}
+        # Qdrant snapshot recovery retains TARGET collection metadata, not snapshot metadata.
+        assert self.info['config']['metadata']['embedding_model'] == 'text-embedding-3-small'
+        assert self.info['config']['metadata']['dimension'] == 1536
 
 
 class StartupTests(unittest.TestCase):
@@ -92,6 +94,8 @@ class StartupTests(unittest.TestCase):
         self.db.info['points_count'] = 2  # App additions do not require an immutable count.
         self.assertEqual(self.prepare(), {'documents': 'reused', 'highlights': 'reused'})
         self.assertEqual(self.db.uploads, 1)
+        self.assertEqual(self.db.info['config']['metadata'][startup.ORIGIN], self.manifest['snapshot_sha256'])
+        self.assertNotIn('vector_startup_pending', self.db.info['config']['metadata'])
         self.assertEqual((runtime / 'clips/one.mp4').read_bytes(), b'legitimate app update')
         self.assertEqual(startup.corpus.digest(self.artifacts / 'highlight-corpus/transcripts.sqlite3'), before)
 

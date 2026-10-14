@@ -104,9 +104,10 @@ def prepare_documents(db, name, manifest, snapshot):
     if existing is not None:
         check_documents(existing['result'], manifest)
         return 'reused'
-    # Reserve exclusively: collection creation refuses a racing/foreign owner.
+    # Exclusive reservation; snapshot recovery keeps target metadata, so bind the model here.
     db.request('PUT', path, {'vectors': {'size': manifest['dimension'], 'distance': manifest['distance']},
-                             'metadata': {'vector_startup_pending': manifest['snapshot_sha256']}})
+                             'metadata': {'vector_startup_pending': manifest['snapshot_sha256'],
+                                          'embedding_model': manifest['embedding_model'], 'dimension': manifest['dimension']}})
     reserved = db.request('GET', path)['result']
     if reserved.get('points_count') != 0 or (reserved['config'].get('metadata') or {}).get('vector_startup_pending') != manifest['snapshot_sha256']:
         raise ValueError('Collection reservation lost')
@@ -116,6 +117,7 @@ def prepare_documents(db, name, manifest, snapshot):
     if restored['points_count'] != manifest['expected_points']:
         raise ValueError('Restored document count mismatch')
     metadata = dict(restored['config'].get('metadata') or {}, **{ORIGIN: manifest['snapshot_sha256']})
+    metadata.pop('vector_startup_pending', None)
     db.request('PATCH', path, {'metadata': metadata})
     check_documents(db.request('GET', path)['result'], manifest)
     return 'restored'
