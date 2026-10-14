@@ -56,6 +56,8 @@ class CommunityPost(ModeratedContent):
     is_sample = models.BooleanField(default=False)
     # 신고 처리로 숨긴 글: 공개 목록·상세에서 보이지 않는다
     is_hidden = models.BooleanField(default=False)
+    # 운영진의 확인 여부이며 자동 검사·공개 승인 상태와는 별개다.
+    is_reviewed = models.BooleanField(default=False)
     is_trade = models.BooleanField(default=False)
     is_advertisement = models.BooleanField(default=False)
     submission_hash = models.CharField(max_length=64, blank=True, editable=False)

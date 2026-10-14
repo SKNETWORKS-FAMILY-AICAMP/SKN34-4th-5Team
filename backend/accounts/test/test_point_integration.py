@@ -45,6 +45,9 @@ class PointIntegrationTests(TestCase):
             (signup_entry.source_type, signup_entry.source_key),
             (SIGNUP[0], SIGNUP_SOURCE_KEY),
         )
+        self.assertEqual((wallet.total_earned, signup_entry.rank_delta), (0, 0))
+        self.client.force_authenticate(new_user)
+        self.assertEqual(self.client.get("/api/v1/auth/user").data["rank"], 1)
 
     def test_login_grants_daily_points(self):
         self.assertEqual(PointWallet.objects.filter(user=self.user).count(), 0)
@@ -260,6 +263,11 @@ class PointIntegrationTests(TestCase):
         call_command("backfill_signup_points")
         self.assertEqual(PointWallet.objects.get(user=self.user).balance, 100)
         self.assertEqual(PointWallet.objects.get(user=self.user2).balance, 100)
+        self.assertEqual(PointWallet.objects.get(user=self.user).total_earned, 0)
+        self.assertEqual(
+            PointTransaction.objects.get(user=self.user).rank_delta,
+            0,
+        )
         
         # Calling again should be idempotent
         call_command("backfill_signup_points")

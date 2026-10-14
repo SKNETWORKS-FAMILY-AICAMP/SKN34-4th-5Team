@@ -79,8 +79,8 @@ class Command(BaseCommand):
 
     def handle(self, *args, **o):
         from llm import reranker, sparse_index
-        from llm.v1.rag.club.retrieval import embed_many
-        from llm.v1.rag.club.router import detect_categories, detect_stadium
+        from llm.v2.club.retrieval import embed_many
+        from llm.v2.club.router import detect_categories, detect_stadium
         text = sys.stdin.read() if o["golden"] == "-" else Path(o["golden"]).read_text(encoding="utf-8")
         golden = [q for q in (json.loads(line) for line in text.splitlines() if line.strip()) if q.get("gold")]
         if not golden:

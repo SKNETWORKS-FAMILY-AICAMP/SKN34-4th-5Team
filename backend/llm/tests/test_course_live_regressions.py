@@ -2,7 +2,7 @@ from unittest.mock import Mock, patch
 
 from django.test import SimpleTestCase
 
-from llm.v1.rag.course import agent, editing, slots, transport
+from llm.v2.course import agent, editing, slots, transport
 
 
 class BudgetCafeConditionTest(SimpleTestCase):
@@ -61,7 +61,7 @@ class BudgetCafeConditionTest(SimpleTestCase):
         candidate = {"category": "CAFE", "name": "메가MGC커피 테스트점", "placeId": "2", "lat": 37.515, "lng": 127.079}
         model = Mock()
         model.with_structured_output.return_value.invoke.return_value = editing.CandidateChoice(place_id="", evidence="미확인")
-        with patch.object(agent, "llm", return_value=model), patch("llm.v1.rag.course.evidence_memory.enrich", return_value=[]) as verify:
+        with patch.object(agent, "llm", return_value=model), patch("llm.v2.course.evidence_memory.enrich", return_value=[]) as verify:
             result = editing.choose([candidate], {"query": "", "conditions": ["저가 카페", "반려동물 허용"]}, "저가 카페; 반려동물 허용")
         self.assertIsNone(result)
         verify.assert_called_once()

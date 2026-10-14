@@ -3,7 +3,7 @@ from unittest.mock import patch
 import httpx
 from django.test import SimpleTestCase
 
-from llm.v1.rag.course import evidence_memory as evidence, grounding
+from llm.v2.course import evidence_memory as evidence, grounding
 from travel.public_page_reader import PublicReader
 
 
@@ -22,7 +22,7 @@ def page(body):
 
 class CourseGroundingTests(SimpleTestCase):
     def test_known_quality_profile_skips_search_only_after_actual_menu_verification(self):
-        from llm.v1.rag.course import place_quality
+        from llm.v2.course import place_quality
         f = claim()
         f._body_verified = True
         candidate = {"placeId": f.place_id, "name": f.name, "address": f.address}

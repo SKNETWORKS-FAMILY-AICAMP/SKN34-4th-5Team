@@ -3,8 +3,8 @@ from copy import deepcopy
 import json
 from unittest.mock import patch
 from django.test import SimpleTestCase
-from llm.v1.rag.course import agent, editing, literal_edits, catalog_conditions as catalog
-from llm.v1.rag.course import memory, edit_context, visit_roles
+from llm.v2.course import agent, editing, literal_edits, catalog_conditions as catalog
+from llm.v2.course import memory, edit_context, visit_roles
 from llm.v2.evaluation.tonkatsu_contract import CASES, observe, CURRENT, MEAL, SNACK, SPECIALTY, OTHER, QUESTIONS
 
 

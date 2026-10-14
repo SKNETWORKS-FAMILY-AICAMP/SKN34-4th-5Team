@@ -44,6 +44,12 @@ test("default course writes use the member JWT request path while reads stay pub
     requests.push([url, init.method]);
     return Response.json(apiCourse({ editToken: "edit-secret" }), { status: 201 });
   });
+
+  test("course author rank is preserved when loading a course", async () => {
+    const api = harness();
+    const [loaded] = await api.fetchCourses(async () => Response.json([apiCourse({ authorRank: 4 })]));
+    assert.equal(loaded.authorRank, 4);
+  });
   await api.fetchCourses(async () => Response.json([]));
   await api.persistCourse(route());
   assert.deepEqual(requests, [["/api/v1/courses/", "POST"]]);
@@ -52,7 +58,7 @@ test("default course writes use the member JWT request path while reads stay pub
 const apiCourse = changes => ({
   id: "123e4567-e89b-12d3-a456-426614174000", title: "잠실 직관 코스", stadium: "잠실야구장",
   content: "", duration: "반나절", tags: [], author: "익명", createdAt: "2026-09-12T12:00:00Z",
-  updatedAt: "2026-09-12T12:00:00Z", routeNumber: "000020", stops: [{ position: 0, name: "카페", category: "카페", lat: 37.51, lng: 127.07 }],
+  updatedAt: "2026-09-12T12:00:00Z", routeNumber: "000020", authorRank: null, stops: [{ position: 0, name: "카페", category: "카페", lat: 37.51, lng: 127.07 }],
   ...changes,
 });
 const route = changes => ({

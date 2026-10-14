@@ -53,6 +53,8 @@ services:
       LODGING_WARM_STADIUMS: ${LODGING_WARM_STADIUMS:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:?Set OPENAI_API_KEY}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      # 하이라이트 수집(collect_highlights, run_highlights.sh)이 YouTube Data API로 영상 목록을 조회한다.
+      YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-}
       RAG_SEARCH_MODE: ${RAG_SEARCH_MODE:-rerank}
       RAG_VENUE_SEARCH_MODE: ${RAG_VENUE_SEARCH_MODE:-hybrid}
       RAG_RERANK_MODEL: ${RAG_RERANK_MODEL:-voyageai/rerank-2.5}
@@ -138,6 +140,18 @@ services:
       timeout: 5s
       retries: 12
       start_period: 30s
+    logging: *default-logging
+
+  community-moderation-worker:
+    image: dev-backend:latest
+    build: *backend-build
+    restart: unless-stopped
+    environment: *backend-environment
+    command: ["python", "manage.py", "run_moderation_worker"]
+    depends_on:
+      backend:
+        condition: service_healthy
+    stop_grace_period: 40s
     logging: *default-logging
 
   lodging-warmer:

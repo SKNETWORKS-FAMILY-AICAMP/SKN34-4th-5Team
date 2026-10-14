@@ -261,3 +261,19 @@ data/raw/rules/*.pdf
 **/.impeccable/
 /PRODUCT.md
 /DESIGN.md
+
+# Local verification artifacts (keep test code and golden datasets tracked)
+/docs/test_results/*-20??????.*
+**/.deepeval/
+**/playwright-report/
+**/test-results/
+**/coverage/
+/local-verification-*/
+/moderation-demo-*/
+/deploy-readiness/
+/admin-post-review-verified.png
+/admin-review-toggle.png
+/member-reports-verified.png
+/moderation-admin-ui.png
+/mypage-local-verified.png
+/report-priority-verified.png

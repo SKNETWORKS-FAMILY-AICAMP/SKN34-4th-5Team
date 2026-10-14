@@ -48,7 +48,7 @@ class CommunityPostApiTests(APITestCase):
         self.assertEqual(response.data[1]["author"], "진성칰갈")
         self.assertEqual(response.data[-1], {
             "id": "lg-sample-1", "sourceId": "lg-sample-1", "postNumber": "001001", "board": "teams",
-            "teamCode": "LG", "authorId": None, "author": "예시 작성자", "title": "잠실 외야에서 보면 타구 판단 좀 되나요?",
+            "teamCode": "LG", "authorId": None, "authorRank": None, "author": "예시 작성자", "title": "잠실 외야에서 보면 타구 판단 좀 되나요?",
             "content": "늘 내야에서만 보다가 이번엔 외야로 가볼까 합니다.\n\n공이 뜨면 홈런인지 평범한 플라이인지 구분이 잘 되는지 궁금해요. 중계로 볼 때랑 느낌이 많이 다를 것 같아서요. LG 응원하면서 수비 위치도 같이 보고 싶습니다.", "contentDoc": None,
             "category": "좌석·예매", "createdAt": None, "views": 0, "recommendations": 0, "downvotes": 0,
             "commentCount": 0, "isSample": True, "images": [], "moderationStatus": "approved", "revision": 0, "isTrade": False, "isAdvertisement": False,
@@ -96,6 +96,7 @@ class CommunityPostApiTests(APITestCase):
             HTTP_IDEMPOTENCY_KEY="jwt-create",
         )
         self.assertEqual((response.status_code, response.data["teamCode"], response.data["authorId"]), (202, "LG", self.owner.id))
+        self.assertEqual(response.data["authorRank"], 1)
 
     def test_create_is_server_owned_idempotent_and_uses_common_sequence(self):
         response = self.create_post(author="위조", postNumber="999999", views=999)

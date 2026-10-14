@@ -34,7 +34,7 @@ class MemberActivityTests(APITestCase):
     def test_public_summary_is_minimal_and_defaults_to_private(self):
         response = self.client.get(self.public_url())
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data, {"id": self.owner.pk, "nickname": "야구팬", "activityVisible": False})
+        self.assertEqual(response.data, {"id": self.owner.pk, "nickname": "야구팬", "rank": 1, "activityVisible": False})
         self.owner.nickname = ""
         self.owner.save(update_fields=["nickname"])
         self.assertEqual(self.client.get(self.public_url()).data["nickname"], self.owner.username)
@@ -178,7 +178,7 @@ class MemberActivitySchemaTests(SimpleTestCase):
         self.assertFalse(any("/api/v2/community/members" in path for path in paths))
         public = paths["/api/v1/auth/users/{member_id}/public/"]["get"]
         self.assertEqual(public["security"], [{"jwtAuth": []}])
-        self.assertEqual(set(schema["components"]["schemas"]["PublicMember"]["properties"]), {"id", "nickname", "activityVisible"})
+        self.assertEqual(set(schema["components"]["schemas"]["PublicMember"]["properties"]), {"id", "nickname", "rank", "activityVisible"})
         for path in ("/api/v1/community/posts/", "/api/v1/community/comments/"):
             operation = paths[path]["get"]
             self.assertIn("author_id", {parameter["name"] for parameter in operation["parameters"]})

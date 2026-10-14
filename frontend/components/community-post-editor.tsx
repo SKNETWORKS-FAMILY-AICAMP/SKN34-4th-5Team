@@ -10,6 +10,7 @@ import { plainRichDoc } from "@/lib/community-rich-content";
 import { useMemberAuth } from "@/lib/member-auth";
 import { getTeamBoard, getTeamBoardHref, teamBoards, type TeamCommunityPost } from "@/lib/team-community";
 import { CommunityRichEditor } from "./community-rich-editor";
+import { MemberName } from "./member-name";
 import boardStyles from "./community-board.module.css";
 import styles from "./community-post-editor.module.css";
 
@@ -104,7 +105,7 @@ export function CommunityPostEditor({ board, teamCode = "", editId = "" }: Props
         </fieldset>
         <label className={styles.titleLabel} htmlFor="community-post-title">제목 <span>{draft.title.length} / 200자</span></label>
         <input id="community-post-title" className={styles.titleInput} value={draft.title} onChange={event => setDraft(value => ({ ...value, title: event.target.value }))} maxLength={200} placeholder="제목을 입력해 주세요." required disabled={saving} />
-        <p className={styles.byline}>작성자 <strong>{editing?.author ?? user?.nickname ?? user?.username ?? "로그인 필요"}</strong></p>
+        <p className={styles.byline}>작성자 <strong><MemberName name={editing?.author ?? user?.nickname ?? user?.username ?? "로그인 필요"} rank={editing?.authorRank ?? user?.rank} size="community" /></strong></p>
       </div>
       <div className={`${boardStyles.postBody} ${styles.body}`}>
         <label htmlFor="community-post-content">내용</label>

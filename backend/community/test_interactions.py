@@ -42,8 +42,9 @@ class InteractionApiTests(APITestCase):
         self.assertEqual(created.status_code, 202)
         self.assertEqual(
             set(created.data),
-            {"id", "postId", "authorId", "author", "content", "createdAt", "updatedAt", "moderationStatus", "revision"},
+            {"id", "postId", "authorId", "authorRank", "author", "content", "createdAt", "updatedAt", "moderationStatus", "revision"},
         )
+        self.assertEqual(created.data["authorRank"], 1)
         self.assertEqual(created.data["content"], "첫 댓글")
         self.assertEqual(created.data["author"], "주인")
         self.post.refresh_from_db()

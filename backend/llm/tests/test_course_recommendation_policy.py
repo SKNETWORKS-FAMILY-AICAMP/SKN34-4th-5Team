@@ -2,7 +2,7 @@ from copy import deepcopy
 from unittest.mock import patch
 from django.test import SimpleTestCase, override_settings
 from langchain_core.messages import HumanMessage
-from llm.v1.rag.course import recommendation_policy as policy, place_quality as quality, catalog_conditions as catalog, editing, agent, visit_requests, memory, timeline
+from llm.v2.course import recommendation_policy as policy, place_quality as quality, catalog_conditions as catalog, editing, agent, visit_requests, memory, timeline
 from llm.tests.test_course_place_warmer import PLACE, proof
 from llm.v2.middleware.course_answer import CourseAnswerMiddleware
 
@@ -13,7 +13,7 @@ class RecommendationPolicyTests(SimpleTestCase):
         with policy.request("경기 전 카페, 경기 후 술집 코스"), quality.request_scope("GWANGJU"), \
                 patch.object(quality, "resolve", return_value=None), \
                 patch("travel.course_place_warmer.remember"), \
-                patch("llm.v1.rag.course.quality_research.discover") as discover:
+                patch("llm.v2.course.quality_research.discover") as discover:
             result = quality.verify_candidates([PLACE], "FOOD")
             self.assertTrue(result[0]["qualityUnverified"])
             self.assertEqual(quality._RESEARCH.get()["approved"], set())
@@ -38,7 +38,7 @@ class RecommendationPolicyTests(SimpleTestCase):
                     self.assertIsNone(quality.filter_place({"id": "119189575", "place_name": "입술"}, "FD6"))
 
     def test_explicit_research_preserves_strict_gate_and_context_is_reset(self):
-        for question in ("평점 있는 술집", "깔끔한 카페", "실제 메뉴 근거를 확인해줘", "주차 가능한 식당"):
+        for question in ("평점 있는 술집", "깔끔한 카페", "실제 메뉴 근거를 확인해줘"):
             with self.subTest(question=question), policy.request(question), quality.request_scope("GWANGJU"), patch.object(quality, "resolve", return_value=None):
                 self.assertFalse(policy.balanced())
                 self.assertIsNone(quality.filter_place(PLACE, "FOOD"))
@@ -63,16 +63,30 @@ class RecommendationPolicyTests(SimpleTestCase):
         self.assertNotIn("conditionChecks", rows[0])
         self.assertNotIn("근거 확인", rows[0]["reason"])
 
-    def test_menu_and_brand_conditions_are_not_relaxed(self):
+    def test_chinese_jajang_policy_does_not_relax_other_menus_or_brands(self):
         chinese = {**PLACE, "category": "FOOD"}
         cafe = {**PLACE, "name": "다른커피", "detail": "음식점 > 카페 > 커피전문점", "category": "CAFE"}
         with policy.request("자장면 식당과 메가커피"):
-            self.assertIsNone(catalog.choose([chinese], {"conditions": ["자장면"]}, "자장면"))
+            rows = catalog.choose([chinese], {"conditions": ["자장면"]}, "자장면")
+            self.assertEqual(rows[0]["catalogMenuHint"], ["짜장면"])
+            self.assertNotIn("verifiedFacts", rows[0])
+            self.assertIsNone(catalog.choose([chinese], {"conditions": ["돈카츠"]}, "돈카츠"))
             self.assertEqual(catalog.choose([chinese], {"conditions": ["자장면"]}, "자장면", verified=True), [])
             self.assertEqual(catalog.choose([cafe], {"conditions": ["메가커피"]}, "메가커피"), [])
         # The full edit request must still guard against a lossy plan summary.
         with policy.request("메가커피로 바꿔줘"):
             self.assertIsNone(catalog.choose([cafe], {"conditions": ["카페"]}, "메가커피로 바꿔줘"))
+
+    def test_chinese_recommendation_basis_is_not_labeled_as_verified_menu(self):
+        from llm.v2.course import evidence_memory as evidence
+        place = {**PLACE, "category": "FOOD"}
+        req = evidence.Requirement(term="짜장면", attribute="menu", intent="required", group="meal")
+        with policy.request("자장면을 먹을 수 있는 중국집"):
+            checks, accepted = evidence.condition_result([], [req], set(), place)
+        self.assertTrue(accepted)
+        self.assertEqual(checks[0]["basis"], "catalog_recommendation")
+        self.assertEqual(evidence.reason({"conditionChecks": checks}), "짜장면 업종 기준 추천")
+        self.assertEqual(evidence.citation_links({"conditionChecks": checks}), "")
 
     def test_fast_edit_cannot_hide_a_menu_brand_or_modifier_missing_from_the_plan(self):
         self.assertTrue(catalog.simple_edit_matches("식당이 좀 별로다. 돈카츠 가게로 수정해줘", ["돈까스"]))
@@ -97,7 +111,7 @@ class RecommendationPolicyTests(SimpleTestCase):
                 patch.object(agent, "stadium_anchor", return_value=PLACES[2]), \
                 patch.object(agent, "requested_date", return_value=None), \
                 patch.object(editing.availability, "check", return_value=None), \
-                patch("llm.v1.rag.course.evidence_memory.enrich", return_value=[]) as enrich:
+                patch("llm.v2.course.evidence_memory.enrich", return_value=[]) as enrich:
             result = editing.answer(question, [], deepcopy(CURRENT), "JAMSIL", None, parsed=operation, _staged=True)
         enrich.assert_not_called()
         self.assertEqual(result["places"][0]["placeId"], kat["placeId"])

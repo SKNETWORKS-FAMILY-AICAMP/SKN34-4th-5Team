@@ -18,6 +18,7 @@ import "@/styles/stadium-parking.css";
 import { ChatProvider } from "@/components/chat-provider";
 import { SiteFrame } from "@/components/site-frame";
 import { MemberAuthProvider } from "@/lib/member-auth";
+import { PwaRegister } from "@/components/pwa-register";
 
 export const metadata: Metadata = {
   title: { default: "KBO ROUTE | 직관의 하루를, 나답게", template: "%s | KBO ROUTE" },
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ko" data-scroll-behavior="smooth">
       <body>
+        <PwaRegister />
         <MemberAuthProvider>
           <ChatProvider><SiteFrame>{children}</SiteFrame></ChatProvider>
         </MemberAuthProvider>

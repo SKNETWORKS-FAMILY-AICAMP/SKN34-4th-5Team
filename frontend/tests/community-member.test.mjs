@@ -28,6 +28,27 @@ test("member return paths reject external destinations and normalize pagination"
   assert.equal(safeMemberReturnPath("/community/members/21?tab=invalid&page=-1"), "/community/members/21?tab=posts&page=1");
 });
 
+test("example community authors display the first rank without assigning it to other unranked members", () => {
+  const jsx = (type, props) => ({ type, props });
+  const MemberName = props => ({ type: "MemberName", props });
+  const component = load("components/community-member-link.tsx", {
+    "react/jsx-runtime": { jsx },
+    "next/link": { default: "a" },
+    "@/lib/member-auth": { useMemberAuth: () => ({ status: "authenticated", reload() {} }) },
+    "@/lib/member-return-path": { activityHref: id => `/community/members/${id}`, memberActivityLoginHref: id => `/login/${id}` },
+    "./member-name": { MemberName },
+    "./community-member-page.module.css": { default: { memberLink: "memberLink" } },
+  });
+  const example = component.CommunityMemberLink({ memberId: null, nickname: "예시 작성자", rank: null });
+  assert.equal(example.type, MemberName);
+  assert.equal(example.props.rank, 1);
+  assert.equal(example.props.size, "community");
+
+  const member = component.CommunityMemberLink({ memberId: null, nickname: "일반 회원", rank: null });
+  assert.equal(member.type, MemberName);
+  assert.equal(member.props.rank, null);
+});
+
 test("member activity links route to the original board and encode post IDs", () => {
   assert.equal(routes.getCommunityPostHref({ id: "free/a b", board: "free", teamCode: "" }), "/community?post=free%2Fa%20b");
   const url = new URL(routes.getCommunityPostHref({ id: "lg/a b", board: "teams", teamCode: "LG" }), "https://local.invalid");
@@ -49,7 +70,7 @@ test("member activity uses authenticated requests and preserves server order", a
     calls.push(url);
     assert.equal(init.cache, "no-store");
     assert.ok(init.signal instanceof AbortSignal);
-    return Response.json(url.endsWith("/21/public/") ? { id: 21, nickname: "회원", activityVisible: true } : page(posts));
+    return Response.json(url.endsWith("/21/public/") ? { id: 21, nickname: "회원", rank: 1, activityVisible: true } : page(posts));
   });
   assert.equal((await api.fetchCommunityMember(21)).id, 21);
   assert.deepEqual((await api.fetchCommunityMemberPosts(21, 2)).results, posts);
@@ -57,7 +78,7 @@ test("member activity uses authenticated requests and preserves server order", a
 });
 
 test("member activity rejects mismatched identities and missing comment destinations", async () => {
-  await assert.rejects(apiWith(async () => Response.json({ id: 22, nickname: "다른회원", activityVisible: true })).fetchCommunityMember(21), error => error.status === 502);
+  await assert.rejects(apiWith(async () => Response.json({ id: 22, nickname: "다른회원", rank: 1, activityVisible: true })).fetchCommunityMember(21), error => error.status === 502);
   await assert.rejects(apiWith(async () => Response.json(page([{ id: 1, content: "댓글", createdAt: post.createdAt, postId: "x" }]))).fetchCommunityMemberComments(21), error => error.status === 502);
   for (const status of [401, 403, 404]) {
     await assert.rejects(apiWith(async () => Response.json({ detail: "거부" }, { status })).fetchCommunityMember(21), error => error.status === status);
@@ -86,13 +107,18 @@ test("activity query parsing is shared and rejects duplicate or invalid values",
   assert.equal(login.searchParams.get("next"), "/community/members/21?tab=comments&page=3");
 });
 
-test("public summaries require explicit boolean visibility", async () => {
+test("public summaries require visibility and accept an absent or null rank", async () => {
   for (const activityVisible of [true, false]) {
-    const member = { id: 21, nickname: "회원", activityVisible };
-    assert.deepEqual(await apiWith(async () => Response.json(member)).fetchCommunityMember(21), member);
+    for (const rank of [1, null, undefined]) {
+      const member = JSON.parse(JSON.stringify({ id: 21, nickname: "회원", rank, activityVisible }));
+      assert.deepEqual(await apiWith(async () => Response.json(member)).fetchCommunityMember(21), member);
+    }
   }
   for (const activityVisible of [undefined, null, "true", 1]) {
-    await assert.rejects(apiWith(async () => Response.json({ id: 21, nickname: "회원", activityVisible })).fetchCommunityMember(21), error => error.status === 502);
+    await assert.rejects(apiWith(async () => Response.json({ id: 21, nickname: "회원", rank: 1, activityVisible })).fetchCommunityMember(21), error => error.status === 502);
+  }
+  for (const rank of [0, 6, 1.5, "1"]) {
+    await assert.rejects(apiWith(async () => Response.json({ id: 21, nickname: "회원", rank, activityVisible: true })).fetchCommunityMember(21), error => error.status === 502);
   }
 });
 
@@ -132,13 +158,14 @@ function activityScreen({ viewerId = 22, status = "authenticated", visible = fal
     },
     "@/lib/api/client": client,
     "@/lib/community-member-api": {
-      fetchCommunityMember: async () => ({ id: 21, nickname: "회원", activityVisible: visible }),
+      fetchCommunityMember: async () => ({ id: 21, nickname: "회원", rank: 1, activityVisible: visible }),
       fetchCommunityMemberPosts: async () => { calls.push("posts"); if (failure) throw new client.ApiError("거부", failure); return page([post]); },
       fetchCommunityMemberComments: async () => { calls.push("comments"); if (failure) throw new client.ApiError("거부", failure); return page([]); },
     },
     "@/lib/member-auth": { useMemberAuth: () => ({ status, user: status === "authenticated" ? { id: viewerId } : null, reload: () => {} }) },
     "@/lib/member-return-path": load("lib/member-return-path.ts"),
     "@/lib/team-community": routes,
+    "./member-name": { MemberName: ({ name, suffix = "" }) => jsx("span", { children: name + suffix }) },
     "./community-member-page.module.css": { default: {} },
   });
   return { CommunityMemberPage, effects, states, calls, redirects };

@@ -77,9 +77,9 @@ def foreground_active():
 
 def remember(places, code, query=""):
     """Best-effort demand hints, throttled per branch; no recommendation boost."""
-    from llm.v1.rag.course import place_quality as quality
-    from llm.v1.rag.course.grounding import canonical_menu_term
-    from llm.v1.rag.course.catalog_conditions import MENUS
+    from llm.v2.course import place_quality as quality
+    from llm.v2.course.grounding import canonical_menu_term
+    from llm.v2.course.catalog_conditions import MENUS
     if not enabled() or code not in quality.STADIUMS:
         return
     menu = canonical_menu_term(query)
@@ -104,7 +104,7 @@ def remember(places, code, query=""):
 def seeds(codes, count):
     """Rotate directions and categories, rather than repeatedly warming one shop."""
     from baseball.stadium_locations import reviewed_venue
-    from llm.v1.rag.course import agent, venue_policy, place_quality as quality
+    from llm.v2.course import agent, venue_policy, place_quality as quality
     state_path = root() / "seeds.json"
     state = read(state_path)
     jobs = [(code, direction, query) for direction in range(5)
@@ -181,7 +181,7 @@ def warm(codes, **options):
 
 
 def _warm(codes, *, limit=6, max_seconds=120, seed_count=2, refresh_days=3):
-    from llm.v1.rag.course import place_quality as quality, venue_policy, evidence_memory as evidence
+    from llm.v2.course import place_quality as quality, venue_policy, evidence_memory as evidence
     from datetime import date
     if not enabled():
         return {"status": "disabled", "items": []}

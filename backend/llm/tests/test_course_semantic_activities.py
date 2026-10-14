@@ -1,6 +1,6 @@
 from unittest.mock import patch
 from django.test import SimpleTestCase
-from llm.v1.rag.course import agent, editing, memory, slots
+from llm.v2.course import agent, editing, memory, slots
 from llm.tests.test_course_editing import plan
 
 

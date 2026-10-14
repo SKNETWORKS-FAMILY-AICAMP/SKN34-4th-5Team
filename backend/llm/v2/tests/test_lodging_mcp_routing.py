@@ -11,7 +11,7 @@ from mcp.types import Tool
 from llm.tests.test_lodging_chrome import page
 from llm.tests.test_lodging_conditions import URL, PLACE
 from llm.v2.agent import browser_research as browser
-from llm.v1.rag.nearby import lodging
+from llm.v2.nearby import lodging
 from llm.service.chat_runs import Stopped
 from travel import chrome_lodging as chrome
 

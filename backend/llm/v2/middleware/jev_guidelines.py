@@ -311,7 +311,7 @@ def course_destination_text(state) -> str:
         return ""
     from .dynamic_tools import request_args
     from llm.tools.assistant import STADIUMS
-    from llm.v1.rag.club.router import PLACE_ALIAS, TEAM_ALIAS, _hits, detect_stadium
+    from llm.v2.club.router import PLACE_ALIAS, TEAM_ALIAS, _hits, detect_stadium
     hint, question, _ = request_args(state)
     explicit = detect_stadium(question)
     if explicit is None and (_hits(question.upper(), PLACE_ALIAS) or _hits(question.upper(), TEAM_ALIAS)):
@@ -351,15 +351,15 @@ class JevGuidelineMiddleware(AgentMiddleware):
         decision = classify(question, history, state.get("context"))
         if decision["allowed"] is not True:
             return {"decision": decision, "messages": [AIMessage(SCOPE_MESSAGE)], "jump_to": "end"}
-        from llm.v1.rag.course.selection import selected_relative_request
+        from llm.v2.course.selection import selected_relative_request
         if selected_relative_request(question, (state.get("context") or {}).get("currentCourse")):
             # Do this before NEW clears the map selection/history.
             decision = {**decision, "course_request": "EDIT"}
         if decision.get("course_request") in ("NEW", "EDIT"):
             decision = {**decision, "capabilities": list(dict.fromkeys([*decision.get("capabilities", []), "day_plan"]))}
         if decision.get("course_request") == "NEW":
-            from llm.v1.rag.course.conversation_scope import new_context
-            from llm.v1.rag.course.memory import empty
+            from llm.v2.course.conversation_scope import new_context
+            from llm.v2.course.memory import empty
             latest = next(m for m in reversed(state["messages"]) if isinstance(m, HumanMessage))
             return {"decision": decision, "messages": [RemoveMessage(id=REMOVE_ALL_MESSAGES), latest],
                     "course_memory": empty(), "context": new_context(state.get("context"))}

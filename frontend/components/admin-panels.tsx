@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { getMemberUser, listAdminMembers, updateAdminRole, type AdminMember, type MemberUser } from "@/lib/api/auth";
-import { actOnAdminReport, deleteAdminPost, hideAdminPost, listAdminPosts, listAdminReports, reportReasonLabel, reportStatusLabel, sanctionLabel, type AdminPost, type AdminReport, type AdminSanction } from "@/lib/api/admin-community";
+import { actOnAdminReport, deleteAdminPost, hideAdminPost, setAdminPostReviewed, listAdminPosts, listAdminReports, reportReasonLabel, reportStatusLabel, sanctionLabel, type AdminPost, type AdminReport, type AdminSanction } from "@/lib/api/admin-community";
 import type { Page } from "@/lib/api/types";
 import { memberRoleLabel } from "@/lib/member-policy";
 import { getTeamBoard } from "@/lib/team-community";
@@ -31,17 +31,19 @@ function SearchBox({ query, busy, label, placeholder, onSearch }: { query: strin
 }
 
 /** 목록 조회 공통 상태: 검색어·페이지가 바뀌거나 reload가 늘면 다시 불러온다. */
-function usePagedList<T>(load: (params: URLSearchParams, signal: AbortSignal) => Promise<Page<T> | null>, fallback: string) {
+function usePagedList<T>(load: (params: URLSearchParams, signal: AbortSignal) => Promise<Page<T> | null>, fallback: string, initialFilter?: string) {
   const [data, setData] = useState<Page<T> | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [reload, setReload] = useState(0);
+  const [filter, setFilter] = useState(initialFilter);
   useEffect(() => {
     const controller = new AbortController();
     const params = new URLSearchParams({ page: String(page) });
     if (query) params.set("q", query);
+    if (filter) params.set("filter", filter);
     void Promise.resolve().then(async () => {
       if (controller.signal.aborted) return;
       setLoading(true); setError("");
@@ -53,10 +55,10 @@ function usePagedList<T>(load: (params: URLSearchParams, signal: AbortSignal) =>
       finally { if (!controller.signal.aborted) setLoading(false); }
     });
     return () => controller.abort();
-  }, [load, fallback, query, page, reload]);
+  }, [load, fallback, query, page, reload, filter]);
   // 마지막 항목을 지워 빈 페이지가 되면 앞 페이지로 돌아간다
   const refresh = (removedLast = false) => { if (removedLast && page > 1) setPage(value => value - 1); else setReload(value => value + 1); };
-  return { data, error, loading, query, page, setPage, refresh, search: (next: string) => { setQuery(next); setPage(1); } };
+  return { data, error, loading, query, page, setPage, refresh, filter, changeFilter: (next: string) => { setFilter(next); setPage(1); }, search: (next: string) => { setQuery(next); setPage(1); } };
 }
 
 export function AdminMembersPanel() {
@@ -69,7 +71,7 @@ export function AdminMembersPanel() {
     if (user) setMe(user);
     return members;
   });
-  const list = usePagedList<AdminMember>(load, "회원 목록 응답을 확인하지 못했어요.");
+  const list = usePagedList<AdminMember>(load, "회원 목록 응답을 확인하지 못했어요.", "reported_first");
   async function changeRole(member: AdminMember) {
     if (busy) return;
     const action = member.is_staff ? "회수" : "부여";
@@ -93,16 +95,21 @@ export function AdminMembersPanel() {
     {data && <>
       {me && <div className={styles.identity}><strong>{me.username}</strong><span>{memberRoleLabel(me)}</span><span>전체 회원 {data.count}명</span></div>}
       <SearchBox query={list.query} busy={busy} label="회원 검색" placeholder="회원 번호 또는 아이디" onSearch={list.search} />
+      <label className={styles.postFilter}>회원 보기 <select value={list.filter} disabled={busy || list.loading} onChange={event => list.changeFilter(event.target.value)}>
+        <option value="reported_first">신고 우선</option><option value="reported">신고 회원만</option><option value="newest">가입 최신순</option>
+      </select></label>
+      <p className={styles.intro}>누적 신고는 작성한 게시글에 접수된 신고 수이며, 처리 여부와 관계없이 집계해요. 게시글과 함께 삭제된 신고는 포함되지 않아요.</p>
       <p className={styles.scrollHint} id="members-scroll-hint">표가 잘리면 좌우로 스크롤해 나머지 항목을 확인하세요.</p>
       <div className={styles.tableScroll} role="region" aria-label="회원 목록 가로 스크롤" aria-describedby="members-scroll-hint" tabIndex={0}><table><caption className="sr-only">회원 목록과 관리자 권한</caption>
-        <thead><tr>{["회원 번호", "아이디", "권한", "상태", "가입일", "권한 관리"].map(label => <th key={label}>{label}</th>)}</tr></thead>
+        <thead><tr>{["회원 번호", "아이디", "권한", "상태", "가입일", "누적 신고", "권한 관리"].map(label => <th key={label}>{label}</th>)}</tr></thead>
         <tbody>{data.results.map(member => <tr key={member.id}>
           <td className={styles.nowrap}>{member.id}</td><td className={styles.longText}>{member.username}</td><td className={styles.nowrap}>{memberRoleLabel(member)}</td><td className={styles.nowrap}>{member.is_active ? "활성" : "비활성"}</td><td className={styles.nowrap}>{member.date_joined.slice(0, 10)}</td>
+          <td className={styles.nowrap}><span className={`${styles.count}${member.report_count ? ` ${styles.hot}` : ""}`}>{member.report_count}</span></td>
           <td className={styles.nowrap}>{me?.is_superuser && member.id !== me.id && !member.is_superuser && member.is_active
             ? <button type="button" disabled={busy} onClick={() => void changeRole(member)}>{member.is_staff ? "운영 관리자 회수" : "운영 관리자 부여"}</button>
             : <span className={styles.muted}>변경 불가</span>}</td>
         </tr>)}
-        {!data.results.length && <tr><td colSpan={6}>검색 결과가 없어요.</td></tr>}</tbody>
+        {!data.results.length && <tr><td colSpan={7}>검색 결과가 없어요.</td></tr>}</tbody>
       </table></div>
       <Pager page={list.page} count={data.count} busy={busy} label="회원 목록 페이지" onChange={list.setPage} />
       <p className={styles.intro}>운영 관리자는 회원을 조회할 수 있으며, 권한 부여·회수는 마스터 관리자만 할 수 있어요.</p>
@@ -114,7 +121,17 @@ export function AdminPostsPanel() {
   const [notice, setNotice] = useState("");
   const [actionError, setActionError] = useState("");
   const [busy, setBusy] = useState(false);
-  const list = usePagedList<AdminPost>(listAdminPosts, "게시글 목록을 불러오지 못했어요.");
+  const list = usePagedList<AdminPost>(listAdminPosts, "게시글 목록을 불러오지 못했어요.", "reported_first");
+  async function setReviewed(post: AdminPost, reviewed: boolean) {
+    if (busy || list.loading || post.is_reviewed === reviewed) return;
+    setBusy(true); setActionError(""); setNotice("");
+    try {
+      await setAdminPostReviewed(post.source_id, reviewed);
+      setNotice(`#${post.post_number} 게시글을 검토 ${reviewed ? "완료" : "미완료"}로 변경했어요.`);
+      list.refresh();
+    } catch (cause) { setActionError(errorText(cause, "검토 상태를 변경하지 못했어요.")); }
+    finally { setBusy(false); }
+  }
   async function hide(post: AdminPost) {
     if (busy || list.loading || post.is_hidden || !window.confirm(`#${post.post_number} "${post.title}" 게시글을 숨길까요?\n신고 관리의 숨김과 동일하게 처리하며, 게시글은 삭제하지 않습니다.`)) return;
     setBusy(true); setActionError(""); setNotice("");
@@ -138,13 +155,16 @@ export function AdminPostsPanel() {
   const { data } = list;
   return <section className={styles.panel} aria-labelledby="admin-posts-title">
     <h2 id="admin-posts-title">게시글 관리</h2>
-    <p className={styles.intro}>커뮤니티 게시글을 확인하고 운영 정책에 따라 숨기거나 삭제하세요. 숨김은 신고 관리와 동일한 기준으로 처리돼요.</p>
+    <p className={styles.intro}>커뮤니티 게시글을 확인하고 운영 정책에 따라 숨기거나 삭제하세요. 검토 상태는 운영진의 확인 여부이며, 공개 여부와 자동 검사 결과는 바뀌지 않아요.</p>
     {list.loading && !data && <p role="status">게시글을 불러오고 있어요.</p>}
     {list.error && <div className={styles.feedback} role="alert"><p>{list.error}</p><button type="button" onClick={() => list.refresh()}>다시 확인</button></div>}
     {actionError && <p className={styles.feedback} role="alert">{actionError}</p>}
     {notice && <p role="status" className={styles.feedback}>{notice}</p>}
     {data && <>
       <SearchBox query={list.query} busy={busy} label="게시글 검색" placeholder="제목, 작성자 또는 글 번호" onSearch={list.search} />
+      <label className={styles.postFilter}>게시글 보기 <select value={list.filter} disabled={busy || list.loading} onChange={event => list.changeFilter(event.target.value)}>
+        <option value="reported_first">신고 우선</option><option value="reported">신고 글만</option><option value="newest">최신순</option>
+      </select></label>
       <p className={styles.scrollHint} id="posts-scroll-hint">표가 잘리면 좌우로 스크롤해 나머지 항목을 확인하세요.</p>
       <div className={styles.tableScroll} role="region" aria-label="게시글 목록 가로 스크롤" aria-describedby="posts-scroll-hint" tabIndex={0}><table><caption className="sr-only">커뮤니티 게시글 목록</caption>
         <thead><tr>{["글 번호", "게시판", "제목", "작성자", "작성일", "조회", "댓글", "신고", "관리"].map(label => <th key={label}>{label}</th>)}</tr></thead>
@@ -153,7 +173,7 @@ export function AdminPostsPanel() {
           <td><Link href={postHref(post)}>{post.title}</Link>{post.is_sample && <span className={styles.muted}> (예시)</span>}{post.is_hidden && <span className={styles.hiddenTag}>숨김</span>}</td>
           <td className={styles.longText}>{post.author}</td><td className={styles.nowrap}>{dateText(post.created_at)}</td><td className={styles.nowrap}>{post.views}</td><td className={styles.nowrap}>{post.comment_count}</td>
           <td className={styles.nowrap}><span className={`${styles.count}${post.report_count ? ` ${styles.hot}` : ""}`}>{post.report_count}</span></td>
-          <td className={styles.nowrap}><div className={styles.actions}><button type="button" className={styles.hide} disabled={busy || list.loading || post.is_hidden} onClick={() => void hide(post)}>{post.is_hidden ? "숨김 처리됨" : "숨김"}</button><button type="button" className={styles.delete} disabled={busy} onClick={() => void remove(post)}>삭제</button></div></td>
+          <td className={styles.nowrap}><div className={styles.reviewActions} role="group" aria-label={`#${post.post_number} 검토 상태`}><button type="button" aria-pressed={post.is_reviewed} title={post.is_reviewed ? "클릭하면 미완료로 변경" : "클릭하면 검토 완료로 변경"} disabled={busy || list.loading} onClick={() => void setReviewed(post, !post.is_reviewed)}>{post.is_reviewed ? "검토 완료" : "미완료"}</button></div><div className={styles.actions}><button type="button" className={styles.hide} disabled={busy || list.loading || post.is_hidden} onClick={() => void hide(post)}>{post.is_hidden ? "숨김 처리됨" : "숨김"}</button><button type="button" className={styles.delete} disabled={busy} onClick={() => void remove(post)}>삭제</button></div></td>
         </tr>)}
         {!data.results.length && <tr><td colSpan={9}>게시글이 없어요.</td></tr>}</tbody>
       </table></div>

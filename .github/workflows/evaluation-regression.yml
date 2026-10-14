@@ -79,6 +79,8 @@ jobs:
         run: python -I -c 'import tiktoken; tiktoken.get_encoding("cl100k_base")'
       - name: Full highlight Django regression (disposable PostgreSQL, no provider network)
         run: python -I .github/evaluation_ci.py offline-exec backend/manage.py test llm.tests.test_highlights --settings=llm.tests.highlight_settings --noinput --verbosity=2
+      - name: Course menu evidence regression (same disposable PostgreSQL, no provider network)
+        run: python -I .github/evaluation_ci.py offline-exec backend/manage.py test llm.tests.test_course_evidence --settings=llm.tests.highlight_settings --noinput --verbosity=2
       - uses: actions/setup-node@v4
         with:
           node-version: '22'

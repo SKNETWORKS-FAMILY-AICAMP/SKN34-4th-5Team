@@ -170,15 +170,20 @@ class WiringTest(unittest.TestCase):
             self.assertIn('needs: [ci-test, evaluation-regression]', workflow)
         self.assertEqual(len(ci.FREE), 14)
         self.assertIn(['backend/llm/v2/tests/run_attachment_offline.py', 'llm.tests.test_course_tonkatsu',
+                       'llm.tests.test_course_catalog_conditions', 'llm.tests.test_course_profile_features',
                        'llm.tests.test_course_literal_edits', 'llm.tests.test_course_audit_repairs.CourseSelectionRepairTest',
                        'llm.tests.test_course_bar_ratings', 'llm.tests.test_course_quality_research',
-                       'llm.tests.test_course_recommendation_policy', 'llm.tests.test_course_visit_requests'], ci.FREE)
+                       'llm.tests.test_course_recommendation_policy', 'llm.tests.test_course_visit_requests',
+                       'llm.tests.test_course_candidates',
+                       'llm.tests.test_llm_temperature.ResponsesPayloadTest.test_v2_agents_use_the_single_v2_model_factory',
+                       'llm.tests.test_llm_temperature.ResponsesPayloadTest.test_luna_constructors_omit_temperature'], ci.FREE)
         self.assertIn([ci.EVAL + 'tonkatsu_contract.py', 'export', '--output', 'tonkatsu.json'], ci.FREE)
         self.assertIn("execute([EVAL + 'tonkatsu_contract.py', 'scorer-check'], offline=True)",
                       (HERE / 'evaluation_ci.py').read_text())
         regression = (HERE / 'workflows/evaluation-regression.yml').read_text()
         self.assertIn('name: course-contract-export', regression)
         self.assertIn('tonkatsu_contract.py score --input', regression)
+        self.assertIn('backend/manage.py test llm.tests.test_course_evidence --settings=llm.tests.highlight_settings --noinput --verbosity=2', regression)
         self.assertEqual(ci.FREE[-3:], [
             ['backend/llm/v2/tests/run_attachment_offline.py', 'llm.tests.test_domain_tools.ExternalDomainToolAdapterTest'],
             [ci.EVAL + 'weather_contract.py', 'export', '--output', 'weather.json'],

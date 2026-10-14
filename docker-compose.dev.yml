@@ -1,4 +1,9 @@
 services:
+  community-moderation-worker:
+    # Reuse the backend image transferred by CI; never build on EC2.
+    image: dev-backend:latest
+    build: !reset null
+
   backend:
     environment:
       # 개발 서버에서는 로컬 요청 기반 크롤링을 실행하지 않는다.

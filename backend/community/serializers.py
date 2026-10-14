@@ -3,6 +3,7 @@ import uuid
 from django.db import models, transaction
 from drf_spectacular.utils import extend_schema_serializer
 from rest_framework import serializers
+from accounts.point_rank import member_rank
 
 from .models import CommunityComment, CommunityImage, CommunityPost, FREE_CATEGORIES, TEAM_CATEGORIES, TEAM_CODES
 
@@ -89,6 +90,7 @@ class CommunityPostSerializer(serializers.ModelSerializer):
     postNumber = serializers.CharField(source="post_number", read_only=True)
     teamCode = serializers.CharField(source="team_code", allow_blank=True)
     authorId = serializers.IntegerField(source="owner_id", read_only=True, allow_null=True)
+    authorRank = serializers.SerializerMethodField()
     createdAt = serializers.DateTimeField(source="created_at", read_only=True, allow_null=True)
     views = serializers.IntegerField(read_only=True)
     recommendations = serializers.SerializerMethodField()
@@ -103,7 +105,7 @@ class CommunityPostSerializer(serializers.ModelSerializer):
     class Meta:
         model = CommunityPost
         fields = (
-            "id", "sourceId", "postNumber", "board", "teamCode", "authorId", "author", "title", "content", "contentDoc",
+            "id", "sourceId", "postNumber", "board", "teamCode", "authorId", "authorRank", "author", "title", "content", "contentDoc",
             "category", "createdAt", "views", "recommendations", "downvotes", "commentCount", "isSample",
             "images", "isTrade", "isAdvertisement", "moderationStatus", "revision",
         )
@@ -129,6 +131,9 @@ class CommunityPostSerializer(serializers.ModelSerializer):
         if hasattr(obj, 'actual_comment_count'):
             return obj.actual_comment_count
         return public_comments(obj.comments.all()).count()
+
+    def get_authorRank(self, obj) -> int | None:
+        return member_rank(obj.owner) if obj.owner_id else None
 
     def validate(self, attrs):
         board = attrs.get("board", getattr(self.instance, "board", None))
@@ -203,16 +208,20 @@ class CommunityCommentSerializer(serializers.ModelSerializer):
     postId = serializers.CharField(source="post_id", read_only=True)
     authorId = serializers.IntegerField(source="author_id", read_only=True)
     author = serializers.SerializerMethodField()
+    authorRank = serializers.SerializerMethodField()
     createdAt = serializers.DateTimeField(source="created_at", read_only=True)
     updatedAt = serializers.DateTimeField(source="updated_at", read_only=True)
 
     class Meta:
         model = CommunityComment
-        fields = ("id", "postId", "authorId", "author", "content", "createdAt", "updatedAt", "moderationStatus", "revision")
+        fields = ("id", "postId", "authorId", "authorRank", "author", "content", "createdAt", "updatedAt", "moderationStatus", "revision")
         read_only_fields = ("id",)
 
     def get_author(self, comment) -> str:
         return comment.author.nickname or comment.author.username
+
+    def get_authorRank(self, comment) -> int:
+        return member_rank(comment.author)
 
 
 @extend_schema_serializer(component_name="CommunityVoteWrite")

@@ -24,7 +24,7 @@ def course_text(outcome):
     text = outcome.get("answer")
     if not isinstance(text, str) or not text.strip() or outcome.get("courseOnly") is not True:
         return None
-    from llm.v1.rag.course.game_metadata import annotate
+    from llm.v2.course.game_metadata import annotate
     text = annotate(text, outcome.get("game"))
     try:
         day = date.fromisoformat((outcome.get("game") or {}).get("date", ""))
@@ -39,7 +39,7 @@ class CourseAnswerMiddleware(AgentMiddleware):
     @hook_config(can_jump_to=["tools", "end"])
     def before_model(self, state, runtime):
         decision = state.get("decision") or {}
-        from llm.v1.rag.course import recommendation_policy
+        from llm.v2.course import recommendation_policy
         editing = recommendation_policy.enabled() and decision.get("course_request") == "EDIT"
         if decision.get("allowed") is not True or not (decision.get("course_request") == "NEW" or editing):
             return None

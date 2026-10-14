@@ -6,7 +6,7 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage, messag
 
 from llm.serializer.message import done_payload, _validate_context
 from llm.tests.test_course_editing import CURRENT, GAME, PLACES, REPLACEMENT, plan
-from llm.v1.rag.course import agent, editing, memory
+from llm.v2.course import agent, editing, memory
 from llm.v2.agent.course_output import public_course
 
 
@@ -47,7 +47,7 @@ class ConversationEditingTest(SimpleTestCase):
     def test_origin_change_preserves_visits_title_and_undo_restores_old_origin(self):
         old, new = {"lat": 37.52, "lng": 127.08, "name": "이전 출발지"}, {"lat": 37.53, "lng": 127.09}
         current = {**deepcopy(CURRENT), "writerState": {"title": "내 코스", "origin": old, "completed": True}}
-        with patch("llm.v1.rag.course.arrival.resolve_origin", return_value=(new, "새 출발지", "")):
+        with patch("llm.v2.course.arrival.resolve_origin", return_value=(new, "새 출발지", "")):
             changed = editing.answer("출발지만 변경", [], current, "JAMSIL", old, parsed=plan("origin", [], origin_query="새 출발지"))
         self.assertEqual(changed["writerState"]["title"], "내 코스")
         self.assertEqual(changed["writerState"]["origin"], {**new, "name": "새 출발지"})
@@ -63,7 +63,7 @@ class ConversationEditingTest(SimpleTestCase):
             self.assertIsNone(agent.detect_stadium(question))
         self.assertEqual(agent.detect_stadium("삼성 홈경기 코스"), "DAEGU")
         with patch.object(editing, "interpret", return_value=plan("origin", [], origin_query="삼성역")), \
-                patch("llm.v1.rag.course.arrival.resolve_origin", return_value=({"lat": 37.508, "lng": 127.063}, "삼성역", "")):
+                patch("llm.v2.course.arrival.resolve_origin", return_value=({"lat": 37.508, "lng": 127.063}, "삼성역", "")):
             result = agent.answer("출발지만 삼성역으로 바꿔줘", hint_stadium="JAMSIL", current_course=CURRENT)
         self.assertEqual(result["stadiumCode"], "JAMSIL")
         self.assertEqual([p["placeId"] for p in result["places"]], ["1", "2", "3", "4"])

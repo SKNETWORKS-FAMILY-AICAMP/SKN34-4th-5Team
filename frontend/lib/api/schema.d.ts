@@ -1417,6 +1417,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/community/admin/moderation/settings/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["v1_community_admin_moderation_settings_retrieve"];
+        put?: never;
+        post: operations["v1_community_admin_moderation_settings_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/community/admin/posts/": {
         parameters: {
             query?: never;
@@ -2548,6 +2564,7 @@ export interface components {
              * Format: date-time
              */
             readonly date_joined: string;
+            readonly report_count: number;
         };
         AdminPost: {
             readonly source_id: string;
@@ -2563,13 +2580,16 @@ export interface components {
             readonly comment_count: number;
             readonly is_sample: boolean;
             readonly is_hidden: boolean;
+            readonly is_reviewed: boolean;
             readonly report_count: number;
         };
         /**
          * @description * `hide` - hide
+         *     * `reviewed` - reviewed
+         *     * `unreviewed` - unreviewed
          * @enum {string}
          */
-        AdminPostHideActionEnum: "hide";
+        AdminPostActionActionEnum: "hide" | "reviewed" | "unreviewed";
         AdminPostOwner: {
             readonly id: number;
             /**
@@ -2731,6 +2751,7 @@ export interface components {
             readonly id: number;
             readonly postId: string;
             readonly authorId: number;
+            readonly authorRank: number;
             readonly author: string;
             content: string;
             /** Format: date-time */
@@ -2768,6 +2789,7 @@ export interface components {
             board: components["schemas"]["BoardEnum"];
             teamCode: string;
             readonly authorId: number | null;
+            readonly authorRank: number | null;
             readonly author: string;
             title: string;
             content: string;
@@ -2861,6 +2883,7 @@ export interface components {
             /** Format: double */
             startLng?: number;
             author: string;
+            readonly authorRank: number | null;
             likes: number;
             views: number;
             isSample: boolean;
@@ -2911,6 +2934,7 @@ export interface components {
             /** Format: double */
             startLng?: number;
             author: string;
+            readonly authorRank: number | null;
             likes: number;
             views: number;
             isSample: boolean;
@@ -3434,6 +3458,21 @@ export interface components {
             readonly nickname_changed_at: string | null;
             readonly notifications: components["schemas"]["NotificationSettings"];
             readonly visibility: components["schemas"]["VisibilitySettings"];
+            readonly rank: number;
+        };
+        /**
+         * @description * `manual` - manual
+         *     * `openai` - openai
+         * @enum {string}
+         */
+        ModeBbeEnum: "manual" | "openai";
+        ModeInput: {
+            mode: components["schemas"]["ModeBbeEnum"];
+        };
+        ModeOutput: {
+            mode: components["schemas"]["ModeBbeEnum"];
+            automaticAvailable: boolean;
+            model: string;
         };
         MonthData: {
             /** Format: date-time */
@@ -4036,8 +4075,8 @@ export interface components {
             /** Format: date-time */
             readonly updated_at?: string;
         };
-        PatchedAdminPostHide: {
-            action?: components["schemas"]["AdminPostHideActionEnum"];
+        PatchedAdminPostAction: {
+            action?: components["schemas"]["AdminPostActionActionEnum"];
         };
         PatchedChatSession: {
             /** Format: uuid */
@@ -4602,6 +4641,7 @@ export interface components {
         PublicMember: {
             readonly id: number;
             readonly nickname: string;
+            readonly rank: number;
             readonly activityVisible: boolean;
         };
         PublicSeatMap: {
@@ -5740,8 +5780,10 @@ export interface operations {
     v1_auth_admin_members_list: {
         parameters: {
             query?: {
+                filter?: "newest" | "reported" | "reported_first";
                 /** @description 페이지네이션된 결과 집합 내의 페이지 번호. */
                 page?: number;
+                q?: string;
             };
             header?: never;
             path?: never;
@@ -10533,9 +10575,55 @@ export interface operations {
             };
         };
     };
+    v1_community_admin_moderation_settings_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModeOutput"];
+                };
+            };
+        };
+    };
+    v1_community_admin_moderation_settings_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModeInput"];
+                "application/x-www-form-urlencoded": components["schemas"]["ModeInput"];
+                "multipart/form-data": components["schemas"]["ModeInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModeOutput"];
+                };
+            };
+        };
+    };
     v1_community_admin_posts_list: {
         parameters: {
             query?: {
+                /** @description 기본값 reported_first: 신고 건수순, reported: 신고 글만, newest: 최신순 */
+                filter?: "newest" | "reported" | "reported_first";
                 page?: number;
                 q?: string;
             };
@@ -10607,9 +10695,9 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["PatchedAdminPostHide"];
-                "application/x-www-form-urlencoded": components["schemas"]["PatchedAdminPostHide"];
-                "multipart/form-data": components["schemas"]["PatchedAdminPostHide"];
+                "application/json": components["schemas"]["PatchedAdminPostAction"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedAdminPostAction"];
+                "multipart/form-data": components["schemas"]["PatchedAdminPostAction"];
             };
         };
         responses: {

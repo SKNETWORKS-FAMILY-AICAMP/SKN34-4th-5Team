@@ -3,7 +3,7 @@ import pickle
 import time
 
 from llm.service.chat_runs import check_cancelled
-from llm.v1.rag.nearby import kakao
+from llm.v2.nearby import kakao
 from . import chrome_lodging as chrome
 
 

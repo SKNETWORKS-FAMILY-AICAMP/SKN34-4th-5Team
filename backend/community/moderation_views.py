@@ -56,7 +56,9 @@ class OwnPostList(PrivateResponseMixin, generics.ListAPIView):
     pagination_class = None
 
     def get_queryset(self):
-        return CommunityPost.objects.filter(owner=self.request.user).order_by('-created_at')
+        return CommunityPost.objects.filter(owner=self.request.user).select_related(
+            'owner__point_wallet',
+        ).order_by('-created_at')
 
 
 class OwnPostDetail(PrivateResponseMixin, generics.RetrieveAPIView):
@@ -74,7 +76,9 @@ class OwnCommentList(PrivateResponseMixin, generics.ListAPIView):
     pagination_class = None
 
     def get_queryset(self):
-        return CommunityComment.objects.filter(author=self.request.user).select_related('author').order_by('-created_at')
+        return CommunityComment.objects.filter(author=self.request.user).select_related(
+            'author__point_wallet',
+        ).order_by('-created_at')
 
 
 class JobSerializer(serializers.ModelSerializer):

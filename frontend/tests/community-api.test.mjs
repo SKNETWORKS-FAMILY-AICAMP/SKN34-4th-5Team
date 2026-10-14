@@ -30,10 +30,10 @@ new Function("module", "exports", "require", outputText)(testModule, testModule.
 const api = testModule.exports;
 const post = {
   id: "free/sample 1", sourceId: "free/sample 1", postNumber: "020001", board: "free", teamCode: "",
-  authorId: 7, author: "작성자", title: "제목", content: "본문", category: "잡담", createdAt: null,
+  authorId: 7, authorRank: 1, author: "작성자", title: "제목", content: "본문", category: "잡담", createdAt: null,
   views: 0, recommendations: 0, downvotes: 0, commentCount: 0, isSample: false,
 };
-const comment = { moderationStatus: "approved", revision: 0, id: 3, postId: post.id, authorId: 7, author: "작성자", content: "댓글", createdAt: "2026-09-15T00:00:00Z", updatedAt: "2026-09-15T00:00:00Z" };
+const comment = { moderationStatus: "approved", revision: 0, id: 3, postId: post.id, authorId: 7, authorRank: 1, author: "작성자", content: "댓글", createdAt: "2026-09-15T00:00:00Z", updatedAt: "2026-09-15T00:00:00Z" };
 const vote = { vote: "up", recommendations: 1, downvotes: 0 };
 const input = { board: "free", teamCode: "", category: "잡담", title: " 제목 ", content: " 본문 " };
 const idempotencyKey = "550e8400-e29b-41d4-a716-446655440000";
@@ -55,6 +55,30 @@ test("community list is read from the public DB API", async () => {
     return Response.json([post]);
   });
   assert.deepEqual(result, [post]);
+});
+
+test("community posts and comments accept missing ranks and reject invalid ranks", async () => {
+  const originalFetch = global.fetch;
+  for (const authorRank of [undefined, null]) {
+    const expectedPost = JSON.parse(JSON.stringify({ ...post, authorRank }));
+    assert.deepEqual(await api.fetchCommunityPosts(async () => Response.json([{ ...post, authorRank }])), [expectedPost]);
+    global.fetch = async () => Response.json([{ ...comment, authorRank }]);
+    try {
+      const expectedComment = JSON.parse(JSON.stringify({ ...comment, authorRank }));
+      assert.deepEqual(await api.fetchCommunityComments(post.id, "newest"), [expectedComment]);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  }
+  for (const authorRank of [0, 6, 1.5, "1"]) {
+    await assert.rejects(api.fetchCommunityPosts(async () => Response.json([{ ...post, authorRank }])));
+    global.fetch = async () => Response.json([{ ...comment, authorRank }]);
+    try {
+      await assert.rejects(api.fetchCommunityComments(post.id, "newest"));
+    } finally {
+      global.fetch = originalFetch;
+    }
+  }
 });
 
 test("public detail/comments use fetch while private reads use memberFetch with encoded IDs", async () => {

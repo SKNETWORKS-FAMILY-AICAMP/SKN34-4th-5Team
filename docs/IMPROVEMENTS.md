@@ -74,6 +74,6 @@ Windows의 일반 Google Chrome 154에서 글래드 강남 코엑스센터 2회,
 
 ### 후속 작업용 근거
 
-현재 구현은 [`backend/llm/v1/rag/nearby/lodging.py`](../backend/llm/v1/rag/nearby/lodging.py)의 숙박 검증과 [`backend/llm/v2/agent/browser_research.py`](../backend/llm/v2/agent/browser_research.py)의 검색 호출을 참고한다.
+현재 구현은 [`backend/llm/v2/nearby/lodging.py`](../backend/llm/v2/nearby/lodging.py)의 숙박 검증과 [`backend/llm/v2/agent/browser_research.py`](../backend/llm/v2/agent/browser_research.py)의 검색 호출을 참고한다.
 
 로컬 실험 결과와 재현 코드는 `backend/artifacts/chrome-only-20261011/`의 `report.json`, `two_stage.py`, `launch.py`, `probe.mjs`에 있다. 이 경로는 Git 제외 대상이므로 다른 체크아웃에는 없을 수 있다. 이 문서에 핵심 결과와 한계를 보존하며 브라우저 프로필·쿠키·원본 로그는 공유 자료에 포함하지 않는다.

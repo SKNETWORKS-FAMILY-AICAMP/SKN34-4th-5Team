@@ -9,7 +9,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import CommunityComment, CommunityPost, CommunityReport, CommunityVote
-from .visibility import public_posts, public_comments
+from .visibility import public_posts, public_comments, post_public
+from rest_framework.exceptions import NotFound
+from services import community_moderation
 from .moderation_service import enqueue_locked, sync_comment_count
 from .serializers import (
     CommunityCommentSerializer,
@@ -50,7 +52,7 @@ class CommentListCreateView(APIView):
         if order not in {"oldest", "newest"}:
             raise serializers.ValidationError({"order": "oldest 또는 newest를 입력해 주세요."})
         ordering = ("created_at", "id") if order == "oldest" else ("-created_at", "-id")
-        comments = public_comments(post.comments.select_related("author")).order_by(*ordering)
+        comments = public_comments(post.comments.select_related("author__point_wallet")).order_by(*ordering)
         return Response(CommunityCommentSerializer(comments, many=True).data)
 
     @extend_schema(
@@ -79,7 +81,7 @@ class CommentDetailView(APIView):
         ).post_id
         post = get_object_or_404(CommunityPost.objects.select_for_update(), pk=post_id)
         comment = get_object_or_404(
-            CommunityComment.objects.select_for_update().select_related("author"),
+            CommunityComment.objects.select_for_update(of=("self",)).select_related("author__point_wallet"),
             pk=comment_id,
             post=post,
         )
@@ -152,15 +154,26 @@ class ReportCreateView(APIView):
         request=CommunityReportWriteSerializer,
         responses={200: CommunityReportResultSerializer, 201: CommunityReportResultSerializer, 400: OpenApiTypes.OBJECT, 401: OpenApiTypes.OBJECT, 404: OpenApiTypes.OBJECT},
     )
+    @transaction.atomic
     def post(self, request, source_id):
-        post = get_object_or_404(public_posts(), source_id=source_id)
         serializer = CommunityReportWriteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        post = get_object_or_404(CommunityPost.objects.select_for_update(), source_id=source_id)
+        existing = post.reports.filter(reporter=request.user).first()
+        if existing is not None:
+            return Response(CommunityReportResultSerializer({"id": existing.pk, "created": False}).data)
+        if not post_public(post):
+            raise NotFound()
         report, created = CommunityReport.objects.get_or_create(
             post=post,
             reporter=request.user,
             defaults=serializer.validated_data,
         )
+        if created:
+            job = community_moderation.enqueue_report_locked(post)
+            # Never hold the post/DB transaction across an external provider call.
+            # If this callback fails, the committed job remains available to the worker.
+            transaction.on_commit(lambda: community_moderation.run_one(job_id=job.pk), robust=True)
         response_status = status.HTTP_201_CREATED if created else status.HTTP_200_OK
         data = CommunityReportResultSerializer({"id": report.id, "created": created}).data
         return Response(data, status=response_status)

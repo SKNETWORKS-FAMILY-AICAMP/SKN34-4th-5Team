@@ -66,24 +66,38 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Build development images
         run: |
           set -euo pipefail
 
-          docker build \
+          docker buildx build \
+            --load \
+            --cache-from type=gha,scope=dev-backend \
+            --cache-to type=gha,mode=max,scope=dev-backend \
             -f backend/Dockerfile \
             -t dev-backend:latest \
             backend
 
           docker tag dev-backend:latest dev-lodging-warmer:latest
 
-          docker build \
+          docker buildx build \
+            --load \
+            --cache-from type=gha,scope=dev-frontend \
+            --cache-to type=gha,mode=max,scope=dev-frontend \
             -f frontend/Dockerfile \
             -t dev-frontend:latest \
             frontend
 
-          docker build \
+          docker buildx build \
+            --load \
+            --cache-from type=gha,scope=dev-jev-browser \
+            --cache-to type=gha,mode=max,scope=dev-jev-browser \
             -f docker/jev-browser/Dockerfile \
             -t dev-jev-browser:latest \
             docker/jev-browser
@@ -173,8 +187,8 @@ jobs:
             docker compose \
               -f docker-compose.yml \
               -f docker-compose.dev.yml \
-              up -d --no-build --force-recreate \
-              backend frontend jev-browser lodging-warmer
+              up -d --no-build --force-recreate --wait --wait-timeout 240 \
+              backend frontend jev-browser lodging-warmer community-moderation-worker
 
             # 5. Nginx 재생성 및 설정 검증
             echo "===== Nginx 배포 ====="
@@ -190,11 +204,31 @@ jobs:
 
             # 6. HTTPS 경유 프런트엔드와 API 확인
             echo "===== 서비스 헬스 체크 ====="
-            curl --fail --silent --show-error --insecure \
-              https://localhost/api/v1/healthz/
+            wait_for_endpoint() {
+              endpoint=$1
+              attempt=1
 
-            curl --fail --silent --show-error --insecure \
-              https://localhost/
+              while [ "$attempt" -le 30 ]; do
+                if curl --fail --silent --insecure \
+                  --connect-timeout 3 --max-time 5 \
+                  --output /dev/null "$endpoint"; then
+                  echo "Healthy: $endpoint"
+                  return 0
+                fi
+
+                echo "Waiting for endpoint ($attempt/30): $endpoint"
+                if [ "$attempt" -lt 30 ]; then
+                  sleep 5
+                fi
+                attempt=$((attempt + 1))
+              done
+
+              echo "Endpoint did not become healthy: $endpoint" >&2
+              return 1
+            }
+
+            wait_for_endpoint https://localhost/api/v1/healthz/
+            wait_for_endpoint https://localhost/
 
             # 7. 배포 성공 후 미사용 익명 볼륨 정리
             # -a 옵션은 사용하지 않아 미사용 명명 볼륨을 보호
@@ -226,6 +260,13 @@ jobs:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           BRANCH: ${{ github.head_ref || github.ref_name }}
         run: |
+          set -euo pipefail
+
+          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
+            echo "DISCORD_WEBHOOK_URL is not configured; skipping notification."
+            exit 0
+          fi
+
           if [ "${{ needs.ci-test.result }}" = "failure" ] || [ "${{ needs.evaluation-regression.result }}" = "failure" ]; then
             STATUS="❌ [CI 실패]"
             DETAILS="CI 검증 작업(테스트/빌드) 중 오류가 발생했습니다."

@@ -48,6 +48,7 @@ class PointWallet(models.Model):
     """서비스 공통 포인트 잔액. 모든 증감은 PointTransaction을 함께 남긴다."""
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name="point_wallet")
     balance = models.BigIntegerField(default=0)
+    total_earned = models.BigIntegerField(default=0)
     updated_at = models.DateTimeField(auto_now=True)
 
 
@@ -58,6 +59,7 @@ class PointTransaction(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.PROTECT, related_name="point_transactions")
     wallet = models.ForeignKey(PointWallet, on_delete=models.PROTECT, related_name="transactions")
     amount = models.BigIntegerField()
+    rank_delta = models.BigIntegerField(default=0)
     transaction_type = models.CharField(max_length=40)
     source_type = models.CharField(max_length=80)
     source_key = models.CharField(max_length=160)

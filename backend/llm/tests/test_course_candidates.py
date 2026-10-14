@@ -2,12 +2,12 @@ from unittest.mock import patch
 
 from django.test import SimpleTestCase
 
-from llm.v1.rag.course import agent as course
+from llm.v2.course import agent as course
 
 
 class CourseCandidatesTest(SimpleTestCase):
     def test_compound_cuisine_menu_query_does_not_hide_other_restaurants(self):
-        from llm.v1.rag.course.editing import candidates
+        from llm.v2.course.editing import candidates
         anchor = {"lat": 37.5, "lng": 127.0, "category": "FOOD"}
         calls = []
         def search(_domain, _tool, args):
@@ -21,7 +21,7 @@ class CourseCandidatesTest(SimpleTestCase):
         self.assertEqual({p["name"] for p in result}, {"짜장전문점", "요리반점"})
 
     def test_jajang_spelling_search_preserves_radius_and_excludes_the_existing_course(self):
-        from llm.v1.rag.course.editing import candidates
+        from llm.v2.course.editing import candidates
         anchor = {"lat": 37.5, "lng": 127.0, "category": "FOOD"}
         calls = []
         def search(_domain, _tool, args):
@@ -37,7 +37,7 @@ class CourseCandidatesTest(SimpleTestCase):
         self.assertEqual([p["placeId"] for p in result], ["fresh"])
 
     def test_verified_candidates_survive_later_route_searches_and_new_candidate_failures(self):
-        from llm.v1.rag.course import editing
+        from llm.v2.course import editing
         food = {"name": "초밥집", "category": "FOOD_OUT", "placeId": "1", "lat": 35.1947, "lng": 129.062}
         other = {**food, "name": "새 후보", "placeId": "2", "lng": 129.063}
         confirmed = {**food, "conditionChecks": [{"term": "초밥", "status": "match"}]}
@@ -55,7 +55,7 @@ class CourseCandidatesTest(SimpleTestCase):
         self.assertEqual(course.remembered_candidates([food], {**state, "rejected": [food]}, cache), [])
 
     def test_empty_keyword_tries_spelling_variant_with_same_radius_before_category(self):
-        from llm.v1.rag.course.editing import candidates
+        from llm.v2.course.editing import candidates
         anchor = {"lat": 37.5, "lng": 127.0, "category": "FOOD"}
         queries = []
 
@@ -64,7 +64,7 @@ class CourseCandidatesTest(SimpleTestCase):
             self.assertEqual(args["radius"], 2500)
             if args.get("query") != "돈가스":
                 return {"places": []}
-            return {"places": [{"id": "1", "place_name": "가상 식당", "x": "127.001", "y": "37.5"},
+            return {"places": [{"id": "1", "place_name": "가상 돈가스", "x": "127.001", "y": "37.5"},
                                {"id": "2", "place_name": "범위 밖", "x": "128", "y": "37.5"}]}
 
         with patch.object(course, "invoke_domain_tool", side_effect=lookup):
@@ -73,14 +73,30 @@ class CourseCandidatesTest(SimpleTestCase):
         self.assertEqual([p["placeId"] for p in result], ["1"])
         self.assertEqual(result[0]["_search_query"], "돈가스")
 
+    def test_non_specialty_hit_preserves_remaining_spelling_and_category(self):
+        from llm.v2.course.editing import candidates
+        anchor = {"lat": 37.5, "lng": 127.0, "category": "FOOD"}
+        queries = []
+
+        def lookup(_domain, _tool, args):
+            queries.append(args.get("query", ""))
+            if args.get("query") != "돈가스":
+                return {"places": []}
+            return {"places": [{"id": "1", "place_name": "가상 식당", "x": "127.001", "y": "37.5"}]}
+
+        with patch.object(course, "invoke_domain_tool", side_effect=lookup):
+            result = candidates(anchor, anchor, {"query": "돈까스"}, [])
+        self.assertEqual(queries, ["돈까스", "돈가스", "돈카츠", ""])
+        self.assertEqual([p["placeId"] for p in result], ["1"])
+
     def test_requested_menu_searches_specific_keywords_only_for_requested_activity(self):
-        from llm.v1.rag.course.evidence_memory import Requirement
+        from llm.v2.course.evidence_memory import Requirement
         anchor = {"lat": 37.5, "lng": 127.0}
         state = {"conditions": [{"scope": "FOOD", "text": "돈까스 판매"}, {"scope": "CAFE", "text": "조용한 카페"}]}
         req = Requirement(term="돈까스", attribute="menu", intent="required", group="meal")
         item = {"name": "가상 식당", "category": "FOOD", "lat": 37.5, "lng": 127.001, "placeId": "fixture:menu"}
-        with patch("llm.v1.rag.course.evidence_memory.requirements", return_value=[req]) as parse, \
-                patch("llm.v1.rag.course.editing.candidates", return_value=[item, item]) as search:
+        with patch("llm.v2.course.evidence_memory.requirements", return_value=[req]) as parse, \
+                patch("llm.v2.course.editing.candidates", return_value=[item, item]) as search:
             result = course.requested_menu_candidates(anchor, state, ["FOOD"])
         parse.assert_called_once_with(["돈까스 판매"])
         self.assertEqual(search.call_args.args[2], {"query": "돈까스"})
@@ -88,7 +104,7 @@ class CourseCandidatesTest(SimpleTestCase):
         self.assertEqual(result[0]["category"], "FOOD_OUT")
 
     def test_only_actual_keyword_hits_get_hints_and_duplicate_hits_merge(self):
-        from llm.v1.rag.course.evidence_memory import Requirement
+        from llm.v2.course.evidence_memory import Requirement
         anchor = {"lat": 37.5, "lng": 127.0}
         state = {"conditions": [{"scope": "FOOD", "text": "돈까스와 냉모밀 판매"}]}
         requested = [Requirement(term=term, attribute="menu", intent="required", group=term)
@@ -99,8 +115,8 @@ class CourseCandidatesTest(SimpleTestCase):
         def search(_target, _anchor, plan, _fixed):
             return [{**item, "_search_query": plan["query"]}, fallback]
 
-        with patch("llm.v1.rag.course.evidence_memory.requirements", return_value=requested), \
-                patch("llm.v1.rag.course.editing.candidates", side_effect=search):
+        with patch("llm.v2.course.evidence_memory.requirements", return_value=requested), \
+                patch("llm.v2.course.editing.candidates", side_effect=search):
             result = course.requested_menu_candidates(anchor, state, ["FOOD"])
         self.assertEqual(len(result), 2)
         self.assertEqual(result[0]["_menu_queries"], ["돈까스", "냉모밀"])

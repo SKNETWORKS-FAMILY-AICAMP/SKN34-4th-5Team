@@ -13,9 +13,13 @@ ROOT = Path(__file__).resolve().parents[1]
 EVAL = 'backend/llm/v2/evaluation/'
 FREE = [
     ['backend/llm/v2/tests/run_attachment_offline.py', 'llm.tests.test_course_tonkatsu',
+     'llm.tests.test_course_catalog_conditions', 'llm.tests.test_course_profile_features',
      'llm.tests.test_course_literal_edits', 'llm.tests.test_course_audit_repairs.CourseSelectionRepairTest',
      'llm.tests.test_course_bar_ratings', 'llm.tests.test_course_quality_research',
-     'llm.tests.test_course_recommendation_policy', 'llm.tests.test_course_visit_requests'],
+     'llm.tests.test_course_recommendation_policy', 'llm.tests.test_course_visit_requests',
+     'llm.tests.test_course_candidates',
+     'llm.tests.test_llm_temperature.ResponsesPayloadTest.test_v2_agents_use_the_single_v2_model_factory',
+     'llm.tests.test_llm_temperature.ResponsesPayloadTest.test_luna_constructors_omit_temperature'],
     [EVAL + 'tonkatsu_contract.py', 'export', '--output', 'tonkatsu.json'],
     [EVAL + 'test_course_dataset.py', '-v'],
     [EVAL + 'run.py', 'offline', '--output', 'seed.json'],

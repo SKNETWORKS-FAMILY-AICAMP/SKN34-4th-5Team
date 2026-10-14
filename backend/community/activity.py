@@ -43,4 +43,4 @@ class CommunityMemberCommentListView(generics.ListAPIView):
         CommunityPostQuery.from_params(self.request.query_params)
         return public_comments(CommunityComment.objects.filter(
             author=member, post__is_hidden=False,
-        )).select_related("post").order_by("-created_at", "-id")
+        )).select_related("author__point_wallet", "post").order_by("-created_at", "-id")

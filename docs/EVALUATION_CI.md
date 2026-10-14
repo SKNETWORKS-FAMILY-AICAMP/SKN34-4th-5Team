@@ -10,6 +10,10 @@
 
 Python 3.12의 별도 job을 사용하며 운영 requirements는 변경하지 않습니다.
 
+2026-10-14 PR96 CI completeness 보정: 독립 검증에서 빠진 `llm.tests.test_llm_temperature.ResponsesPayloadTest.test_v2_agents_use_the_single_v2_model_factory`와 `llm.tests.test_llm_temperature.ResponsesPayloadTest.test_luna_constructors_omit_temperature`를 기존 FREE 첫 offline course runner에 정확한 method selector로 연결했다. `evaluation-regression.yml`의 `deterministic` job에서 `python -I .github/evaluation_ci.py free --output "$RUNNER_TEMP/evaluation-free"`로 실행하고, 같은 job의 `python -I .github/test_evaluation_ci.py` guard가 두 selector를 요구한다. 로컬 실제 free의 첫 runner는 두 이름을 포함한 109개를 통과했다(107→109); 기존 WEB_RESEARCH_ENABLED=false와 충돌하는 native web-search 테스트를 모듈 전체로 추가하지 않았다. 최종 실행 근거는 [PR96 보존 검증](test_results/pr96-v2-preservation-20261014.md)을 참고한다.
+
+2026-10-14 PR96 기능 보존: 같은 FREE의 `test_course_candidates`에서 비전문 검색 적중 후 업종 fallback 보존을 실행한다. 기존 `tonkatsu_contract.py export/score`에 synthetic 후보 검색 순서·중식 프로필 조사 순서·네 에이전트 모델 설정/low 복제 계약 3개를 추가하여 총 54개다. 기존 deterministic export → highlight-deterministic Ragas score 연결을 그대로 재사용하며 실제 제공자/전체 채팅 성능 증거는 아니다.
+
 2026-10-13 내부·외부 방문 구분 회귀: `deterministic`의 FREE 목록에 `run_attachment_offline.py llm.tests.test_course_tonkatsu llm.tests.test_course_literal_edits llm.tests.test_course_audit_repairs.CourseSelectionRepairTest`(27개)와 `tonkatsu_contract.py export`(17개 실제 함수 계약/DeepEval)를 추가했습니다. `course-contract-export` artifact를 후속 `highlight-deterministic`에서 내려받아 같은 결과와 고정 정답을 `tonkatsu_contract.py score`로 Ragas 채점합니다. 후속 job은 deterministic 성공에 의존합니다. `scorer-check`는 별도로 정상/오류 점수 대조를 검사합니다. 모두 기존 offline-exec의 네트워크 차단 안에서 실행하며 실제 제공자 품질 점수가 아닙니다.
 
 | 환경 | 실제 실행 대상 |

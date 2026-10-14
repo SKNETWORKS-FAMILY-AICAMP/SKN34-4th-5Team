@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 from django.test import SimpleTestCase
 
 from llm.tests.test_course_editing import plan
-from llm.v1.rag.course import agent, editing, evidence_memory, memory, slots, venue_policy, visit_requests
+from llm.v2.course import agent, editing, evidence_memory, memory, slots, venue_policy, visit_requests
 from travel.stadium_food import food_candidates, matching_menu_items
 
 

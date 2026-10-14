@@ -41,7 +41,7 @@ def locked_target(job):
     return comment
 
 
-def enqueue_locked(obj, *, enforce_limit=True):
+def enqueue_locked(obj, *, enforce_limit=True, mode=None):
     """Caller must hold the content lock (or own its creation transaction)."""
     is_post = isinstance(obj, CommunityPost)
     owner_id = obj.owner_id if is_post else obj.author_id
@@ -66,7 +66,7 @@ def enqueue_locked(obj, *, enforce_limit=True):
         'is_advertisement': obj.is_advertisement if is_post else False,
         'image_ids': [str(i) for i in obj.images.values_list('id', flat=True)] if is_post else [],
         'policy_version': settings.COMMUNITY_POLICY_VERSION,
-        'mode': current_mode(),
+        'mode': mode or current_mode(),
     }
     job = related.create(revision=obj.content_revision, payload=payload)
     if not is_post:

@@ -77,7 +77,7 @@ def signup(request):
     try:
         with transaction.atomic():
             user = serializer.save()
-            grant_points(user=user, **grant_definition(SIGNUP, SIGNUP_SOURCE_KEY))
+            grant_points(user=user, counts_for_rank=False, **grant_definition(SIGNUP, SIGNUP_SOURCE_KEY))
     except IntegrityError:
         raise ValidationError({'username': '이미 사용 중인 아이디입니다.'})
 

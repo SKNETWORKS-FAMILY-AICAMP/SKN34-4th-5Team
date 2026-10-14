@@ -29,6 +29,7 @@ class Course(models.Model):
     start_lng = models.FloatField(null=True, blank=True)
     travel_mode = models.CharField(max_length=10, choices=(("walk", "Walk"), ("car", "Car"), ("transit", "Transit")), default="walk")
     leg_modes = models.JSONField(default=dict, blank=True)
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="created_courses")
     author = models.CharField(max_length=80, default="익명")
     likes = models.PositiveIntegerField(default=0)
     views = models.PositiveIntegerField(default=0)

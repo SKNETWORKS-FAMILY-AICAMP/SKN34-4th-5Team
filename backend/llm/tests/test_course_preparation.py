@@ -7,11 +7,11 @@ from django.test import SimpleTestCase
 
 from llm.service import chat_runs
 from llm.service.chat_runs import Stopped
-from llm.v1 import progress
+from llm.v2 import progress
 from llm.tests.test_course_creation import QUESTION, creation_result
 from llm.tests.test_course_editing import GAME, PLACES
-from llm.v1.rag.course import agent, editing, parallel, preparation
-from llm.v1.rag.course import venue_policy, place_quality
+from llm.v2.course import agent, editing, parallel, preparation
+from llm.v2.course import venue_policy, place_quality
 
 
 class PreparationTests(SimpleTestCase):

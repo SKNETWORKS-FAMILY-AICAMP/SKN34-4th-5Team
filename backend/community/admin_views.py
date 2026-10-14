@@ -26,7 +26,7 @@ class AdminPostSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CommunityPost
-        fields = ("source_id", "post_number", "board", "team_code", "category", "title", "author", "created_at", "views", "comment_count", "is_sample", "is_hidden", "report_count")
+        fields = ("source_id", "post_number", "board", "team_code", "category", "title", "author", "created_at", "views", "comment_count", "is_sample", "is_hidden", "is_reviewed", "report_count")
         read_only_fields = fields
 
 
@@ -72,9 +72,10 @@ class AdminReportActionResultSerializer(serializers.Serializer):
 
 QUERY = OpenApiParameter("q", {"type": "string", "maxLength": 200})
 PAGE = OpenApiParameter("page", {"type": "integer", "minimum": 1})
+POST_FILTER = OpenApiParameter("filter", str, enum=("reported_first", "reported", "newest"), description="기본값 reported_first: 신고 건수순, reported: 신고 글만, newest: 최신순")
 
 
-@extend_schema(parameters=[QUERY, PAGE])
+@extend_schema(parameters=[QUERY, PAGE, POST_FILTER])
 class AdminPostList(generics.ListAPIView):
     """게시글 목록 (제목·작성자·글 번호 검색). 신고 수를 함께 준다."""
     permission_classes = (StaffOnly,)
@@ -82,7 +83,13 @@ class AdminPostList(generics.ListAPIView):
     pagination_class = AdminPages
 
     def get_queryset(self):
-        posts = CommunityPost.objects.annotate(report_count=Count("reports", distinct=True)).order_by("-post_number")
+        selection = self.request.query_params.get("filter", "reported_first")
+        if selection not in ("reported_first", "reported", "newest"):
+            raise ValidationError({"filter": "reported_first, reported, newest 중 선택해 주세요."})
+        posts = CommunityPost.objects.annotate(report_count=Count("reports", distinct=True))
+        if selection == "reported":
+            posts = posts.filter(report_count__gt=0)
+        posts = posts.order_by("-post_number") if selection == "newest" else posts.order_by("-report_count", "-post_number")
         query = self.request.query_params.get("q", "").strip()[:200]
         if query:
             posts = posts.filter(Q(title__icontains=query) | Q(author__icontains=query) | Q(post_number=query))
@@ -96,8 +103,8 @@ def hide_post(post, actor, now):
     post.reports.exclude(status="hidden").update(status="hidden", handled_at=now, handled_by=actor)
 
 
-class AdminPostHideSerializer(serializers.Serializer):
-    action = serializers.ChoiceField(choices=("hide",))
+class AdminPostActionSerializer(serializers.Serializer):
+    action = serializers.ChoiceField(choices=("hide", "reviewed", "unreviewed"))
 
     def validate(self, attrs):
         if set(self.initial_data) != {"action"}:
@@ -119,14 +126,19 @@ class AdminPostDetail(generics.DestroyAPIView):
         response['Cache-Control'] = 'private, no-store'
         return response
 
-    @extend_schema(request=AdminPostHideSerializer, responses=AdminPostSerializer)
+    @extend_schema(request=AdminPostActionSerializer, responses=AdminPostSerializer)
     def patch(self, request, *args, **kwargs):
-        serializer = AdminPostHideSerializer(data=request.data)
+        serializer = AdminPostActionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         with transaction.atomic():
             post = get_object_or_404(CommunityPost.objects.select_for_update(), source_id=kwargs["source_id"])
             self.check_object_permissions(request, post)
-            hide_post(post, request.user, timezone.now())
+            action = serializer.validated_data["action"]
+            if action == "hide":
+                hide_post(post, request.user, timezone.now())
+            else:
+                post.is_reviewed = action == "reviewed"
+                post.save(update_fields=["is_reviewed"])
             result = CommunityPost.objects.annotate(report_count=Count("reports", distinct=True)).get(pk=post.pk)
         return Response(AdminPostSerializer(result).data)
 

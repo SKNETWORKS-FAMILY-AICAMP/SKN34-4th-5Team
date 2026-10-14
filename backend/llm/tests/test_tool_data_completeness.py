@@ -34,7 +34,7 @@ class ToolDataCompletenessTest(TestCase):
 
     def test_v1_model_visible_tools_execute_expanded_and_legacy_arguments(self):
         from langchain_core.messages import AIMessage, ToolMessage
-        from llm.v1.rag.domain_tools import run_model, tools_for
+        from llm.v2.domain_tools import run_model, tools_for
         visible = {tool.name: tool for tool in tools_for("assistant")}
         self.assertIs(visible["get_standings"].args_schema, self.tools["get_standings"].args_schema)
         self.assertIs(visible["get_games"].args_schema, self.tools["get_games"].args_schema)

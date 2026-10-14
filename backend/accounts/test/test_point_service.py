@@ -16,6 +16,7 @@ class PointServiceTests(TestCase):
         self.assertEqual(wallet.pk, same_wallet.pk)
         self.assertEqual(entry.pk, same_entry.pk)
         self.assertEqual(PointWallet.objects.get(user=user).balance, 123)
+        self.assertEqual(PointWallet.objects.get(user=user).total_earned, 123)
         self.assertEqual(PointTransaction.objects.filter(user=user).count(), 1)
 
     def test_point_ledger_protects_user_and_wallet_from_deletion(self):

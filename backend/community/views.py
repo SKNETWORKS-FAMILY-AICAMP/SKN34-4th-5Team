@@ -20,7 +20,7 @@ POST_INPUT_FIELDS = ("board", "team_code", "category", "title", "content", "cont
 
 
 def post_queryset():
-    return CommunityPost.objects.prefetch_related("images").annotate(
+    return CommunityPost.objects.select_related("owner__point_wallet").prefetch_related("images").annotate(
         upvote_count=Count("votes", filter=Q(votes__value="up"), distinct=True),
         downvote_count=Count("votes", filter=Q(votes__value="down"), distinct=True),
         actual_comment_count=Count("comments", filter=Q(comments__approved_revision=F('comments__content_revision')), distinct=True),

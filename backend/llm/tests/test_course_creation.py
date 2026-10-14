@@ -7,8 +7,8 @@ from django.test import SimpleTestCase
 from llm.service.chat_runs import Stopped
 from llm.tests.test_course_editing import plan
 from llm.tests.test_lodging_conditions import PLACE, URL, report
-from llm.v1.rag.course import agent, creation, editing, memory
-from llm.v1.rag.nearby import lodging
+from llm.v2.course import agent, creation, editing, memory
+from llm.v2.nearby import lodging
 
 
 QUESTION = "경기 후 주차 가능한 호텔에서 숙박하는 코스 짜줘"

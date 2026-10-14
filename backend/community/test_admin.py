@@ -47,6 +47,38 @@ class CommunityAdminApiTests(APITestCase):
         self.assertEqual(row["post"]["source_id"], self.post.source_id)
         self.assertEqual((row["post"]["owner"]["username"], row["post"]["owner"]["nickname"]), ("member", "회원"))
 
+    def test_review_state_persists_without_changing_visibility_or_moderation(self):
+        self.client.force_authenticate(self.staff)
+        url = f"/api/v1/community/admin/posts/{self.post.pk}/"
+        self.assertFalse(self.post.is_reviewed)
+        for hidden in (False, True):
+            self.post.is_hidden = hidden
+            self.post.moderation_status = "review"
+            self.post.save(update_fields=["is_hidden", "moderation_status"])
+            for action, expected in (("reviewed", True), ("reviewed", True), ("unreviewed", False)):
+                response = self.client.patch(url, {"action": action}, format="json")
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.data["is_reviewed"], expected)
+                self.post.refresh_from_db()
+                self.report.refresh_from_db()
+                self.assertEqual((self.post.is_reviewed, self.post.is_hidden, self.post.moderation_status), (expected, hidden, "review"))
+                self.assertEqual(self.report.status, "pending")
+                row = self.client.get("/api/v1/community/admin/posts/", {"q": self.post.title}).data["results"][0]
+                self.assertEqual(row["is_reviewed"], expected)
+
+    def test_review_requires_staff_and_valid_action(self):
+        url = f"/api/v1/community/admin/posts/{self.post.pk}/"
+        for action in ("reviewed", "unreviewed"):
+            self.client.force_authenticate(None)
+            self.assertEqual(self.client.patch(url, {"action": action}, format="json").status_code, 401)
+            self.client.force_authenticate(self.member)
+            self.assertEqual(self.client.patch(url, {"action": action}, format="json").status_code, 403)
+        self.client.force_authenticate(self.staff)
+        self.assertEqual(self.client.patch(url, {"action": "reviewed", "is_hidden": False}, format="json").status_code, 400)
+        self.assertEqual(self.client.patch("/api/v1/community/admin/posts/missing/", {"action": "reviewed"}, format="json").status_code, 404)
+        self.post.refresh_from_db()
+        self.assertFalse(self.post.is_reviewed)
+
     def test_hold_keeps_post_visible(self):
         response = self.act(action="hold")
         self.assertEqual(response.status_code, 200)

@@ -258,6 +258,6 @@ const examples = [
 export function getFreeBoardPosts(): TeamCommunityPost[] {
   return examples.map((post, index) => {
     const id = `free-sample-${index + 1}`;
-    return { ...post, id, sourceId: id, postNumber: formatCommunityPostNumber(String(20001 + index)), board: "free", authorId: null, author: "예시 작성자", createdAt: null, views: 0, recommendations: 0, downvotes: 0, commentCount: 0, teamCode: "", isSample: true, images: [], moderationStatus: "approved", revision: 0 };
+    return { ...post, id, sourceId: id, postNumber: formatCommunityPostNumber(String(20001 + index)), board: "free", authorId: null, authorRank: null, author: "예시 작성자", createdAt: null, views: 0, recommendations: 0, downvotes: 0, commentCount: 0, teamCode: "", isSample: true, images: [], moderationStatus: "approved", revision: 0 };
   });
 }

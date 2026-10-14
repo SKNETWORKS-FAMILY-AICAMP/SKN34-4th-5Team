@@ -17,6 +17,7 @@ export type AdminPost = {
   comment_count: number;
   is_sample: boolean;
   is_hidden: boolean;
+  is_reviewed: boolean;
   report_count: number;
 };
 
@@ -68,6 +69,10 @@ export const deleteAdminPost = (sourceId: string) => apiRequest<never>(`/api/v1/
 
 export const hideAdminPost = (sourceId: string) => apiRequest<AdminPost>(`/api/v1/community/admin/posts/${encodeURIComponent(sourceId)}/`, {
   method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "hide" }),
+}, memberFetch);
+
+export const setAdminPostReviewed = (sourceId: string, reviewed: boolean) => apiRequest<AdminPost>(`/api/v1/community/admin/posts/${encodeURIComponent(sourceId)}/`, {
+  method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: reviewed ? "reviewed" : "unreviewed" }),
 }, memberFetch);
 
 export const listAdminReports = (query: URLSearchParams, signal?: AbortSignal) => apiRequest<Page<AdminReport>>(`/api/v1/community/admin/reports/?${query}`, {

@@ -8,6 +8,7 @@ import { useRouteNumber } from "@/lib/route-number";
 import { RouteContent } from "@/components/route-content";
 import { RouteMap } from "@/components/route-map";
 import { RouteDetailSkeleton } from "@/components/route-skeleton";
+import { MemberName } from "@/components/member-name";
 import { routeContentToText } from "@/lib/route-content";
 import { coursePointLabel, withCourseStart } from "@/lib/drawn-course";
 import { useMemberAuth } from "@/lib/member-auth";
@@ -85,7 +86,7 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
         <div className={boardStyles.postMeta}>
           <div className={boardStyles.postMetaInfo}>
             <span aria-label={`코스 번호 ${routeNumber}`}>{routeNumber}</span>
-            <span>{route.author}</span>
+            <span><MemberName name={route.author} rank={route.authorRank} size="small" /></span>
             <time dateTime={route.createdAt}>{new Intl.DateTimeFormat("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Seoul" }).format(new Date(route.createdAt))}</time>
           </div>
           <div className={boardStyles.postMetrics}><span>조회 <b>{route.views ?? 0}</b></span><span>추천 <b>{route.likes}</b></span></div>

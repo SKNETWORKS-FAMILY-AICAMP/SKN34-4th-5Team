@@ -45,7 +45,7 @@ class ToolPackagesTest(SimpleTestCase):
         fallback.assert_called_once_with("잠실 대중교통", "JAMSIL", ["TRANSPORT"], None, 20)
 
     def test_knowledge_tool_registration_and_venue_sources(self):
-        from llm.v1.rag.domain_tools import tools_for
+        from llm.v2.domain_tools import tools_for
         names = [tool.name for tool in tools_for("venue")]
         self.assertEqual(len(names), len(set(names)))
         self.assertIn("search_documents_tool", names)

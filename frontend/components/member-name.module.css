@@ -1,0 +1,9 @@
+.name { display: inline-flex; align-items: center; gap: .28em; min-width: 0; vertical-align: middle; }
+.rank { display: inline-block; width: 1.08em; height: 1.08em; flex: 0 0 auto; background-image: url("/images/rank.png"); background-repeat: no-repeat; background-size: 1024% auto; }
+.rank1 { background-position: 14.6% 44.5%; }
+.rank2 { background-position: 32.2% 44.5%; }
+.rank3 { background-position: 49.9% 44.5%; }
+.rank4 { background-position: 67.6% 44.5%; }
+.rank5 { background-position: 85.3% 44.5%; }
+.small .rank { width: .96em; height: .96em; }
+.community .rank { width: 1.3em; height: 1.3em; }

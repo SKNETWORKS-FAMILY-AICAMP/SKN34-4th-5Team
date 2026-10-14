@@ -22,9 +22,9 @@ Scope: existing PostgreSQL pgvector documents → Qdrant only. OpenAI `text-embe
 
 ## Active path inventory
 
-- `v1/rag/club/retrieval.search`: used by club agents, assistant initial retrieval and shared `tools/knowledge.search_kbo_rows`; preserves `(rows, elapsed_ms)` and row keys/distance, including nullable `category`, `status`, `evidence_type`. Scalar/list nested metadata uses the top-level `updated_at` fallback without changing stored metadata.
+- `v2/club/retrieval.search`: used by club agents, assistant initial retrieval and shared `tools/knowledge.search_kbo_rows`; preserves `(rows, elapsed_ms)` and row keys/distance, including nullable `category`, `status`, `evidence_type`. Scalar/list nested metadata uses the top-level `updated_at` fallback without changing stored metadata.
 - `tools/knowledge.vector_search` and keyword fallback: venue/place retrieval used by v1/v2 tools; returns content and complete metadata with match type/distance.
-- `v1/rag/course/agent.search_places`, `stadium_anchor`, `course/transport.fetch_rows`, and `club/structured._rows`: Qdrant search/scroll now covers non-vector document enumeration as well as vector queries.
+- `v2/course/agent.search_places`, `stadium_anchor`, `course/transport.fetch_rows`, and `club/structured._rows`: Qdrant search/scroll now covers non-vector document enumeration as well as vector queries.
 - `build_index`, `check_index`, `rag_check`, `langsmith_eval.number_grounded`: load/read/check paths now use Qdrant.
 - `crawling/common/cron_tving._vector_upsert`, reused by `cron_ticket`: Qdrant deterministic upserts, bounded existing-point fetch, unchanged-content vector reuse and provenance preservation. Ticket cleanup no longer deletes SQL vector rows.
 - SQL `Document`/`DocumentChunk` models and initial pgvector migration are retained; only the copy command reads them. `rag_test/` remains legacy offline PG experimentation, not application retrieval; it was not converted or run against live services. `tools/place_rag` uses separate relational place knowledge and is unaffected.

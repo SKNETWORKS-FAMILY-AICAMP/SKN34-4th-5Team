@@ -30,13 +30,14 @@ const deferred = () => { let resolve; const promise = new Promise(done => { reso
 const workspaceSource = readFileSync(join(frontend, "components/chat-workspace.tsx"), "utf8");
 const workspaceAst = ts.createSourceFile("workspace.tsx", workspaceSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 const workspaceBody = workspaceAst.statements.filter(node => !ts.isImportDeclaration(node)).map(node => node.getText(workspaceAst)).join("\n");
-const workspaceCode = ts.transpileModule(`const { Link, Image, useEffect, useRef, useState, useMemberAuth, useChat, Icon, ChatUsage, ChatQueue, ChatCoursePreferences, ChatSubAgentStatus, ChatQuestions, ChatWriterOffer, ChatComposerTools, ChatAttachmentCards, ChatInlineInput, chatComposerContent, MAX_MESSAGE_LENGTH } = global.__workspaceDependencies;\n${workspaceBody}`, {
+const workspaceCode = ts.transpileModule(`const { MemberName, Link, Image, useEffect, useRef, useState, useMemberAuth, useChat, Icon, ChatUsage, ChatQueue, ChatCoursePreferences, ChatSubAgentStatus, ChatQuestions, ChatWriterOffer, ChatComposerTools, ChatAttachmentCards, ChatInlineInput, chatComposerContent, MAX_MESSAGE_LENGTH } = global.__workspaceDependencies;\n${workspaceBody}`, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
 }).outputText;
 writeFileSync(join(scratch, "workspace.js"), workspaceCode);
 let identity;
 const Link = () => null;
 global.__workspaceDependencies = {
+  MemberName: () => null,
   chatComposerContent: text => text.trim(),
   ChatComposerTools: () => null, ChatAttachmentCards: () => null, ChatInlineInput: () => null,
   Link, Image: () => null, Icon: () => null, ChatUsage, ChatQueue: () => null, ChatCoursePreferences: () => null, ChatSubAgentStatus: () => null, ChatQuestions: () => null, ChatWriterOffer: () => null, MAX_MESSAGE_LENGTH: 2000,
@@ -210,7 +211,7 @@ test("shared desktop/mobile sidebar renders truthful identity and gates member u
       } else if (status === "authenticated") {
         assert.equal(login, undefined);
         assert.equal(profile.props["aria-haspopup"], "dialog");
-        assert.equal(find(profile, node => node.type === "strong").props.children, "회원닉");
+        assert.equal(find(profile, node => node.type === "strong").props.children.props.name, "회원닉");
         profile.props.onClick({ currentTarget: { focus() {} } });
       } else {
         assert.equal(login, undefined);
@@ -256,9 +257,9 @@ test("sidebar and modal share trimmed MemberAuth name fallbacks without transiti
     const view = runner(ChatWorkspace);
     const tree = view.render();
     for (const sidebar of [find(tree, node => node.type === "aside"), find(tree, node => node.props?.className === "workspace-drawer-content")]) {
-      assert.equal(find(sidebar, node => node.type === "strong").props.children, expected);
+      assert.equal(find(sidebar, node => node.type === "strong").props.children.props.name, expected);
     }
-    assert.equal(find(tree, node => node.props?.className === "workspace-account-name").props.children, expected);
+    assert.equal(find(tree, node => node.props?.className === "workspace-account-name").props.children.props.name, expected);
     view.unmount();
     for (const status of ["loading", "error", "anonymous"]) {
       identity = { status, user: { id: 7, nickname: "private-nickname", first_name: "private-name", username: "private-username" } };
@@ -284,7 +285,7 @@ test("shared desktop/mobile profile shows two authenticated roles without stale 
     for (const [index, sidebar] of [find(tree, node => node.type === "aside"), find(tree, node => node.props?.className === "workspace-drawer-content")].entries()) {
       const profile = find(sidebar, node => node.props?.className === "workspace-profile");
       assert.equal(find(profile, node => node.type === "small").props.children, expected);
-      assert.equal(find(profile, node => node.type === "strong").props.children, "private-name");
+      assert.equal(find(profile, node => node.type === "strong").props.children.props.name, "private-name");
       assert.equal(find(profile, node => node.props?.src).props.src, "/private-avatar.png");
       assert.equal(profile.type, "button");
       assert.equal(profile.props.type, "button");

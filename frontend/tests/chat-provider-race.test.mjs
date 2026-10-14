@@ -629,7 +629,7 @@ for (const [path, exportName] of [["components/chat-workspace", "ChatWorkspace"]
       .replace('from "@/lib/chat/types"', 'from "../lib/chat/types"')
       .replace('from "@/lib/chat/inline-urls"', 'from "../lib/chat/inline-urls"')
       .replace('from "@/lib/member-auth"', 'from "../test-member-auth"')
-      .replace(/from "\.\/(chat-provider|icons|chat-answer|chat-course-card|chat-pending|chat-progress|chat-usage|chat-feedback|chat-course-preferences|chat-queue|chat-composer-tools|chat-inline-input)"/g, 'from "../test-surface-stub"');
+      .replace(/from "\.\/(member-name|chat-provider|icons|chat-answer|chat-course-card|chat-pending|chat-progress|chat-usage|chat-feedback|chat-course-preferences|chat-queue|chat-composer-tools|chat-inline-input)"/g, 'from "../test-surface-stub"');
     writeFileSync(join(scratch, `${path}.js`), ts.transpileModule(source, {
       fileName: `${path}.tsx`, compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
     }).outputText);
