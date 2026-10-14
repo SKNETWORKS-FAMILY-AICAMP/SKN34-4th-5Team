@@ -25,7 +25,7 @@ FREE = [
      'llm.tests.test_highlight_multimodal_web.MultimodalWebTests.test_opt_out_uses_original_agent',
      'llm.tests.test_highlight_multimodal_web.MultimodalWebTests.test_opt_out_error_then_success_preserves_card',
      'llm.tests.test_highlight_multimodal_web.MultimodalWebTests.test_cards_original_time_errors_and_no_match',
-     'llm.tests.test_highlight_langchain_web'],
+     'llm.tests.test_highlight_langchain_web', 'llm.tests.test_highlight_retry'],
     ['backend/llm/v2/tests/run_attachment_offline.py', 'llm.v2.evaluation.test_eval_ragas'],
     ['backend/llm/v2/tests/run_attachment_offline.py', 'llm.tests.test_domain_tools.ExternalDomainToolAdapterTest'],
     [EVAL + 'weather_contract.py', 'export', '--output', 'weather.json'],

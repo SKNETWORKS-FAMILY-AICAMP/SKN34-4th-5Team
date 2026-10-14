@@ -325,12 +325,11 @@ class MultimodalTests(unittest.TestCase):
             self.assertIsNone(result["no_match"])
             self.assertIn("quota_wait", result["decisions"][0])
             self.assertIn("provider_latency", result["decisions"][0])
-            google.quota.acquire.side_effect = RuntimeError("Verification quota bounded wait exhausted")
+            google.quota.acquire.side_effect = mm.VerificationAdmissionError("Verification quota bounded wait exhausted")
             google.call = Mock(return_value={"totalTokens": 9000})
-            result = specialist.ask("hit")
+            with self.assertRaises(mm.VerificationAdmissionError):
+                specialist.ask("hit")
             self.assertEqual(google.call.call_count, 1)
-            self.assertFalse(result["complete"])
-            self.assertIsNone(result["no_match"])
 
     def test_video_selection_overlap_unknown_duplicate(self):
         rows = {"a": {"video_id": "x", "start": 0, "end": 20}, "b": {"video_id": "x", "start": 10, "end": 30},

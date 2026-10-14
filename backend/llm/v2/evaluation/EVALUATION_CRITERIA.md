@@ -768,6 +768,13 @@ fixture는 테스트 입력·응답을 고정하는 방식이며 그 자체가 �
 - 동결 A/B: production 수정 전 checkpoint source와 신규 합성 입력·독립 oracle/테스트를 scratch에 동결한다. 동일 offline SDK transport/실제 compiled graph/설치된 DeepEval custom exact 및 Ragas ExactMatch를 A와 B에 실행한다. 검색에 gold ID를 주입하지 않으며 신규 점수는 video-level 실행 계약이지 live 의미 품질·비용·지연 개선이 아니다. 일반 품질 threshold는 추가하지 않는다.
 - 합격: 질의에서 full validators/scroll/ffprobe/media reads zero, 선택 payload/time 변조 fail-closed 및 audit corruption 검출; unique3/full Parts/정확한 source 범위·이미지·정상 generation1; compiled graph의 모델 선택→실제 tool boundary→1회 재조회→원문 검증·복구/빈/오류/block·중복 호출/반복 invocation·취소/예산 전파·privacy의 정확한 독립 기대값 전부 일치다. 기존 실제 highlight-free/free/wiring 명령과 변경 Django HTTP suite 실행을 기록한다. 실패/오류/미실행은 성공이 아니며 hosted CI·유료/live·재시작/배포·원본 수정은 하지 않는다.
 
+### 저장 재시도 구현·실행 기록 (2026-10-14)
+
+- 위 사전 정책을 적용해 수정 query 상한은 기존 Specialist.retrieve의 500자로 유지한다. 같은 응답에서 중복 tool call·없음·미허용 도구·추가 인자는 실행 없이 block이다. 단방향 graph에서 selector 한 번/실제 저장 조회 최대 한 번이며 같은 compiled graph의 다음 invocation은 독립 예산이다.
+- 401/402/403 인증·결제·권한 거부, quota/토큰 용량 및 server output cap 거부는 VerificationAdmissionError로 전파한다. 기존 합성 quota RuntimeError→incomplete 단언은 이 사전 예산 우회 금지 정책에 맞춰 typed admission 전파로 교체한다. billing/cancel 예외는 Gemini 래퍼와 highlight delegate에서도 보존한다.
+- LangChain ToolMessage에는 block enum이 없으므로 status=error 및 additional_kwargs.highlight_status=block, selection artifact.status=block, result.status=block을 보존한다. 첫 오류와 마지막 결과 이유를 분리하며 반환 메시지에는 selector/tool 원시 교환을 추가하지 않는다. 공개 진행 도구명은 한국어 label을 연결한다.
+- 동결 10개 retry 계약 A2/10→B10/10(DeepEval/Ragas 각각), 실제 SDK·delegate·Meter 복구/최종 block 및 비어 있지 않은 이미지/nostream callback 검증을 free에 포함한다. scratch writer의 phase3-A9-results/phase3-B6-results와 phase3-free4, phase3-highlight, phase3-http, phase3-wiring2는 로컬 실행 근거다. 부분 실패/fixture 오류/진단 overlay 기록은 삭제하지 않는다. 결과는 합성 실행 계약이며 유료/live·hosted CI 성공을 뜻하지 않는다.
+
 ## 현재 앱 소스 10문항 단일 live 재검증 준비 (2026-10-14, 실행 전)
 
 - 목적/범위: 현재 worktree production bytes와 실제 local dependency를 동결하고 기존10문항/10영상922구간/약한 라벨(4양성 장면의8변형+쉬운 음성2)/canonical DeepEval·Ragas 채점기를 그대로 재사용한다. video top8 한 번→기존 중복·누락·시간겹침 제외→최대3→병렬3 URL 검증, text prefix/taskType 미지정/768, gemini-embedding-2 및 gemini-3.8-flash/temperature0/strict JSON/output4000은 불변이다. 이전 결과는 설명용 반복 비교이며 causal RRF A/B·이미지 품질 근거가 아니다.

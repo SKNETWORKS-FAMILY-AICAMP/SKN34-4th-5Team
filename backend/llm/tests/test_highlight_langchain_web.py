@@ -80,6 +80,52 @@ class LangChainWebTests(SimpleTestCase):
         self.assertEqual(outer.artifact[-2].artifact['videos'][0]['start'], 123)
         specialist.close.assert_called_once()
 
+    def test_actual_retry_delegate_sdk_meter_and_block_status(self):
+        from llm.tests.test_highlight_retry import Selector
+        call = {'name': 'search_stored_highlight_rag', 'args': {'query': 'revised'}, 'id': 'retry'}
+        for recover in (True, False):
+            selector = Selector(messages=iter([AIMessage('', tool_calls=[call],
+                usage_metadata={'input_tokens': 2, 'output_tokens': 1, 'total_tokens': 3})]))
+            google = mm.Google('synthetic', quota=Mock())
+            rows = [{**ROW, 'start': 0., 'end': 900.134}]
+            specialist = Mock()
+            specialist.retrieve.side_effect = [
+                {'query': query, 'candidates': rows, 'retrieval_only': [ROW['id']],
+                 'rankings': {'video': [ROW['id']]}, 'retrieval_latency': 0}
+                for query in ('original', 'revised')]
+            meter, trace = Meter(), Trace()
+            human = HumanMessage('original', id='current')
+            from llm.tests.test_highlight_images import IMAGE as original_image
+            restored = HumanMessage([{'type': 'text', 'text': 'original'}, original_image], id=human.id)
+            def change_retry(*args):
+                if google.quota.acquire.call_count == 2 and recover:
+                    transport.output = OUTPUT
+            google.quota.acquire.side_effect = change_retry
+            with self.subTest(recover=recover), tempfile.TemporaryDirectory() as root, \
+                 override_settings(HIGHLIGHT_MULTIMODAL_CORPUS=root), \
+                 patch('llm.highlight_multimodal.Google', return_value=google), \
+                 patch('llm.highlight_multimodal.Specialist', return_value=specialist), \
+                 SDKTransport({**OUTPUT, 'source_accessible': False}) as transport:
+                runtime = SimpleNamespace(state={'messages': [human], 'attachment_messages': {human.id: restored}},
+                    config={'callbacks': [meter, trace]}, tool_call_id='outer')
+                result = sub_agents._delegate('ask_highlight', 'highlight', highlight_sub_agent.build(selector, {})).func('invented', runtime)
+            self.assertEqual(specialist.retrieve.call_count, 2)
+            self.assertEqual([op for op, _ in transport.requests], ['countTokens', 'generateContent']*2)
+            self.assertEqual(meter.totals(), (20, 9, 3, 0))
+            self.assertEqual(len(trace.starts), 3)
+            self.assertTrue(all('nostream' in start['tags'] for start in trace.starts))
+            self.assertNotIn(original_image['image_url']['url'].split(',')[1], str(result))
+            self.assertTrue(all(c.kwargs['images'] == [original_image] for c in specialist.retrieve.call_args_list))
+            for _, body in transport.requests:
+                self.assertIn(original_image['image_url']['url'].split(',')[1], str(body))
+            from llm.v1.progress import LABELS
+            self.assertEqual(LABELS['search_stored_highlight_rag'], '저장된 하이라이트 다시 조회 중')
+            self.assertEqual(result.additional_kwargs['highlight_status'], 'success' if recover else 'block')
+            self.assertEqual(result.status, 'success' if recover else 'error')
+            self.assertEqual(len(result.artifact[-2].artifact['videos']), 1 if recover else 0)
+            self.assertEqual(result.artifact[-2].artifact['multimodal']['retry_executed'], 1)
+            self.assertNotIn('source_accessible', result.text)
+
     def test_graph_group_boundaries_empty_and_no_unverified_cards(self):
         rows = [{**ROW, 'id': sid, 'video_id': f'SlvDBmr4Bd{i}', 'start': 0., 'end': 900.134} for i, sid in enumerate('abc')]
         good = [{**OUTPUT, 'candidate_id': row['id'], 'original_seconds': row['start'] + 1} for row in rows]

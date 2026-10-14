@@ -96,6 +96,7 @@ LABELS = {
     "get_ticket_policy": "예매 정책 조회 중",
     "get_ticket_policies": "예매 정책 조회 중",
     "search_kbo_documents": "야구 안내 문서 추가 조회 중",
+    "search_stored_highlight_rag": "저장된 하이라이트 다시 조회 중",
     "search_nearby_places": "구장 주변 장소 조회 중",
     "verify_lodging_conditions": "야놀자 숙소 조건 확인 중",
     "search_places": "장소 조회 중",

@@ -33,6 +33,8 @@ def main():
     parser.add_argument('--output', required=True)
     parser.add_argument('--pipeline', action='store_true', help='Video-level pipeline contracts, not segment accuracy')
     parser.add_argument('--source', help='Immutable pre-edit source for offline A')
+    parser.add_argument('--retry', action='store_true', help='Compiled stored-search retry contracts')
+    parser.add_argument('--graph-source', help='Immutable retry graph source for offline A')
     args = parser.parse_args()
     output = Path(args.output)
     if output.exists():
@@ -40,7 +42,13 @@ def main():
     output.mkdir(parents=True)
     if args.source:
         os.environ['HIGHLIGHT_CONTRACT_SOURCE'] = str(Path(args.source).resolve(strict=True))
-    if args.pipeline:
+    if args.graph_source:
+        os.environ['HIGHLIGHT_GRAPH_SOURCE'] = str(Path(args.graph_source).resolve(strict=True))
+    if args.retry:
+        from llm.tests import test_highlight_retry as contract
+        test_class = contract.RetryTests
+        cases = tuple(unittest.defaultTestLoader.getTestCaseNames(test_class))
+    elif args.pipeline:
         from llm.tests import test_highlight_pipeline as contract
         test_class = contract.PipelineTests
         cases = tuple(unittest.defaultTestLoader.getTestCaseNames(test_class))
@@ -106,6 +114,8 @@ def main():
         'contract_sha256': hashlib.sha256(Path(contract.__file__).read_bytes()).hexdigest(),
         'source_sha256': hashlib.sha256(Path(contract.mm.__file__).read_bytes()).hexdigest(),
         'versions': {name: importlib.metadata.version(name) for name in ('deepeval', 'ragas', 'langchain-google-genai', 'google-genai', 'langchain-core')}}
+    if args.retry:
+        summary['graph_sha256'] = hashlib.sha256(Path(contract.graph_source.__file__).read_bytes()).hexdigest()
     (output / 'observations.json').write_text(json.dumps(summary, indent=2))
     print(json.dumps(summary, indent=2))
     raise SystemExit(not result.wasSuccessful())

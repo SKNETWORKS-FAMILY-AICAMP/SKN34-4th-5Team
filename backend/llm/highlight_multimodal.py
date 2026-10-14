@@ -119,6 +119,10 @@ def cut(source, row, target):
     return video, audio
 
 
+class VerificationAdmissionError(RuntimeError):
+    """Budget/admission denial is never a verification failure eligible for retry."""
+
+
 class VerificationQuota:
     """Shared-host SQLite admission; all participating processes must share this path."""
     def __init__(self, path=None, rpm=None, tpm=None, rpd=None, max_wait=None, clock=time.time, sleep=time.sleep, monotonic=time.monotonic):
@@ -128,7 +132,7 @@ class VerificationQuota:
         self.rpd = int(rpd if rpd is not None else os.environ.get("HIGHLIGHT_QUOTA_RPD", 10000))
         self.max_wait = float(max_wait if max_wait is not None else os.environ.get("HIGHLIGHT_QUOTA_MAX_WAIT", 10))
         if not (0 < self.rpm <= 900 and 0 < self.tpm <= 1800000 and 0 < self.rpd <= 10000 and 0 <= self.max_wait <= 60):
-            raise ValueError("Invalid verification quota limits")
+            raise VerificationAdmissionError("Invalid verification quota limits")
         self.token_capacity = min(self.tpm, 180000)
         self.clock, self.sleep, self.monotonic = clock, sleep, monotonic
         try:
@@ -136,11 +140,11 @@ class VerificationQuota:
             with closing(sqlite3.connect(self.path, timeout=min(self.max_wait, 1))) as db, db:
                 db.execute("CREATE TABLE IF NOT EXISTS quota (model TEXT PRIMARY KEY, updated REAL, requests REAL, tokens REAL, day TEXT, daily INTEGER)")
         except (OSError, sqlite3.Error):
-            raise RuntimeError("Verification quota storage unavailable") from None
+            raise VerificationAdmissionError("Verification quota storage unavailable") from None
 
     def acquire(self, model, tokens):
         if type(tokens) is not int or not 0 <= tokens <= self.token_capacity:
-            raise RuntimeError("Verification quota request exceeds token capacity")
+            raise VerificationAdmissionError("Verification quota request exceeds token capacity")
         started = self.monotonic()
         burst = min(3, self.rpm)
         while True:
@@ -157,7 +161,7 @@ class VerificationQuota:
                     daily = daily if day <= old_day else 0
                     day = max(day, old_day)
                     if daily >= self.rpd:
-                        raise RuntimeError("Verification daily quota exhausted")
+                        raise VerificationAdmissionError("Verification daily quota exhausted")
                     delay = max(0, (1 - requests) * 60 / self.rpm, (tokens - available) * 60 / self.tpm)
                     if delay == 0:
                         db.execute("INSERT OR REPLACE INTO quota VALUES (?, ?, ?, ?, ?, ?)",
@@ -167,7 +171,7 @@ class VerificationQuota:
                 delay = .05
             remaining = self.max_wait - max(0, self.monotonic() - started)
             if remaining <= 0 or delay > remaining:
-                raise RuntimeError("Verification quota bounded wait exhausted")
+                raise VerificationAdmissionError("Verification quota bounded wait exhausted")
             self.sleep(min(max(delay, .001), remaining))
 
 
@@ -266,6 +270,8 @@ class Google:
             except Exception as wrapped:
                 exc, details = provider_error(wrapped)
                 if isinstance(exc, errors.APIError):
+                    if exc.code in (401, 402, 403):
+                        raise VerificationAdmissionError("Provider authorization/billing denied") from None
                     if operation == "embedContent" and exc.code in (429, 503) and attempt == 0:
                         time.sleep(2)
                         continue
@@ -399,6 +405,8 @@ class Google:
             self._verification.quota_wait = time.monotonic() - before_quota
         from django.conf import settings
         limit = getattr(settings, "USAGE_MAX_CALL_OUTPUT_TOKENS", 4000) if settings.configured else 4000
+        if type(limit) is not int or limit <= 0:
+            raise VerificationAdmissionError("Unsafe verifier output limit")
         model = ChatGoogleGenerativeAI(model=self.model, google_api_key=self.key, vertexai=False,
             temperature=0, max_output_tokens=limit, max_retries=1, timeout=180,
             disable_streaming=True)
@@ -417,6 +425,9 @@ class Google:
         except Exception as exc:
             runs = sys.modules.get("llm.service.chat_runs")
             if runs is not None and isinstance(exc, runs.Stopped):
+                raise
+            usage = sys.modules.get("llm.service.usage")
+            if usage is not None and isinstance(exc, (usage.InsufficientCredits, usage.WalletBusy, usage.UnsafeOutputLimit)):
                 raise
             # Model/SDK parsing errors never expose provider text or original images.
             from langchain_core.exceptions import OutputParserException
@@ -465,6 +476,8 @@ def verify_retrieval(google, retrieval, images=None, config=None):
             if match:
                 matches.append(match)
         complete = True
+    except VerificationAdmissionError:
+        raise
     except (ValueError, RuntimeError) as exc:
         # Never copy raw exception/provider text into public answers or artifacts.
         reason = "malformed provider output" if isinstance(exc, ValueError) else "verification provider/source unavailable"
@@ -780,6 +793,8 @@ class Specialist:
                 checked = {"candidate_id": sid, "output": output, "model_version": getattr(verifier, "last_model_version", None)}
             except ValueError:
                 checked = {"candidate_id": sid, "rejected": "malformed provider output"}
+            except VerificationAdmissionError:
+                raise
             except RuntimeError as exc:
                 checked = {"candidate_id": sid, "provider_error": str(exc)}
             checked["latency"] = time.monotonic() - before

@@ -114,6 +114,12 @@ def _delegate(name, description, agent):
                 for node in update.values():
                     records.extend((node or {}).get("messages") or [] if isinstance(node, dict) else ())
         except Exception as exc:  # 한도 초과/조회 실패를 결과 없음과 구분해 메인 Agent 에 알린다
+            if name == "ask_highlight":
+                from llm.highlight_multimodal import VerificationAdmissionError
+                from llm.service.chat_runs import Stopped
+                from llm.service.usage import InsufficientCredits, WalletBusy, UnsafeOutputLimit
+                if isinstance(exc, (Stopped, VerificationAdmissionError, InsufficientCredits, WalletBusy, UnsafeOutputLimit)):
+                    raise
             failure = f"[조회 실패] {name}: {type(exc).__name__}"
         # Read bodies belong to specialist model input, not the returned/history artifact.
         from langchain_core.messages import AIMessage
@@ -143,7 +149,9 @@ def _delegate(name, description, agent):
         terminal = next((m for m in reversed(records) if isinstance(m, ToolMessage)), None)
         failed = (name == "ask_highlight" and terminal is not None and terminal.status == "error")
         return ToolMessage(final_text({"messages": records}) or f"[조회 실패] {name}: 답변 없음",
-                           name=name, tool_call_id=runtime.tool_call_id, status="error" if failed else "success", artifact=records)
+                           name=name, tool_call_id=runtime.tool_call_id, status="error" if failed else "success",
+                           additional_kwargs=terminal.additional_kwargs if name == "ask_highlight" and terminal is not None else {},
+                           artifact=records)
     return ask
 
 
