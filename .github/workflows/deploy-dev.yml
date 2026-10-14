@@ -51,36 +51,169 @@ jobs:
         working-directory: frontend
         run: npm run build
 
-  # 2. CD 배포 (develop 브랜치 push/merge 시 실행)
+  # 2. CD 배포
   cd-deploy:
     concurrency:
-        group: develop-ec2-deploy
-        cancel-in-progress: false
+      group: develop-ec2-deploy
+      cancel-in-progress: false
+
     needs: [ci-test, evaluation-regression]
+
     if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+
     runs-on: ubuntu-latest
+
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build development images
+        run: |
+          set -euo pipefail
+
+          docker build \
+            -f backend/Dockerfile \
+            -t dev-backend:latest \
+            backend
+
+          docker tag dev-backend:latest dev-lodging-warmer:latest
+
+          docker build \
+            -f frontend/Dockerfile \
+            -t dev-frontend:latest \
+            frontend
+
+          docker build \
+            -f docker/jev-browser/Dockerfile \
+            -t dev-jev-browser:latest \
+            docker/jev-browser
+
+          docker save \
+            dev-backend:latest \
+            dev-lodging-warmer:latest \
+            dev-frontend:latest \
+            dev-jev-browser:latest \
+            | gzip -1 > "$RUNNER_TEMP/development-images.tar.gz"
+
+          ls -lh "$RUNNER_TEMP/development-images.tar.gz"
+
+      - name: Configure SSH for image transfer
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          set -euo pipefail
+
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/dev_ec2
+          chmod 600 ~/.ssh/dev_ec2
+
+          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
+
+      - name: Prepare development EC2 for image transfer
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          set -euo pipefail
+
+          SSH="ssh -i ~/.ssh/dev_ec2 -o BatchMode=yes -o StrictHostKeyChecking=yes"
+
+          $SSH "$EC2_USER@$EC2_HOST" \
+            'rm -f ~/development-images.tar.gz &&
+             echo "===== 배포 전 디스크 상태 =====" &&
+             df -h &&
+             df -i &&
+             docker system df'
+
+      - name: Transfer development images to EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          set -euo pipefail
+
+          scp -i ~/.ssh/dev_ec2 \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            "$RUNNER_TEMP/development-images.tar.gz" \
+            "$EC2_USER@$EC2_HOST:development-images.tar.gz"
+
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          command_timeout: 30m
+          command_timeout: 20m
+
           script: |
             set -eu
-            cd ~/dev
-            git fetch origin
+
+            cd "$HOME/dev"
+
+            # 1. 배포 전 디스크 상태 확인
+            echo "===== 배포 전 디스크 상태 ====="
+            df -h
+            df -i
+            docker system df
+
+            # 2. CI에서 빌드한 이미지를 로드
+            echo "===== 이미지 로드 ====="
+            docker load -i "$HOME/development-images.tar.gz"
+            rm -f "$HOME/development-images.tar.gz"
+
+            # 3. 최신 develop 코드 반영
+            echo "===== Git 업데이트 ====="
+            git fetch origin develop
             git reset --hard origin/develop
-            docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build --renew-anon-volumes backend frontend jev-browser lodging-warmer
-            docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --no-deps --force-recreate nginx
-            docker compose -f docker-compose.yml -f docker-compose.dev.yml exec -T nginx nginx -t
 
-            # 오래된 Docker 이미지와 빌드 캐시 정리
-            docker image prune -af --filter "until=24h"
-            docker builder prune -af --filter "until=24h"
+            # 4. EC2에서 빌드하지 않고 애플리케이션 컨테이너 재생성
+            echo "===== 애플리케이션 배포 ====="
+            docker compose \
+              -f docker-compose.yml \
+              -f docker-compose.dev.yml \
+              up -d --no-build --force-recreate \
+              backend frontend jev-browser lodging-warmer
 
-  # 3. Discord 알림!
+            # 5. Nginx 재생성 및 설정 검증
+            echo "===== Nginx 배포 ====="
+            docker compose \
+              -f docker-compose.yml \
+              -f docker-compose.dev.yml \
+              up -d --no-deps --force-recreate nginx
+
+            docker compose \
+              -f docker-compose.yml \
+              -f docker-compose.dev.yml \
+              exec -T nginx nginx -t
+
+            # 6. HTTPS 경유 프런트엔드와 API 확인
+            echo "===== 서비스 헬스 체크 ====="
+            curl --fail --silent --show-error --insecure \
+              https://localhost/api/v1/healthz/
+
+            curl --fail --silent --show-error --insecure \
+              https://localhost/
+
+            # 7. 배포 성공 후 미사용 익명 볼륨 정리
+            # -a 옵션은 사용하지 않아 미사용 명명 볼륨을 보호
+            echo "===== 미사용 익명 볼륨 정리 ====="
+            docker volume prune -f
+
+            # 8. 미사용 이미지 정리
+            echo "===== Docker 이미지 정리 ====="
+            docker image prune -af
+
+            # 9. 최종 상태 확인
+            echo "===== 최종 디스크 상태 ====="
+            df -h
+            df -i
+            docker system df
+
+            echo "===== 개발 서버 배포 완료 ====="
+
+  # 3. Discord 알림
   notify-discord:
     needs: [ci-test, evaluation-regression, cd-deploy]
     if: always()
@@ -109,7 +242,7 @@ jobs:
           • **상세 내용:** ${DETAILS}
           • **Action 링크:** ${ACTION_URL}"
 
-          curl -X POST \
+          curl --fail --silent --show-error -X POST \
             -H "Content-Type: application/json" \
             -d "$(jq -n --arg content "$MESSAGE" '{content: $content}')" \
             "$DISCORD_WEBHOOK_URL"

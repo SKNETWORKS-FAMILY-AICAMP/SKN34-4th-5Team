@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "@fontsource-variable/noto-sans-kr";
 import "./globals.css";
 import "@/styles/navigation.css";
@@ -23,6 +23,10 @@ export const metadata: Metadata = {
   title: { default: "KBO ROUTE | 직관의 하루를, 나답게", template: "%s | KBO ROUTE" },
   description: "경기 전 맛집부터 경기 후 산책까지. 나만의 야구 직관 코스를 만들고 함께 나누는 공간.",
   referrer: "no-referrer",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#246bf3",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
