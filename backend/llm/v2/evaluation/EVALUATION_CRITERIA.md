@@ -1,6 +1,5 @@
 # DeepEval 평가 기준 v1.0
 
-<<<<<<< HEAD
 ## 2026-10-14 로컬 develop 통합 및 검사 워커 배포 연결
 
 - 기준: A는 현재 로컬 변경 포함 코드, B는 upstream/develop c528926 통합과 워커 배포 연결 후 코드. 신고/포인트/공개 정책과 기존 코스 조건은 모두 유지한다. Git 병합 커밋·push·EC2 배포는 하지 않는다.
@@ -16,8 +15,6 @@
 - A/B: 수정 전·후 동일 고정 native/fallback DeepEval 및 Ragas 사례(네트워크 차단, cache off, exact=1)를 실행한다. 분류 정책은 동일하므로 A/B 모두 전건 통과해야 한다. 신규 신고 트리거·권한·중복·결과 적용·필터는 격리 DB 회귀로 A 실패/B 통과 및 CI 실행을 확인한다. 이는 동작 계약 검증이며 실제 의미 정확도 평가는 아니다.
 - CI: community-moderation.yml django-integration의 community 자동 발견 및 admin-dashboard.test.mjs 명시 실행, provider-contracts의 기존 native/fallback 명령을 사용한다. 유료 제공자 평가와 운영 배포는 범위 밖이다.
 
-=======
->>>>>>> 0b56bb6d9f4edcc6820294062d232ee6616d3e96
 ## 최신 develop 통합 검증 (2026-10-14)
 
 - 목적: PR96의 V2 이전 및 기능 보존 커밋 `215fc5d`에 팀 develop `fb4b391`을 통합한다. 문서 충돌은 코스 기준과 커뮤니티 기준을 모두 보존하며 정책·정답·합격 기준은 변경하지 않는다.

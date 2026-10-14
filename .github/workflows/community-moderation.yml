@@ -29,21 +29,13 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r backend/requirements.txt
-<<<<<<< HEAD
       - run: python backend/manage.py test community community.moderation_probe llm.tests.test_domain_tools.DomainToolsTest accounts.test.test_point_integration accounts.test.test_point_rank accounts.test.test_point_rank_migration accounts.test.test_admin_permissions accounts.test.test_schema fantasy.tests.FantasyAdminTestSettlementTests.test_staff_can_cancel_test_payment_and_reopen_week_with_ledger_reversal travel.tests.CourseApiTests.test_course_author_rank_uses_linked_owner --noinput --verbosity=2
-=======
-      - run: python backend/manage.py test community community.moderation_probe llm.tests.test_domain_tools.DomainToolsTest accounts.test.test_point_integration accounts.test.test_point_rank accounts.test.test_point_rank_migration accounts.test.test_schema fantasy.tests.FantasyAdminTestSettlementTests.test_staff_can_cancel_test_payment_and_reopen_week_with_ledger_reversal travel.tests.CourseApiTests.test_course_author_rank_uses_linked_owner --noinput --verbosity=2
->>>>>>> 0b56bb6d9f4edcc6820294062d232ee6616d3e96
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
       - run: npm ci
         working-directory: frontend
-<<<<<<< HEAD
       - run: node --test tests/community-api.test.mjs tests/community-member.test.mjs tests/community-moderation.test.mjs tests/admin-dashboard.test.mjs tests/auth-bridge.test.mjs tests/course-api.test.mjs tests/mypage-feedback.test.mjs tests/moderation-deployment.test.mjs tests/chat-settings.test.mjs tests/chat-provider-race.test.mjs tests/home-chat-navigation.test.mjs
-=======
-      - run: node --test tests/community-api.test.mjs tests/community-member.test.mjs tests/community-moderation.test.mjs tests/admin-dashboard.test.mjs tests/auth-bridge.test.mjs tests/course-api.test.mjs
->>>>>>> 0b56bb6d9f4edcc6820294062d232ee6616d3e96
         working-directory: frontend
   provider-contracts:
     runs-on: ubuntu-latest

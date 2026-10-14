@@ -3459,7 +3459,6 @@ export interface components {
             readonly notifications: components["schemas"]["NotificationSettings"];
             readonly visibility: components["schemas"]["VisibilitySettings"];
             readonly rank: number;
-<<<<<<< HEAD
         };
         /**
          * @description * `manual` - manual
@@ -3474,8 +3473,6 @@ export interface components {
             mode: components["schemas"]["ModeBbeEnum"];
             automaticAvailable: boolean;
             model: string;
-=======
->>>>>>> 0b56bb6d9f4edcc6820294062d232ee6616d3e96
         };
         MonthData: {
             /** Format: date-time */
