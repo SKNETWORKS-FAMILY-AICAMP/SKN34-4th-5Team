@@ -22,7 +22,7 @@ class ModerationModeTests(APITestCase):
         response = self.client.post('/api/v1/community/posts/', {
             'board': 'free', 'teamCode': '', 'category': '잡담', 'title': '한화 경기', 'content': '야구 이야기',
         }, format='json', HTTP_IDEMPOTENCY_KEY=key)
-        self.assertEqual(response.status_code, 202, response.data)
+        self.assertEqual(response.status_code, 201, response.data)
         return CommunityPost.objects.get(pk=response.data['id'])
 
     def test_permissions_and_validation(self):
@@ -70,7 +70,7 @@ class ModerationModeTests(APITestCase):
             client.responses.parse.assert_not_called()
             post.refresh_from_db()
             self.assertEqual(post.moderation_status, 'review' if flagged else 'approved')
-            self.assertEqual(post.first_published_at is None, flagged)
+            self.assertIsNotNone(post.first_published_at)
         post = self.submit('error')
         with patch('openai.OpenAI', side_effect=TimeoutError()), override_settings(COMMUNITY_MODERATION_MAX_ATTEMPTS=1):
             run_one()
@@ -191,7 +191,7 @@ class ModerationModeTests(APITestCase):
         post.refresh_from_db()
         self.assertEqual({f['code'] for f in job.findings}, {'manual_review', 'image_review'})
         self.assertTrue(post.is_hidden)
-        self.assertIsNone(post.first_published_at)
+        self.assertIsNotNone(post.first_published_at)
         self.client.force_authenticate(self.staff)
         self.assertEqual(self.client.post(f'/api/v1/community/admin/moderation/{job.pk}/review/', {
             'revision': job.revision, 'review_revision': job.review_revision,
@@ -200,7 +200,7 @@ class ModerationModeTests(APITestCase):
         }, format='json').status_code, 200)
         post.refresh_from_db()
         self.assertEqual(post.moderation_status, 'review')
-        self.assertIsNone(post.first_published_at)
+        self.assertIsNotNone(post.first_published_at)
 
     def fail_check(self):
         run_one(lambda payload: (_ for _ in ()).throw(TimeoutError('synthetic')))
@@ -217,8 +217,8 @@ class ModerationModeTests(APITestCase):
 
     def test_public_fallback_is_listed_and_confirm_dismiss_preserve_one_publication(self):
         ModerationSettings.objects.update(mode='openai')
-        post = self.submit('public-review')
         with patch('community.moderation_service.grant_points') as grant:
+            post = self.submit('public-review')
             self.fail_check()
             post.refresh_from_db()
             published = post.first_published_at
@@ -249,10 +249,10 @@ class ModerationModeTests(APITestCase):
         post = self.submit('comment-parent')
         run_one(lambda payload: ([], {}))
         self.client.force_authenticate(self.member)
-        response = self.client.post(f'/api/v1/community/posts/{post.pk}/comments/', {'content': '댓글'}, format='json')
-        self.assertEqual(response.status_code, 202)
-        comment = CommunityComment.objects.get(pk=response.data['id'])
         with patch('community.moderation_service.grant_points') as grant:
+            response = self.client.post(f'/api/v1/community/posts/{post.pk}/comments/', {'content': '댓글'}, format='json')
+            self.assertEqual(response.status_code, 201)
+            comment = CommunityComment.objects.get(pk=response.data['id'])
             self.fail_check()
             comment.refresh_from_db()
             job = comment.moderation_jobs.get()
@@ -264,11 +264,12 @@ class ModerationModeTests(APITestCase):
             self.assertEqual(self.client.get(f'/api/v1/community/posts/{post.pk}/').data['commentCount'], 0)
             self.review(job)
             self.assertEqual(grant.call_count, 1)
-        # A privately revised parent must hold both access and first-publication points.
+        # An explicitly held parent defers new comment publication points.
         with transaction.atomic():
             enqueue_locked(CommunityPost.objects.select_for_update().get(pk=post.pk), enforce_limit=False)
         self.fail_check()  # parent fallback restores publication
         CommunityPost.objects.filter(pk=post.pk).update(approved_revision=None, moderation_status='review')
+        post.refresh_from_db()
         held = CommunityComment.objects.create(post=post, author=self.member, content='대기 댓글')
         with transaction.atomic():
             enqueue_locked(held, enforce_limit=False)
@@ -295,7 +296,7 @@ class ModerationModeTests(APITestCase):
             grant.assert_not_called()
         post.refresh_from_db()
         self.assertTrue(post.is_hidden)
-        self.assertIsNone(post.first_published_at)
+        self.assertIsNotNone(post.first_published_at)
         self.assertEqual(self.client.get(f'/api/v1/community/posts/{post.pk}/').status_code, 404)
 
     def test_image_reason_blocks_until_dismissed_but_manual_fallback_stays_open(self):

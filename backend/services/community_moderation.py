@@ -39,7 +39,7 @@ Cancelled jobs may be replaced; failed jobs require the existing explicit retry.
                     revision=obj.content_revision,
                 ).exclude(state='cancelled').exists():
                     continue
-                enqueue_locked(obj, enforce_limit=False)
+                enqueue_locked(obj, enforce_limit=False, trigger='routine')
                 counts[count_key] += 1
     return counts
 

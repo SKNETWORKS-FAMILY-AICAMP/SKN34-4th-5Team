@@ -92,7 +92,7 @@ export function CommunityPostEditor({ board, teamCode = "", editId = "" }: Props
   return <main className={`container ${boardStyles.page} ${styles.page} header-aligned-content`}>
     <p className="eyebrow">COMMUNITY</p>
     <h1>{editId ? "게시글 수정" : "게시글 작성"}</h1>
-    <p className={boardStyles.description}>저장 후 비공개로 검사합니다. 승인되면 선택한 게시판에 공개됩니다.</p>
+    <p className={boardStyles.description}>저장하면 바로 게시됩니다. 이후 신고 또는 정기 검사 결과에 따라 비공개로 전환될 수 있습니다.</p>
     {loadingEdit ? <p role="status" className={styles.notice}>게시글을 불러오고 있어요.</p> : editId && !editing ? <div className={styles.notice} role="alert">{error || "게시글을 찾지 못했어요."} <Link href="/community">게시판으로 돌아가기</Link></div> : <form onSubmit={submit} className={`${boardStyles.postDetail} ${styles.form}`}>
       <div className={boardStyles.postHeader}>
         <div className={styles.options}>

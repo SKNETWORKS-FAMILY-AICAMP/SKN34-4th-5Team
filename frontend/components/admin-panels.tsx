@@ -133,13 +133,15 @@ export function AdminPostsPanel() {
     finally { setBusy(false); }
   }
   async function hide(post: AdminPost) {
-    if (busy || list.loading || post.is_hidden || !window.confirm(`#${post.post_number} "${post.title}" 게시글을 숨길까요?\n신고 관리의 숨김과 동일하게 처리하며, 게시글은 삭제하지 않습니다.`)) return;
+    if (busy || list.loading || !window.confirm(post.is_hidden
+      ? `#${post.post_number} "${post.title}" 게시글의 숨김을 해제할까요?\n자동 검사 결과와 신고 처리 이력은 유지되며, 검사로 차단된 글은 공개되지 않습니다.`
+      : `#${post.post_number} "${post.title}" 게시글을 숨길까요?\n신고 관리의 숨김과 동일하게 처리하며, 게시글은 삭제하지 않습니다.`)) return;
     setBusy(true); setActionError(""); setNotice("");
     try {
-      await hideAdminPost(post.source_id);
-      setNotice(`#${post.post_number} 게시글을 숨겼어요.`);
+      await hideAdminPost(post.source_id, !post.is_hidden);
+      setNotice(post.is_hidden ? `#${post.post_number} 게시글의 숨김을 해제했어요. 자동 검사 결과는 유지돼요.` : `#${post.post_number} 게시글을 숨겼어요.`);
       list.refresh();
-    } catch (cause) { setActionError(errorText(cause, "게시글을 숨기지 못했어요.")); }
+    } catch (cause) { setActionError(errorText(cause, "게시글 숨김 상태를 변경하지 못했어요.")); }
     finally { setBusy(false); }
   }
   async function remove(post: AdminPost) {
@@ -173,7 +175,7 @@ export function AdminPostsPanel() {
           <td><Link href={postHref(post)}>{post.title}</Link>{post.is_sample && <span className={styles.muted}> (예시)</span>}{post.is_hidden && <span className={styles.hiddenTag}>숨김</span>}</td>
           <td className={styles.longText}>{post.author}</td><td className={styles.nowrap}>{dateText(post.created_at)}</td><td className={styles.nowrap}>{post.views}</td><td className={styles.nowrap}>{post.comment_count}</td>
           <td className={styles.nowrap}><span className={`${styles.count}${post.report_count ? ` ${styles.hot}` : ""}`}>{post.report_count}</span></td>
-          <td className={styles.nowrap}><div className={styles.reviewActions} role="group" aria-label={`#${post.post_number} 검토 상태`}><button type="button" aria-pressed={post.is_reviewed} title={post.is_reviewed ? "클릭하면 미완료로 변경" : "클릭하면 검토 완료로 변경"} disabled={busy || list.loading} onClick={() => void setReviewed(post, !post.is_reviewed)}>{post.is_reviewed ? "검토 완료" : "미완료"}</button></div><div className={styles.actions}><button type="button" className={styles.hide} disabled={busy || list.loading || post.is_hidden} onClick={() => void hide(post)}>{post.is_hidden ? "숨김 처리됨" : "숨김"}</button><button type="button" className={styles.delete} disabled={busy} onClick={() => void remove(post)}>삭제</button></div></td>
+          <td className={styles.nowrap}><div className={styles.reviewActions} role="group" aria-label={`#${post.post_number} 검토 상태`}><button type="button" aria-pressed={post.is_reviewed} title={post.is_reviewed ? "클릭하면 미완료로 변경" : "클릭하면 검토 완료로 변경"} disabled={busy || list.loading} onClick={() => void setReviewed(post, !post.is_reviewed)}>{post.is_reviewed ? "검토 완료" : "미완료"}</button></div><div className={styles.actions}><button type="button" className={styles.hide} disabled={busy || list.loading} onClick={() => void hide(post)}>{post.is_hidden ? "숨김 해제" : "숨김"}</button><button type="button" className={styles.delete} disabled={busy} onClick={() => void remove(post)}>삭제</button></div></td>
         </tr>)}
         {!data.results.length && <tr><td colSpan={9}>게시글이 없어요.</td></tr>}</tbody>
       </table></div>

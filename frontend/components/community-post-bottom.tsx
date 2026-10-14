@@ -61,7 +61,7 @@ function CommunityPostBottomContent({ post, posts, teamCode, isFree = false, wri
     try {
       await createCommunityComment(post.id, content);
       if (!mounted.current) return;
-      setDraft(""); setMessage("댓글을 접수했어요. 검사 완료까지 비공개입니다."); setReload(value => value + 1);
+      setDraft(""); setMessage("댓글을 등록했어요. 사후 검사는 별도로 진행됩니다."); setReload(value => value + 1);
     } catch (reason) {
       if (mounted.current) setError(errorMessage(reason, "댓글을 등록하지 못했어요."));
     } finally {
@@ -77,7 +77,7 @@ function CommunityPostBottomContent({ post, posts, teamCode, isFree = false, wri
     try {
       await updateCommunityComment(commentId, content);
       if (!mounted.current) return;
-      setEditingId(null); setEditingContent(""); setMessage("댓글을 수정했어요. 재검사 완료까지 비공개입니다."); setReload(value => value + 1);
+      setEditingId(null); setEditingContent(""); setMessage("댓글을 수정했어요. 사후 검사는 별도로 진행됩니다."); setReload(value => value + 1);
     } catch (reason) {
       if (mounted.current) setError(errorMessage(reason, "댓글을 수정하지 못했어요."));
     } finally {

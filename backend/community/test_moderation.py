@@ -34,7 +34,7 @@ class ModerationIntegrationTests(APITestCase):
         self.assertGreaterEqual(counts['posts'], 1)
         self.assertGreaterEqual(counts['comments'], 1)
         legacy.refresh_from_db()
-        self.assertEqual(legacy.moderation_status, 'pending')
+        self.assertEqual((legacy.moderation_status, legacy.content_revision, legacy.approved_revision), ('approved', 0, 0))
         self.assertTrue(legacy.is_hidden)
         self.assertEqual(enqueue_unchecked(), {'posts': 0, 'comments': 0})
         with patch('llm.commands.run_moderation_worker.close_old_connections'):
@@ -52,7 +52,7 @@ class ModerationIntegrationTests(APITestCase):
         run_one(lambda payload: ([], {}))
         response = self.client.post(f'/api/v1/community/posts/{parent.pk}/comments/',
                                     {'content': '댓글 검사 대상'}, format='json')
-        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.status_code, 201)
         post = self.submit(key='pending-post', content='게시글 검사 대상')
         self.assertEqual(get_commands()['run_moderation_worker'], 'llm')
         # APITestCase owns an outer transaction; production connection cleanup
@@ -81,7 +81,7 @@ class ModerationIntegrationTests(APITestCase):
         data = dict(board='free', teamCode='', category='잡담', title='한화 경기', content='wtf hanwha Eagles is at another level')
         data.update(changes)
         response = self.client.post('/api/v1/community/posts/', data, format='json', HTTP_IDEMPOTENCY_KEY=key)
-        self.assertEqual(response.status_code, 202, response.data)
+        self.assertEqual(response.status_code, 201, response.data)
         return CommunityPost.objects.get(source_id=response.data['id'])
 
     def review(self, job, **changes):
@@ -92,17 +92,17 @@ class ModerationIntegrationTests(APITestCase):
         data.update(changes)
         return self.client.post(f'/api/v1/community/admin/moderation/{job.pk}/review/', data, format='json')
 
-    def test_pending_not_in_public_surfaces_and_owner_has_private_access(self):
+    def test_pending_is_public_but_submissions_remain_owner_only(self):
         post = self.submit()
         self.assertEqual(self.client.get(f'/api/v1/community/submissions/posts/{post.pk}/').status_code, 200)
         for user in (None, self.other, self.staff):
             self.client.force_authenticate(user)
-            self.assertNotIn(post.pk, [p['id'] for p in self.client.get('/api/v1/community/posts/').data])
-            for suffix in ('', 'comments/', 'vote/'):
-                self.assertNotEqual(self.client.get(f'/api/v1/community/posts/{post.pk}/{suffix}').status_code, 200)
+            self.assertIn(post.pk, [p['id'] for p in self.client.get('/api/v1/community/posts/').data])
+            for suffix in ('', 'comments/'):
+                self.assertEqual(self.client.get(f'/api/v1/community/posts/{post.pk}/{suffix}').status_code, 200)
             self.assertNotEqual(self.client.get(f'/api/v1/community/submissions/posts/{post.pk}/').status_code, 200)
 
-    def test_manual_review_publish_then_edit_is_private_again(self):
+    def test_manual_review_hold_then_edit_is_public_again(self):
         post = self.submit()
         run_one()
         job = post.moderation_jobs.get()
@@ -112,9 +112,9 @@ class ModerationIntegrationTests(APITestCase):
         self.assertEqual(self.client.get(f'/api/v1/community/posts/{post.pk}/').status_code, 200)
         self.client.force_authenticate(self.owner)
         result = self.client.patch(f'/api/v1/community/posts/{post.pk}/', {'content': '수정된 응원'}, format='json')
-        self.assertEqual(result.status_code, 202)
+        self.assertEqual(result.status_code, 200)
         self.assertEqual(result.data['revision'], 2)
-        self.assertEqual(self.client.get(f'/api/v1/community/posts/{post.pk}/').status_code, 404)
+        self.assertEqual(self.client.get(f'/api/v1/community/posts/{post.pk}/').status_code, 200)
         self.assertEqual(self.review(job).status_code, 409)
 
     def test_all_findings_must_be_resolved_and_confirmed_can_be_restored(self):
@@ -140,7 +140,7 @@ class ModerationIntegrationTests(APITestCase):
         self.assertEqual(self.review(post.moderation_jobs.get()).status_code, 200)
         post.refresh_from_db()
         self.assertTrue(post.is_hidden)
-        self.assertIsNone(post.first_published_at)
+        self.assertIsNotNone(post.first_published_at)
         self.assertEqual(self.client.get(f'/api/v1/community/posts/{post.pk}/').status_code, 404)
 
     def test_review_requires_staff_and_current_review_revision(self):
@@ -156,7 +156,7 @@ class ModerationIntegrationTests(APITestCase):
         self.assertEqual(preview['Cache-Control'], 'private, no-store')
         self.assertEqual(self.review(job, review_revision=0).status_code, 409)
 
-    def test_legacy_live_provider_failure_stays_private_and_retries(self):
+    def test_legacy_live_provider_failure_keeps_public_and_retries_same_revision(self):
         post = self.submit()
         job = post.moderation_jobs.get()
         job.payload['mode'] = 'live'
@@ -169,12 +169,12 @@ class ModerationIntegrationTests(APITestCase):
         self.assertEqual(post.moderation_status, 'error')
         job = post.moderation_jobs.get()
         self.assertEqual(job.error_code, 'TimeoutError')
-        self.assertEqual(self.client.get(f'/api/v1/community/posts/{post.pk}/').status_code, 404)
+        self.assertEqual(self.client.get(f'/api/v1/community/posts/{post.pk}/').status_code, 200)
         self.client.force_authenticate(self.staff)
         result = self.client.post(f'/api/v1/community/admin/moderation/{job.pk}/retry/')
         self.assertEqual(result.status_code, 202)
         post.refresh_from_db()
-        self.assertEqual(post.content_revision, 2)
+        self.assertEqual(post.content_revision, 1)
 
     def test_duplicate_submission_does_not_enqueue_twice(self):
         post = self.submit(isTrade=True, isAdvertisement=True)
@@ -182,13 +182,13 @@ class ModerationIntegrationTests(APITestCase):
         self.assertEqual(result.status_code, 200, result.data)
         self.assertEqual(post.moderation_jobs.count(), 1)
 
-    def test_comment_is_not_public_or_counted_until_approved(self):
+    def test_comment_is_public_and_counted_before_check(self):
         post = self.submit()
         run_one(lambda payload: ([], {}))
         result = self.client.post(f'/api/v1/community/posts/{post.pk}/comments/', {'content': '정말 잘한다'}, format='json')
-        self.assertEqual(result.status_code, 202, result.data)
-        self.assertEqual(self.client.get(f'/api/v1/community/posts/{post.pk}/comments/').data, [])
-        self.assertEqual(self.client.get(f'/api/v1/community/posts/{post.pk}/').data['commentCount'], 0)
+        self.assertEqual(result.status_code, 201, result.data)
+        self.assertEqual(len(self.client.get(f'/api/v1/community/posts/{post.pk}/comments/').data), 1)
+        self.assertEqual(self.client.get(f'/api/v1/community/posts/{post.pk}/').data['commentCount'], 1)
         run_one(lambda payload: ([], {}))
         self.assertEqual(len(self.client.get(f'/api/v1/community/posts/{post.pk}/comments/').data), 1)
         self.assertEqual(self.client.get(f'/api/v1/community/posts/{post.pk}/').data['commentCount'], 1)
@@ -199,8 +199,8 @@ class ModerationIntegrationTests(APITestCase):
         self.assertEqual(evidence['mode'], 'manual')
 
     def test_publication_points_are_awarded_once(self):
-        post = self.submit()
         with patch('community.moderation_service.grant_points') as grant:
+            post = self.submit()
             run_one()
             job = post.moderation_jobs.get()
             self.review(job)
@@ -243,18 +243,18 @@ class ModerationIntegrationTests(APITestCase):
         data = dict(board='free', teamCode='', category='잡담', title='둘째', content='본문')
         self.assertEqual(self.client.post('/api/v1/community/posts/', data, format='json', HTTP_IDEMPOTENCY_KEY='second').status_code, 429)
         self.client.force_authenticate(self.other)
-        self.assertEqual(self.client.post('/api/v1/community/posts/', data, format='json', HTTP_IDEMPOTENCY_KEY='second').status_code, 202)
+        self.assertEqual(self.client.post('/api/v1/community/posts/', data, format='json', HTTP_IDEMPOTENCY_KEY='second').status_code, 201)
 
     @override_settings(COMMUNITY_MODERATION_WRITES_PER_HOUR=1)
     def test_deleted_comment_does_not_reset_account_limit(self):
         post = CommunityPost.objects.create(owner=self.other, board='free', category='잡담', title='공개', content='본문', moderation_status='approved', approved_revision=0)
         url = f'/api/v1/community/posts/{post.pk}/comments/'
         response = self.client.post(url, {'content': '댓글'}, format='json')
-        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.status_code, 201)
         self.assertEqual(self.client.delete(f"/api/v1/community/comments/{response.data['id']}/").status_code, 204)
         self.assertEqual(self.client.post(url, {'content': '둘째'}, format='json').status_code, 429)
         self.client.force_authenticate(self.other)
-        self.assertEqual(self.client.post(url, {'content': '다른 계정'}, format='json').status_code, 202)
+        self.assertEqual(self.client.post(url, {'content': '다른 계정'}, format='json').status_code, 201)
 
     @override_settings(COMMUNITY_MODERATION_WRITES_PER_HOUR=1)
     def test_expired_admission_is_pruned_without_retaining_deleted_content(self):
@@ -300,18 +300,18 @@ class ModerationIntegrationTests(APITestCase):
                 data = dict(board='free', teamCode='', category='잡담', title='한화 경기', content='본문', isTrade=value, isAdvertisement=value)
                 key = f'boolean-{index}'
                 first = self.client.post('/api/v1/community/posts/', data, format='json', HTTP_IDEMPOTENCY_KEY=key)
-                self.assertEqual(first.status_code, 202, first.data)
+                self.assertEqual(first.status_code, 201, first.data)
                 self.client.patch(f"/api/v1/community/posts/{first.data['id']}/", {'content': '나중 수정'}, format='json')
                 retry = self.client.post('/api/v1/community/posts/', data, format='json', HTTP_IDEMPOTENCY_KEY=key)
                 self.assertEqual(retry.status_code, 200, retry.data)
                 changed = self.client.post('/api/v1/community/posts/', {**data, 'content': '다른 본문'}, format='json', HTTP_IDEMPOTENCY_KEY=key)
                 self.assertEqual(changed.status_code, 409)
 
-    def test_chatbot_search_does_not_leak_pending_content(self):
+    def test_chatbot_search_includes_pending_public_content(self):
         post = self.submit()
         from llm.tools.community import create_community_tools
         result = create_community_tools()[0].invoke({'query': 'at another level'})
-        self.assertNotIn(post.pk, str(result))
+        self.assertIn(post.pk, str(result))
         run_one(lambda payload: ([], {}))
         result = create_community_tools()[0].invoke({'query': 'at another level'})
         self.assertIn(post.pk, str(result))

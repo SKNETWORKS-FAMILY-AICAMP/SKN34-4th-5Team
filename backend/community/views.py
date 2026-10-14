@@ -62,7 +62,7 @@ def same_submission(post, validated_data):
     post=extend_schema(
         request=CommunityPostWriteSerializer,
         parameters=[OpenApiParameter("Idempotency-Key", OpenApiTypes.STR, OpenApiParameter.HEADER, required=True)],
-        responses={200: CommunityPostSerializer, 202: CommunityPostSerializer, 400: OpenApiTypes.OBJECT, 401: OpenApiTypes.OBJECT, 409: OpenApiTypes.OBJECT},
+        responses={200: CommunityPostSerializer, 201: CommunityPostSerializer, 400: OpenApiTypes.OBJECT, 401: OpenApiTypes.OBJECT, 409: OpenApiTypes.OBJECT},
     ),
 )
 class CommunityPostListCreateView(generics.ListCreateAPIView):
@@ -147,14 +147,14 @@ class CommunityPostListCreateView(generics.ListCreateAPIView):
             raise ValidationError({"postNumber": "게시글 번호를 더 발급할 수 없습니다."}) from exc
 
         post = post_queryset().get(pk=post.pk)
-        return Response(self.get_serializer(post).data, status=status.HTTP_202_ACCEPTED)
+        return Response(self.get_serializer(post).data, status=status.HTTP_201_CREATED)
 
 
 @extend_schema_view(
     get=extend_schema(responses={200: CommunityPostSerializer, 404: OpenApiTypes.OBJECT}),
     patch=extend_schema(
         request=CommunityPostPatchSerializer,
-        responses={202: CommunityPostSerializer, 400: OpenApiTypes.OBJECT, 401: OpenApiTypes.OBJECT, 403: OpenApiTypes.OBJECT, 404: OpenApiTypes.OBJECT},
+        responses={200: CommunityPostSerializer, 400: OpenApiTypes.OBJECT, 401: OpenApiTypes.OBJECT, 403: OpenApiTypes.OBJECT, 404: OpenApiTypes.OBJECT},
     ),
     delete=extend_schema(responses={204: OpenApiResponse(description="본문 없음"), 401: OpenApiTypes.OBJECT, 403: OpenApiTypes.OBJECT, 404: OpenApiTypes.OBJECT}),
 )
@@ -192,7 +192,7 @@ class CommunityPostDetailView(generics.RetrieveUpdateDestroyAPIView):
             serializer.is_valid(raise_exception=True)
             post = serializer.save()
             enqueue_locked(post)
-        return Response(self.get_serializer(post_queryset().get(pk=post.pk)).data, status=202)
+        return Response(self.get_serializer(post_queryset().get(pk=post.pk)).data, status=200)
 
     def get_object(self):
         post = super().get_object()

@@ -55,11 +55,11 @@ function postPanel({ hidden = false, reviewed = false, loading = false, busy = f
     "next/link": { __esModule: true, default: "a" },
     "@/lib/api/auth": {}, "@/lib/member-policy": {}, "@/lib/team-community": {},
     "@/lib/api/admin-community": {
-      async hideAdminPost(id) { calls.push(id); if (fail) throw new Error("숨김 실패"); },
+      async hideAdminPost(id, hidden) { calls.push([id, hidden]); if (fail) throw new Error("숨김 실패"); },
       async setAdminPostReviewed(id, value) { calls.push([id, value]); if (fail) throw new Error("검토 상태 변경 실패"); },
     },
   }, { window: { confirm: () => confirm } }).AdminPostsPanel();
-  return { values, calls, filter: nodes(panel).find(n => n.type === "select"), reviewButtons: nodes(panel).filter(n => n.type === "button" && ["검토 완료", "미완료"].includes(n.props.children)), button: nodes(panel).find(n => n.type === "button" && ["숨김", "숨김 처리됨"].includes(n.props.children)) };
+  return { values, calls, filter: nodes(panel).find(n => n.type === "select"), reviewButtons: nodes(panel).filter(n => n.type === "button" && ["검토 완료", "미완료"].includes(n.props.children)), button: nodes(panel).find(n => n.type === "button" && ["숨김", "숨김 해제"].includes(n.props.children)) };
 }
 
 test("posts default to reported priority and filter changes reset pagination", () => {
@@ -109,7 +109,9 @@ test("review API uses authenticated PATCH with an encoded ID and explicit target
   }, { URLSearchParams, encodeURIComponent });
   await api.setAdminPostReviewed("test/id", true);
   await api.setAdminPostReviewed("test/id", false);
-  for (const [index, action] of ["reviewed", "unreviewed"].entries()) {
+  await api.hideAdminPost("test/id");
+  await api.hideAdminPost("test/id", false);
+  for (const [index, action] of ["reviewed", "unreviewed", "hide", "unhide"].entries()) {
     assert.equal(calls[index][0], "/api/v1/community/admin/posts/test%2Fid/");
     assert.equal(calls[index][1].method, "PATCH");
     assert.equal(JSON.parse(calls[index][1].body).action, action);
@@ -127,7 +129,22 @@ test("post hide confirms, refreshes without deleting, and handles errors", async
     if (options.fail) { assert.equal(view.values[1], "숨김 실패"); assert.equal(view.values[0], ""); }
     else if (options.confirm !== false) { assert.match(view.values[0], /숨겼어요/); assert.equal(view.values[8], 1); }
   }
-  assert.equal(postPanel({ hidden: true }).button.props.disabled, true);
+  for (const options of [{ hidden: true }, { hidden: true, confirm: false }, { hidden: true, fail: true }]) {
+    const view = postPanel(options);
+    assert.equal(view.button.props.disabled, false);
+    assert.equal(view.button.props.children, "숨김 해제");
+    view.button.props.onClick();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(view.calls.length, options.confirm === false ? 0 : 1);
+    if (options.confirm !== false) {
+      assert.equal(view.calls[0][0], "free-1");
+      assert.equal(view.calls[0][1], false);
+      assert.equal(view.values[8], options.fail ? 0 : 1);
+      if (options.fail) { assert.equal(view.values[0], ""); assert.equal(view.values[1], "숨김 실패"); }
+      else assert.match(view.values[0], /숨김을 해제했어요.*자동 검사 결과는 유지/);
+    }
+  }
+  assert.equal(postPanel({ hidden: true, loading: true }).button.props.disabled, true);
   assert.equal(postPanel({ busy: true }).button.props.disabled, true);
 });
 function reportPanel(status, { busy = false, hidden = false, fail = false } = {}) {

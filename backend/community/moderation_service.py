@@ -6,7 +6,7 @@ from datetime import timedelta
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
-from django.db.models import F
+from django.db.models import F, Q
 from django.utils import timezone
 from rest_framework.exceptions import APIException, PermissionDenied, ValidationError, Throttled
 
@@ -55,10 +55,23 @@ def enqueue_locked(obj, *, enforce_limit=True, mode=None, trigger=None):
             raise Throttled(detail='게시 요청이 많습니다. 잠시 후 다시 시도해 주세요.')
         ModerationAdmission.objects.create(account_id=owner_id)
     related = obj.moderation_jobs
-    if trigger != 'report':
+    if trigger == 'routine':
+        existing = related.filter(
+            Q(payload__trigger__isnull=True) | ~Q(payload__trigger='report'),
+            revision=obj.content_revision,
+        ).first()
+        if existing is not None:
+            if existing.state == 'cancelled':
+                existing.state = 'queued'
+                existing.attempts = 0
+                existing.available_at = timezone.now()
+                existing.save(update_fields=('state', 'attempts', 'available_at', 'updated_at'))
+            return existing
+    if trigger is None:
+        # Only content writes advance the revision; checks must preserve prior decisions.
         related.filter(state__in=('queued', 'running')).update(state='cancelled', lease_token=None, lease_until=None)
         obj.content_revision += 1
-        obj.approved_revision = None
+        obj.approved_revision = obj.content_revision
         obj.moderation_status = 'pending'
         obj.save(update_fields=('content_revision', 'approved_revision', 'moderation_status'))
     payload = {
@@ -72,6 +85,8 @@ def enqueue_locked(obj, *, enforce_limit=True, mode=None, trigger=None):
     if trigger is not None:
         payload['trigger'] = trigger
     job = related.create(revision=obj.content_revision, payload=payload)
+    if trigger is None:
+        publish_locked(obj)
     if not is_post:
         sync_comment_count(obj.post_id)
     return job
@@ -155,4 +170,9 @@ def retry_job(job_id, actor):
     job = ModerationJob.objects.select_for_update().get(pk=job_id)
     if obj is None or job.revision != obj.content_revision or job.state != 'failed':
         raise ModerationConflict('현재 버전의 실패한 검사만 다시 시도할 수 있습니다.')
-    return enqueue_locked(obj, enforce_limit=False)
+    # Retry the same snapshot; no content edit, publication change or new admission.
+    job.state = 'queued'
+    job.attempts = 0
+    job.available_at = timezone.now()
+    job.save(update_fields=('state', 'attempts', 'available_at', 'updated_at'))
+    return job
