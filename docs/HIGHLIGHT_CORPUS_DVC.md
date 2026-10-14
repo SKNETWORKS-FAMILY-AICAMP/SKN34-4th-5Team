@@ -143,13 +143,15 @@ workflow도 명시적으로 선택한다. backend는 `vector-init`의 성공 종
 CI는 `dev-vector-init:latest`를 별도 빌드·이미지 묶음에 포함하며 이미지에는 Python/DVC,
 검증 코드, **두 Git 포인터만** 들어간다. backend에는 DVC 패키지를 추가하지 않는다.
 
-서버 운영자가 기존 인증 절차로 private `highlight-drive` remote와 refresh token을
-먼저 준비하고 ignored `.env`에 다음 **서버상의 절대 파일 경로**를 지정한다:
+개발자·서버 운영자는 기존 인증 절차로 private `highlight-drive` remote와 refresh token을
+준비하고 각 checkout의 **고정 경로**에 본인의 승인된 private 파일을 배치한다:
 
-```dotenv
-VECTOR_DVC_CONFIG=/absolute/private/dvc-config
-VECTOR_DRIVE_USER=/absolute/private/drive-user.json
-```
+- `.dvc/config.local`: remote와 기존 custom OAuth client ID/secret 설정
+- `.secrets/drive-user.json`: 승인된 사용자 token (디렉터리 0700, 파일 0600)
+
+두 경로는 Git·Docker build context에서 제외하며 `.env` 경로 변수는 필요 없다.
+최초 사용자 OAuth 동의·token 발급은 여전히 필요하다. 이 설정은 동의를 자동화하거나
+private Drive를 공개하지 않으며 실제 client secret·refresh/access token을 Git에 넣지 않는다.
 
 DVC config의 `[remote "highlight-drive"]`(DVC의 따옴표 section도 지원)에 `gdrive://`
 폴더와 필요 시 custom OAuth client 설정을 둔다. credentials는 선택 remote에만 적용한다.

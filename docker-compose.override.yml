@@ -31,9 +31,9 @@ services:
 
 secrets:
   dvc_config:
-    file: ${VECTOR_DVC_CONFIG:?Provision server-only DVC config path}
+    file: ./.dvc/config.local
   drive_user:
-    file: ${VECTOR_DRIVE_USER:?Provision server-only Drive token path}
+    file: ./.secrets/drive-user.json
 
 volumes:
   vector_cache:
