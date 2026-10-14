@@ -56,3 +56,4 @@ Docker 네트워크를 끊고 기존 offline-exec의 socket 차단을 유지했�
 - 검증 이후 팀 develop에 `7fdd5bc`가 추가됐다. 변경은 develop 이미지 빌드/전송과 배포 timeout 두 workflow뿐이며 코스·백엔드·프론트 실행 소스는 바뀌지 않았다.
 - 새 `cd-deploy` job의 첫 단계가 `docker build`인데 checkout이 없어 새 GitHub runner에 Dockerfile이 존재하지 않는 문제를 확인했다. `actions/checkout@v4`를 이미지 빌드 전에 추가하고 인증정보 보존을 비활성화했다.
 - 이는 non-LLM 배포 설정 보완이다. YAML 파싱, checkout 선행 및 세 build context/Dockerfile 존재, 기존 CI 의존성 검사를 수행한다. EC2에서 실제 배포 성공을 확인한 것으로 표시하지 않는다.
+- 이후 팀 `1cb1b40`에도 같은 checkout 보완과 배포 timeout 20분 변경이 올라와 함께 통합했다. checkout 단계는 한 번만 유지하고 `persist-credentials: false`를 보존했다. 추가 변경은 workflow뿐이며 코스 실행 소스에는 차이가 없다. 최종 YAML·순서·Dockerfile·CI 의존성 정적 검사를 통과했다.
