@@ -53,7 +53,7 @@ Runner는 highlight-free의 run-owned `DEEPEVAL_CACHE_FOLDER`를 child에 전파
 
 ## 수집/질의 분리 영상 단위 계약 (2026-10-14)
 
-기존 `highlight-deterministic` → `highlight-free`는 `highlight_langchain_contract.py --pipeline --output <fresh>/pipeline-contract`도 실행한다. `test_highlight_pipeline.PipelineTests`의 전체 자동 발견을 실제 DeepEval exact/Ragas ExactMatch로 채점한다. 질의에서 전체 validator/scroll/ffprobe/media 읽기를 금지하고 반환 후보 payload만 검사하며, 전체 부패 검사는 명시 audit/readback 테스트로 유지한다. 새 A/B는 run-owned HOME/TMP/cache·socket-denied 동일 합성 입력으로 실행하며 원본 corpus·유료 제공자·hosted CI 성공의 근거가 아니다.
+기존 `highlight-deterministic` → `highlight-free`는 `highlight_langchain_contract.py --pipeline --output <fresh>/pipeline-contract`도 실행한다. `test_highlight_pipeline.PipelineTests`의 전체 자동 발견을 실제 DeepEval exact/Ragas ExactMatch로 채점한다. 질의에서 전체 validator/scroll/ffprobe/media 읽기를 금지하고 반환 후보 payload만 검사하며, 전체 부패 검사는 명시 audit/readback 테스트로 유지한다. native Qdrant `query_points_groups(using=video, group_by=video_id, group_size=1, limit=1..3)`로 서로 다른 영상의 대표 hint를 선택하고 저장된 per_video.duration의 0..duration 원본 Part를 검증한다. 신규 pipeline 6개는 분리2·unique source/최대3·실제 Qdrant의 다중 원본/비연속 hint grouping·원본3영상 단일 generation/Duration 소수9자리·hint 밖 시간/신뢰 duration을 확인한다. 이전 구간 top8/겹침 제외/최대5 단언은 사용자 승인 영상 단위 계약으로 대체하며 과거 A/B를 보존한다. 새 A/B는 run-owned HOME/TMP/cache·socket-denied 동일 합성 입력으로 실행하며 원본 corpus·유료 제공자·hosted CI 성공의 근거가 아니다.
 
 ## 수동 실행
 

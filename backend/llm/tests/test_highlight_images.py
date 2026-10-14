@@ -51,13 +51,13 @@ class ImageContractTests(unittest.TestCase):
         specialist.verifier.last_model_version = "synthetic"
         specialist.root = Path("/synthetic")
         specialist.rows = {"x": {"id": "x", "video_id": "SlvDBmr4Bd8", "start": 0, "end": 24}}
-        specialist.db.query_points.return_value.points = [SimpleNamespace(id="x", payload=specialist.rows['x'])]
+        specialist.db.query_points_groups.return_value.groups = [SimpleNamespace(hits=[SimpleNamespace(id='x', payload=specialist.rows['x'])])]
         specialist.sql.execute.return_value = [("x",)]
         specialist.verifier.verify.return_value = {"candidate_id": "x", "match": False, "local_seconds": 0, "evidence": "absent"}
         result = specialist.ask("same scene", images=[IMAGE])
         specialist.google.embed.assert_called_once_with([{"text": "same scene"}, *mm.image_parts([IMAGE])])
-        specialist.db.query_points.assert_called_once_with(mm.COLLECTION,
-            query=[1.] * mm.DIM, using="video", limit=8)
+        specialist.db.query_points_groups.assert_called_once_with(mm.COLLECTION,
+            query=[1.] * mm.DIM, using='video', group_by='video_id', group_size=1, limit=3)
         specialist.sql.execute.assert_not_called()
         self.assertEqual(result["rankings"], {"video": ["x"]})
         self.assertEqual(result["retrieval_only"], ["x"])

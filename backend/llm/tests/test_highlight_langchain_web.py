@@ -27,9 +27,9 @@ class LangChainWebTests(SimpleTestCase):
         meter, trace = Meter(), Trace()
         human = HumanMessage('find the play', id='current')
         restored = HumanMessage([{'type': 'text', 'text': human.text}, IMAGE], id=human.id)
-        rows = [{**ROW, 'id': sid, 'start': ROW['start'] + i * 30, 'end': ROW['end'] + i * 30}
+        rows = [{**ROW, 'id': sid, 'video_id': f'SlvDBmr4Bd{i}', 'start': 0., 'end': 900.134}
                 for i, sid in enumerate('abc')]
-        outputs = [{**OUTPUT, 'candidate_id': row['id'], 'original_seconds': row['start'] + 3.125,
+        outputs = [{**OUTPUT, 'candidate_id': row['id'], 'original_seconds': 123.25,
                     'match': row['id'] == 'a'} for row in rows]
         def retrieve(query, candidate_limit, images):
             self.assertEqual((query, candidate_limit, images), (human.text, 3, [IMAGE]))
@@ -81,7 +81,7 @@ class LangChainWebTests(SimpleTestCase):
         specialist.close.assert_called_once()
 
     def test_graph_group_boundaries_empty_and_no_unverified_cards(self):
-        rows = [{**ROW, 'id': sid, 'start': i * 30, 'end': i * 30 + 20} for i, sid in enumerate('abc')]
+        rows = [{**ROW, 'id': sid, 'video_id': f'SlvDBmr4Bd{i}', 'start': 0., 'end': 900.134} for i, sid in enumerate('abc')]
         good = [{**OUTPUT, 'candidate_id': row['id'], 'original_seconds': row['start'] + 1} for row in rows]
         fixtures = [({'decisions': good}, False), ({'decisions': good[:2]}, True),
                     ({'decisions': [good[0], good[0], good[2]]}, True),
@@ -116,7 +116,7 @@ class LangChainWebTests(SimpleTestCase):
     def test_graph_model_cancellation_after_retrieval_and_quota(self):
         for stop_after_quota in (False, True):
             stopped = [False]
-            rows = [{**ROW, 'id': sid, 'start': i * 30, 'end': i * 30 + 20} for i, sid in enumerate('abc')]
+            rows = [{**ROW, 'id': sid, 'video_id': f'SlvDBmr4Bd{i}', 'start': 0., 'end': 900.134} for i, sid in enumerate('abc')]
             google = mm.Google('synthetic', quota=Mock(acquire=lambda *args: stopped.__setitem__(0, True)))
             def retrieve(*args, **kwargs):
                 stopped[0] = not stop_after_quota

@@ -79,23 +79,24 @@ class LangChainMigrationTests(unittest.TestCase):
     def video_specialist(self, ranking):
         specialist = object.__new__(mm.Specialist)
         specialist.root = Path('/synthetic')
-        specialist.rows = {sid: {'id': sid, 'video_id': 'SlvDBmr4Bd8',
+        specialist.rows = {sid: {'id': sid, 'video_id': f'SlvDBmr4Bd{i}',
             'start': i * 20, 'end': (i + 1) * 20} for i, sid in enumerate('zabcde')}
         specialist.google, specialist.verifier = Mock(), Mock()
         specialist.verifier.last_model_version = 'synthetic'
         specialist.google.embed.return_value = [1.] * mm.DIM
         specialist.db, specialist.sql = Mock(), Mock()
-        specialist.db.query_points.side_effect = lambda *args, **kwargs: SimpleNamespace(
-            points=[SimpleNamespace(id=sid, payload=specialist.rows.get(sid)) for sid in (ranking if kwargs['using'] == 'video' else ['a', 'b', 'c'])])
+        specialist.db.query_points_groups.side_effect = lambda *args, **kwargs: SimpleNamespace(
+            groups=[SimpleNamespace(hits=[SimpleNamespace(id=sid, payload=specialist.rows.get(sid))]) for sid in ranking])
         specialist.sql.execute.return_value = [('a',), ('b',), ('c',)]
         specialist.verifier.verify.side_effect = lambda query, row, *args, **kwargs: {
             'candidate_id': row['id'], 'match': row['id'] == 'a', 'local_seconds': 1,
             'evidence': 'synthetic visible play'}
         return specialist
 
-    def assert_video_lookup(self, specialist, result, ranking):
-        specialist.db.query_points.assert_called_once_with(mm.COLLECTION,
-            query=[1.] * mm.DIM, using='video', limit=8)
+    def assert_video_lookup(self, specialist, result, ranking, limit=3):
+        specialist.db.query_points_groups.assert_called_once_with(mm.COLLECTION,
+            query=[1.] * mm.DIM, using='video', group_by='video_id', group_size=1,
+            limit=limit)
         specialist.sql.execute.assert_not_called()
         self.assertEqual(result['rankings'], {'video': ranking})
 
@@ -120,11 +121,11 @@ class LangChainMigrationTests(unittest.TestCase):
 
     def test_video_duplicates_unknown_overlap_touching_and_limits(self):
         ranking = ['unknown', 'z', 'z', 'a', 'b', 'c', 'd', 'e']
-        for limit, expected in ((None, ['z', 'b', 'c']), (1, ['z']), (5, ['z', 'b', 'c', 'd', 'e'])):
+        for limit, expected in ((None, ['z', 'c', 'd']), (1, ['z']), (3, ['z', 'c', 'd'])):
             with self.subTest(limit=limit):
                 specialist = self.video_specialist(ranking)
-                specialist.rows['a'].update(start=10, end=30)
-                specialist.rows['b'].update(start=20, end=40)
+                specialist.rows['a'].update(video_id=specialist.rows['z']['video_id'], start=10, end=30)
+                specialist.rows['b'].update(video_id=specialist.rows['z']['video_id'], start=200, end=220)
                 specialist.rows['c'].update(video_id='different11', start=0, end=20)
                 result = specialist.ask('find', **({} if limit is None else {'candidate_limit': limit}))
                 self.assertEqual(result['retrieval_only'], expected)
@@ -132,13 +133,13 @@ class LangChainMigrationTests(unittest.TestCase):
                 self.assertEqual(specialist.verifier.verify.call_count, len(expected))
                 self.assertTrue(result['complete'])
                 self.assertTrue(result['no_match'])
-                self.assert_video_lookup(specialist, result, ranking)
-        for limit in (0, 6):
+                self.assert_video_lookup(specialist, result, ranking, limit or 3)
+        for limit in (0, 4, 5, 6):
             specialist = self.video_specialist(ranking)
             with self.assertRaises(ValueError):
                 specialist.ask('find', candidate_limit=limit)
             specialist.google.embed.assert_not_called()
-            specialist.db.query_points.assert_not_called()
+            specialist.db.query_points_groups.assert_not_called()
 
     def test_video_empty_negative_and_verifier_errors(self):
         for ranking, error in (([], None), (['z'], None), (['z'], ValueError('bad')),
@@ -232,7 +233,8 @@ class LangChainMigrationTests(unittest.TestCase):
                     specialist.google, specialist.verifier = Mock(), mm.Google('synthetic', quota=Mock())
                     specialist.google.embed.return_value = [1.] * 768
                     specialist.db, specialist.sql = Mock(), Mock()
-                    specialist.db.query_points.return_value.points = [SimpleNamespace(id=ROW['id'], payload=ROW)]
+                    specialist.db.query_points_groups.return_value.groups = [SimpleNamespace(hits=[SimpleNamespace(id=ROW['id'], payload=ROW)])]
+                    specialist.sources = {ROW['video_id']: {'duration': ROW['end']}}
                     specialist.sql.execute.return_value = []
                     result = specialist.ask('find')
                     self.assertEqual([op for op, _ in transport.requests], ['countTokens', 'generateContent'])
@@ -241,7 +243,7 @@ class LangChainMigrationTests(unittest.TestCase):
                     if truncated:
                         self.assertNotIn(transport.text, json.dumps(result))
                     else:
-                        self.assertEqual(result['decisions'][0]['output']['local_seconds'], 3.125)
+                        self.assertEqual(result['decisions'][0]['output']['local_seconds'], 123.25)
 
     def test_retrieval_has_zero_generation_calls(self):
         specialist = self.video_specialist(['z', 'a', 'b'])
@@ -253,8 +255,8 @@ class LangChainMigrationTests(unittest.TestCase):
         self.assert_video_lookup(specialist, result, ['z', 'a', 'b'])
 
     def test_three_candidates_one_real_gemini_generation(self):
-        rows = [{**ROW, 'id': sid, 'start': ROW['start'] + i * 30,
-                 'end': ROW['end'] + i * 30} for i, sid in enumerate('abc')]
+        rows = [{**ROW, 'id': sid, 'video_id': f'SlvDBmr4Bd{i}', 'start': 0.,
+                 'end': 900.134} for i, sid in enumerate('abc')]
         outputs = [{**OUTPUT, 'candidate_id': row['id'], 'original_seconds': row['start'] + 1}
                    for row in rows]
         trace = Trace()
@@ -280,7 +282,7 @@ class LangChainMigrationTests(unittest.TestCase):
         google.quota.acquire.assert_called_once_with(google.model, 9)
 
     def test_group_exact_coverage_and_fail_closed_boundaries(self):
-        rows = [ROW, {**ROW, 'id': 'second', 'start': 200, 'end': 220}]
+        rows = [ROW, {**ROW, 'video_id': 'abcdefghijk', 'id': 'second', 'start': 200, 'end': 220}]
         good = [OUTPUT, {**OUTPUT, 'candidate_id': 'second', 'original_seconds': 201}]
         bad = [good[:1], [good[0], good[0]], [good[0], {**good[1], 'candidate_id': 'unknown'}]]
         bad += [[good[0], {**good[1], **defect}] for defect in (
@@ -313,7 +315,7 @@ class LangChainMigrationTests(unittest.TestCase):
         specialist.verifier.verify.return_value = {'candidate_id': ROW['id'], 'match': True,
             'local_seconds': 3.125, 'evidence': OUTPUT['evidence']}
         specialist.db, specialist.sql = Mock(), Mock()
-        specialist.db.query_points.return_value.points = [SimpleNamespace(id=ROW['id'], payload=ROW)]
+        specialist.db.query_points_groups.return_value.groups = [SimpleNamespace(hits=[SimpleNamespace(id=ROW['id'], payload=ROW)])]
         specialist.sql.execute.return_value = []
         original = RunnableLambda.batch
         batches = []

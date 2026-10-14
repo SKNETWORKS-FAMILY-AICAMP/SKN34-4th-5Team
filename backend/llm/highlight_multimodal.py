@@ -43,6 +43,14 @@ def number(value):
     return value
 
 
+def duration_offset(value):
+    """Protobuf Duration wire precision only; stored seconds remain untouched."""
+    exact = Decimal(str(number(value)))
+    normalized = exact.quantize(Decimal('0.000000001'))
+    transport = exact if exact.as_tuple().exponent >= -9 else normalized
+    return format(transport, 'f') + 's', exact != normalized
+
+
 def timestamp(value):
     if not re.fullmatch(r"\d{2,}:\d{2}:\d{2}\.\d{3}", value):
         raise ValueError("Invalid VTT timestamp")
@@ -318,17 +326,21 @@ class Google:
         # Deprecated but supported clipping Part; static default, no processing/fps override.
         # https://ai.google.dev/gemini-api/docs/video-understanding
         source = {"fileData": {"mimeType": "video/mp4", "fileUri": "https://www.youtube.com/watch?v=" + video_id},
-                  "videoMetadata": {"startOffset": format(Decimal(str(start)), "f") + "s",
-                                    "endOffset": format(Decimal(str(end)), "f") + "s"}}
+                  "videoMetadata": {"startOffset": duration_offset(start)[0],
+                                    "endOffset": duration_offset(end)[0]}}
         output = self._generate(prompt, [source], images, schema, config)
         return validate_candidate_output(output, row)
 
     def verify_candidates(self, query, rows, images=None, config=None):
-        """All candidate intervals in one Gemini generation, never a per-row batch."""
-        if not isinstance(rows, list) or not 1 <= len(rows) <= 5:
+        """Up to three unique original videos in one generation; hints are not bounds."""
+        if not isinstance(rows, list) or not 1 <= len(rows) <= 3:
             raise ValueError("Invalid verifier candidates")
+        if len({row.get('video_id') for row in rows if isinstance(row, dict) and isinstance(row.get('video_id'), str)}) != len(rows):
+            raise ValueError('Duplicate or invalid original sources')
         if len(rows) == 1:
-            return [self.verify(query, rows[0], None, None, images=images, config=config)]
+            output = self.verify(query, rows[0], None, None, images=images, config=config)
+            output['duration_transport_normalized'] = any(duration_offset(rows[0][key])[1] for key in ('start', 'end'))
+            return [output]
         sources, ids = [], set()
         for row in rows:
             if not isinstance(row, dict) or not isinstance(row.get("id"), str) or not row["id"] or row["id"] in ids:
@@ -341,8 +353,8 @@ class Google:
             if not 0 <= start < end:
                 raise ValueError("Invalid verifier candidate range")
             sources.append({"fileData": {"mimeType": "video/mp4", "fileUri": "https://www.youtube.com/watch?v=" + video_id},
-                "videoMetadata": {"startOffset": format(Decimal(str(start)), "f") + "s",
-                                  "endOffset": format(Decimal(str(end)), "f") + "s"}})
+                "videoMetadata": {"startOffset": duration_offset(start)[0],
+                                  "endOffset": duration_offset(end)[0]}})
         schema = {"type": "object", "properties": {"decisions": {"type": "array", "items": {
             "type": "object", "properties": {"candidate_id": {"type": "string"}, "match": {"type": "boolean"},
                 "original_seconds": {"type": "number"}, "source_accessible": {"type": "boolean"}, "evidence": {"type": "string"}},
@@ -367,7 +379,8 @@ class Google:
         bound = {d["candidate_id"]: d for d in decisions}
         if len(bound) != len(decisions) or set(bound) != ids:
             raise ValueError("Unbound verifier candidates")
-        return [validate_candidate_output(bound[row["id"]], row) for row in rows]
+        return [validate_candidate_output(bound[row['id']], row) | {
+            'duration_transport_normalized': any(duration_offset(row[key])[1] for key in ('start', 'end'))} for row in rows]
 
     def _generate(self, prompt, sources, images, schema, config):
         self.last_model_version = None
@@ -526,12 +539,14 @@ def image_parts(blocks, *, embedding=True):
 
 
 def select_candidates(ranking, rows, limit=3):
+    if type(limit) is not int or not 1 <= limit <= 3:
+        raise ValueError('Expected 1–3 unique original videos')
     selected = []
     for sid in dict.fromkeys(ranking):
         if sid not in rows:
             continue
         row = rows[sid]
-        if any(row["video_id"] == rows[other]["video_id"] and min(row["end"], rows[other]["end"]) > max(row["start"], rows[other]["start"]) for other in selected):
+        if any(row['video_id'] == rows[other]['video_id'] for other in selected):
             continue
         selected.append(sid)
         if len(selected) >= limit:
@@ -663,10 +678,11 @@ class Specialist:
         if self.rows or self.db.collection_exists(COLLECTION):
             raise ValueError("Use a fresh disposable workspace; do not overwrite corpus")
         self.db.create_collection(COLLECTION, vectors_config={m: models.VectorParams(size=DIM, distance=models.Distance.COSINE) for m in MODALITIES})
-        probe = []
+        probe, sources = [], {}
         for item in manifest:
             src = Path(item["media"]).resolve(strict=True)
-            cues = transcript(item["transcript"], duration(src))
+            sources[item['video_id']] = {'duration': duration(src)}
+            cues = transcript(item["transcript"], sources[item['video_id']]['duration'])
             for row in segments(item["video_id"], cues, duration(src), segment_limit):
                 video, audio = cut(src, row, self.root / "clips")
                 vectors = {"video": self.google.embed(media(video, "video/mp4")), "audio": self.google.embed(media(audio, "audio/wav")), "text": self.google.embed({"text": row["text"]})}
@@ -681,11 +697,16 @@ class Specialist:
                 (self.root / "segments.json").write_text(json.dumps(self.rows, ensure_ascii=False, indent=2))
                 probe.append({"candidate_id": row["id"], "dimensions": {m: len(vectors[m]) for m in MODALITIES}, "readback": True})
                 (self.root / "embedding_probe.json").write_text(json.dumps(probe, indent=2))
+        self.validate_corpus(ingesting=True)
+        self.sources = sources
+        (self.root / 'ingestion_complete.json').write_text(json.dumps({'status': 'complete',
+            'index_mode': 'separate', 'model': 'gemini-embedding-2', 'dimensions': DIM,
+            'segments': len(self.rows), 'videos': len(sources), 'per_video': sources}, indent=2))
         return probe
 
     def retrieve(self, query, candidate_limit=3, images=None):
         """Embedding and video ranking only; generation belongs to the model step."""
-        if not isinstance(query, str) or not 1 <= len(query) <= 500 or type(candidate_limit) is not int or not 1 <= candidate_limit <= 5:
+        if not isinstance(query, str) or not 1 <= len(query) <= 500 or type(candidate_limit) is not int or not 1 <= candidate_limit <= 3:
             raise ValueError("Invalid query bounds")
         started = time.monotonic()
         if getattr(self, "_retrieval_closed", False):
@@ -694,7 +715,9 @@ class Specialist:
             self._retrieval_closed = False
         parts = image_parts(images or [])
         query_vector = self.google.embed([{"text": query}, *parts] if parts else {"text": "task: search result | query: " + query})
-        points = self.db.query_points(COLLECTION, query=query_vector, using="video", limit=8).points
+        groups = self.db.query_points_groups(COLLECTION, query=query_vector, using='video',
+            group_by='video_id', group_size=1, limit=candidate_limit).groups
+        points = [point for group in groups for point in group.hits]
         rankings = {"video": [str(p.id) for p in points]}
         candidates = select_candidates(rankings["video"], self.rows, candidate_limit)
         for sid in candidates:
@@ -712,8 +735,23 @@ class Specialist:
                 if end > number(source.get('duration')):
                     raise ValueError('Selected hint outside full source')
         retrieval_latency = time.monotonic() - started
+        rows = []
+        for sid in candidates:
+            hint = self.rows[sid]
+            source = getattr(self, 'sources', {}).get(hint['video_id'])
+            if source is None:
+                if isinstance(self.verifier or self.google, Google):
+                    raise ValueError('Missing trusted full-source duration; audit/reingest is explicit')
+                # Injected legacy offline evaluators retain their local clip contract.
+                rows.append(dict(hint))
+            else:
+                seconds = number(source.get('duration'))
+                if not 0 < seconds or hint['end'] > seconds:
+                    raise ValueError('Invalid trusted full-source duration')
+                rows.append({'id': sid, 'video_id': hint['video_id'], 'start': 0., 'end': seconds,
+                             'hint': {'start': hint['start'], 'end': hint['end']}})
         return {"query": query, "rankings": rankings, "retrieval_only": candidates,
-                "candidates": [dict(self.rows[sid]) for sid in candidates], "retrieval_latency": retrieval_latency}
+                "candidates": rows, "retrieval_latency": retrieval_latency}
 
     def ask(self, query, candidate_limit=3, images=None, config=None):
         retrieval = self.retrieve(query, candidate_limit, images)

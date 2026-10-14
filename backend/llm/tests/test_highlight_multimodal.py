@@ -109,10 +109,10 @@ class MultimodalTests(unittest.TestCase):
         specialist.google.embed.return_value = [1.] * mm.DIM
         specialist.verifier = Mock()
         specialist.root = Path("/offline")
-        specialist.rows = {sid: {"id": sid, "video_id": "SlvDBmr4Bd8", "start": start, "end": start + 24}
+        specialist.rows = {sid: {"id": sid, "video_id": 'SlvDBmr4Bd' + sid, "start": start, "end": start + 24}
                            for sid, start in (("a", 100), ("b", 646.079), ("c", 800))}
         specialist.db = Mock()
-        specialist.db.query_points.return_value.points = [SimpleNamespace(id=sid, payload=specialist.rows[sid]) for sid in specialist.rows]
+        specialist.db.query_points_groups.return_value.groups = [SimpleNamespace(hits=[SimpleNamespace(id=sid, payload=specialist.rows[sid])]) for sid in specialist.rows]
         specialist.sql = Mock()
         specialist.sql.execute.return_value = []
         specialist.verifier.verify.side_effect = lambda query, row, video, audio: {
@@ -129,13 +129,13 @@ class MultimodalTests(unittest.TestCase):
         self.assertFalse(failed["complete"])
         self.assertIsNone(failed["no_match"])
 
-    def offline_specialist(self, verifier, count=5):
+    def offline_specialist(self, verifier, count=3):
         from types import SimpleNamespace
         from unittest.mock import Mock
         from threading import get_ident
         specialist = object.__new__(mm.Specialist)
         specialist.root = Path("/offline")
-        specialist.rows = {sid: {"id": sid, "video_id": "SlvDBmr4Bd8", "start": i * 24, "end": (i + 1) * 24}
+        specialist.rows = {sid: {"id": sid, "video_id": 'SlvDBmr4Bd' + sid, "start": i * 24, "end": (i + 1) * 24}
                            for i, sid in enumerate("abcde"[:count])}
         caller = get_ident()
         def retrieval(value):
@@ -144,10 +144,11 @@ class MultimodalTests(unittest.TestCase):
         specialist.google = Mock()
         specialist.google.embed.side_effect = lambda part: retrieval([1.] * mm.DIM)
         specialist.db = Mock()
-        specialist.db.query_points.side_effect = lambda *a, **k: retrieval(SimpleNamespace(points=[SimpleNamespace(id=sid, payload=specialist.rows[sid]) for sid in specialist.rows]))
+        specialist.db.query_points_groups.side_effect = lambda *a, **k: retrieval(SimpleNamespace(groups=[SimpleNamespace(hits=[SimpleNamespace(id=sid, payload=specialist.rows[sid])]) for sid in specialist.rows]))
         specialist.sql = Mock()
         specialist.sql.execute.side_effect = lambda *a: retrieval([])
         specialist.verifier = verifier
+        specialist.sources = {row['video_id']: {'duration': 900.134} for row in specialist.rows.values()}
         return specialist
 
     def test_parallel_cap_all_checks_and_original_order(self):
@@ -174,12 +175,12 @@ class MultimodalTests(unittest.TestCase):
                 last.set()
             return {"candidate_id": sid, "match": True, "local_seconds": 1, "evidence": "visible hit"}
         specialist = self.offline_specialist(Mock(verify=verify))
-        result = specialist.ask("hit", 5)
+        result = specialist.ask("hit", 3)
         self.assertEqual(peak, 3)
         self.assertLess(completed.index("c"), completed.index("a"))
-        self.assertCountEqual(completed, list("abcde"))
-        self.assertEqual([d["candidate_id"] for d in result["decisions"]], list("abcde"))
-        self.assertEqual([m["candidate_id"] for m in result["matches"]], list("abcde"))
+        self.assertCountEqual(completed, list("abc"))
+        self.assertEqual([d["candidate_id"] for d in result["decisions"]], list("abc"))
+        self.assertEqual([m["candidate_id"] for m in result["matches"]], list("abc"))
         self.assertTrue(result["complete"])
         self.assertFalse(result["no_match"])
         self.assertGreater(result["verification_latency"], 0)
