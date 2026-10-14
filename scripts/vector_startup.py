@@ -126,6 +126,8 @@ def prepare_documents(db, name, manifest, snapshot):
 def check_highlight(root):
     corpus.inventory(root)  # Path types only: writable data is not an immutable backup.
     ready = corpus.readiness(root)
+    if json.loads((root / 'ingestion_complete.json').read_text()).get('model') != 'gemini-embedding-2':
+        raise ValueError('Incompatible highlight embedding model')
     meta = json.loads((root / 'qdrant/meta.json').read_text())
     vectors = meta['collections']['highlight_multimodal_experiment_v1']['vectors']
     if ready['dimensions'] != 768 or set(vectors) != {'video', 'audio', 'text'} or any(

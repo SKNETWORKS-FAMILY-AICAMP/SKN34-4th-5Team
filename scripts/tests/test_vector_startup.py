@@ -67,6 +67,8 @@ class StartupTests(unittest.TestCase):
         store = self.fixture.source / 'qdrant/collection/highlight_multimodal_experiment_v1'
         store.mkdir(parents=True)
         (self.fixture.source / 'qdrant/storage.sqlite').rename(store / 'storage.sqlite')
+        marker = self.fixture.source / 'ingestion_complete.json'
+        marker.write_text(json.dumps(dict(json.loads(marker.read_text()), model='gemini-embedding-2')))
         startup.corpus.transfer(self.fixture.source, self.artifacts / 'highlight-corpus')
         document = self.artifacts / 'document-vectors'
         document.mkdir()
@@ -157,6 +159,14 @@ class StartupTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 self.prepare()
         self.assertIsNone(self.db.info)
+
+    def test_highlight_model_mismatch_refused(self):
+        self.prepare()
+        marker = self.runtime / 'highlight-corpus/ingestion_complete.json'
+        marker.write_text(json.dumps(dict(json.loads(marker.read_text()), model='other-model')))
+        with self.assertRaisesRegex(ValueError, 'Incompatible highlight embedding model'):
+            self.prepare()
+        self.assertEqual(self.db.uploads, 1)
 
     def test_only_404_is_missing_no_redirect_credentials(self):
         db = startup.Qdrant('http://qdrant:6333', 'never-show-key')
