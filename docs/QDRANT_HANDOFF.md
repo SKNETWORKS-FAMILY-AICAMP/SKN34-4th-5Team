@@ -37,6 +37,12 @@ Scope: existing PostgreSQL pgvector documents → Qdrant only. OpenAI `text-embe
    새 체크아웃에서는 동일 포인터와 별도 로컬 인증을 준비한 뒤 `dvc pull -r highlight-drive data/artifacts/document-vectors.dvc`를 실행한다. SHA256/바이트 수를 manifest와 대조한다. Push 성공은 독립 Pull/복원 성공의 증거가 아니다.
 5. **복원은 별도 승인된 격리 Qdrant에서만 검증한다. 기존 대상 컬렉션이 있으면 거부하고 운영 컬렉션을 덮어쓰지 않는다.** 서버 버전 호환성을 먼저 확인한다. 스냅샷을 서버의 `POST /collections/{새로운_검증_컬렉션}/snapshots/upload?wait=true`에 multipart `snapshot`으로 업로드한다. 인증 헤더는 메모리에서만 처리한다. 복원 후 3,437건·모델 metadata·1,536/cosine·유한한 비영 벡터·원본 ID/content/payload 및 저장 벡터 기반 검색을 확인한다(유료 쿼리 임베딩 불필요). 운영 전환/기존 대상 복원은 대상과 충돌 처리에 대한 별도 명시 승인이 필요하다.
 
+자동 Compose init은 이 포인터와 `highlight-corpus.dvc`의 기존 공개 object closure를 단일 ZIP으로 받는다.
+`VECTOR_GDRIVE_URL`은 이제 폴더가 아닌 파일 URL/ID이며 override 시 `VECTOR_GDRIVE_SHA256`을
+검토된 ZIP SHA256과 함께 지정한다. 기존 folder override 이관과 안전한 해제/실패 경계는
+[코퍼스 DVC 안내](HIGHLIGHT_CORPUS_DVC.md)의 자동 init 절을 따른다. 수신자 OAuth나 쿠키는 필요 없고
+Google 차단 해제는 보장하지 않는다. 수동 DVC remote/포인터/원본 데이터는 그대로 유지한다.
+
 이 산출물은 dense 문서 컬렉션만 백업한다. 파생 sparse 색인, 하이라이트 로컬 SQLite 코퍼스, PostgreSQL 및 서비스 설정은 포함하지 않는다. 독립 empty-cache Pull/격리 복원은 후속 검증 대상이며, 앱 로직/테스트 변경이 없어 새 CI job이나 DeepEval/Ragas 유료 평가는 추가하지 않는다.
 
 ## Active path inventory

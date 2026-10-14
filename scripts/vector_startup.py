@@ -2,6 +2,9 @@
 from contextlib import closing
 import fcntl
 import importlib.util
+import hashlib
+import stat
+import zipfile
 import json
 import os
 from pathlib import Path
@@ -173,14 +176,41 @@ def prepare(artifacts, runtime, db, name, model):
     return {'documents': documents, 'highlights': highlights}
 
 
-DRIVE_URL = 'https://drive.google.com/drive/folders/1PYIWVi_85-FW_Jsjz413IoAcDNxOvQqR'
+DRIVE_URL = 'https://drive.google.com/file/d/1YfN4Jg1uBuVm0SXqN2q1cLc6YKgkQkYi/view'
+DRIVE_SHA256 = '1bb4e8c483934abe60559ddbc474fac5e1a928ed7420a8f04b74e3c789ea1175'
 
 
-def drive_folder(value):
-    match = re.fullmatch(r'(?:https://drive\.google\.com/drive/folders/)?([a-zA-Z0-9_-]+)', value)
-    if not match:
-        raise ValueError('Only a Google Drive folder URL or ID is supported')
+def drive_file(value):
+    match = re.fullmatch(r'(?:https://drive\.google\.com/file/d/)?([a-zA-Z0-9_-]+)(?:/view)?', value)
+    if not match or ('/' in value and not value.startswith('https://drive.google.com/file/d/')):
+        raise ValueError('Only a Google Drive file URL or ID is supported; migrate old folder overrides')
     return match[1]
+
+
+def extract_archive(archive, destination, expected):
+    if not re.fullmatch('[0-9a-f]{64}', expected) or corpus.digest(archive) != expected:
+        raise ValueError('Archive SHA256 mismatch')
+    with zipfile.ZipFile(archive) as bundle:
+        members = bundle.infolist()
+        names = set()
+        for member in members:
+            mode = member.external_attr >> 16
+            if (not re.fullmatch(r'files/md5/[0-9a-f]{2}/[0-9a-f]{30}(?:\.dir)?', member.filename)
+                    or member.filename in names or member.flag_bits & 1 or member.external_attr & 0x10
+                    or stat.S_IFMT(mode) not in (0, stat.S_IFREG)):
+                raise ValueError('Unsafe DVC archive member')
+            names.add(member.filename)
+        for member in members:
+            target = destination / member.filename
+            target.parent.mkdir(parents=True, exist_ok=True)
+            checksum = hashlib.md5()
+            with bundle.open(member) as source, target.open('xb') as output:
+                for chunk in iter(lambda: source.read(1024 * 1024), b''):
+                    checksum.update(chunk)
+                    output.write(chunk)
+            object_id = target.parent.name + target.name.removesuffix('.dir')
+            if checksum.hexdigest() != object_id:
+                raise ValueError('DVC archive object checksum mismatch')
 
 
 def pull(work):
@@ -189,18 +219,26 @@ def pull(work):
     from dvc.exceptions import CheckoutError, DownloadError
     import gdown
 
-    folder = drive_folder(os.environ.get('VECTOR_GDRIVE_URL', DRIVE_URL))
+    file_id = drive_file(os.environ.get('VECTOR_GDRIVE_URL', DRIVE_URL))
+    expected = os.environ.get('VECTOR_GDRIVE_SHA256', DRIVE_SHA256)
     work = work.resolve()
     targets = [str(work / 'data/artifacts' / (name + '.dvc')) for name in ARTIFACTS]
     with tempfile.TemporaryDirectory(prefix='vector-download-') as temp:
+        remote = Path(temp) / 'remote'
+        remote.mkdir()
         with Repo(str(work), config={'core': {'no_scm': True, 'analytics': False}, 'cache': {'type': 'copy'},
-                                      'remote': {'highlight-public': {'url': temp}}}) as repo:
+                                      'remote': {'highlight-public': {'url': str(remote)}}}) as repo:
             try:
                 # Empty local remote: a complete persistent cache needs no Drive access.
                 repo.pull(targets=targets, remote='highlight-public')
             except (DownloadError, CheckoutError):
-                # No trailing slash: gdown must preserve the remote's files/md5 layout.
-                gdown.download_folder(id=folder, output=temp, quiet=True, use_cookies=False, timeout=(30, 120))
+                if not re.fullmatch('[0-9a-f]{64}', expected):
+                    raise ValueError('A trusted archive SHA256 is required')
+                archive = Path(temp) / 'objects.zip'
+                if gdown.download(id=file_id, output=str(archive), quiet=True,
+                                  use_cookies=False, timeout=(30, 120)) is None:
+                    raise ValueError('Archive download failed')
+                extract_archive(archive, remote, expected)
                 repo.pull(targets=targets, remote='highlight-public')
 
 
@@ -243,7 +281,8 @@ def run():
                                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                timeout=3600, env={'PATH': os.environ['PATH'], 'HOME': '/tmp', 'DVC_NO_ANALYTICS': '1',
                                                  'TMPDIR': transport,
-                                                 'VECTOR_GDRIVE_URL': os.environ.get('VECTOR_GDRIVE_URL', DRIVE_URL)})
+                                                 'VECTOR_GDRIVE_URL': os.environ.get('VECTOR_GDRIVE_URL', DRIVE_URL),
+                                                 'VECTOR_GDRIVE_SHA256': os.environ.get('VECTOR_GDRIVE_SHA256', DRIVE_SHA256)})
             print(json.dumps(prepare(pointers, runtime, Qdrant(os.environ['QDRANT_URL'], os.environ['QDRANT_API_KEY']),
                                      os.environ['QDRANT_DOCUMENT_COLLECTION'], os.environ['EMBEDDING_MODEL'])))
 

@@ -14,7 +14,8 @@ services:
       QDRANT_API_KEY: ${QDRANT_API_KEY:?Set QDRANT_API_KEY}
       QDRANT_DOCUMENT_COLLECTION: ${QDRANT_DOCUMENT_COLLECTION:-kbo_documents_openai}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
-      VECTOR_GDRIVE_URL: ${VECTOR_GDRIVE_URL:-https://drive.google.com/drive/folders/1PYIWVi_85-FW_Jsjz413IoAcDNxOvQqR}
+      VECTOR_GDRIVE_URL: ${VECTOR_GDRIVE_URL:-https://drive.google.com/file/d/1YfN4Jg1uBuVm0SXqN2q1cLc6YKgkQkYi/view}
+      VECTOR_GDRIVE_SHA256: ${VECTOR_GDRIVE_SHA256:-1bb4e8c483934abe60559ddbc474fac5e1a928ed7420a8f04b74e3c789ea1175}
     volumes:
       - vector_cache:/vector-cache
       - vector_runtime:/vector-runtime

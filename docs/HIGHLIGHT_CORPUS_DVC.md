@@ -143,17 +143,20 @@ workflow도 명시적으로 선택한다. backend는 `vector-init`의 성공 종
 CI는 `dev-vector-init:latest`를 별도 빌드·이미지 묶음에 포함하며 이미지에는 Python/DVC,
 검증 코드, **두 Git 포인터만** 들어간다. backend에는 DVC 패키지를 추가하지 않는다.
 
-자동 init은 승인된 기존 DVC Drive 폴더를 `gdown==6.4.2`로 읽는다:
-`https://drive.google.com/drive/folders/1PYIWVi_85-FW_Jsjz413IoAcDNxOvQqR`.
-폴더는 사용자가 승인한 anyone-with-link reader 공유가 완료된 상태이며 새 archive/upload는 없다.
-기본 URL은 이미지·overlay에 있어 새 secret/env 배치가 필요 없다. 선택적으로
-`VECTOR_GDRIVE_URL`에 Google Drive 폴더 URL 또는 ID만 지정할 수 있다.
-쿠키는 사용하지 않고 요청 connect/read timeout은 30/120초이다.
+자동 init은 기존 공개 DVC 데이터의 정확한 두 포인터 closure만 담은 **단일 ZIP**을
+`gdown==6.4.2`의 file download로 읽는다. 기존 공개 Drive 폴더에 데이터만 추가했으며
+원본 1,870개 object와 공유 권한은 변경하지 않았다. 기본 파일 URL과 trusted SHA256은
+이미지·overlay·`.env.example`에서 일치하므로 새 secret/env 배치가 필요 없다.
+선택 override는 `VECTOR_GDRIVE_URL`에 Google Drive **파일** URL 또는 ID,
+`VECTOR_GDRIVE_SHA256`에 해당 ZIP의 검토된 SHA256을 함께 지정한다.
+**기존 folder URL override는 삭제해 기본값을 쓰거나 파일 URL/SHA 쌍으로 이관해야 한다.**
+폴더 fallback이나 재시도는 없고 쿠키는 사용하지 않으며 connect/read timeout은 30/120초이다.
+단일 파일은 요청 수를 줄이지만 Google의 자동 요청 차단 해제를 보장하지 않는다.
 
 init은 `.dvc/config.local`·`.secrets/drive-user.json`을 읽거나 마운트하지 않는다.
 수동 private backup/push의 DVC OAuth 절차와 `scripts/requirements-data.txt`는 그대로 유지하며
 해당 로컬 인증 파일은 계속 Git·Docker build context에서 제외한다. init은 공유 권한이나
-원본 인증 파일을 변경하지 않는다. 누락·손상·접근 불가 폴더는 실패로 처리한다.
+원본 인증 파일을 변경하지 않는다. 누락·손상·접근 불가 파일은 실패로 처리한다.
 
 ```sh
 # Local default (실제 기동은 운영자가 승인한 시점에만)
@@ -166,11 +169,12 @@ docker compose -f docker-compose.prod.yml -f docker-compose.override.yml up -d -
 `vector_cache`는 별도 no-SCM DVC workspace/cache에 정확한 두 이미지 포인터의 절대 경로를
 pull하며 copy cache를 사용한다. 먼저 빈 임시 local remote로 DVC pull을 시도해 완전한
 로컬 cache는 다운로드 없이 재사용한다. cache가 부족하면 task-owned 임시 디렉터리에
-기존 Drive 폴더 전체를 내려받고 `files/md5/<shard>/<object>` 구조 그대로 local DVC remote로
-사용한다. gdown output에는 끝 slash를 붙이지 않으며 원래 artifact 경로 복원과 cache 확인은
-DVC가 담당한다. 성공·실패 모두 임시 전송 파일만 정리하고 cache/work/runtime은 유지한다.
+ZIP 한 개를 내려받아 **전체 SHA256을 먼저 검증**한다. member는 중복·경로 이탈·symlink·
+특수 파일 없이 `files/md5/<hex2>/<hex30>[.dir]`의 일반 파일만 허용하고 개별 MD5도 확인한다.
+새 빈 local remote로만 풀고 원래 artifact 경로 복원과 cache 확인은 DVC가 담당한다.
+성공·실패·child timeout 모두 임시 전송 파일만 정리하고 cache/work/runtime은 유지한다.
 `vector_runtime`은 immutable source와 다른 쓰기 가능한 볼륨이다.
-유지할 디스크는 cache/workspace/runtime 합계 약 7GB 이상, 임시 다운로드 약 2.3GB와 Qdrant 복원 여유를 확보한다.
+유지할 디스크는 cache/workspace/runtime 합계 약 7GB 이상, 임시 ZIP과 압축 해제 object 약 4.6GB 및 Qdrant 복원 여유를 확보한다.
 첫 2.3GB pull은 3600초, 각 Qdrant HTTP는 300초로 제한하고 배포 wait 4500초/SSH 90분을
 사용한다. 두 native flock은 동시 init을 비파괴 거절한다. 다운로드/검증/복원 실패는
 backend 시작을 차단하며 재임베딩·유료 모델 호출은 없다.
@@ -194,7 +198,7 @@ backend의 effective 경로는 `/vector-runtime/highlight-corpus`이며 기존 �
 새 회귀의 실제 CI 연결: `evaluation-regression.yml` → `deterministic` →
 `python -I .github/evaluation_ci.py offline-exec scripts/tests/test_vector_startup.py`.
 first/reuse, 손상/누락, foreign/empty/incomplete, symlink/overlap/version,
-404-only missing/redirect 금지, 공개 폴더 URL 경계·cookie 없는 전송·local DVC 연결·cache 재사용·임시 파일 정리,
+404-only missing/redirect 금지, 공개 파일 URL 경계·SHA256/개별 MD5·unsafe ZIP 거절·단일 cookie 없는 전송·local DVC 연결·cache 재사용·timeout 임시 파일 정리,
 전송/복원 실패, secret-safe CLI 실패, deployment build/save/dependency를 검사한다.
 이 offline 검사나 held-artifact smoke는 새 Drive 전송/hosted CI/서버 배포의 증거가 아니다.
 

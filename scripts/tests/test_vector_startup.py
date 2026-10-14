@@ -1,6 +1,9 @@
 import copy
 import importlib.util
 import json
+import hashlib
+import stat
+import zipfile
 from pathlib import Path
 import subprocess
 import sys
@@ -180,16 +183,53 @@ class StartupTests(unittest.TestCase):
             self.assertIsNone(db.request('GET', '/collections/test', missing=True))
         self.assertIsNone(startup.NoRedirect().redirect_request(None, None, None, None, None, None))
 
-    def test_drive_folder_destination_boundary(self):
-        self.assertEqual(startup.drive_folder(startup.DRIVE_URL), '1PYIWVi_85-FW_Jsjz413IoAcDNxOvQqR')
-        self.assertEqual(startup.drive_folder('folder_id-123'), 'folder_id-123')
-        for value in ('', 'gdrive://folder', 'https://untrusted.invalid/folder',
-                      'http://drive.google.com/drive/folders/id',
-                      'https://user@drive.google.com/drive/folders/id',
+    def test_drive_file_destination_boundary(self):
+        self.assertEqual(startup.drive_file(startup.DRIVE_URL), startup.DRIVE_URL.split('/')[5])
+        self.assertEqual(startup.drive_file('file_id-123'), 'file_id-123')
+        self.assertEqual(startup.drive_file('https://drive.google.com/file/d/id'), 'id')
+        for value in ('', 'gdrive://file', 'https://untrusted.invalid/file',
+                      'http://drive.google.com/file/d/id',
+                      'https://user@drive.google.com/file/d/id',
                       startup.DRIVE_URL + '?token=secret', startup.DRIVE_URL + '/child',
-                      'https://drive.google.com/file/d/id', '../escape'):
+                      'https://drive.google.com/drive/folders/id', '../escape', 'id/view'):
             with self.subTest(value=value), self.assertRaises(ValueError):
-                startup.drive_folder(value)
+                startup.drive_file(value)
+
+    def archive(self, path, entries=None):
+        data = b'explicit transport fixture'
+        object_id = hashlib.md5(data).hexdigest()
+        name = 'files/md5/' + object_id[:2] + '/' + object_id[2:]
+        with zipfile.ZipFile(path, 'w') as bundle:
+            for entry, content in (entries if entries is not None else [(name, data)]):
+                bundle.writestr(entry, content)
+        return name, startup.corpus.digest(path)
+
+    def test_archive_layout_sha_objects_and_unsafe_members(self):
+        archive = self.root / 'fixture.zip'
+        destination = self.root / 'remote'
+        destination.mkdir()
+        name, expected = self.archive(archive)
+        startup.extract_archive(archive, destination, expected)
+        self.assertEqual((destination / name).read_bytes(), b'explicit transport fixture')
+        with self.assertRaisesRegex(ValueError, 'SHA256'):
+            startup.extract_archive(archive, self.root / 'bad-sha', '0' * 64)
+        self.assertFalse((self.root / 'bad-sha').exists())
+        link = zipfile.ZipInfo('files/md5/ab/' + 'c' * 30)
+        link.external_attr = (stat.S_IFLNK | 0o777) << 16
+        special = zipfile.ZipInfo('files/md5/ab/' + 'd' * 30)
+        special.external_attr = (stat.S_IFIFO | 0o600) << 16
+        cases = [[(bad, b'bad')] for bad in ('../escape', '/absolute', 'files/md5/ab/../../escape',
+                                             'files/md5/ab/', 'config', link, special)]
+        cases += [[(name, b'bad')], [(name, b'explicit transport fixture'), (name, b'duplicate')]]
+        for i, entries in enumerate(cases):
+            target = self.root / ('rejected-' + str(i))
+            _, expected = self.archive(archive, entries)
+            with self.subTest(entries=entries), self.assertRaises(ValueError):
+                startup.extract_archive(archive, target, expected)
+            if i != len(cases) - 2:  # Wrong object bytes are rejected during streaming.
+                self.assertFalse(target.exists())
+        self.assertIsNone(self.db.info)
+        self.assertEqual(list(self.runtime.iterdir()), [])
 
     def test_public_pull_wiring_cleanup_failures_and_cache_reuse(self):
         class DownloadError(Exception):
@@ -198,7 +238,9 @@ class StartupTests(unittest.TestCase):
         class CheckoutError(Exception):
             pass
 
-        for outcome in ('download', 'checkout', 'reuse', 'inaccessible', 'missing', 'corrupt'):
+        source = self.root / 'fixture.zip'
+        name, checksum = self.archive(source)
+        for outcome in ('download', 'checkout', 'reuse', 'inaccessible', 'none', 'missing', 'corrupt', 'bad-sha', 'untrusted-sha'):
             with self.subTest(outcome=outcome):
                 repo, download = MagicMock(), MagicMock()
                 client = repo.return_value.__enter__.return_value
@@ -206,49 +248,55 @@ class StartupTests(unittest.TestCase):
                                            [DownloadError(), ValueError('invalid cache')] if outcome == 'corrupt' else
                                            [DownloadError(), DownloadError()] if outcome == 'missing' else
                                            [CheckoutError() if outcome == 'checkout' else DownloadError(), None])
-                seen = []
 
                 def fetch(**kwargs):
-                    root = Path(kwargs['output'])
-                    self.assertTrue(root.is_dir())
-                    self.assertFalse(kwargs['output'].endswith('/'))
-                    shard = root / 'files/md5/ab'
-                    shard.mkdir(parents=True)
-                    (shard / 'tiny-object').write_bytes(b'explicit transport fixture')
-                    seen.append(root)
+                    target = Path(kwargs['output'])
+                    self.assertTrue(target.parent.is_dir())
                     if outcome == 'inaccessible':
                         raise OSError('private source')
-                    return [str(shard / 'tiny-object')]
+                    if outcome == 'none':
+                        return None
+                    target.write_bytes(source.read_bytes())
+                    return str(target)
 
+                def restore(**kwargs):
+                    if client.pull.call_count == 1:
+                        raise CheckoutError() if outcome == 'checkout' else DownloadError()
+                    remote = Path(repo.call_args.kwargs['config']['remote']['highlight-public']['url'])
+                    self.assertEqual((remote / name).read_bytes(), b'explicit transport fixture')
+
+                if outcome in ('download', 'checkout'):
+                    client.pull.side_effect = restore
                 download.side_effect = fetch
                 modules = {'dvc.repo': SimpleNamespace(Repo=repo),
                            'dvc.exceptions': SimpleNamespace(DownloadError=DownloadError, CheckoutError=CheckoutError),
-                           'gdown': SimpleNamespace(download_folder=download)}
+                           'gdown': SimpleNamespace(download=download)}
                 with patch.dict(sys.modules, modules), \
-                        patch.dict(startup.os.environ, {'VECTOR_GDRIVE_URL': 'approved_folder'}), \
+                        patch.dict(startup.os.environ, {'VECTOR_GDRIVE_URL': 'approved_file',
+                                   'VECTOR_GDRIVE_SHA256': '' if outcome == 'untrusted-sha' else '0' * 64 if outcome == 'bad-sha' else checksum}), \
                         patch.object(Path, 'read_text', side_effect=AssertionError('No auth file reads')):
-                    if outcome in ('inaccessible', 'missing', 'corrupt'):
+                    if outcome in ('inaccessible', 'none', 'missing', 'corrupt', 'bad-sha', 'untrusted-sha'):
                         with self.assertRaises((OSError, DownloadError, ValueError)):
                             startup.pull(self.root / 'work')
                     else:
                         startup.pull(self.root / 'work')
                 config = repo.call_args.kwargs['config']
-                temp = config['remote']['highlight-public']['url']
-                self.assertFalse(Path(temp).exists())
-                self.assertEqual(config['remote'], {'highlight-public': {'url': temp}})
+                remote = Path(config['remote']['highlight-public']['url'])
+                self.assertFalse(remote.parent.exists())
                 self.assertEqual(config['cache'], {'type': 'copy'})
                 expected = {'targets': [str(self.root.resolve() / 'work/data/artifacts' / (name + '.dvc'))
                                         for name in startup.ARTIFACTS], 'remote': 'highlight-public'}
                 for call in client.pull.call_args_list:
                     self.assertEqual(call.kwargs, expected)
-                if outcome == 'reuse':
+                if outcome in ('reuse', 'untrusted-sha'):
                     download.assert_not_called()
                     self.assertEqual(client.pull.call_count, 1)
                 else:
-                    download.assert_called_once_with(id='approved_folder', output=temp, quiet=True,
-                                                     use_cookies=False, timeout=(30, 120))
-                    self.assertEqual(seen, [Path(temp)])
-                    self.assertEqual(client.pull.call_count, 1 if outcome == 'inaccessible' else 2)
+                    download.assert_called_once_with(id='approved_file', output=str(remote.parent / 'objects.zip'),
+                                                     quiet=True, use_cookies=False, timeout=(30, 120))
+                    self.assertEqual(client.pull.call_count, 1 if outcome in ('inaccessible', 'none', 'bad-sha') else 2)
+                self.assertIsNone(self.db.info)
+                self.assertEqual(list(self.runtime.iterdir()), [])
 
     def test_child_timeout_cleans_transport_and_preserves_cache(self):
         cache = self.root / 'cache'
@@ -262,7 +310,8 @@ class StartupTests(unittest.TestCase):
             (transport / 'partial').write_bytes(b'partial download')
             transports.append(transport)
             self.assertEqual(kwargs['timeout'], 3600)
-            self.assertEqual(kwargs['env']['VECTOR_GDRIVE_URL'], 'approved_folder')
+            self.assertEqual(kwargs['env']['VECTOR_GDRIVE_URL'], 'approved_file')
+            self.assertEqual(kwargs['env']['VECTOR_GDRIVE_SHA256'], startup.DRIVE_SHA256)
             self.assertNotIn('QDRANT_API_KEY', kwargs['env'])
             raise subprocess.TimeoutExpired(command, kwargs['timeout'])
 
@@ -271,7 +320,7 @@ class StartupTests(unittest.TestCase):
                 patch.object(startup.subprocess, 'run', side_effect=timeout), \
                 patch.object(startup, 'prepare') as prepare, \
                 patch.object(startup.sys, 'argv', ['vector_startup.py']), \
-                patch.dict(startup.os.environ, {'VECTOR_GDRIVE_URL': 'approved_folder'}):
+                patch.dict(startup.os.environ, {'VECTOR_GDRIVE_URL': 'approved_file'}):
             with self.assertRaises(subprocess.TimeoutExpired):
                 startup.run()
         self.assertEqual(len(transports), 1)
@@ -302,6 +351,8 @@ class StartupTests(unittest.TestCase):
             self.assertNotIn(name, overlay)
             self.assertNotIn(name, example)
         self.assertIn('VECTOR_GDRIVE_URL=' + startup.DRIVE_URL, example)
+        self.assertIn('VECTOR_GDRIVE_SHA256=' + startup.DRIVE_SHA256, example)
+        self.assertIn('VECTOR_GDRIVE_SHA256: ${VECTOR_GDRIVE_SHA256:-' + startup.DRIVE_SHA256 + '}', overlay)
         self.assertNotIn('secrets:', overlay)
         self.assertIn('.secrets/', (ROOT / '.gitignore').read_text().splitlines())
         dockerignore = (ROOT / '.dockerignore').read_text().splitlines()
