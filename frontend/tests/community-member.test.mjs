@@ -206,3 +206,41 @@ test("anonymous direct visits redirect to login without activity requests", () =
   assert.deepEqual(screen.redirects, [memberActivityLoginHref(21, "posts", 3)]);
   assert.deepEqual(screen.calls, []);
 });
+
+test("post detail permits private fallback only for the owner and discards stale requests", async () => {
+  for (const scenario of ["public", "owner", "guest", "other", "stale"]) {
+    const effects = [], states = [], calls = [];
+    const jsx = (type, props) => ({ type, props });
+    const item = { ...post, board: "free", authorId: 21 };
+    const dependencies = {
+      "react/jsx-runtime": { jsx, jsxs: jsx },
+      "next/link": { default: "a" },
+      "next/navigation": { useRouter: () => ({}) },
+      react: {
+        useRef: value => ({ current: value }),
+        useEffect: effect => effects.push(effect),
+        useState: initial => { const index = states.length; states.push(initial); return [initial, value => { states[index] = value; }]; },
+      },
+      "@/lib/member-auth": { useMemberAuth: () => ({ user: scenario === "guest" ? null : { id: scenario === "other" ? 22 : 21 } }) },
+      "@/lib/community-api": {
+        useCommunityPosts: () => ({ posts: [], loading: false }),
+        getCommunityPost: async () => { if (scenario !== "public") throw new Error("private"); return item; },
+        getOwnCommunityPost: async () => { calls.push("own"); return item; },
+      },
+      "@/lib/team-community": routes,
+      "@/lib/community-category-filter": { communityCategoryHref: href => href },
+      "./community-board.module.css": { default: {} },
+    };
+    for (const [name, exported] of Object.entries({ "community-navigation": "CommunityNavigation", "community-post-bottom": "CommunityPostBottom", "community-post-content": "CommunityPostContent", "community-post-vote": "CommunityPostVote", "post-category": "PostCategory", "post-comment-count": "PostCommentCount", "post-report-button": "PostReportButton", "community-member-link": "CommunityMemberLink" })) dependencies["./" + name] = { [exported]: exported };
+    const { CommunityBoard } = load("components/community-board.tsx", dependencies);
+    CommunityBoard({ section: "free", postId: item.id });
+    const cleanup = effects[0]();
+    if (scenario === "stale") cleanup();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(states[0].post !== null, ["public", "owner"].includes(scenario), scenario);
+    if (scenario === "owner") assert.equal(states[0].privatePreview, true);
+    if (scenario === "public") assert.equal(states[0].privatePreview, false);
+    if (scenario === "guest") assert.deepEqual(calls, []);
+    cleanup();
+  }
+});

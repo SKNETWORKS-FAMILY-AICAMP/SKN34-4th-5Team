@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { deleteCommunityPost, getCommunityPost, retryCommunityPosts, useCommunityPosts } from "@/lib/community-api";
+import { deleteCommunityPost, getCommunityPost, getOwnCommunityPost, retryCommunityPosts, useCommunityPosts } from "@/lib/community-api";
 import { useMemberAuth } from "@/lib/member-auth";
 import { getCommunityPostHref, getCommunityWriteHref, getTeamBoard, getTeamBoardHref, teamBoards, type TeamCommunityPost } from "@/lib/team-community";
 import { CommunityNavigation } from "./community-navigation";
@@ -36,9 +36,9 @@ export function CommunityBoard({ section, teamCode = "", postId = "", category =
   const community = useCommunityPosts();
   const team = section === "teams" ? getTeamBoard(teamCode) : undefined;
   const board = boards[section];
-  const detailKey = `${section}:${postId}`;
+  const detailKey = `${section}:${postId}:${user?.id ?? "guest"}`;
   const detailRequest = useRef("");
-  const [detail, setDetail] = useState<{ key: string; post: TeamCommunityPost | null; loading: boolean; error: string }>({ key: "", post: null, loading: false, error: "" });
+  const [detail, setDetail] = useState<{ key: string; post: TeamCommunityPost | null; loading: boolean; error: string; privatePreview?: boolean }>({ key: "", post: null, loading: false, error: "" });
   const [deleting, setDeleting] = useState(false);
   const [actionError, setActionError] = useState("");
 
@@ -47,13 +47,19 @@ export function CommunityBoard({ section, teamCode = "", postId = "", category =
     if (detailRequest.current === detailKey) return;
     detailRequest.current = detailKey;
     setDetail({ key: detailKey, post: null, loading: true, error: "" });
-    void getCommunityPost(postId).then(post => {
+    void getCommunityPost(postId).then(post => ({ post, privatePreview: false })).catch(async cause => {
+      if (!user) throw cause;
+      const post = await getOwnCommunityPost(postId);
+      if (post.authorId !== user.id) throw cause;
+      return { post, privatePreview: true };
+    }).then(({ post, privatePreview }) => {
       if (detailRequest.current !== detailKey) return;
-      setDetail(post.board === section ? { key: detailKey, post, loading: false, error: "" } : { key: detailKey, post: null, loading: false, error: "게시글을 찾을 수 없어요." });
+      setDetail(post.board === section ? { key: detailKey, post, loading: false, error: "", privatePreview } : { key: detailKey, post: null, loading: false, error: "게시글을 찾을 수 없어요." });
     }).catch(cause => {
       if (detailRequest.current === detailKey) setDetail({ key: detailKey, post: null, loading: false, error: cause instanceof Error ? cause.message : "게시글을 불러오지 못했어요." });
     });
-  }, [detailKey, postId, section]);
+    return () => { if (detailRequest.current === detailKey) detailRequest.current = ""; };
+  }, [detailKey, postId, section, user]);
 
   const allPosts = community.posts.filter(post => post.board === section);
   const searchContext = `${section}:${teamCode}`;
@@ -108,9 +114,11 @@ export function CommunityBoard({ section, teamCode = "", postId = "", category =
         {owned && <div className={styles.ownerActions}><Link href={`/community/write?edit=${encodeURIComponent(selectedPost.id)}`}>수정</Link><button type="button" onClick={() => void removePost()} disabled={deleting}>{deleting ? "삭제 중…" : "삭제"}</button></div>}
         {actionError && <p role="alert">{actionError}</p>}
       </header>
-      <div className={`${styles.postBody} ${styles.teamPostBody} ${styles.reportableBody}`}><CommunityPostContent content={selectedPost.content} document={selectedPost.contentDoc} /><PostReportButton postNumber={selectedPost.postNumber} postId={selectedPost.id} /></div>
+      <div className={`${styles.postBody} ${styles.teamPostBody} ${styles.reportableBody}`}><CommunityPostContent content={selectedPost.content} document={selectedPost.contentDoc} />{!detail.privatePreview && <PostReportButton postNumber={selectedPost.postNumber} postId={selectedPost.id} />}</div>
+      {detail.privatePreview ? <p role="status">아직 공개되지 않은 글입니다. 작성자에게만 표시됩니다. <Link href={`/community/submissions?post=${encodeURIComponent(selectedPost.id)}`}>검사 상태 확인</Link> · <Link href={listHref}>목록으로</Link></p> : <>
       <CommunityPostVote post={selectedPost} />
       <CommunityPostBottom key={selectedPost.id} post={selectedPost} posts={posts} teamCode={team?.code} isFree={section === "free"} writeHref={writeHref} category={category} />
+      </>}
     </article>}
     <section aria-label={`${board.title} 글 목록`}>
       {category && <div className={styles.categoryFilter} role="status"><span>{isCommunityCategory(category) ? `[${category}] 분류의 글` : "지원하지 않는 분류입니다."}</span><Link href={categoryHref("")}>분류 해제 · 전체 글</Link></div>}
