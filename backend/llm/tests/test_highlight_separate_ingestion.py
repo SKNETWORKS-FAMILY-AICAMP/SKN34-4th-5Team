@@ -160,8 +160,10 @@ class SeparateIngestionTests(unittest.TestCase):
             opened.close()
         probes = json.loads((self.root / 'corpus/embedding_probe.json').read_text())
         self.assertEqual(probes[0]['tokens'], {m: 20 for m in mm.MODALITIES})
-        with patch.object(ingestion, 'duration', return_value=15.):
+        with patch.object(ingestion, 'duration', return_value=15.), \
+             patch.object(ingestion, 'validate_ingestion', wraps=ingestion.validate_ingestion) as audit:
             self.assertEqual(ingestion.ingest_transcripts([], self.root / 'corpus', readback=True)['segments'], 1)
+            audit.assert_called_once()
 
     def test_each_modality_overlimit_fails_with_evidence_without_committing(self):
         for mode in mm.MODALITIES:

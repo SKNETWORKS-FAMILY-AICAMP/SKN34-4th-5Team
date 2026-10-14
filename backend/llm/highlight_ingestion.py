@@ -322,8 +322,10 @@ def ingest_transcripts(manifest, workspace, *, dry_run=False, max_calls=None, go
     if readback:
         if not root.is_dir() or not (root / 'ingestion_complete.json').is_file():
             raise ValueError('Incomplete separate transcript corpus')
-        specialist = mm.Specialist(root, None, audit=True)
+        specialist = mm.Specialist(root, None)
         try:
+            # Run general integrity once, then the explicit ingestion/media audit once.
+            specialist.validate_corpus(ingesting=True)
             return validate_ingestion(specialist)
         finally:
             specialist.close()
