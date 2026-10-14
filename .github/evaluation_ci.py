@@ -164,6 +164,8 @@ def main():
                 execute(command, offline=True)
             summary.update(seed=jev_report(out / 'seed.json', True), boundary=jev_report(out / 'boundary.json', True))
         elif options.mode == 'highlight-free':
+            os.environ['DEEPEVAL_CACHE_FOLDER'] = str(out / 'deepeval-cache')
+            execute([EVAL + 'test_highlight_case_quality.py', '-v'], offline=True)
             execute([EVAL + 'highlight_langchain_contract.py', '--output', str(out / 'langchain-contract')], offline=True)
             execute(['backend/llm/tests/test_highlight_separate_ingestion.py', '-v'], offline=True)
             execute(['backend/llm/tests/test_highlight_images.py', '-v'], offline=True)
