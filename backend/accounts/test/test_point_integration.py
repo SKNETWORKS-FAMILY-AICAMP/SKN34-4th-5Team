@@ -13,6 +13,7 @@ from accounts.models import CustomUser, PointTransaction, PointWallet
 from accounts.point_policy import SIGNUP, SIGNUP_SOURCE_KEY, grant_definition
 from accounts.point_service import grant_points
 from community.models import CommunityPost
+from community.moderation_worker import run_one
 
 
 class PointIntegrationTests(TestCase):
@@ -44,6 +45,9 @@ class PointIntegrationTests(TestCase):
             (signup_entry.source_type, signup_entry.source_key),
             (SIGNUP[0], SIGNUP_SOURCE_KEY),
         )
+        self.assertEqual((wallet.total_earned, signup_entry.rank_delta), (0, 0))
+        self.client.force_authenticate(new_user)
+        self.assertEqual(self.client.get("/api/v1/auth/user").data["rank"], 1)
 
     def test_login_grants_daily_points(self):
         self.assertEqual(PointWallet.objects.filter(user=self.user).count(), 0)
@@ -140,9 +144,9 @@ class PointIntegrationTests(TestCase):
             "teamCode": "",
             "images": []
         }, format="json", HTTP_IDEMPOTENCY_KEY="test-key-1")
-        if response.status_code != 201:
-            print("Post error:", response.data)
-        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.status_code, 202)
+        self.assertFalse(PointWallet.objects.filter(user=self.user).exists())
+        run_one(lambda payload: ([], {}))
         
         wallet = PointWallet.objects.get(user=self.user)
         self.assertEqual(wallet.balance, 1)
@@ -165,12 +169,12 @@ class PointIntegrationTests(TestCase):
             {"title": "Edited Post"},
             format="json",
         )
-        self.assertEqual(edited.status_code, 200)
+        self.assertEqual(edited.status_code, 202)
         wallet.refresh_from_db()
         self.assertEqual(wallet.balance, 1)
 
     def test_post_read_grants_points(self):
-        post = CommunityPost.objects.create(
+        post = CommunityPost.objects.create(moderation_status="approved", approved_revision=0,
             owner=self.user2,
             author="testuser2",
             title="Read me",
@@ -204,7 +208,7 @@ class PointIntegrationTests(TestCase):
         self.assertIsNone(wallet2)  # Owner gets no point for their own post
 
     def test_comment_creation_grants_points(self):
-        post = CommunityPost.objects.create(
+        post = CommunityPost.objects.create(moderation_status="approved", approved_revision=0,
             owner=self.user2,
             author="testuser2",
             title="Comment me",
@@ -218,7 +222,9 @@ class PointIntegrationTests(TestCase):
         response = self.client.post(f"/api/v1/community/posts/{post.pk}/comments/", {
             "content": "Test comment"
         })
-        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.status_code, 202)
+        self.assertFalse(PointWallet.objects.filter(user=self.user).exists())
+        run_one(lambda payload: ([], {}))
         wallet = PointWallet.objects.get(user=self.user)
         self.assertEqual(wallet.balance, 1)
         edited = self.client.patch(
@@ -226,7 +232,7 @@ class PointIntegrationTests(TestCase):
             {"content": "Edited comment"},
             format="json",
         )
-        self.assertEqual(edited.status_code, 200)
+        self.assertEqual(edited.status_code, 202)
         wallet.refresh_from_db()
         self.assertEqual(wallet.balance, 1)
 
@@ -257,6 +263,11 @@ class PointIntegrationTests(TestCase):
         call_command("backfill_signup_points")
         self.assertEqual(PointWallet.objects.get(user=self.user).balance, 100)
         self.assertEqual(PointWallet.objects.get(user=self.user2).balance, 100)
+        self.assertEqual(PointWallet.objects.get(user=self.user).total_earned, 0)
+        self.assertEqual(
+            PointTransaction.objects.get(user=self.user).rank_delta,
+            0,
+        )
         
         # Calling again should be idempotent
         call_command("backfill_signup_points")

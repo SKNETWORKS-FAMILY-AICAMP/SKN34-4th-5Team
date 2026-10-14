@@ -30,6 +30,7 @@ class Command(BaseCommand):
         for user in users.iterator():
             _, _, was_created = grant_points(
                 user=user,
+                counts_for_rank=False,
                 **grant_definition(SIGNUP, SIGNUP_SOURCE_KEY),
             )
             created += was_created

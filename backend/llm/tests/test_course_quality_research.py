@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from django.test import SimpleTestCase
-from llm.v1.rag.course import agent, quality_research as research
+from llm.v2.course import agent, quality_research as research
 
 
 class QualityResearchTests(SimpleTestCase):
@@ -62,6 +62,15 @@ class QualityResearchTests(SimpleTestCase):
             changed = {**self.profile, "aggregateRating": {"ratingValue": 5, "reviewCount": count}}
             reader = Mock(read=Mock(return_value={**self.page, "metadata": {"profile": changed}}))
             self.assertIsNone(research.profile(self.place, self.url, reader))
+
+    def test_bar_minimum_one_still_requires_matching_visible_rating(self):
+        profile = {**self.profile, "aggregateRating": {"ratingValue": 4, "reviewCount": 1}}
+        page = {**self.page, "metadata": {"profile": profile}, "body_text": "4 (1명의 평가) 광주 북구 서림로 90-1"}
+        reader = Mock(read=Mock(return_value=page))
+        self.assertEqual(research.profile(self.place, self.url, reader, min_ratings=1)["ratingCount"], 1)
+        for text in ("4 (0명의 평가) 광주 북구 서림로 90-1", "광주 북구 서림로 90-1", "4 (1명의 평가) 광주 북구 서림로 90-11"):
+            reader.read.return_value = {**page, "body_text": text}
+            self.assertIsNone(research.profile(self.place, self.url, reader, min_ratings=1))
 
     def test_page_seen_for_wrong_shop_is_reused_but_identity_is_rechecked(self):
         public_reader = Mock(read=Mock(return_value=self.page))

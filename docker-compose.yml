@@ -1,3 +1,12 @@
+x-moderation-environment: &moderation-environment
+  OPENAI_API_KEY: ${OPENAI_API_KEY}
+  DB_HOST: ${DB_HOST:-db}
+  DB_PORT: ${DB_PORT}
+  DB_NAME: ${DB_NAME}
+  DB_USER: ${DB_USER}
+  DB_PASSWORD: ${DB_PASSWORD}
+  CHAT_CHECKPOINT_SIGNING_KEY: ${CHAT_CHECKPOINT_SIGNING_KEY:?Set CHAT_CHECKPOINT_SIGNING_KEY}
+
 x-logging: &default-logging
   driver: json-file
   options:
@@ -5,6 +14,21 @@ x-logging: &default-logging
     max-file: "3"
 
 services:
+
+  community-moderation-worker:
+    build: ./backend
+    environment: *moderation-environment
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    volumes:
+      - ./backend:/app
+    command: ["python", "manage.py", "run_moderation_worker"]
+    depends_on:
+      backend:
+        condition: service_healthy
+    stop_grace_period: 40s
+    logging: *default-logging
 
   course-place-warmer:
     build: ./backend
@@ -27,7 +51,6 @@ services:
     env_file:
       - ./.env
     environment:
-      LODGING_CHROME_TRANSPORT: mcp
       JEV_MCP_URL: http://jev-browser:8080/mcp
       JEV_MCP_TOKEN: ${JEV_MCP_TOKEN:-}
       LODGING_WARM_STADIUMS: ${LODGING_WARM_STADIUMS:-}
@@ -49,6 +72,16 @@ services:
     security_opt:
       - seccomp=./docker/jev-browser/seccomp.json
     shm_size: 256m
+    # Xvfb and Squid leave PID/socket files behind after an interrupted stop.
+    # Recreate only browser runtime files on every container start.
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,mode=1777,size=512m
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1',8080),2).close(); socket.create_connection(('127.0.0.1',3128),2).close(); s=socket.socket(socket.AF_UNIX); s.settimeout(2); s.connect('/tmp/.X11-unix/X99'); s.close()"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
     environment:
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       TEXT_MODEL_API_KEY: ${RESEARCH_API_KEY:-${OPENAI_API_KEY:-}}
@@ -99,6 +132,12 @@ services:
   # ========================
   backend:
     build: ./backend
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/healthz/', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
     restart: unless-stopped
     # Share the root env with backend services and staging-data imports.
     env_file:
@@ -109,7 +148,6 @@ services:
       JEV_MCP_TOKEN: ${JEV_MCP_TOKEN:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
       # 숙박 수집은 서버 브라우저의 결정적 Chrome 도구를 사용한다(모델 검색 없음).
-      LODGING_CHROME_TRANSPORT: mcp
       JEV_MCP_URL: http://jev-browser:8080/mcp
       # 로컬 프로필일 때만 API 요청 기반 크롤링을 활성화한다.
       COMPOSE_PROFILES: ${COMPOSE_PROFILES:-}
@@ -184,7 +222,7 @@ services:
         condition: service_started
         required: false
       minio:
-        condition: service_healthy
+        condition: service_started
 
     # python manage.py provision_baseball_reader --prepare-db-permissions &&
     command: >
@@ -290,9 +328,9 @@ services:
 
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 5s
+      interval: 30s
       timeout: 3s
-      retries: 10
+      retries: 3
 
 
 # ========================

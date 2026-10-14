@@ -6,8 +6,8 @@ from django.test import SimpleTestCase
 
 from travel.stadium_facilities import _root
 from llm.tests.test_course_editing import CURRENT, plan
-from llm.v1.rag.course import agent, arrival, editing, geo, memory
-from llm.v1.rag.course.default_origins import STATIONS, station_origin
+from llm.v2.course import agent, arrival, editing, geo, memory
+from llm.v2.course.default_origins import STATIONS, station_origin
 from llm.v2.agent.course_output import public_course
 
 

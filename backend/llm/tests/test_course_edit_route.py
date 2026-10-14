@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 
 from django.test import SimpleTestCase
 
-from llm.v1.rag.course import agent, corridor, edit_route, editing
+from llm.v2.course import agent, corridor, edit_route, editing
 from llm.tests.test_course_editing import CURRENT, PLACES, plan
 
 
@@ -86,11 +86,11 @@ class EditRouteTests(SimpleTestCase):
             "place_id": "far", "matching_ids": ["far", "near"], "evidence": "국밥 판매 확인"}
         query = {"query": "국밥", "conditions": ["국밥"], "_route": ROUTE, "route_preference": "origin_to_stadium"}
         with patch.object(agent, "llm", return_value=model), \
-                patch("llm.v1.rag.course.evidence_memory.enrich", return_value=candidates) as enrich:
+                patch("llm.v2.course.evidence_memory.enrich", return_value=candidates) as enrich:
             result = editing.choose(candidates, query, "출발지에서 구장 가는 길 근처 국밥집")
         self.assertEqual(result["placeId"], "near")
         self.assertEqual(enrich.call_args.args[1], ["국밥"])
-        with patch("llm.v1.rag.course.evidence_memory.enrich", return_value=[]):
+        with patch("llm.v2.course.evidence_memory.enrich", return_value=[]):
             self.assertIsNone(editing.choose(candidates, query, "경로 근처 국밥집"))
 
     def test_replacement_keeps_other_stops_origin_game_and_route_validation_plan(self):

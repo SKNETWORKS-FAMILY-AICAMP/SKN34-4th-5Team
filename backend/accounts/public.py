@@ -3,15 +3,20 @@ from rest_framework import generics, serializers
 from rest_framework.permissions import IsAuthenticated
 
 from .activity import active_member, activity_visible
+from .point_rank import member_rank
 
 
 class PublicMemberSerializer(serializers.Serializer):
     id = serializers.IntegerField(read_only=True)
     nickname = serializers.SerializerMethodField()
+    rank = serializers.SerializerMethodField()
     activityVisible = serializers.SerializerMethodField()
 
     def get_nickname(self, member) -> str:
         return member.nickname or member.username
+
+    def get_rank(self, member) -> int:
+        return member_rank(member)
 
     def get_activityVisible(self, member) -> bool:
         return activity_visible(member)

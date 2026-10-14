@@ -23,19 +23,99 @@ function nodes(tree) {
   return [tree, ...nodes(tree.props.children)];
 }
 const member = { id: 18, is_active: true, is_staff: true, is_superuser: false };
-function postPanel({ hidden = false, busy = false, confirm = true, fail = false } = {}) {
+test("members show received report totals and reset pagination when filtering", () => {
+  for (const loading of [false, true]) {
+    const values = [member, "", "", false, () => {}, { count: 1, results: [{ ...member, username: "member", date_joined: "2026-10-14", report_count: 7 }] }, "", loading, "", 3, 0, "reported_first"];
+    let index = 0;
+    const panel = load("../components/admin-panels.tsx", {
+      react: { ...React, useState() { const i = index++; return [values[i], value => { values[i] = value; }]; }, useEffect() {} },
+      "next/link": { __esModule: true, default: "a" },
+      "@/lib/api/auth": {}, "@/lib/member-policy": { memberRoleLabel: () => "회원" }, "@/lib/team-community": {}, "@/lib/api/admin-community": {},
+    }).AdminMembersPanel();
+    const all = nodes(panel), filter = all.find(n => n.type === "select");
+    assert.equal(filter.props.value, "reported_first");
+    assert.equal(filter.props.disabled, loading);
+    assert.ok(all.some(n => n.type === "th" && n.props.children === "누적 신고"));
+    assert.ok(all.some(n => n.type === "span" && n.props.children === 7));
+    for (const value of ["reported", "newest", "reported_first"]) {
+      values[9] = 3;
+      filter.props.onChange({ target: { value } });
+      assert.equal(values[11], value);
+      assert.equal(values[9], 1);
+    }
+  }
+});
+function postPanel({ hidden = false, reviewed = false, loading = false, busy = false, confirm = true, fail = false } = {}) {
   const calls = [];
-  const post = { source_id: "free-1", post_number: "1", board: "free", title: "글", is_hidden: hidden, report_count: 0 };
-  const values = ["", "", busy, { count: 1, results: [post] }, "", false, "", 1, 0];
+  const post = { source_id: "free-1", post_number: "1", board: "free", title: "글", is_hidden: hidden, is_reviewed: reviewed, report_count: 0 };
+  const values = ["", "", busy, { count: 1, results: [post] }, "", loading, "", 1, 0, "reported_first"];
   let index = 0;
   const panel = load("../components/admin-panels.tsx", {
     react: { ...React, useState() { const i = index++; return [values[i], value => { values[i] = typeof value === "function" ? value(values[i]) : value; }]; }, useEffect() {} },
     "next/link": { __esModule: true, default: "a" },
     "@/lib/api/auth": {}, "@/lib/member-policy": {}, "@/lib/team-community": {},
-    "@/lib/api/admin-community": { async hideAdminPost(id) { calls.push(id); if (fail) throw new Error("숨김 실패"); } },
+    "@/lib/api/admin-community": {
+      async hideAdminPost(id) { calls.push(id); if (fail) throw new Error("숨김 실패"); },
+      async setAdminPostReviewed(id, value) { calls.push([id, value]); if (fail) throw new Error("검토 상태 변경 실패"); },
+    },
   }, { window: { confirm: () => confirm } }).AdminPostsPanel();
-  return { values, calls, button: nodes(panel).find(n => n.type === "button" && ["숨김", "숨김 처리됨"].includes(n.props.children)) };
+  return { values, calls, filter: nodes(panel).find(n => n.type === "select"), reviewButtons: nodes(panel).filter(n => n.type === "button" && ["검토 완료", "미완료"].includes(n.props.children)), button: nodes(panel).find(n => n.type === "button" && ["숨김", "숨김 처리됨"].includes(n.props.children)) };
 }
+
+test("posts default to reported priority and filter changes reset pagination", () => {
+  const view = postPanel();
+  assert.equal(view.filter.props.value, "reported_first");
+  for (const filter of ["reported", "newest", "reported_first"]) {
+    view.values[7] = 3;
+    view.filter.props.onChange({ target: { value: filter } });
+    assert.equal(view.values[9], filter);
+    assert.equal(view.values[7], 1);
+  }
+  assert.equal(postPanel({ loading: true }).filter.props.disabled, true);
+  assert.equal(postPanel({ busy: true }).filter.props.disabled, true);
+});
+
+test("one review button displays the current state, toggles it, refreshes, and preserves errors", async () => {
+  for (const reviewed of [false, true]) {
+    for (const fail of [false, true]) {
+      const view = postPanel({ reviewed, fail, hidden: true });
+      assert.equal(view.reviewButtons.length, 1);
+      const active = view.reviewButtons.find(button => !button.props.disabled);
+      assert.equal(active.props.children, reviewed ? "검토 완료" : "미완료");
+      assert.equal(active.props["aria-pressed"], reviewed);
+      active.props.onClick();
+      await new Promise(resolve => setImmediate(resolve));
+      assert.equal(view.calls[0][0], "free-1");
+      assert.equal(view.calls[0][1], !reviewed);
+      assert.equal(view.values[2], false);
+      assert.equal(view.values[8], fail ? 0 : 1);
+      if (fail) { assert.equal(view.values[0], ""); assert.equal(view.values[1], "검토 상태 변경 실패"); }
+      else assert.match(view.values[0], /검토.*변경했어요/);
+    }
+  }
+  for (const options of [{ busy: true }, { loading: true }]) {
+    const view = postPanel(options);
+    assert.ok(view.reviewButtons.every(button => button.props.disabled));
+    view.reviewButtons[0].props.onClick();
+    assert.equal(view.calls.length, 0);
+  }
+});
+
+test("review API uses authenticated PATCH with an encoded ID and explicit target state", async () => {
+  const calls = [], memberFetch = () => {};
+  const api = load("../lib/api/admin-community.ts", {
+    "./client": { apiRequest: (...args) => calls.push(args) },
+    "../member-auth-request": { memberFetch },
+  }, { URLSearchParams, encodeURIComponent });
+  await api.setAdminPostReviewed("test/id", true);
+  await api.setAdminPostReviewed("test/id", false);
+  for (const [index, action] of ["reviewed", "unreviewed"].entries()) {
+    assert.equal(calls[index][0], "/api/v1/community/admin/posts/test%2Fid/");
+    assert.equal(calls[index][1].method, "PATCH");
+    assert.equal(JSON.parse(calls[index][1].body).action, action);
+    assert.equal(calls[index][2], memberFetch);
+  }
+});
 
 test("post hide confirms, refreshes without deleting, and handles errors", async () => {
   for (const options of [{}, { confirm: false }, { fail: true }]) {
@@ -86,13 +166,14 @@ test("failed hold cancellation shows an error, not a success notice", async () =
   assert.equal(view.values[0], "");
   assert.equal(view.values[1], "처리 실패");
 });
-const panels = { AdminMembersPanel: "members-panel", AdminPostsPanel: "posts-panel", AdminReportsPanel: "reports-panel" };
+const panels = { AdminMembersPanel: "members-panel", AdminPostsPanel: "posts-panel", AdminReportsPanel: "reports-panel", ModerationPanel: "moderation-panel" };
 function dashboard(identity, tab = "members", reload = () => {}) {
   return load("../app/admin/page.tsx", {
     "next/link": { __esModule: true, default: "a" },
     "next/navigation": { useSearchParams: () => new URLSearchParams({ tab }) },
     "@/lib/member-auth": { useMemberAuth: () => ({ ...identity, reload }) },
     "@/components/admin-panels": panels,
+    "@/components/community-moderation": { ModerationPanel: panels.ModerationPanel },
   }).AdminDashboard();
 }
 test("dashboard blocks panels while unauthenticated, unavailable, loading or unauthorized", () => {
@@ -104,7 +185,7 @@ test("dashboard blocks panels while unauthenticated, unavailable, loading or una
   ]) assert.equal(nodes(dashboard(identity)).some(n => Object.values(panels).includes(n.type)), false);
 });
 test("each menu mounts only its panel; invalid tabs default to members", () => {
-  for (const [tab, panel] of [["members", "members-panel"], ["posts", "posts-panel"], ["reports", "reports-panel"], ["invalid", "members-panel"]]) {
+  for (const [tab, panel] of [["moderation", "moderation-panel"], ["members", "members-panel"], ["posts", "posts-panel"], ["reports", "reports-panel"], ["invalid", "members-panel"]]) {
     const tree = nodes(dashboard({ status: "authenticated", user: member }, tab));
     assert.deepEqual(tree.filter(n => Object.values(panels).includes(n.type)).map(n => n.type), [panel]);
     assert.equal(tree.filter(n => n.props["aria-current"] === "page").length, 1);
@@ -124,7 +205,7 @@ test("feedback entry shares the primary menu styling and is exclusive to superus
     const tree = nodes(dashboard({ status: "authenticated", user: { ...member, is_superuser } }));
     const menu = tree.find(n => n.type === "nav" && n.props["aria-label"] === "관리 메뉴");
     const links = nodes(menu).filter(n => n.props.href);
-    assert.equal(links.length, is_superuser ? 4 : 3);
+    assert.equal(links.length, is_superuser ? 5 : 4);
     const feedback = tree.filter(n => n.props.href === "/admin/feedback");
     assert.equal(feedback.length, is_superuser ? 1 : 0);
     if (is_superuser) {

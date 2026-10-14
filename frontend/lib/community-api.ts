@@ -24,6 +24,7 @@ let requestGeneration = 0;
 
 const isCount = (value: unknown) => Number.isSafeInteger(value) && Number(value) >= 0;
 const isPositiveInteger = (value: unknown) => Number.isSafeInteger(value) && Number(value) > 0;
+const isRank = (value: unknown) => isPositiveInteger(value) && Number(value) <= 5;
 const timeoutSignal = () => AbortSignal.timeout(15000);
 const jsonInit = (method: string, body?: unknown): RequestInit => ({
   method, cache: "no-store", signal: timeoutSignal(),
@@ -40,6 +41,7 @@ function isPost(value: unknown): value is TeamCommunityPost {
     && ["author", "title", "content"].every(field => typeof post[field] === "string")
     && typeof post.category === "string" && categories.has(post.category)
     && (post.authorId === undefined || post.authorId === null || isPositiveInteger(post.authorId))
+    && (post.authorRank == null || isRank(post.authorRank))
     && (post.createdAt === null || typeof post.createdAt === "string")
     && ["views", "recommendations", "commentCount"].every(field => isCount(post[field]))
     && (post.downvotes === undefined || isCount(post.downvotes))
@@ -71,6 +73,10 @@ function isComment(value: unknown): value is CommunityComment {
   const comment = value as Record<string, unknown>;
   return isPositiveInteger(comment.id) && typeof comment.postId === "string"
     && isPositiveInteger(comment.authorId)
+    && (comment.authorRank == null || isRank(comment.authorRank))
+    && typeof comment.moderationStatus === "string"
+    && ["pending", "review", "error", "rejected", "approved"].includes(comment.moderationStatus)
+    && isCount(comment.revision)
     && ["author", "content", "createdAt", "updatedAt"].every(field => typeof comment[field] === "string");
 }
 
@@ -190,6 +196,10 @@ export function getCommunityPost(id: string) {
   return requestJson(`/api/v1/community/posts/${pathId(id, "게시글")}/`, { cache: "no-store", signal: timeoutSignal() }, isPost, "게시글을 불러오지 못했어요.", false);
 }
 
+export function getOwnCommunityPost(id: string) {
+  return requestJson(`/api/v1/community/submissions/posts/${pathId(id, "게시글")}/`, { cache: "no-store", signal: timeoutSignal() }, isPost, "내 게시글을 불러오지 못했어요.");
+}
+
 export async function createCommunityPost(input: CommunityPostInput, idempotencyKey: string) {
   const key = content(idempotencyKey, "요청 식별자", 128);
   const post = await requestJson("/api/v1/community/posts/", { ...jsonInit("POST", postInput(input)), headers: { "Content-Type": "application/json", "Idempotency-Key": key } }, isPost, "게시글을 등록하지 못했어요.");
@@ -209,7 +219,11 @@ export async function deleteCommunityPost(id: string) {
 }
 
 export function fetchMyCommunityPosts() {
-  return requestJson("/api/v1/community/posts/?mine=1", { cache: "no-store", signal: timeoutSignal() }, (value): value is TeamCommunityPost[] => Array.isArray(value) && value.every(isPost), "내 게시글을 불러오지 못했어요.");
+  return requestJson("/api/v1/community/submissions/posts/", { cache: "no-store", signal: timeoutSignal() }, (value): value is TeamCommunityPost[] => Array.isArray(value) && value.every(isPost), "내 게시글을 불러오지 못했어요.");
+}
+
+export function fetchMyCommunityComments() {
+  return requestJson("/api/v1/community/submissions/comments/", { cache: "no-store", signal: timeoutSignal() }, (value): value is CommunityComment[] => Array.isArray(value) && value.every(isComment), "내 댓글을 불러오지 못했어요.");
 }
 
 export function fetchCommunityComments(postId: string, order: "oldest" | "newest" = "oldest") {

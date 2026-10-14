@@ -40,7 +40,8 @@ from llm.service.chat_thread import purge_deleted_threads, reserve_thread_deleti
 from llm.tests.test_v2_chat import (
     CheckpointTestCase, FakeChain, PausingChain, _read_sse_body, guest_request, history, patch_chain, seed, snapshot,
 )
-from llm.v1.rag import dispatcher, persona
+from llm.v1.rag import dispatcher
+from llm.v2 import persona
 from llm.v1.rag.assistant import pipeline as assistant
 from llm.v1.rag.pipeline import rag_chain
 from llm.views.sse import event_stream_response

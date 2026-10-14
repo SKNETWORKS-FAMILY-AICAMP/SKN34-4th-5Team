@@ -16,6 +16,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer, Toke
 from PIL import Image, UnidentifiedImageError
 
 from .point_policy import DAILY_LOGIN, grant_definition
+from .point_rank import member_rank
 from .point_service import grant_points
 
 User = get_user_model()
@@ -221,9 +222,14 @@ class MemberUserUpdateSerializer(TeamCodeValidationMixin, serializers.ModelSeria
 class MemberUserSerializer(MemberUserUpdateSerializer):
     notifications = NotificationSettingsField(read_only=True)
     visibility = VisibilitySettingsField(read_only=True)
+    rank = serializers.SerializerMethodField()
 
     class Meta(MemberUserUpdateSerializer.Meta):
-        read_only_fields = MemberUserUpdateSerializer.Meta.fields
+        fields = (*MemberUserUpdateSerializer.Meta.fields, "rank")
+        read_only_fields = fields
+
+    def get_rank(self, member) -> int:
+        return member_rank(member)
 
 
 class PasswordUpdateRequestSerializer(serializers.Serializer):

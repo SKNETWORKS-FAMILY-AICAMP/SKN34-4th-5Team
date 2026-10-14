@@ -6,7 +6,7 @@ from django.test import SimpleTestCase
 from django.core.cache.backends.locmem import LocMemCache
 
 from baseball.stadium_locations import reviewed_venue
-from llm.v1.rag.course import agent, editing, place_quality as quality, quality_research, slots, venue_policy
+from llm.v2.course import agent, editing, place_quality as quality, quality_research, slots, venue_policy
 from travel.stadium_food import food_candidates
 
 

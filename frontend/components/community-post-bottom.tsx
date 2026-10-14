@@ -61,7 +61,7 @@ function CommunityPostBottomContent({ post, posts, teamCode, isFree = false, wri
     try {
       await createCommunityComment(post.id, content);
       if (!mounted.current) return;
-      setDraft(""); setMessage("댓글을 등록했어요."); setReload(value => value + 1);
+      setDraft(""); setMessage("댓글을 접수했어요. 검사 완료까지 비공개입니다."); setReload(value => value + 1);
     } catch (reason) {
       if (mounted.current) setError(errorMessage(reason, "댓글을 등록하지 못했어요."));
     } finally {
@@ -77,7 +77,7 @@ function CommunityPostBottomContent({ post, posts, teamCode, isFree = false, wri
     try {
       await updateCommunityComment(commentId, content);
       if (!mounted.current) return;
-      setEditingId(null); setEditingContent(""); setMessage("댓글을 수정했어요."); setReload(value => value + 1);
+      setEditingId(null); setEditingContent(""); setMessage("댓글을 수정했어요. 재검사 완료까지 비공개입니다."); setReload(value => value + 1);
     } catch (reason) {
       if (mounted.current) setError(errorMessage(reason, "댓글을 수정하지 못했어요."));
     } finally {
@@ -105,7 +105,7 @@ function CommunityPostBottomContent({ post, posts, teamCode, isFree = false, wri
   return <>
     <section className={styles.authorProfile} aria-label="작성자 프로필">
       <img src="/images/default-avatar.svg" width="56" height="56" alt="작성자 기본 프로필" />
-      <div><strong><CommunityMemberLink memberId={post.authorId} nickname={post.author} /></strong><p>{!isFree && <>{getTeamBoard(post.teamCode)?.shortName} · </>}작성자</p></div>
+      <div><strong><CommunityMemberLink memberId={post.authorId} nickname={post.author} rank={post.authorRank} /></strong><p>{!isFree && <>{getTeamBoard(post.teamCode)?.shortName} · </>}작성자</p></div>
     </section>
     <section className={styles.comments} aria-label="댓글">
       <header><h3>댓글 <b>{loading ? (post.commentCount ?? 0) : comments.length}</b></h3><div><button type="button" aria-pressed={order === "oldest"} onClick={() => { if (order !== "oldest") { setLoading(true); setError(""); setOrder("oldest"); } }}>등록순</button><button type="button" aria-pressed={order === "newest"} onClick={() => { if (order !== "newest") { setLoading(true); setError(""); setOrder("newest"); } }}>최신순</button><button type="button" disabled={loading} onClick={() => { setLoading(true); setError(""); setReload(value => value + 1); }}>↻ 새로고침</button></div></header>
@@ -115,7 +115,7 @@ function CommunityPostBottomContent({ post, posts, teamCode, isFree = false, wri
             <textarea aria-label="수정할 댓글 내용" value={editingContent} onChange={event => setEditingContent(event.target.value)} maxLength={2000} required />
             <div><button type="submit" disabled={saving}>저장</button><button type="button" disabled={saving} onClick={() => setEditingId(null)}>취소</button></div>
           </form> : <>
-            <div className={styles.commentMeta}><strong><CommunityMemberLink memberId={comment.authorId} nickname={comment.author} /></strong><time dateTime={comment.createdAt}>{new Date(comment.createdAt).toLocaleString("ko-KR")}</time></div>
+            <div className={styles.commentMeta}><strong><CommunityMemberLink memberId={comment.authorId} nickname={comment.author} rank={comment.authorRank} /></strong><time dateTime={comment.createdAt}>{new Date(comment.createdAt).toLocaleString("ko-KR")}</time></div>
             <p>{comment.content}</p>
             {comment.authorId === actorId && <div className={styles.commentActions}><button type="button" disabled={saving} onClick={() => { setEditingId(comment.id); setEditingContent(comment.content); }}>수정</button><button type="button" disabled={saving} onClick={() => void removeComment(comment.id)}>삭제</button></div>}
           </>}
@@ -125,7 +125,7 @@ function CommunityPostBottomContent({ post, posts, teamCode, isFree = false, wri
         <textarea aria-label="댓글 내용" placeholder={actorId ? "댓글을 입력해 주세요." : "로그인 후 댓글을 작성할 수 있어요."} value={draft} onChange={event => setDraft(event.target.value)} maxLength={2000} required disabled={!actorId || saving} />
         <button type="submit" disabled={!actorId || saving}>{saving ? "처리 중" : "등록"}</button>
       </form> : <p className={styles.bottomNote}>댓글 작성은 <Link href="/login">로그인</Link> 후 이용할 수 있어요.</p>}
-      {message && <p role="status" className={styles.bottomNote}>{message}</p>}
+      {message && <p role="status" className={styles.bottomNote}>{message} <Link href="/community/submissions">내 검사 상태</Link></p>}
       {error && <p role="alert" className={styles.errorNote}>{error}</p>}
     </section>
     <nav className={styles.articleNavigation} aria-label="게시글 이동">

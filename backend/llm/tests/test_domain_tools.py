@@ -16,7 +16,7 @@ from baseball import models as baseball
 from community.models import CommunityDraft, CommunityPost, GamePrediction, PredictionGame
 from travel.models import Course, CourseStop
 
-from ..v1.rag import domain_tools
+from llm.v2 import domain_tools
 from ..tools import DOMAIN_TOOL_NAMES, create_default_tools, create_domain_tools
 
 
@@ -75,7 +75,7 @@ class DomainToolsTest(TestCase):
         baseball.StadiumContent.objects.create(id=990001, record_code="TEST-CONT1", stadium=cls.stadium, content_type="photo", name="포토존", floor="1", location="중앙", official_description="사진 장소", operating_condition="상시", collected_at=now)
         cls.course = Course.objects.create(id=uuid4(), route_number="900001", title="잠실 맛집 코스", stadium="잠실", description="경기 전", content="외부 문자열", duration="3시간", tags=["맛집"], author="공개 작성자", edit_token_hash="secret-hash")
         CourseStop.objects.create(course=cls.course, position=0, name="식당", lat=37.5, lng=127.0, category="식당", visit_id="private-provider-token")
-        CommunityPost.objects.create(source_id="post-1", post_number="900001", board="teams", team_code="LG", owner=None, idempotency_key="private-key", author="작성자", title="잠실 질문", content="외부 문자열", category="질문")
+        CommunityPost.objects.create(moderation_status="approved", approved_revision=0, source_id="post-1", post_number="900001", board="teams", team_code="LG", owner=None, idempotency_key="private-key", author="작성자", title="잠실 질문", content="외부 문자열", category="질문")
         cls.prediction = PredictionGame.objects.create(source_id="prediction-1", game_date=date(2026, 9, 15), starts_at=now, stadium="잠실", away_team_code="OB", away_team_name="두산", home_team_code="LG", home_team_name="LG", status="scheduled", source_fetched_at=now)
         cls.voter_home = get_user_model().objects.create_user(username="domain-home")
         cls.voter_away = get_user_model().objects.create_user(username="domain-away")
@@ -251,7 +251,7 @@ class DomainToolsTest(TestCase):
                 self.assertEqual(self.tools[name].invoke(args), "도구 입력 형식이 올바르지 않습니다. 인자 설명을 확인하세요.")
 
     def test_public_links_hidden_posts_and_separate_facility_catalogue(self):
-        CommunityPost.objects.create(source_id="hidden-test", post_number="900002", board="free", author="공개", title="잠실 숨김", content="hidden-secret", category="질문", is_hidden=True)
+        CommunityPost.objects.create(moderation_status="approved", approved_revision=0, source_id="hidden-test", post_number="900002", board="free", author="공개", title="잠실 숨김", content="hidden-secret", category="질문", is_hidden=True)
         posts = self.tools["search_community_posts"].invoke({"query": "잠실"})
         self.assertNotIn("hidden-secret", json.dumps(posts))
         item = next(row for row in posts["items"] if row["source_id"] == "post-1")
@@ -266,6 +266,35 @@ class DomainToolsTest(TestCase):
         maps = self.tools["get_seat_maps"].invoke({"season": 2099, "team_code": "LG"})
         self.assertEqual(maps["items"][0]["detailPath"], "/stadiums/TEST-JAMSIL")
         self.assertIsNone(maps["items"][0]["collected_at"])
+
+    def test_get_stadium_accepts_korean_stadium_name_as_code(self):
+        baseball.Stadium.objects.get_or_create(stadium_code="JAMSIL", defaults={
+            "id": 990077, "stadium_name_ko": "잠실야구장", "address": "서울", "longitude": "127.071", "latitude": "37.512",
+            "geocode_source": "official", "collected_at": timezone.now()})
+        for code in ("JAMSIL", "잠실야구장", "잠실"):
+            with self.subTest(code=code):
+                self.assertEqual(self.tools["get_stadium"].invoke({"stadium_code": code})["item"]["stadium_code"], "JAMSIL")
+        self.assertIsNone(self.tools["get_stadium"].invoke({"stadium_code": "없는구장"})["item"])
+
+    def test_directions_summary_in_minutes_and_km(self):
+        from llm.tools.travel import with_summary
+        raw = {"mode": "walk", "distance": 3091, "seconds": 2946,
+               "legs": [{"status": "ok", "distance": 3091, "seconds": 2946, "paths": [], "instructions": []}]}
+        result = with_summary(raw)
+        self.assertEqual((result["durationMinutes"], result["distanceKm"], result["legs"][0]["minutes"]), (49, 3.1, 49))
+        self.assertEqual(with_summary({"mode": "walk", "legs": []})["durationMinutes"], None)
+
+    def test_directions_accepts_latitude_longitude_points_from_place_tools(self):
+        directions = {"mode": "walk", "legs": [], "distance": 3091, "seconds": 2946}
+        with patch("travel.directions_provider.fetch_directions", return_value=directions) as fetch:
+            result = self.tools["get_directions"].invoke({"mode": "walk", "points": [
+                {"latitude": 37.5133, "longitude": 127.1002}, {"latitude": "37.51218540", "longitude": "127.07185130"}]})
+        fetch.assert_called_once_with("walk", [{"lat": 37.5133, "lng": 127.1002}, {"lat": 37.5121854, "lng": 127.0718513}])
+        self.assertEqual(result["durationMinutes"], 49)
+        with patch("travel.directions_provider.fetch_directions") as fetch:
+            self.tools["get_directions"].invoke({"mode": "walk", "points": [{"latitude": 37.5, "longitude": 127.0, "x": 1.0}, {"lat": 37.6, "lng": 127.1}]})
+            self.tools["get_directions"].invoke({"mode": "walk", "points": [{"latitude": "abc", "longitude": 127.0}, {"lat": 37.6, "lng": 127.1}]})
+        fetch.assert_not_called()  # 다른 키가 섞이거나 숫자가 아니면 그대로 형식 오류
 
     def test_database_errors_are_sanitized(self):
         with patch("llm.tools.stadium.Stadium.objects.filter", side_effect=DatabaseError("password=private")):
@@ -365,7 +394,7 @@ class ExternalDomainToolAdapterTest(SimpleTestCase):
         with patch("travel.directions_provider.fetch_directions", return_value=directions) as fetch:
             self.assertEqual(self.tools["get_directions"].invoke({
                 "mode": "walk", "points": [{"lat": 37.5, "lng": 127.0}, {"lat": 37.6, "lng": 127.1}],
-            }), directions)
+            }), {**directions, "durationMinutes": 0, "distanceKm": 0.0})
         fetch.assert_called_once()
         with patch("travel.tourism_service.search_tourism", return_value=tourism) as search:
             self.assertEqual(self.tools["search_tourism"].invoke({

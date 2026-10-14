@@ -17,7 +17,7 @@ npm run dev
 
 팀 Docker 환경은 저장소 루트에서 `docker compose up -d --build`로 실행합니다. 이번 변경에서 한글 글꼴 패키지 `@fontsource-variable/noto-sans-kr`를 추가했으므로 의존성 설치 또는 재빌드가 필요합니다. 전체 Docker 환경 구동은 별도 확인이 필요합니다.
 
-지도 기능을 로컬 Node로 실행할 때는 `frontend/.env.example`을 참고해 `frontend/.env.local`에 공개 JavaScript 키만 설정합니다. 팀 Docker에서는 루트 `.env.example`의 `NEXT_PUBLIC_KAKAO_MAP_KEY`, `KAKAO_REST_API_KEY`, `TOUR_API_KEY`를 사용하며 REST·관광공사 키는 Django backend에만 전달됩니다. 배포 주소도 카카오 JavaScript SDK 도메인에 등록해야 합니다.
+지도 기능을 로컬 Node로 실행할 때는 `frontend/.env.example`을 참고해 `frontend/.env.local`에 공개 JavaScript 키만 설정합니다. 팀 Docker에서는 루트 `.env.example`의 `NEXT_PUBLIC_KAKAO_MAP_KEY`를 프론트 컨테이너 런타임 환경변수로 전달하고, `/runtime-config/kakao-map`이 이 키만 브라우저에 제공합니다. 운영 이미지는 지도 키 없이 CI에서 빌드하므로 키 설정 변경에 EC2 재빌드는 필요하지 않습니다. `KAKAO_REST_API_KEY`와 `TOUR_API_KEY`는 Django backend에만 전달됩니다. 배포 주소도 카카오 JavaScript SDK 도메인에 등록해야 합니다.
 
 ## 화면과 현재 동작
 

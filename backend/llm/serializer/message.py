@@ -28,7 +28,7 @@ def _validate_context(value):
     cleaned = {}
 
     if "currentCourse" in value:
-        from llm.v1.rag.course.edit_context import validate
+        from llm.v2.course.edit_context import validate
         try:
             cleaned["currentCourse"] = validate(value["currentCourse"])
         except (ValueError, TypeError, OverflowError):
@@ -319,7 +319,7 @@ def project_history(messages, turns, detail=False):
                         item["planning"] = payload
                 from llm.v2.agent.course_output import course_artifacts
                 for artifact in course_artifacts([message]) if status == TurnStatus.COMPLETED else ():
-                    from llm.v1.rag.course.memory import public as public_preferences
+                    from llm.v2.course.memory import public as public_preferences
                     if preferences := public_preferences(artifact.get("course_memory")):
                         item["coursePreferences"] = preferences
                     payload = public_course(artifact.get("course"))

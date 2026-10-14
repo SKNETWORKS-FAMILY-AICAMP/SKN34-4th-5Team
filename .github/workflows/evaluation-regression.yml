@@ -18,6 +18,8 @@ env:
   LANGCHAIN_TRACING_V2: 'false'
 
 jobs:
+  community-moderation:
+    uses: ./.github/workflows/community-moderation.yml
   provider-quality-required:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
@@ -77,6 +79,8 @@ jobs:
         run: python -I -c 'import tiktoken; tiktoken.get_encoding("cl100k_base")'
       - name: Full highlight Django regression (disposable PostgreSQL, no provider network)
         run: python -I .github/evaluation_ci.py offline-exec backend/manage.py test llm.tests.test_highlights llm.tests.test_highlight_multimodal_web.MultimodalHTTPTests --settings=llm.tests.highlight_settings --noinput --verbosity=2
+      - name: Course menu evidence regression (same disposable PostgreSQL, no provider network)
+        run: python -I .github/evaluation_ci.py offline-exec backend/manage.py test llm.tests.test_course_evidence --settings=llm.tests.highlight_settings --noinput --verbosity=2
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -84,9 +88,11 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
         working-directory: frontend
-      - name: Highlight title frontend regression
-        run: node --test tests/youtube-highlight.test.mjs
+      - name: Highlight title and API proxy frontend regression
+        run: node --test tests/youtube-highlight.test.mjs tests/auth-bridge.test.mjs
         working-directory: frontend
+      - name: Lodging collector URL and challenge regression
+        run: node docker/jev-browser/test-direct-lodging.mjs
       - run: python -I .github/test_evaluation_ci.py
       - run: python -I .github/test_evaluation_ab.py
       - run: python -I .github/test_evaluation_luna.py LunaExportIntegrationTest
@@ -94,12 +100,19 @@ jobs:
         env:
           TIKTOKEN_CACHE_DIR: ${{ runner.temp }}/evaluation-tiktoken
       - uses: actions/upload-artifact@v4
+        with:
+          name: course-contract-export
+          path: ${{ runner.temp }}/evaluation-free/tonkatsu.json
+          if-no-files-found: error
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: evaluation-free-summary
           path: ${{ runner.temp }}/evaluation-free/ci-summary.json
           retention-days: 7
   highlight-deterministic:
+    needs: deterministic
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -111,6 +124,12 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r .github/requirements-highlight.txt
+      - uses: actions/download-artifact@v4
+        with:
+          name: course-contract-export
+          path: ${{ runner.temp }}/course-contract
+      - name: Replay actual meal replacement contracts with Ragas (no provider calls)
+        run: python -I .github/evaluation_ci.py offline-exec backend/llm/v2/evaluation/tonkatsu_contract.py score --input "$RUNNER_TEMP/course-contract/tonkatsu.json" --output "$RUNNER_TEMP/course-contract/ragas.json"
       - run: python -I .github/test_evaluation_luna.py LunaSDKTest
       - run: python -I .github/evaluation_ci.py highlight-free --output "$RUNNER_TEMP/highlight-free"
       - uses: actions/upload-artifact@v4

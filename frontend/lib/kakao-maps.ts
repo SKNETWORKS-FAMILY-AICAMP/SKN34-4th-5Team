@@ -36,38 +36,60 @@ export type KakaoMaps = {
 declare global { interface Window { kakao?: { maps: KakaoMaps } } }
 let loading: Promise<KakaoMaps> | undefined;
 
+async function getKakaoMapKey() {
+  const response = await fetch("/runtime-config/kakao-map", {
+    cache: "no-store",
+    signal: AbortSignal.timeout(5000),
+  });
+  if (!response.ok) throw new Error("카카오 지도 설정을 불러오지 못했어요.");
+
+  const config: unknown = await response.json();
+  if (typeof config !== "object" || config === null || !("kakaoMapKey" in config)) {
+    throw new Error("카카오 지도 설정을 확인할 수 없어요.");
+  }
+  const key = config.kakaoMapKey;
+  if (typeof key !== "string" || !key.trim()) {
+    throw new Error("지도를 연결할 수 없어요. 지도 설정을 확인한 뒤 다시 시도해 주세요.");
+  }
+  return key.trim();
+}
+
 export function loadKakaoMaps(options?: { referrerPolicy?: ReferrerPolicy }): Promise<KakaoMaps> {
   if (window.kakao?.maps?.Map) return Promise.resolve(window.kakao.maps);
   if (loading) return loading;
-  const key = process.env.NEXT_PUBLIC_KAKAO_MAP_KEY?.trim();
-  if (!key) return Promise.reject(new Error("지도를 연결할 수 없어요. 지도 설정을 확인한 뒤 다시 시도해 주세요."));
-  loading = new Promise<KakaoMaps>((resolve, reject) => {
-    const script = document.createElement("script");
-    let settled = false;
-    const fail = () => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timeout);
-      script.remove();
-      loading = undefined;
-      reject(new Error("지도를 불러오지 못했어요. 잠시 후 다시 시도하거나 카카오맵에서 확인해 주세요."));
-    };
-    const timeout = setTimeout(fail, 12000);
-    script.async = true;
-    script.referrerPolicy = options?.referrerPolicy ?? "no-referrer";
-    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(key)}&autoload=false`;
-    script.onerror = fail;
-    script.onload = () => {
-      if (!window.kakao?.maps?.load) { fail(); return; }
-      window.kakao.maps.load(() => {
+  loading = (async () => {
+    const key = await getKakaoMapKey();
+    return new Promise<KakaoMaps>((resolve, reject) => {
+      const script = document.createElement("script");
+      let settled = false;
+      const fail = () => {
         if (settled) return;
-        if (!window.kakao?.maps?.Map) { fail(); return; }
         settled = true;
         clearTimeout(timeout);
-        resolve(window.kakao.maps);
-      });
-    };
-    document.head.appendChild(script);
+        script.remove();
+        loading = undefined;
+        reject(new Error("지도를 불러오지 못했어요. 잠시 후 다시 시도하거나 카카오맵에서 확인해 주세요."));
+      };
+      const timeout = setTimeout(fail, 12000);
+      script.async = true;
+      script.referrerPolicy = options?.referrerPolicy ?? "no-referrer";
+      script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(key)}&autoload=false`;
+      script.onerror = fail;
+      script.onload = () => {
+        if (!window.kakao?.maps?.load) { fail(); return; }
+        window.kakao.maps.load(() => {
+          if (settled) return;
+          if (!window.kakao?.maps?.Map) { fail(); return; }
+          settled = true;
+          clearTimeout(timeout);
+          resolve(window.kakao.maps);
+        });
+      };
+      document.head.appendChild(script);
+    });
+  })().catch(error => {
+    loading = undefined;
+    throw error;
   });
   return loading;
 }

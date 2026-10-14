@@ -6,8 +6,8 @@ from rest_framework.exceptions import ValidationError
 
 from llm.serializer.message import _validate_context
 from llm.tests.test_course_editing import CURRENT, PLACES, GAME, plan
-from llm.v1.rag.course import agent, editing, memory
-from llm.v1.rag.course.selection import selected_relative_request
+from llm.v2.course import agent, editing, memory
+from llm.v2.course.selection import selected_relative_request
 from llm.v2.middleware.jev_guidelines import selected_context_text, _context_text
 
 

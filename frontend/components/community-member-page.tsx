@@ -9,6 +9,7 @@ import { fetchCommunityMember, fetchCommunityMemberPosts, fetchCommunityMemberCo
 import { useMemberAuth } from "@/lib/member-auth";
 import { activityHref, memberActivityLoginHref, type ActivityTab } from "@/lib/member-return-path";
 import { getCommunityPostHref, getTeamBoard } from "@/lib/team-community";
+import { MemberName } from "./member-name";
 import styles from "./community-member-page.module.css";
 
 type Props = { memberId: number; tab: ActivityTab; page: number };
@@ -96,7 +97,7 @@ function ActivityContent({ memberId, tab, page, viewerId }: Props & { viewerId: 
   return <main className={`container ${styles.page}`}>
     <p className={styles.eyebrow}>COMMUNITY MEMBER</p>
     <header className={styles.header}>
-      <h1>{state.kind === "ready" ? `${state.data.member.nickname}님의 활동` : "멤버 활동"}</h1>
+      <h1>{state.kind === "ready" ? <MemberName name={state.data.member.nickname} rank={state.data.member.rank} suffix="님의 활동" /> : "멤버 활동"}</h1>
       <p>작성한 게시글과 댓글을 최신순으로 확인할 수 있습니다.</p>
     </header>
     <nav className={styles.tabs} aria-label="멤버 활동 종류">

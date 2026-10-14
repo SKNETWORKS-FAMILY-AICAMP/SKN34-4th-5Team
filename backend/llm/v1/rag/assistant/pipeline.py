@@ -24,8 +24,8 @@ from datetime import date
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import RunnableLambda
 
-from ...progress import ProgressCancelled, ProgressStorageError, config_kwargs, current, operation
-from ..domain_tools import visible_text
+from llm.v2.progress import ProgressCancelled, ProgressStorageError, config_kwargs, current, operation
+from llm.v2.domain_tools import visible_text
 from ....tools import assistant as tools
 from .prompts import COURSE_HINT, HINT_LINE, NEARBY_HINT, SYSTEM
 
@@ -60,7 +60,7 @@ PLANNER_RULE = (
 # ── 1. RAG ────────────────────────────────────────────────────────────────────
 def stadium_for(question, history, hint):
     """질문 → 직전 사용자 발화 → 화면에서 고른 구장 순."""
-    from ..club.router import detect_stadium
+    from llm.v2.club.router import detect_stadium
     code = detect_stadium(question)
     if not code:
         for m in reversed(history or []):
@@ -72,7 +72,7 @@ def stadium_for(question, history, hint):
 
 def retrieve(inputs: dict, _search=None, _embed=None) -> dict:
     """질문으로 문서를 먼저 찾아 inputs["context"] 에 넣는다. 검색이 실패해도 답은 계속 만든다."""
-    from ..club.router import detect_categories
+    from llm.v2.club.router import detect_categories
     question = inputs["question"]
     stadium = stadium_for(question, inputs.get("history"), inputs.get("hint"))
     cats = [c for c in detect_categories(question) if c not in ("SCHEDULE", "STANDING")] or None   # 일정·순위는 DB 가 정본
@@ -92,7 +92,7 @@ def retrieve(inputs: dict, _search=None, _embed=None) -> dict:
 def route_hint(question) -> str:
     """코스·주변장소 질문이면 알맞은 도구를 먼저 쓰라고 한 줄 알려 준다 (분기가 아니라 힌트)."""
     from ..dispatcher import COURSE
-    from ..nearby.agent import kinds_of
+    from llm.v2.nearby.agent import kinds_of
     if COURSE.search(question):
         return COURSE_HINT
     kinds = kinds_of(question)

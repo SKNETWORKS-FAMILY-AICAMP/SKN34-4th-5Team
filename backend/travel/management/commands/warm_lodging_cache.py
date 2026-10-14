@@ -7,7 +7,7 @@ from threading import Event
 from django.core.management.base import BaseCommand, CommandError
 from django.db import connections
 
-from llm.v1.rag.nearby.kakao import STADIUM_QUERY
+from llm.v2.nearby.kakao import STADIUM_QUERY
 from llm.service.chat_runs import _cancelled, Stopped
 from travel.lodging_warmer import warm
 

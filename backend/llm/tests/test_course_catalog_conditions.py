@@ -1,6 +1,6 @@
 from unittest.mock import patch
 from django.test import SimpleTestCase
-from llm.v1.rag.course import catalog_conditions as catalog, evidence_memory, editing, agent
+from llm.v2.course import catalog_conditions as catalog, evidence_memory, editing, agent
 
 
 class CatalogConditionsTests(SimpleTestCase):
@@ -20,7 +20,7 @@ class CatalogConditionsTests(SimpleTestCase):
             choose.assert_called_once()
 
     def test_incomplete_probe_does_not_cache_failure_for_normal_condition_search(self):
-        from llm.v1.rag.course import place_quality
+        from llm.v2.course import place_quality
         row = {"placeId": "1", "name": "식당", "lat": 37.51, "lng": 127.08, "category": "FOOD_OUT"}
         state = {"conditions": [{"scope": "FOOD", "text": "돈까스"}]}
         cache = {}

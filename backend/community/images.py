@@ -16,6 +16,7 @@ from rest_framework.views import APIView
 from .image_schemas import image_metadata
 from .image_storage import ObjectNotFound, StorageUnavailable, delete_object, get_object, put_object
 from .models import CommunityImage
+from .visibility import post_public
 
 
 logger = logging.getLogger(__name__)
@@ -158,7 +159,7 @@ class CommunityImageDetailView(APIView):
     permission_classes = (AllowAny,)
 
     def _get_image(self, image_id):
-        return CommunityImage.objects.select_related("draft").filter(pk=image_id).first()
+        return CommunityImage.objects.select_related("post", "draft__published_post").filter(pk=image_id).first()
 
     @extend_schema(
         responses={
@@ -171,8 +172,9 @@ class CommunityImageDetailView(APIView):
         image = self._get_image(image_id)
         if image is None:
             return Response(status=status.HTTP_404_NOT_FOUND)
-        published = _published(image)
-        if not published and (not request.user.is_authenticated or image.owner_id != request.user.pk):
+        parent = image.post if image.post_id else image.draft.published_post if image.draft_id and image.draft.published_post_id else None
+        published = post_public(parent) if parent else bool(image.course_id)
+        if not published and (not request.user.is_authenticated or not (image.owner_id == request.user.pk or request.user.is_staff)):
             return Response(status=status.HTTP_404_NOT_FOUND)
 
         try:
@@ -192,7 +194,7 @@ class CommunityImageDetailView(APIView):
         response = StreamingHttpResponse(chunks(), content_type=image.content_type)
         response["Content-Length"] = image.size
         response["X-Content-Type-Options"] = "nosniff"
-        response["Cache-Control"] = "public, max-age=60" if published else "private, no-store"
+        response["Cache-Control"] = "no-store" if published else "private, no-store"
         return response
 
     @extend_schema(

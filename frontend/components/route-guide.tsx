@@ -261,7 +261,8 @@ async function runGuide(host: HTMLElement, scroller: HTMLElement, onClose: () =>
     allowClose: false,
     // Clicking the dimmed area (e.g. a greyed-out stadium) must not end the guide; use × or Esc.
     overlayClickBehavior: () => undefined,
-    showProgress: false,
+    showProgress: true,
+    progressText: "{{current}} / {{total}}",
     nextBtnText: "다음",
     prevBtnText: "이전",
     doneBtnText: "완료",
@@ -281,7 +282,7 @@ async function runGuide(host: HTMLElement, scroller: HTMLElement, onClose: () =>
           description: "가고 싶은 구장을 먼저 선택하실 수 있어요.",
           side: "top",
           align: "end",
-          showButtons: [],
+          showButtons: ["previous", "next"],
         },
         // Pressing the select opens the guide list instead of the native popup.
         onHighlighted: (element) => {
@@ -301,13 +302,18 @@ async function runGuide(host: HTMLElement, scroller: HTMLElement, onClose: () =>
         onDeselected: release,
       },
       {
-        element: inHost(`#${TARGET_ID}`),
+        element: () => {
+          const stadium = select();
+          if (stadium) openStadiumList(host, stadium);
+          return find(`#${TARGET_ID}`) ?? host;
+        },
         popover: {
           title: "광주-KIA 챔피언스 필드",
+          onNextClick: () => (find(`#${TARGET_ID}`) as HTMLElement | null)?.click(),
           description: "원활한 안내를 위해 챔피언스 필드를 선택해보겠습니다.",
           side: "right",
           align: "center",
-          showButtons: [],
+          showButtons: ["previous", "next"],
         },
         onHighlighted: (element) => {
           if (!element) return;
@@ -322,7 +328,9 @@ async function runGuide(host: HTMLElement, scroller: HTMLElement, onClose: () =>
             const changed = Boolean(stadium && stadium.value !== TARGET_STADIUM);
             if (stadium) chooseStadium(stadium, TARGET_STADIUM);
             closeStadiumList(host);
+            const stepIndex = tour.getActiveIndex();
             if (changed) await waitForPlanner(host, previousMap);
+            if (closed || tour.getActiveIndex() !== stepIndex) return;
             scroller.scrollTo({ top: 0, behavior: "instant" });
             finishOrNext();
           };
@@ -331,7 +339,7 @@ async function runGuide(host: HTMLElement, scroller: HTMLElement, onClose: () =>
           (element as HTMLElement).focus({ preventScroll: true });
           cleanup = () => { element.remove(); };
         },
-        onDeselected: release,
+        onDeselected: () => { release(); closeStadiumList(host); },
       },
       {
         // 카테고리 줄 전체만 비춘다. 눌러도 실제 필터는 바뀌지 않고(연출) 다음 단계로만 넘어간다.
@@ -341,7 +349,7 @@ async function runGuide(host: HTMLElement, scroller: HTMLElement, onClose: () =>
           description: "보고 싶은 카테고리를 선택할 수 있어요.",
           side: "top",
           align: "start",
-          showButtons: [],
+          showButtons: ["previous", "next"],
         },
         onHighlightStarted: () => scroller.scrollTo({ top: 0, behavior: "instant" }),
         onHighlighted: (element) => {
@@ -364,10 +372,11 @@ async function runGuide(host: HTMLElement, scroller: HTMLElement, onClose: () =>
         element: inHost(".planner-map-stage"),
         popover: {
           title: "출발점 선택",
+          onNextClick: () => (find("#planner-guide-origin") as HTMLElement | null)?.click(),
           description: "챗봇 사용 전 출발점을 선택하셔야 합니다.<br />출발점을 선택해주세요.",
           side: "right",
           align: "start",
-          showButtons: [],
+          showButtons: ["previous", "next"],
         },
         onHighlightStarted: () => {
           window.dispatchEvent(new CustomEvent<GuidePoint | null>(GUIDE_ORIGIN_TARGET, { detail: GUIDE_ORIGIN }));
@@ -395,7 +404,7 @@ async function runGuide(host: HTMLElement, scroller: HTMLElement, onClose: () =>
           description: "코스 생성을 위한 조건을 입력해주세요",
           side: "left",
           align: "center",
-          showButtons: [],
+          showButtons: ["previous", "next"],
         },
         onHighlightStarted: () => {
           // 모바일에서는 챗봇이 탭 뒤에 있으니 먼저 챗봇 탭을 연다
@@ -440,7 +449,7 @@ async function runGuide(host: HTMLElement, scroller: HTMLElement, onClose: () =>
           description: "챗봇이 조건을 분석한 뒤 코스를 생성해줍니다.<br />원활한 가이드 진행을 위해 예시 코스를 생성했습니다.",
           side: "right",
           align: "start",
-          showButtons: [],
+          showButtons: ["previous", "next"],
         },
         onHighlightStarted: () => {
           window.dispatchEvent(new CustomEvent<GuideCourseStop[]>(GUIDE_COURSE, { detail: GUIDE_COURSE_STOPS }));
@@ -478,7 +487,7 @@ async function runGuide(host: HTMLElement, scroller: HTMLElement, onClose: () =>
           description: "내 코스의 상세 정보를 볼 수 있어요",
           side: "right",
           align: "center",
-          showButtons: [],
+          showButtons: ["previous", "next"],
         },
         onHighlighted: (element) => {
           if (!element) return;
@@ -500,7 +509,7 @@ async function runGuide(host: HTMLElement, scroller: HTMLElement, onClose: () =>
           description: "해당 코스는 수정이 가능합니다",
           side: "bottom",
           align: "center",
-          showButtons: [],
+          showButtons: ["previous", "next"],
         },
         onHighlighted: (element) => {
           if (!element) return;
@@ -522,7 +531,7 @@ async function runGuide(host: HTMLElement, scroller: HTMLElement, onClose: () =>
           description: "코스가 확정되면 코스를 저장할 수 있습니다",
           side: "right",
           align: "center",
-          showButtons: [],
+          showButtons: ["previous", "next"],
         },
         onHighlighted: (element) => {
           const field = host.querySelector<HTMLInputElement>("#planner-course-name");
@@ -562,7 +571,7 @@ async function runGuide(host: HTMLElement, scroller: HTMLElement, onClose: () =>
           description: "코스가 저장되었습니다.<br />해당 코스를 다른 사람들과 공유할 수 있어요",
           side: "right",
           align: "center",
-          showButtons: [],
+          showButtons: ["previous", "next"],
         },
         onHighlighted: (element) => {
           if (!element) return;
@@ -582,7 +591,7 @@ async function runGuide(host: HTMLElement, scroller: HTMLElement, onClose: () =>
           popoverClass: "route-guide-popover route-guide-final",
           title: "가이드를 마쳤어요",
           description: includeMemberSteps ? "나만의 코스를 공유하고 다른 사람들의 코스도 구경해보세요" : "지도에서 나만의 코스를 구성해보세요. 이야기 작성과 코스 저장은 로그인 후 이용할 수 있어요.",
-          showButtons: ["next"],
+          showButtons: ["previous", "next"],
           doneBtnText: "가이드 종료",
           // 캐릭터가 말풍선 오른쪽에 서서 팔을 말풍선에 걸친다
           onPopoverRender: (popover) => {

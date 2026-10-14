@@ -19,7 +19,8 @@ def _stadium_image(item):
 
 class StadiumInput(ToolInput):
     stadium_id: StrictInt | None = Field(default=None, ge=1)
-    stadium_code: str | None = Field(default=None, min_length=1, max_length=40)
+    stadium_code: str | None = Field(default=None, min_length=1, max_length=40,
+                                     description="구장 코드(JAMSIL 등). 한글 구장 이름(잠실야구장·문학 등)도 코드로 바꿔 조회한다")
 
     @model_validator(mode="after")
     def exactly_one(self):
@@ -78,6 +79,10 @@ def create_stadium_tools():
 
     def get_stadium(stadium_id=None, stadium_code=None):
         """ID 또는 코드로 공개 구장 정보를 조회한다."""
+        if stadium_id is None and not Stadium.objects.filter(stadium_code=stadium_code).exists():
+            # 모델이 코드 자리에 "잠실야구장"처럼 한글 이름을 넣는 경우(chat_eval route1). 코스·문서 검색과 같은 공용 변환을 쓴다.
+            from .assistant import to_stadium_code
+            stadium_code = to_stadium_code(stadium_code) or stadium_code
         query = Stadium.objects.filter(id=stadium_id) if stadium_id is not None else Stadium.objects.filter(stadium_code=stadium_code)
         item = _rows(query, ("id", "stadium_code", "stadium_name_ko", "address", "longitude", "latitude", "facility_manager", "game_operator", "phone_general", "phone_facility", "phone_ticket", "geocode_source", "collected_at", *IMAGE_FIELDS), 1)
         if item:

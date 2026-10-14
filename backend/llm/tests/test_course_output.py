@@ -5,7 +5,7 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage, messag
 
 from llm.serializer.message import done_payload, project_history, public_frame
 from llm.v2.agent.course_output import public_course
-from llm.v1.rag.course import agent as course
+from llm.v2.course import agent as course
 
 
 COURSE = {"stadiumCode": "JAMSIL", "places": [

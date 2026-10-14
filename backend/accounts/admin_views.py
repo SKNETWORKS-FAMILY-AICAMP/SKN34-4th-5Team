@@ -5,14 +5,14 @@ from django.contrib.auth import get_user_model
 from django.contrib.admin.models import LogEntry, CHANGE
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Count, Q
 from rest_framework import generics, serializers
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import BasePermission
 from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.views import APIView
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 
 
 class StaffOnly(BasePermission):
@@ -26,9 +26,11 @@ class MasterOnly(StaffOnly):
 
 
 class AdminMemberSerializer(serializers.ModelSerializer):
+    report_count = serializers.IntegerField(read_only=True)
+
     class Meta:
         model = get_user_model()
-        fields = ("id", "username", "is_active", "is_staff", "is_superuser", "date_joined")
+        fields = ("id", "username", "is_active", "is_staff", "is_superuser", "date_joined", "report_count")
         read_only_fields = fields
 
 
@@ -41,8 +43,18 @@ class MemberList(generics.ListAPIView):
     serializer_class = AdminMemberSerializer
     pagination_class = MemberPages
 
+    @extend_schema(parameters=[OpenApiParameter("filter", str, enum=["reported_first", "reported", "newest"]), OpenApiParameter("q", str)])
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
     def get_queryset(self):
-        users = get_user_model().objects.order_by("id")
+        selection = self.request.query_params.get("filter", "reported_first")
+        if selection not in {"reported_first", "reported", "newest"}:
+            raise serializers.ValidationError({"filter": "지원하지 않는 회원 필터입니다."})
+        users = get_user_model().objects.annotate(report_count=Count("community_posts__reports", distinct=True))
+        if selection == "reported":
+            users = users.filter(report_count__gt=0)
+        users = users.order_by("-date_joined", "-id") if selection == "newest" else users.order_by("-report_count", "id")
         query = self.request.query_params.get("q", "").strip()[:150]
         if query:
             condition = Q(username__icontains=query)
@@ -90,4 +102,5 @@ class MemberRole(APIView):
                 object_id=str(member.pk), object_repr=member.get_username(), action_flag=CHANGE,
                 change_message=json.dumps({"field": "is_staff", "before": before, "after": after}),
             )
+        member.report_count = member.community_posts.aggregate(total=Count("reports", distinct=True))["total"]
         return Response(AdminMemberSerializer(member).data)

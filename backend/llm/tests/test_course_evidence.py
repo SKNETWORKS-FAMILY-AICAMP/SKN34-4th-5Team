@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from llm.v1.rag.course import evidence_memory as evidence
+from llm.v2.course import evidence_memory as evidence
 from travel.place_knowledge_models import PlaceKnowledgeObservation, PlaceKnowledgeSource, PlaceEnrichmentAttempt
 
 
@@ -34,7 +34,7 @@ def finding(**values):
 @override_settings(COURSE_WEB_VERIFICATION_ENABLED=True, PLACE_EVIDENCE_STORAGE_POLICIES=POLICY)
 class CourseEvidenceTests(TestCase):
     def test_failed_local_probe_does_not_suppress_normal_menu_research(self):
-        from llm.v1.rag.course import place_quality
+        from llm.v2.course import place_quality
         with evidence.request_budget(), patch.object(evidence, "search", side_effect=[
                 ([], set(), 0), ([finding()], {"https://example.com/menu"}, 1)]) as lookup:
             with place_quality.local_probe():
@@ -47,7 +47,7 @@ class CourseEvidenceTests(TestCase):
             self.assertEqual(lookup.call_count, 2)
 
     def test_local_probe_menu_unknown_never_invokes_web_search_or_becomes_match(self):
-        from llm.v1.rag.course import place_quality, grounding
+        from llm.v2.course import place_quality, grounding
         with place_quality.request_scope("JAMSIL"), place_quality.local_probe(), \
                 patch.object(place_quality, "resolve", return_value={"reviewUrl": "https://example.com/menu"}), \
                 patch.object(grounding, "verify", return_value=[]), patch.object(evidence, "_search_once") as search:
@@ -109,21 +109,21 @@ class CourseEvidenceTests(TestCase):
         self.assertLessEqual(search.call_count, evidence.MAX_PASSES)
 
     def test_cuisine_category_does_not_require_duplicate_web_proof_but_menu_still_does(self):
-        from llm.v1.rag.course import agent
+        from llm.v2.course import agent
         raw = evidence.Requirements(items=[
             evidence.Requirement(term="중식", attribute="cuisine", intent="required", group="type"),
             evidence.Requirement(term="자장면", attribute="menu", intent="required", group="meal"),
         ])
-        with patch.object(agent, "llm") as model, patch.object(evidence, "search", return_value=([finding(term="자장면")], self.opened, 1)) as search:
+        with patch.object(agent, "llm") as model, patch.object(evidence, "search", return_value=([finding(term="짜장면")], self.opened, 1)) as search:
             model.return_value.with_structured_output.return_value.invoke.return_value = raw
             result = evidence.enrich([{**PLACE, "detail": "음식점 > 중식"}], ["중식", "자장면", "중식 자장면"])
-        self.assertEqual([(r.attribute, r.term) for r in search.call_args.args[1]], [("menu", "자장면")])
+        self.assertEqual([(r.attribute, r.term) for r in search.call_args.args[1]], [("menu", "짜장면")])
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]["conditionChecks"][0]["status"], "match")
         self.assertEqual(result[0]["detail"], "음식점 > 중식")
 
     def test_catalog_cuisine_conversion_preserves_exclusion_groups_and_specific_traits(self):
-        from llm.v1.rag.course import agent
+        from llm.v2.course import agent
         raw = evidence.Requirements(items=[
             evidence.Requirement(term="일식", attribute="cuisine", intent="exclude", group="avoid"),
             evidence.Requirement(term="비건", attribute="cuisine", intent="required", group="diet"),
@@ -186,8 +186,8 @@ class CourseEvidenceTests(TestCase):
         self.assertEqual(evidence.read(PLACE, self.requirement), [])
 
     def test_one_review_conflicts_and_absence_never_become_confirmed_traits(self):
-        req = evidence.Requirement(term="조용함", attribute="review_feature", intent="required", group="quiet")
-        row = {"attribute": "review_feature", "term": "조용함", "polarity": "positive",
+        req = evidence.Requirement(term="콘센트", attribute="review_feature", intent="required", group="facility")
+        row = {"attribute": "review_feature", "term": "콘센트", "polarity": "positive",
                "experience_key": "one", "source": {"url": "https://example.com/review1"}}
         self.assertEqual(evidence.verdict([row, row], req), "unknown")
         another = {**row, "experience_key": "two"}
@@ -247,7 +247,7 @@ class CourseEvidenceTests(TestCase):
     def test_turn_budget_spans_nested_lookups_and_resets_for_next_turn(self):
         places = [{**PLACE, "placeId": f"fixture:budget-{i}"} for i in range(3)]
         conditions = ["돈까스 메뉴가 있는 식당"]  # Exercise the semantic parser's turn cache.
-        with patch("llm.v1.rag.course.agent.llm") as model, \
+        with patch("llm.v2.course.agent.llm") as model, \
                 patch.object(evidence, "search", return_value=([], set(), 1)) as search:
             parse = model.return_value.with_structured_output.return_value.invoke
             parse.return_value = evidence.Requirements(items=[self.requirement])
@@ -299,10 +299,16 @@ class CourseEvidenceTests(TestCase):
         valid = finding(term="조용함", attribute="review_feature", kind="customer_review", basis="customer_experience",
                         observed_on=self.now.date().isoformat(), promotion="not_disclosed")
         for changes in ({"observed_on": ""}, {"observed_on": (self.now + timedelta(days=1)).date().isoformat()},
-                        {"observed_on": (self.now - timedelta(days=181)).date().isoformat()},
                         {"promotion": "disclosed"}, {"promotion": "unknown"}, {"general_context": False},
                         {"kind": "official"}):
             self.assertEqual(evidence.checked_rows(PLACE, [req], [valid.model_copy(update=changes)], self.opened, self.now), [])
+        older = valid.model_copy(update={"observed_on": (self.now - timedelta(days=365)).date().isoformat()})
+        rows = evidence.checked_rows(PLACE, [req], [older], self.opened, self.now)
+        self.assertEqual(evidence.verdict(rows, req), "match")
+        evidence.store(PLACE, rows, self.now)
+        self.assertEqual(evidence.verdict(evidence.read(PLACE, req), req), "match")
+        # Other consumers retain the shared memory's default policy.
+        self.assertEqual(evidence.retrieve_keyword_memory("조용함", place_id=PLACE["placeId"])["items"], [])
 
     def test_and_or_exclusion_logic_does_not_invent_missing_evidence(self):
         udon = self.requirement.model_copy(update={"term": "우동", "group": "second"})
@@ -314,6 +320,7 @@ class CourseEvidenceTests(TestCase):
                 with patch.object(evidence, "requirements", return_value=requests):
                     self.assertEqual(len(evidence.enrich([PLACE], ["복합 조건"])), count)
 
+    @override_settings(USAGE_MAX_CALL_OUTPUT_TOKENS=4000)
     def test_search_counts_search_actions_only_and_rejects_failed_page_open(self):
         actions = [{"type": "web_search_call", "status": status, "action": {"type": kind, "url": url, "sources": None}}
                    for kind, status, url in (("search", "completed", ""), ("open_page", "failed", "https://example.com/failed"),
@@ -336,12 +343,12 @@ class CourseEvidenceTests(TestCase):
 
     def test_verification_instruction_is_not_an_extra_shop_requirement(self):
         meta = self.requirement.model_copy(update={"term": "실제 이용 후기 근거", "attribute": "review_feature"})
-        with patch("llm.v1.rag.course.agent.llm") as model:
+        with patch("llm.v2.course.agent.llm") as model:
             model.return_value.with_structured_output.return_value.invoke.return_value = evidence.Requirements(items=[self.requirement, meta])
             self.assertEqual(evidence.requirements(["돈까스 메뉴 근거를 확인"]), [self.requirement])
 
     def test_timeline_cites_only_verified_matching_keyword(self):
-        from llm.v1.rag.course import timeline
+        from llm.v2.course import timeline
         place = {**PLACE, "conditionChecks": [{"attribute": "menu", "term": "돈까스", "status": "match", "intent": "required"}],
                  "verifiedFacts": [{"attribute": "menu", "term": "돈까스", "url": "https://example.com/menu"}]}
         text = timeline.text_lines([{"key": "p", "phase": "BEFORE", "reason": evidence.reason(place)}], {"p": place},
@@ -353,7 +360,7 @@ class CourseEvidenceTests(TestCase):
         claim._body_verified = False
         self.assertEqual(self.rows([claim]), [])
         with patch.object(evidence, "_search_once", return_value=([claim], self.opened, 1, [])), \
-                patch("llm.v1.rag.course.grounding.verify", return_value=[]) as verify:
+                patch("llm.v2.course.grounding.verify", return_value=[]) as verify:
             findings, _, calls = evidence.search([PLACE], [self.requirement])
         self.assertEqual(findings, [])
         self.assertEqual(calls, 1)
@@ -364,7 +371,7 @@ class CourseEvidenceTests(TestCase):
         page = {"body_read": True, "title": PLACE["name"] + " - 음식점", "status": "read",
                 "body_text": PLACE["name"] + "\n" + PLACE["address"] + "\n메뉴정보\n돈까스\n12000 원\n메뉴 더보기"}
         with patch.object(evidence, "_search_once", return_value=([], {url}, 1, [])), \
-                patch("llm.v1.rag.course.grounding.PublicReader") as reader:
+                patch("llm.v2.course.grounding.PublicReader") as reader:
             reader.return_value.read.return_value = page
             findings, opened, calls = evidence.search([PLACE], [self.requirement])
         self.assertEqual(len(findings), 1)

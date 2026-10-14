@@ -69,8 +69,8 @@ class Command(BaseCommand):
             raise CommandError("Cannot read golden file") from None
         questions, skipped = select_questions(text, o["ids"], o["limit"])
         from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-        from llm.v1.rag.club import retrieval
-        from llm.v1.rag.club.router import detect_categories, detect_stadium
+        from llm.v2.club import retrieval
+        from llm.v2.club.router import detect_categories, detect_stadium
         from llm.tools.assistant import format_documents
         from llm.v1.rag.assistant.pipeline import build_prompt
         if retrieval.EMBED_MODEL != "text-embedding-3-small":

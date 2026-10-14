@@ -10,7 +10,7 @@ from travel.collected_places import CatalogueUnavailable
 from travel.stadium_facilities import _root
 from travel.stadium_food import food_candidates
 from travel.stadium_scope import classify_stadium_point
-from llm.v1.rag.course import agent, editing, memory, slots, venue_policy
+from llm.v2.course import agent, editing, memory, slots, venue_policy
 from llm.tests.test_course_editing import plan
 
 
@@ -77,7 +77,7 @@ class CourseVenuePolicyTests(SimpleTestCase):
         invoke.assert_not_called()
 
     def test_internal_food_does_not_import_external_keyword_or_web_evidence(self):
-        from llm.v1.rag.course import evidence_memory
+        from llm.v2.course import evidence_memory
         requirement = evidence_memory.Requirement(term="콘센트", attribute="review_feature", intent="required", group="1")
         with patch.object(evidence_memory, "requirements", return_value=[requirement]), \
                 patch.object(evidence_memory, "read") as read, patch.object(evidence_memory, "search") as search:

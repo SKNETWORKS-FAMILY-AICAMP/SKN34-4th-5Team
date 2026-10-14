@@ -33,8 +33,12 @@ def parking_map(stadium):
     names = {"url": "imageUrl", "source_url": "sourceUrl", "credit": "credit", "title": "title",
              "summary": "summary", "kind": "kind", "visual_notes": "visualNotes", "captured_at": "capturedAt",
              "width": "width", "height": "height"}
-    return {key: value.isoformat() if hasattr(value, "isoformat") else value
-            for name, key in names.items() if (value := getattr(stadium, f"parking_map_{name}")) is not None}
+    result = {key: value.isoformat() if hasattr(value, "isoformat") else value
+              for name, key in names.items() if (value := getattr(stadium, f"parking_map_{name}")) is not None}
+    origin = f"{result.get('credit') or ''} {result.get('sourceUrl') or ''}"
+    if "자리어때" in origin or "myseatcheck.com" in origin:
+        result["evidenceGrade"] = "UNOFFICIAL"  # 이용자 제보 사이트 (문서 검색의 자리어때 등급과 동일)
+    return result
 
 
 def seating_map(stadium, season=None):

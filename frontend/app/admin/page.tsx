@@ -6,11 +6,13 @@ import { useSearchParams } from "next/navigation";
 import { useMemberAuth } from "@/lib/member-auth";
 import { AdminMembersPanel, AdminPostsPanel, AdminReportsPanel } from "@/components/admin-panels";
 import styles from "./page.module.css";
+import { ModerationPanel, AdminContentPreview } from "@/components/community-moderation";
 
 export function AdminDashboard() {
   const { status, user, reload } = useMemberAuth();
   const search = useSearchParams();
   const tabs = [
+    { id: "moderation", title: "게시 검사", description: "비공개 검사 · 사유별 검토 · 복구" },
     { id: "members", title: "회원 관리", description: "회원 검색 · 계정 상태 및 권한 확인" },
     { id: "posts", title: "게시글 관리", description: "게시글 검색 · 신고 현황 확인 · 삭제" },
     { id: "reports", title: "신고 관리", description: "신고 검토 · 보류 · 숨김 · 계정 처분" },
@@ -28,7 +30,8 @@ export function AdminDashboard() {
     </nav>
     <div className={styles.tools}><Link href="/admin/baseball">야구 데이터 관리 →</Link></div>
     <div key={`${user.id}:${selected}`}>
-      {selected === "posts" ? <AdminPostsPanel /> : selected === "reports" ? <AdminReportsPanel /> : <AdminMembersPanel />}
+      {search.get("preview") && <AdminContentPreview key={search.get("preview")} id={search.get("preview")!} />}
+      {selected === "moderation" ? <ModerationPanel /> : selected === "posts" ? <AdminPostsPanel /> : selected === "reports" ? <AdminReportsPanel /> : <AdminMembersPanel />}
     </div>
   </main>;
 }

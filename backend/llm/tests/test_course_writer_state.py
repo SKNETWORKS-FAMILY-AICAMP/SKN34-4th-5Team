@@ -7,7 +7,7 @@ from rest_framework.exceptions import ValidationError
 
 from llm.serializer.message import _validate_context
 from llm.tests.test_course_editing import CURRENT, PLACES, plan
-from llm.v1.rag.course import agent, editing, memory
+from llm.v2.course import agent, editing, memory
 from llm.v2.agent.course_output import public_course
 
 

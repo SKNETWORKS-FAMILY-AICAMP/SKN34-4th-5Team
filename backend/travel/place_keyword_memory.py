@@ -133,7 +133,7 @@ def record_keyword_memory(*, place_id, source_id, keywords):
 
 def retrieve_keyword_memory(term, *, place_id=None, stadium_code=None, kind=None,
                             scope="external_candidate", limit=20, now=None,
-                            arrival=None, departure=None, review_conditions=()):
+                            arrival=None, departure=None, review_conditions=(), review_max_age_days=180):
     """Read live approved memory by exact normalized keyword, never fuzzy identity.
 
     Synonym normalization belongs to the existing request interpreter. This
@@ -141,6 +141,8 @@ def retrieve_keyword_memory(term, *, place_id=None, stadium_code=None, kind=None
     source text is duplicated into the SQLite candidate index or embeddings.
     """
     term = normalize_keyword(term)
+    if review_max_age_days is not None and (type(review_max_age_days) is not int or review_max_age_days < 0):
+        raise ValueError("후기 최대 경과일은 0 이상의 정수 또는 None이어야 합니다.")
     if type(limit) is not int or not 1 <= limit <= 20 or scope not in {*SCOPE_MAP, "all"}:
         raise ValueError("지원 범위와 결과 수(1~20)를 확인하세요.")
     if place_id is not None and (not isinstance(place_id, str) or not 1 <= len(place_id) <= 255):
@@ -185,7 +187,8 @@ def retrieve_keyword_memory(term, *, place_id=None, stadium_code=None, kind=None
                 continue
             if row.attribute == "review_feature" and (
                     row.promotion != "not_disclosed" or row.observed_on is None
-                    or not 0 <= (now.astimezone(KST).date() - row.observed_on).days <= 180
+                    or row.observed_on > now.astimezone(KST).date()
+                    or (review_max_age_days is not None and (now.astimezone(KST).date() - row.observed_on).days > review_max_age_days)
                     or not set(row.qualifiers).issubset(review_conditions)):
                 continue
             result["items"].append({

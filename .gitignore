@@ -261,3 +261,22 @@ data/raw/rules/*.pdf
 **/.impeccable/
 /PRODUCT.md
 /DESIGN.md
+
+# Local verification artifacts (keep test code and golden datasets tracked)
+/docs/test_results/*-20??????.*
+!/docs/test_results/menu-generation-repair-20261013.md
+!/docs/test_results/menu-generation-repair-20261013.json
+!/docs/test_results/pr96-v2-preservation-20261014.md
+**/.deepeval/
+**/playwright-report/
+**/test-results/
+**/coverage/
+/local-verification-*/
+/moderation-demo-*/
+/deploy-readiness/
+/admin-post-review-verified.png
+/admin-review-toggle.png
+/member-reports-verified.png
+/moderation-admin-ui.png
+/mypage-local-verified.png
+/report-priority-verified.png

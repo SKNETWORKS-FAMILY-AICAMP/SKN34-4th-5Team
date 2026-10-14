@@ -17,6 +17,7 @@ from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from community.models import CommunityImage
+from accounts.point_service import grant_points
 
 from .models import Course, CourseReaction, CourseStop, CourseView
 from .views import CourseWriteThrottle
@@ -99,6 +100,14 @@ class CourseApiTests(TestCase):
         reordered = self.client.post("/api/v1/courses/", course_data(stops=reversed_stops), format="json")
         self.assertEqual(reordered.status_code, 201, reordered.data)
         self.assertEqual([stop["position"] for stop in reordered.data["stops"]], [0, 1])
+
+    def test_course_author_rank_uses_linked_owner(self):
+        grant_points(user=self.member, amount=2500, source_type="test.course", source_key="rank")
+        created = self.create_course()
+        course = Course.objects.get(pk=created.data["id"])
+        self.assertEqual(course.owner_id, self.member.pk)
+        self.assertEqual(created.data["authorRank"], 3)
+        self.assertEqual(self.client.get("/api/v1/courses/").data[0]["authorRank"], 3)
 
     def test_patch_and_delete_require_the_edit_token(self):
         created = self.create_course()

@@ -6,6 +6,7 @@ x-logging: &default-logging
 
 services:
   jev-browser:
+    image: dev-jev-browser:latest
     build: ./docker/jev-browser
     restart: unless-stopped
     cap_add: [NET_ADMIN]
@@ -38,6 +39,7 @@ services:
     logging: *default-logging
 
   backend:
+    image: dev-backend:latest
     build: &backend-build
       context: ./backend
       dockerfile: Dockerfile.prod
@@ -50,10 +52,11 @@ services:
       - ./data/staging/stadium_places:/data/staging/stadium_places:ro
       - lodging_pages:/app/.cache/lodging-pages
     environment: &backend-environment
-      LODGING_CHROME_TRANSPORT: mcp
       LODGING_WARM_STADIUMS: ${LODGING_WARM_STADIUMS:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:?Set OPENAI_API_KEY}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      # 하이라이트 수집(collect_highlights, run_highlights.sh)이 YouTube Data API로 영상 목록을 조회한다.
+      YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-}
       RAG_SEARCH_MODE: ${RAG_SEARCH_MODE:-rerank}
       RAG_VENUE_SEARCH_MODE: ${RAG_VENUE_SEARCH_MODE:-hybrid}
       RAG_RERANK_MODEL: ${RAG_RERANK_MODEL:-voyageai/rerank-2.5}
@@ -132,16 +135,29 @@ services:
       qdrant:
         condition: service_started
       minio:
-        condition: service_healthy
+        condition: service_started
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/healthz/', timeout=3)"]
-      interval: 10s
+      interval: 30s
       timeout: 5s
-      retries: 12
-      start_period: 30s
+      retries: 3
+      start_period: 10s
+    logging: *default-logging
+
+  community-moderation-worker:
+    image: dev-backend:latest
+    build: *backend-build
+    restart: unless-stopped
+    environment: *backend-environment
+    command: ["python", "manage.py", "run_moderation_worker"]
+    depends_on:
+      backend:
+        condition: service_healthy
+    stop_grace_period: 40s
     logging: *default-logging
 
   lodging-warmer:
+    image: dev-lodging-warmer:latest
     build: *backend-build
     restart: unless-stopped
     environment: *backend-environment
@@ -156,12 +172,12 @@ services:
     logging: *default-logging
 
   frontend:
+    image: dev-frontend:latest
     build:
       context: ./frontend
       dockerfile: Dockerfile.prod
       args:
         # NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?Set NEXT_PUBLIC_API_URL}
-        NEXT_PUBLIC_KAKAO_MAP_KEY: ${NEXT_PUBLIC_KAKAO_MAP_KEY:-}
         YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-}
     restart: unless-stopped
     environment:
@@ -172,13 +188,13 @@ services:
       - "127.0.0.1:3000:3000"
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/"]
-      interval: 10s
+      interval: 30s
       timeout: 5s
-      retries: 12
-      start_period: 30s
+      retries: 3
+      start_period: 10s
     depends_on:
       backend:
-        condition: service_healthy
+        condition: service_started
     logging: *default-logging
 
   nginx:
@@ -192,9 +208,9 @@ services:
       - ./nginx/ssl:/etc/nginx/ssl:ro
     depends_on:
       backend:
-        condition: service_healthy
+        condition: service_started
       frontend:
-        condition: service_healthy
+        condition: service_started
     logging: *default-logging
 
   minio:
@@ -211,9 +227,9 @@ services:
       - minio_data:/data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 5s
+      interval: 30s
       timeout: 3s
-      retries: 10
+      retries: 3
     logging: *default-logging
 
 volumes:

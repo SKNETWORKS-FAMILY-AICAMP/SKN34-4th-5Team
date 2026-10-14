@@ -31,7 +31,7 @@ function MemberPostsContent() {
   }, [retry]);
 
   const visible = state.posts.filter(post => area === "all" || post.board === area);
-  const href = (post: TeamCommunityPost) => post.board === "free" ? `/community?post=${encodeURIComponent(post.id)}` : getTeamBoardHref(post.teamCode, post.id);
+  const href = (post: TeamCommunityPost) => post.moderationStatus !== "approved" ? `/community/submissions?post=${encodeURIComponent(post.id)}` : post.board === "free" ? `/community?post=${encodeURIComponent(post.id)}` : getTeamBoardHref(post.teamCode, post.id);
   return <section aria-label="내가 쓴 글">
     <h2 className={styles.memberPostsHeading}>내가 쓴 글</h2>
     <div className={styles.memberPostTags} role="group" aria-label="작성 영역 선택">{areas.map(item => <button type="button" key={item.id} aria-pressed={area === item.id} onClick={() => setArea(item.id)}>{item.name}</button>)}</div>

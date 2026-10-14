@@ -7,8 +7,8 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage, messag
 
 from llm.service import chat_runs, chat_v2
 from llm.tests.test_course_editing import CURRENT, PLACES, plan
-from llm.v1.rag.course import agent, editing, memory
-from llm.v1.rag.course.conversation_scope import new_context, scoped_messages
+from llm.v2.course import agent, editing, memory
+from llm.v2.course.conversation_scope import new_context, scoped_messages
 from llm.v2.agent import chain
 from llm.v2.middleware import jev_guidelines
 from llm.v2.tests.test_chain import ScriptedModel, fake_tools

@@ -1,0 +1,20 @@
+# Add just the worker to the existing skn34-4th-local Compose network.
+# Does not interpolate unrelated production provider credentials.
+services:
+  community-moderation-worker:
+    image: skn34-4th-local-backend:latest
+    restart: unless-stopped
+    env_file: ./.env
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: ${LOCAL_DB_NAME:-mydb}
+    volumes:
+      - ./backend:/app
+    command: ["python", "manage.py", "run_moderation_worker"]
+    stop_grace_period: 40s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

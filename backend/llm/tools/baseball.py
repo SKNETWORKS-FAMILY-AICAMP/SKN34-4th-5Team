@@ -138,6 +138,19 @@ class PlayerInput(LimitInput):
             raise ValueError("구단, 선수 코드, 이름 중 하나가 필요합니다.")
         return self
 
+def _tving_evidence(rows, url):
+    """Name the evidence grade and real source so the model does not guess either.
+
+    TVING-collected rows are a third-party service (not KBO official). Rows from
+    another loader keep no source link and are marked unconfirmed.
+    """
+    if not rows:
+        return {}
+    if all(str(row.get("source") or "").lower() == "tving" for row in rows):
+        return {"evidenceGrade": "THIRD_PARTY", "sourceName": "TVING", "sourceUrl": url}
+    return {"evidenceGrade": "UNCERTAIN"}
+
+
 def create_baseball_domain_tools():
     from django.db.models import Q
     from baseball.models import Game, StandingHistory
@@ -181,7 +194,8 @@ def create_baseball_domain_tools():
                     match["teamDetail"] = entry
                 else:
                     details.append(entry)
-        return _result(rows, standings=[{**row, "team_name_ko": row["team__team_name_ko"]} for row in rows], requested_date=_json(requested), actual_date=_json(actual) if rows else None, team_details=details, **freshness)
+        return _result(rows, standings=[{**row, "team_name_ko": row["team__team_name_ko"]} for row in rows], requested_date=_json(requested), actual_date=_json(actual) if rows else None, team_details=details,
+                       **_tving_evidence(rows, tving_service.SOURCE["url"]), **freshness)
 
     def get_games(start_date=None, end_date=None, team_code=None, stadium_id=None, limit=20, upcoming_only=False, as_of=None, offset=0,
                   date_from=None, date_to=None, team=None, stadium=None, status="all", home_away="all"):
@@ -239,7 +253,8 @@ def create_baseball_domain_tools():
                        total_count=total, offset=offset, has_more=offset + len(rows) < total,
                        start_date=start_date.isoformat(), end_date=end_date.isoformat(), limit=limit,
                        availability="unknown" if not total and freshness.get("stale") else "available" if total else "empty",
-                       as_of=cutoff.isoformat() if upcoming_only else _json(as_of), **freshness)
+                       as_of=cutoff.isoformat() if upcoming_only else _json(as_of),
+                       **_tving_evidence(rows, "https://www.tving.com/sports/kbo/schedule"), **freshness)
 
     def search_players(team_code=None, player_code=None, name=None, limit=20, include_detail=None, offset=0):
         """저장된 선수 명단과 선택한 프로필·시즌·통산 기록을 조회한다(자동 수집 없음)."""

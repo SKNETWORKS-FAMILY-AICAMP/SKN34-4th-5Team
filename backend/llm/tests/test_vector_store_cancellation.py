@@ -7,8 +7,8 @@ from qdrant_client import models
 
 from llm import vector_store
 from llm.service import chat_runs
-from llm.v1 import progress
-from llm.v1.rag.course import agent, parallel, preparation
+from llm.v2 import progress
+from llm.v2.course import agent, parallel, preparation
 
 
 def collection_info():
