@@ -300,7 +300,6 @@ REST_FRAMEWORK = {
 }
 
 # New submissions are private even when providers have not been configured.
-COMMUNITY_MODERATION_MODE = os.getenv('COMMUNITY_MODERATION_MODE', 'manual')
 COMMUNITY_POLICY_VERSION = os.getenv('COMMUNITY_POLICY_VERSION', 'community-v1')
 COMMUNITY_POLICY_MODEL = os.getenv('COMMUNITY_POLICY_MODEL', '')
 COMMUNITY_EMBEDDING_MODEL = os.getenv('COMMUNITY_EMBEDDING_MODEL', 'text-embedding-3-small')

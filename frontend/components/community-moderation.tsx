@@ -9,7 +9,7 @@ import type { TeamCommunityPost } from "@/lib/team-community";
 import { getTeamBoardHref } from "@/lib/team-community";
 import styles from "./community-moderation.module.css";
 
-export const moderationLabel: Record<string, string> = { pending: "비공개 · 검사 대기", review: "비공개 · 운영진 검토", error: "비공개 · 검사 오류", rejected: "비공개 · 보류 확정", approved: "검사 승인" };
+export const moderationLabel: Record<string, string> = { pending: "비공개 · 검사 대기", review: "운영진 검토 · 자동 검사 오류 시 공개 가능", error: "비공개 · 검사 오류", rejected: "비공개 · 보류 확정", approved: "검사 승인" };
 
 export function AdminContentPreview({ id }: { id: string }) {
   const [post, setPost] = useState<TeamCommunityPost | null>(null);
@@ -85,7 +85,7 @@ function SubmissionContent() {
     void Promise.all([fetchMyCommunityPosts(), fetchMyCommunityComments()]).then(([value, replies]) => { if (active) { setPosts(value); setComments(replies); setError(""); } }).catch(() => { if (active) setError("내 게시글을 불러오지 못했어요."); });
     return () => { active = false; };
   }, [tick]);
-  return <section><h1>내 게시 검사 상태</h1><p>새 글과 수정본은 검사 완료까지 비공개입니다. 보류 사유는 운영진이 검토하여 복구할 수 있어요. 별도 운영 제재가 있으면 승인 후에도 비공개입니다.</p><button onClick={() => setTick(value => value + 1)}>상태 새로고침</button>{error && <p role="alert">{error}</p>}{posts.map(post => <article key={post.id} style={{ padding: "1rem 0", borderBottom: "1px solid #ddd" }}><h2>{post.title}</h2><p>{moderationLabel[post.moderationStatus]} · 버전 {post.revision}</p><p style={{ whiteSpace: "pre-wrap" }}>{post.content}</p>{post.images?.map(image => <PrivateCommunityImage key={image.id} id={image.id} />)}<Link href={`/community/write?edit=${encodeURIComponent(post.id)}`}>수정</Link> <button disabled={busy} onClick={() => void removePost(post.id)}>삭제</button>{post.moderationStatus === "approved" && <> · <Link href={post.board === "free" ? `/community?post=${encodeURIComponent(post.id)}` : getTeamBoardHref(post.teamCode, post.id)}>게시판에서 확인</Link></>}</article>)}<h2>내 댓글 검사</h2>{comments.map(comment => <OwnComment key={`${comment.id}:${comment.revision}`} comment={comment} refresh={() => setTick(value => value + 1)} />)}</section>;
+  return <section><h1>내 게시 검사 상태</h1><p>새 글과 수정본은 검사 대기 중 비공개입니다. 자동 검사 오류 시 공개와 운영진 검토를 병행하며, 유해성 판정·이미지 검토·수동 모드는 비공개 검토합니다. 별도 운영 제재나 비공개 부모 글은 공개되지 않습니다.</p><button onClick={() => setTick(value => value + 1)}>상태 새로고침</button>{error && <p role="alert">{error}</p>}{posts.map(post => <article key={post.id} style={{ padding: "1rem 0", borderBottom: "1px solid #ddd" }}><h2>{post.title}</h2><p>{moderationLabel[post.moderationStatus]} · 버전 {post.revision}</p><p style={{ whiteSpace: "pre-wrap" }}>{post.content}</p>{post.images?.map(image => <PrivateCommunityImage key={image.id} id={image.id} />)}<Link href={`/community/write?edit=${encodeURIComponent(post.id)}`}>수정</Link> <button disabled={busy} onClick={() => void removePost(post.id)}>삭제</button>{post.moderationStatus === "approved" && <> · <Link href={post.board === "free" ? `/community?post=${encodeURIComponent(post.id)}` : getTeamBoardHref(post.teamCode, post.id)}>게시판에서 확인</Link></>}</article>)}<h2>내 댓글 검사</h2>{comments.map(comment => <OwnComment key={`${comment.id}:${comment.revision}`} comment={comment} refresh={() => setTick(value => value + 1)} />)}</section>;
 }
 
 type Finding = { id: string; code: string; quote: string; reason: string; resolution: string };
@@ -154,9 +154,9 @@ function ReviewCard({ job, reload }: { job: Job; reload: () => void }) {
           <div className={styles.formMeta}><span>{selected.length}개 사유 선택</span><span>{note.length}/500</span></div>
           <div className={styles.actions}>
             <button className="button button-primary" disabled={busy || !selected.length || !note.trim()} onClick={() => void decide("dismiss")}>선택 사유 해제·복구 검토</button>
-            <button className="button button-secondary" disabled={busy || !selected.length || !note.trim()} onClick={() => void decide("confirm")}>선택 사유 확정·비공개 유지</button>
+            <button className="button button-secondary" disabled={busy || !selected.length || !note.trim()} onClick={() => void decide("confirm")}>선택 사유 확정·비공개 처리</button>
           </div>
-          <p id={`review-help-${job.id}`} className={styles.hint}>미해제 사유가 모두 없어야 공개됩니다.</p>
+          <p id={`review-help-${job.id}`} className={styles.hint}>자동 검사 오류만 남으면 공개와 사후 검토를 병행합니다. 다른 미해제 사유나 확정 사유가 있으면 비공개입니다. 숨김·비공개 부모 글은 유지됩니다.</p>
           {busy && <p role="status" className={styles.hint}>검토 결과를 저장하고 있어요.</p>}
         </div>}
         {job.state === "failed" && <button className="button button-secondary" disabled={busy} onClick={() => void decide("retry")}>검사 재시도</button>}
@@ -164,6 +164,48 @@ function ReviewCard({ job, reload }: { job: Job; reload: () => void }) {
       </section>
     </div>
   </article>;
+}
+
+export function ModerationModeControl() {
+  const [mode, setMode] = useState("manual");
+  const [saved, setSaved] = useState("");
+  const [available, setAvailable] = useState(false);
+  const [busy, setBusy] = useState(true);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  async function load() {
+    setBusy(true); setError("");
+    try {
+      const data = await moderationRequest("settings/");
+      setMode(data.mode); setSaved(data.mode); setAvailable(data.automaticAvailable);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "설정을 불러오지 못했어요."); }
+    finally { setBusy(false); }
+  }
+  useEffect(() => { void load(); }, []);
+  async function save() {
+    setBusy(true); setError(""); setMessage("");
+    try {
+      const data = await moderationRequest("settings/", { mode });
+      setMode(data.mode); setSaved(data.mode); setAvailable(data.automaticAvailable);
+      setMessage("저장했습니다. 새 게시글·댓글과 수정본부터 적용됩니다.");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "설정을 저장하지 못했어요."); }
+    finally { setBusy(false); }
+  }
+  return <section className={styles.modeSettings} aria-label="검사 방식 설정">
+    <h3>검사 방식</h3>
+    <p>현재 방식: {saved ? saved === "openai" ? "자동 · OpenAI 기본 검사" : "수동 · 운영진 검토" : "확인 중"}</p>
+    <label htmlFor="moderation-mode">새 게시글·댓글 검사 방식 </label>
+    <select id="moderation-mode" value={mode} disabled={busy || !saved} onChange={event => { setMode(event.target.value); setMessage(""); }}>
+      <option value="manual">수동 · 모든 글 운영진 검토</option>
+      <option value="openai" disabled={!available}>자동 · OpenAI 기본 검사</option>
+    </select>{" "}
+    <button className="button button-primary" disabled={busy || !saved || mode === saved} onClick={() => void save()}>방식 저장</button>{" "}
+    <button className="button button-secondary" disabled={busy} onClick={() => void load()}>설정 새로고침</button>
+    <p>자동은 omni-moderation-latest의 유해성 판정만 사용합니다. 정치 유사도·별도 문맥 모델은 사용하지 않습니다. 첨부 이미지는 운영진이 확인합니다.</p>
+    <p>방식 변경은 기존 검사 내역에는 적용되지 않습니다. 자동 검사 오류는 공개와 운영진 검토를 병행합니다. 이미지 검토·숨김 글·비공개 부모 글의 댓글은 비공개로 유지됩니다.</p>
+    {!busy && saved && !available && <p>자동 검사를 사용하려면 서버에 OpenAI API 키를 설정해 주세요.</p>}
+    {message && <p role="status">{message}</p>}{error && <p role="alert">{error}</p>}
+  </section>;
 }
 
 export function ModerationPanel() {
@@ -180,7 +222,8 @@ export function ModerationPanel() {
     return () => { active = false; };
   }, [page, tick]);
   return <section className={styles.panel} aria-labelledby="moderation-heading">
-    <header className={styles.panelHeader}><div><h2 id="moderation-heading">비공개 게시 검사</h2><p>게시글과 댓글의 원문을 확인하고, 검사 사유별로 복구 여부를 검토하세요.</p></div><button className="button button-secondary" disabled={loading} onClick={() => setTick(value => value + 1)}>새로고침</button></header>
+    <header className={styles.panelHeader}><div><h2 id="moderation-heading">게시 검사·사후 검토</h2><p>게시글과 댓글의 원문을 확인하고, 검사 사유별로 복구 여부를 검토하세요.</p></div><button className="button button-secondary" disabled={loading} onClick={() => setTick(value => value + 1)}>새로고침</button></header>
+    <ModerationModeControl />
     <div className={styles.listHeading}><h3>검사 목록</h3><span>{loading ? "불러오는 중" : `현재 페이지 ${jobs.length}건`}</span></div>
     {error && <p className={styles.error} role="alert">{error}</p>}
     {loading ? <div className={styles.empty} role="status">검사 목록을 불러오고 있어요.</div> : <>

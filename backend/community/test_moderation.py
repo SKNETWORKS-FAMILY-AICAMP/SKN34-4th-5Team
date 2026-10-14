@@ -7,12 +7,12 @@ from django.test import TransactionTestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
-from .models import CommunityPost, CommunityComment, ModerationJob, ModerationReview
+from .models import CommunityPost, CommunityComment, ModerationJob, ModerationReview, ModerationSettings
 from .moderation_checks import check, finding
 from .moderation_worker import claim, finish, run_one
 
 
-@override_settings(COMMUNITY_MODERATION_MODE='manual', COMMUNITY_POLICY_VERSION='community-v1')
+@override_settings(COMMUNITY_POLICY_VERSION='community-v1')
 class ModerationIntegrationTests(APITestCase):
     def test_unchecked_command_backfills_legacy_content_without_rechecking(self):
         from io import StringIO
@@ -20,6 +20,9 @@ class ModerationIntegrationTests(APITestCase):
         completed = self.submit(key='completed')
         run_one()
         failed = self.submit(key='failed')
+        job = failed.moderation_jobs.get()
+        job.payload['mode'] = 'live'
+        job.save(update_fields=['payload'])
         with override_settings(COMMUNITY_MODERATION_MAX_ATTEMPTS=1):
             run_one(lambda payload: (_ for _ in ()).throw(TimeoutError()))
         legacy = CommunityPost.objects.create(owner=self.owner, board='free',
@@ -68,6 +71,7 @@ class ModerationIntegrationTests(APITestCase):
         self.assertEqual(self.client.get(f'/api/v1/community/posts/{parent.pk}/comments/').data, [])
 
     def setUp(self):
+        ModerationSettings.objects.create(mode='manual')
         self.owner = get_user_model().objects.create_user(username='moderation-owner')
         self.other = get_user_model().objects.create_user(username='moderation-other')
         self.staff = get_user_model().objects.create_user(username='moderation-staff', is_staff=True)
@@ -152,8 +156,11 @@ class ModerationIntegrationTests(APITestCase):
         self.assertEqual(preview['Cache-Control'], 'private, no-store')
         self.assertEqual(self.review(job, review_revision=0).status_code, 409)
 
-    def test_provider_failure_stays_private_and_retries(self):
+    def test_legacy_live_provider_failure_stays_private_and_retries(self):
         post = self.submit()
+        job = post.moderation_jobs.get()
+        job.payload['mode'] = 'live'
+        job.save(update_fields=['payload'])
         def broken(payload):
             raise TimeoutError('sensitive input must not be saved')
         with override_settings(COMMUNITY_MODERATION_MAX_ATTEMPTS=1):
@@ -310,7 +317,7 @@ class ModerationIntegrationTests(APITestCase):
         self.assertIn(post.pk, str(result))
 
 
-@override_settings(COMMUNITY_MODERATION_WRITES_PER_HOUR=1, COMMUNITY_MODERATION_MODE='manual', COMMUNITY_POLICY_VERSION='community-v1')
+@override_settings(COMMUNITY_MODERATION_WRITES_PER_HOUR=1, COMMUNITY_POLICY_VERSION='community-v1')
 class ModerationAdmissionConcurrencyTests(TransactionTestCase):
     def test_concurrent_account_admission_commits_only_one(self):
         from concurrent.futures import ThreadPoolExecutor

@@ -32,7 +32,7 @@ const job = { id: 9, postId: "p1", commentId: null, revision: 4, review_revision
   payload: { text: "본문", mode: "manual", image_ids: [] }, findings: [{ id: "f1", code: "political", resolution: "open", reason: "확인", quote: "본문" }], error_code: "" };
 function card(h, selected = ["f1"], note = "원문 확인") {
   const panel = h.render(h.exports.ModerationPanel, {}, [[job], 1, false, 0, "", false]);
-  const element = nodes(panel).find(node => typeof node.type === "function");
+  const element = nodes(panel).find(node => typeof node.type === "function" && node.props.job);
   return h.render(element.type, element.props, [selected, note, false, ""]);
 }
 
@@ -113,8 +113,55 @@ test("loading hides stale review forms and prevents pagination", () => {
   const h = harness();
   const tree = h.render(h.exports.ModerationPanel, {}, [[job], 2, true, 0, "", true]);
   assert.ok(nodes(tree).some(node => node.props.role === "status"));
-  assert.equal(nodes(tree).some(node => typeof node.type === "function"), false);
+  assert.equal(nodes(tree).some(node => typeof node.type === "function" && node.props.job), false);
   assert.ok(nodes(tree).filter(node => node.type === "button").every(node => node.props.disabled));
+});
+
+test("mode selection saves explicit choice and reports persistence", async () => {
+  const h = harness({ response: Response.json({ mode: "openai", automaticAvailable: true }) });
+  let tree = h.render(h.exports.ModerationModeControl, {}, ["manual", "manual", true, false, "", ""]);
+  nodes(tree).find(n => n.type === "select").props.onChange({ target: { value: "openai" } });
+  tree = h.render(h.exports.ModerationModeControl, {}, h.values);
+  const save = nodes(tree).find(n => n.type === "button" && n.props.children === "방식 저장");
+  assert.equal(save.props.disabled, false);
+  save.props.onClick();
+  assert.equal(h.values[3], true);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(h.calls[0].path, "/api/v1/community/admin/moderation/settings/");
+  assert.deepEqual(JSON.parse(h.calls[0].init.body), { mode: "openai" });
+  assert.equal(h.values[1], "openai");
+  assert.match(h.values[5], /새 게시글/);
+});
+
+test("failed mode save preserves current mode and shows error", async () => {
+  const h = harness({ response: Response.json({ detail: "저장 실패" }, { status: 500 }) });
+  const tree = h.render(h.exports.ModerationModeControl, {}, ["openai", "manual", true, false, "", ""]);
+  nodes(tree).find(n => n.type === "button" && n.props.children === "방식 저장").props.onClick();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(h.values[1], "manual");
+  assert.equal(h.values[4], "저장 실패");
+  assert.equal(h.values[3], false);
+});
+
+test("mode save is disabled before load or with unchanged choice", () => {
+  const h = harness();
+  for (const state of [["manual", "", false, true, "", ""], ["manual", "manual", false, false, "", ""]]) {
+    const tree = h.render(h.exports.ModerationModeControl, {}, state);
+    assert.equal(nodes(tree).find(n => n.type === "button" && n.props.children === "방식 저장").props.disabled, true);
+    assert.equal(nodes(tree).find(n => n.type === "option" && n.props.value === "openai").props.disabled, true);
+  }
+});
+
+test("public fallback instructions keep manual review distinct from provider approval", () => {
+  const h = harness();
+  assert.match(h.exports.moderationLabel.review, /운영진 검토/);
+  assert.doesNotMatch(h.exports.moderationLabel.review, /검사 승인|비공개/);
+  const mode = h.render(h.exports.ModerationModeControl, {}, ["openai", "openai", true, false, "", ""]);
+  assert.ok(nodes(mode).some(node => typeof node.props.children === "string" && node.props.children.includes("공개와 운영진 검토를 병행")));
+  assert.ok(nodes(mode).some(node => typeof node.props.children === "string" && node.props.children.includes("비공개 부모 글의 댓글은 비공개로 유지")));
+  const tree = card(h);
+  assert.ok(nodes(tree).some(node => node.props.children === "선택 사유 확정·비공개 처리"));
+  assert.ok(nodes(tree).some(node => typeof node.props.children === "string" && node.props.children.includes("다른 미해제 사유나 확정 사유가 있으면 비공개")));
 });
 
 test("empty results explain the next action without masking request errors", () => {

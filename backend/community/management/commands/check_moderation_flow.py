@@ -5,7 +5,7 @@ import uuid
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError
 
-from django.conf import settings
+from community.moderation_config import current_mode
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 from rest_framework_simplejwt.tokens import AccessToken
@@ -17,7 +17,7 @@ class Command(BaseCommand):
     help = 'Exercise the local HTTP API and running manual worker with disposable records.'
 
     def handle(self, *args, **options):
-        if settings.COMMUNITY_MODERATION_MODE != 'manual':
+        if current_mode() != 'manual':
             raise CommandError('Smoke test requires manual mode; no provider calls are authorized by this command.')
         users, post_id = [], None
         key = f'moderation-smoke-{uuid.uuid4().hex}'

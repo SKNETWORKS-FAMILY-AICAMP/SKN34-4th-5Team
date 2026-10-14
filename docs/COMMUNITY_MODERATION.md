@@ -1,5 +1,20 @@
 # 커뮤니티 게시 검사 — 로컬 테스트 안내
 
+## 현재 자동/수동 선택 (2026-10-13)
+
+기본값은 OpenAI 기본 검사(`openai`)다. 관리자 DB 설정에 명시적으로 저장한 수동 선택은 유지한다. `COMMUNITY_MODERATION_MODE` 환경변수는 제거했고 읽지 않는다. 0014 migration은 모델 기본값만 변경하며 기존 운영자의 선택을 덮어쓰지 않는다. 기존 수동 작업 전체 재검사는 사용자 요청에 따라 현재 버전의 수동 스냅샷을 대상으로 별도 실행하고, 이전 작업/검토 이력 및 관리자 숨김을 보존한다.
+
+관리자 → 게시 검사 → 검사 방식에서 `자동 · OpenAI 기본 검사` 또는 `수동 · 모든 글 운영진 검토`를 선택하고 `방식 저장`을 누른다. 설정은 `ModerationSettings` 단일 행에 저장되어 백엔드/워커가 공유하고 재시작 후 유지된다. API는 관리자 전용 `GET/POST /api/v1/community/admin/moderation/settings/`다. migration `0013_moderationsettings`가 필요하다. DB 설정이 없으면 환경변수와 무관하게 항상 `openai`다. 기존 `live` 작업은 저장된 스냅샷만 처리한다.
+
+- 자동: 본문 전체를 한 번에 `omni-moderation-latest`로 검사한다. API의 `flagged=false`면 승인, `true`면 사유를 기록하고 운영진 검토로 보낸다. 정치 임베딩/임계값/별도 문맥 모델/harassment 예외/URL 단독 보류는 사용하지 않는다. 일반 정치글·광고·거래·사기 등을 별도 커뮤니티 정책으로 차단하는 기능은 현재 자동 모드에 없다.
+- 수동: 모든 새 글·댓글·수정본을 운영진 검토로 보낸다.
+- 모드 변경은 새 접수/수정본에만 적용한다. 기존 대기/완료/수동 검토 스냅샷을 자동 전환하거나 공개하지 않는다. 실패 작업을 명시적으로 재시도하면 현재 모드로 새 작업을 만든다.
+- 자동은 서버 `OPENAI_API_KEY`만 필요하다. 키가 없으면 선택/저장을 막는다. 키 존재는 API 유효성 보증이 아니다. DB 선택이 없으면 키가 없어도 기본 자동 작업을 접수한다. 키 누락·timeout·API 오류·결과 누락/오형은 최초 실패에 완료 작업의 open `manual_review`로 넘기고 공개와 운영진 사후 검토를 병행한다. `moderation_status=review`와 현재 `approved_revision`을 함께 유지하므로 제공자 승인으로 표시하지 않는다. 독립 `image_review`나 다른 미해제/확정 사유는 공개를 막고 숨김·비공개 부모 글도 그대로 유지한다. `automatic_check_failed` 코드와 안전한 fallback 근거만 저장하며 원시 예외/키를 저장하지 않는다. 전역 모드나 관리자 DB 선택을 변경하거나 자동 승인하지 않는다. DB/저장 오류는 이 검사 실패 경로로 처리하지 않는다. 기존 `live` 스냅샷의 오류 재시도/실패 계약은 유지한다.
+- **자동 검사는 텍스트만 연결되어 있다. 첨부 이미지는 `image_review`로 운영진 확인을 유지한다.** 링크 대상에 접속하거나 검사하지 않는다. 실제 API 결과는 기록하되 모델 분류 정확도를 보장하지 않는다.
+- 아래의 정치/문맥 `live` 설명과 기존 평가 기록은 **이전 스냅샷 호환용**이다. 새 관리자 자동 모드에서는 이 경로를 사용하지 않는다.
+
+검증: `test_moderation_mode.py`, 프론트 `community-moderation.test.mjs`, 분리 평가 `test_moderation_native.py`를 `.github/workflows/community-moderation.yml`에 연결한다. 공식 규격: https://developers.openai.com/api/docs/guides/moderation
+
 현재 브랜치 `feat/21-member-activity`에 적용. 새 글·초안 게시·댓글·수정본은 DB에 저장하되 `pending`으로 비공개다. DB 작업 큐를 별도 워커가 즉시 처리한다. 일정 간격으로 공개된 글을 사후 차단하는 방식이 아니다. 워커의 2초 대기는 신규 큐 작업 조회 간격이다.
 
 ## 지금 테스트하는 방법
@@ -7,11 +22,11 @@
 - 글쓰기: `http://127.0.0.1:8080/community/write`
 - 작성자 상태·내용·수정: `http://127.0.0.1:8080/community/submissions`
 - 운영진 검사·사유별 복구: `http://127.0.0.1:8080/admin?tab=moderation` (`is_staff` 계정)
-- 기존 게시글·신고 관리의 제목 링크는 운영진 전용 원문 미리보기로 연결된다. 공개 URL에는 검토 중/숨김 글을 노출하지 않는다.
+- 기존 게시글·신고 관리의 제목 링크는 운영진 전용 원문 미리보기로 연결된다. 공개 URL에는 비공개 검토/숨김 글을 노출하지 않는다. 자동 검사 오류만 남은 공개 중 사후 검토는 공개 URL과 검사 목록에 함께 남는다.
 
-기본값은 **manual**이다. 모든 새 제출이 `pending → review`로 이동하며, 운영진이 원문과 이미지를 확인하고 사유를 해제해야 공개된다. 실제 OpenAI 정치·욕설 판정을 켠 상태가 아니다. 기존 공개 데이터는 migration 0011에서 승인 버전 0으로 보존했다. 이는 과거 데이터의 모델 검사 통과를 뜻하지 않는다. 기존 글도 수정하면 새 버전으로 검사한다.
+수동 테스트는 관리자 DB에서 **manual**을 선택한 상태에서만 실행한다. 이 선택에서는 모든 새 제출이 `pending → review`로 이동하며, 운영진이 원문과 이미지를 확인하고 사유를 해제해야 공개된다. DB 선택이 없으면 기본값은 **openai**다. 기존 공개 데이터는 migration 0011에서 승인 버전 0으로 보존했다. 이는 과거 데이터의 모델 검사 통과를 뜻하지 않는다. 기존 글도 수정하면 새 버전으로 검사한다.
 
-운영진은 선택한 사유를 `dismiss`(해제) 또는 `confirm`(확정)하고 근거를 남긴다. 하나라도 미해제 사유가 있으면 비공개다. 확정 사유도 재검토 후 해제 가능하다. 다른 운영진이 먼저 처리하거나 작성자가 수정하면 409가 나며 새로고침해야 한다. 기존 신고 관리의 `is_hidden`은 검사 복구로 해제하지 않는다.
+운영진은 선택한 사유를 `dismiss`(해제) 또는 `confirm`(확정)하고 근거를 남긴다. 자동 검사 오류 fallback의 open `manual_review`만 공개를 막지 않는다. 이 사유의 `confirm`은 rejected/비공개, `dismiss`는 공개를 유지한다. 다른 미해제 사유 또는 어떤 확정 사유라도 있으면 비공개다. 확정 사유도 재검토 후 해제 가능하다. 다른 운영진이 먼저 처리하거나 작성자가 수정하면 409가 나며 새로고침해야 한다. 기존 신고 관리의 `is_hidden`은 검사 복구로 해제하지 않는다.
 
 ## 서비스와 실행 명령 구조
 
@@ -25,7 +40,7 @@
 
 서버 스케줄러에서 미검사 전체를 수집하고 일회 실행할 명령: `python manage.py filter_unchecked_content` (`backend`에서 실행). 구현은 `llm/commands/filter_unchecked_content.py`와 `services.community_moderation.enqueue_unchecked`에 있다. 현재 내용 버전의 검사 작업이 없는 게시글·댓글을 찾아 비공개 큐에 넣은 뒤 기존 `run_moderation_worker --once`를 호출한다. 과거 승인 버전 0 데이터와 Django 기본 관리자에서 생성하여 작업이 누락된 데이터도 포함한다. 이미 완료·검토·거절된 검사 및 대기·실행 중 작업은 중복 생성하지 않는다. 실패 작업은 기존 명시적 재시도 절차를 유지하며, 아직 재시도 시간이 안 된 작업·다른 워커가 처리 중인 작업은 남은 수를 출력한다. 기존 숨김은 유지한다. 이 명령의 미검사 기준은 현재 버전의 작업 유무이므로, 버전을 올리지 않고 DB나 기본 관리자에서 이미 검사한 본문을 직접 덮어쓰는 경로는 별도로 연결해야 한다.
 
-명령 작성만 요청받았으므로 실제 게시글 전체에 실행하거나 서버 예약을 등록하지 않았다. 기존 상시 워커도 중지하지 않았다. 예약 실행만 사용할 때는 예약 등록 확인 후 상시 워커를 중지해야 한다. 현재 manual 설정에서는 기존과 동일하게 운영진 검토로 보내며, 실제 LLM 호출은 live 설정에서만 한다.
+명령 작성만 요청받았으므로 실제 게시글 전체에 실행하거나 서버 예약을 등록하지 않았다. 기존 상시 워커도 중지하지 않았다. 예약 실행만 사용할 때는 예약 등록 확인 후 상시 워커를 중지해야 한다. 관리자 DB의 manual 선택에서는 운영진 검토로 보낸다. openai 선택 또는 DB 선택이 없으면 기본 Moderation API를 호출한다. live 호출은 기존 스냅샷에만 남아 있다.
 
 `backend` 디렉터리에서 `python manage.py run_moderation_worker`로 계속 실행하거나 `python manage.py run_moderation_worker --once`로 현재 처리 가능한 작업을 소진한 뒤 종료한다. Docker의 기존 실행 명령은 바뀌지 않는다.
 
@@ -45,14 +60,14 @@ docker exec skn34-4th-local-backend-1 python manage.py check_moderation_flow
 
 전체 Compose에는 `community-moderation-worker` 서비스를 추가했다. 현재 컴퓨터의 기존 Compose 전체 파일은 Qdrant 필수 환경변수가 비어 있어 단독 워커 파일로 연결했다. 실행 중인 다른 컨테이너를 orphan으로 표시하더라도 **`--remove-orphans`를 사용하지 않는다**. 워커와 백엔드는 같은 DB·정책 환경변수를 써야 한다. 현재 로컬 DB 이름은 `mydb`; 다르면 `LOCAL_DB_NAME`을 맞춘다. 배포 시 먼저 마이그레이션한 뒤 워커를 시작한다.
 
-## 실제 모델 모드로 전환할 조건
+## 이전 live 스냅샷의 호환 전제 (새 접수 전환 절차 아님)
 
 `.env.example`에 설정 항목을 추가했다. 실제 `.env`나 키는 수정·기록하지 않았다.
 
 1. OpenAI API 키 및 사용할 문맥 판정 모델(`COMMUNITY_POLICY_MODEL`)을 준비한다. Responses의 structured output을 지원하는 모델이어야 한다.
 2. `community/data/political_reference_cases.json`의 **후보**를 독립 검토한다. 한국어·영어 및 야구 경계 사례를 확충하고, 별도 정답 데이터로 오탐/미탐을 측정한다. 예제 10건은 완전한 정치 표현 목록이 아니다.
 3. 코사인 유사도 임계값을 보정해 `COMMUNITY_POLITICAL_THRESHOLD`를 정한다. 범위는 -1~1이며 확률이 아니다. 승인한 기준 파일만 `reviewed: true`로 바꾼다. 아무 수치도 자동 확정하지 않았다.
-4. `COMMUNITY_MODERATION_MODE=live`로 설정하고 정책 버전을 올린 뒤 백엔드와 워커를 재생성한다. 단순 restart는 Docker의 바뀐 env_file 값을 다시 주입하지 않는다. 기존 manual 작업은 수동 검토 스냅샷을 유지한다. 새 글/수정본부터 live를 사용한다.
+4. 이 전제들은 이미 저장된 `live` 스냅샷 호환용이며 새 접수를 live로 설정하는 방법이 아니다. 현재 자동/수동 선택은 관리자 DB에서만 한다. 기존 manual/live 작업은 스냅샷을 유지한다.
 
 live: 1,000자 구간(150자 겹침)과 정치 기준 사례를 임베딩 → 최고 코사인 유사도가 임계값 이상이면 `political` 사유 생성 → `omni-moderation-latest` 유해성 분류 → 문맥 모델의 구조화된 정책 판정. 거래/광고 태그로 다른 검사를 건너뛰지 않는다. 일반 harassment는 문맥 판정으로 감탄·인용과 직접 모욕을 구분하고, 위협 등 다른 유해 카테고리는 운영진 검토한다. 모델 출력의 인용문이 실제 원문에 없거나 응답이 불완전하면 오류로 남긴다.
 
@@ -90,7 +105,7 @@ live: 1,000자 구간(150자 겹침)과 정치 기준 사례를 임베딩 → �
 | `accounts/test/test_point_integration.py` 및 공개 처리 서비스 | 최초 승인 공개 시 1회 지급. 기존 포인트 서비스 자체는 변경하지 않음 |
 | Frontend editor/API/내 글/admin panels + `community-moderation.tsx`, submissions page | 거래·광고 체크박스 없음. 비공개 상태 안내, 작성자/운영진 JWT 조회·복구. 기존 태그 필드는 API/DB 호환용으로 유지하며 문맥 모델에 전달하지 않음 |
 | `contracts/openapi.yaml`, `frontend/lib/api/schema.d.ts` | 전체 생성 파일이라 기존 계약 드리프트/번역 변경도 포함. 병합 후 양쪽을 재생성할 것 |
-| settings, env example, Compose, CI/evaluation/tests | local manual 기본값, 실행 워커, 네트워크 없는 테스트. 운영 evaluation 의존성 추가 없음 |
+| settings, env example, Compose, CI/evaluation/tests | 관리자 DB 선택/openai 기본값, 실행 워커, 네트워크 없는 테스트. 운영 evaluation 의존성 추가 없음 |
 
 `frontend/tests/community-category.test.mjs`에는 브랜치 원본의 중첩 merge conflict 표시가 남아 있어 기존 JSX 테스트 내용을 유지하며 표시와 중복 helper를 정리했다. 실제 서비스 코스·챗봇 생성 모델과 성능 설정은 변경하지 않았다.
 

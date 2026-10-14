@@ -51,14 +51,18 @@ jobs:
         working-directory: frontend
         run: npm run build
 
-  # 2. CD 배포 (develop 브랜치 push/merge 시 실행)
+  # 2. CD 배포
   cd-deploy:
     concurrency:
-        group: develop-ec2-deploy
-        cancel-in-progress: false
+      group: develop-ec2-deploy
+      cancel-in-progress: false
+
     needs: [ci-test, evaluation-regression]
+
     if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+
     runs-on: ubuntu-latest
+
     steps:
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.2.2
@@ -66,21 +70,63 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          command_timeout: 30m
+          command_timeout: 60m
+
           script: |
             set -eu
-            cd ~/dev
-            git fetch origin
+
+            cd "$HOME/dev"
+
+            # 1. 배포 전 디스크 상태 확인
+            echo "===== 배포 전 디스크 상태 ====="
+            df -h
+            df -i
+            docker system df
+
+            # 2. 최신 develop 코드 반영
+            echo "===== Git 업데이트 ====="
+            git fetch origin develop
             git reset --hard origin/develop
-            docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build --renew-anon-volumes backend frontend jev-browser lodging-warmer
-            docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --no-deps --force-recreate nginx
-            docker compose -f docker-compose.yml -f docker-compose.dev.yml exec -T nginx nginx -t
 
-            # 오래된 Docker 이미지와 빌드 캐시 정리
-            docker image prune -af --filter "until=24h"
-            docker builder prune -af --filter "until=24h"
+            # 3. 애플리케이션 빌드 및 컨테이너 재생성
+            # --renew-anon-volumes는 사용하지 않음
+            echo "===== 애플리케이션 배포 ====="
+            docker compose \
+              -f docker-compose.yml \
+              -f docker-compose.dev.yml \
+              up -d --build \
+              backend frontend jev-browser lodging-warmer
 
-  # 3. Discord 알림!
+            # 4. Nginx 재생성 및 설정 검증
+            echo "===== Nginx 배포 ====="
+            docker compose \
+              -f docker-compose.yml \
+              -f docker-compose.dev.yml \
+              up -d --no-deps --force-recreate nginx
+
+            docker compose \
+              -f docker-compose.yml \
+              -f docker-compose.dev.yml \
+              exec -T nginx nginx -t
+
+            # 5. 배포 성공 후 미사용 익명 볼륨 정리
+            # -a 옵션은 사용하지 않아 미사용 명명 볼륨을 보호
+            echo "===== 미사용 익명 볼륨 정리 ====="
+            docker volume prune -f
+
+            # 6. 미사용 이미지 정리
+            echo "===== Docker 이미지 정리 ====="
+            docker image prune -af
+
+            # 7. 최종 상태 확인
+            echo "===== 최종 디스크 상태 ====="
+            df -h
+            df -i
+            docker system df
+
+            echo "===== 개발 서버 배포 완료 ====="
+
+  # 3. Discord 알림
   notify-discord:
     needs: [ci-test, evaluation-regression, cd-deploy]
     if: always()
@@ -109,7 +155,7 @@ jobs:
           • **상세 내용:** ${DETAILS}
           • **Action 링크:** ${ACTION_URL}"
 
-          curl -X POST \
+          curl --fail --silent --show-error -X POST \
             -H "Content-Type: application/json" \
             -d "$(jq -n --arg content "$MESSAGE" '{content: $content}')" \
             "$DISCORD_WEBHOOK_URL"

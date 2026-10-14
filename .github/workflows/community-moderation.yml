@@ -23,7 +23,6 @@ jobs:
       DB_USER: postgres
       DB_PASSWORD: test-only
       CHAT_CHECKPOINT_SIGNING_KEY: test-only
-      COMMUNITY_MODERATION_MODE: manual
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -46,5 +45,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: pip install deepeval==4.2.8 ragas==0.4.3 langchain-community==0.4.1 Django==6.1.1
+      - run: pip install deepeval==4.2.8 ragas==0.4.3 langchain-community==0.4.1 Django==6.1.1 djangorestframework==3.18.0
       - run: python -I backend/llm/v2/evaluation/test_community_moderation.py
+      - run: python -I backend/llm/v2/evaluation/test_moderation_native.py
+      - run: python -I backend/llm/v2/evaluation/test_moderation_fallback.py

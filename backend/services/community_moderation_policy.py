@@ -1,4 +1,4 @@
-"""manual = explicit human review; live = configured providers, never silent allow."""
+"""manual = human review; openai = native moderation; live = legacy snapshots only."""
 import hashlib
 import json
 import math
@@ -42,6 +42,8 @@ def check(payload):
     if payload['policy_version'] != settings.COMMUNITY_POLICY_VERSION:
         raise RuntimeError('policy version changed; retry with new snapshot')
     text = payload['text']
+    if payload['mode'] == 'openai':
+        return check_native(payload)
     results, evidence = [], {'mode': payload['mode'], 'policy_version': payload['policy_version']}
     for url in sorted(set(re.findall(r'(?:https?://|www\.)[^\s<>"\']+', text, re.I))):
         results.append(finding('external_link_review', url, '악성 URL 제공자 미연결: 목적지를 운영진이 확인해야 합니다.'))
@@ -101,3 +103,27 @@ def check(payload):
         results.append(finding(item.code, item.quote, item.reason))
     evidence['policy_model'] = settings.COMMUNITY_POLICY_MODEL
     return list({r['id']: r for r in results}.values()), evidence
+
+
+def check_native(payload):
+    """No custom thresholds, embeddings, or context-model overrides."""
+    from openai import OpenAI
+    text = payload['text']
+    # Keep the complete submission together to preserve context.
+    response = OpenAI(timeout=30, max_retries=0).moderations.create(
+        model='omni-moderation-latest', input=text)
+    if len(response.results) != 1 or type(response.results[0].flagged) is not bool:
+        raise RuntimeError('moderation result mismatch')
+    row = response.results[0]
+    categories = row.categories.model_dump(by_alias=True)
+    scores = row.category_scores.model_dump(by_alias=True)
+    findings = []
+    if row.flagged:
+        labels = ', '.join(key for key, value in categories.items() if value)
+        findings.append(finding('harm', text, 'OpenAI 유해성 판정: ' + (labels or 'flagged')))
+    if payload['image_ids']:
+        findings.append(finding('image_review', '', '첨부 이미지는 자동 검사에 포함되지 않아 운영진 확인이 필요합니다.'))
+    return findings, {'mode': 'openai', 'policy_version': payload['policy_version'],
+        'moderation_model': response.model, 'moderation': [
+            {'flagged': row.flagged, 'categories': categories, 'scores': scores}],
+        'text_only': True}

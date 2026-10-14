@@ -11,6 +11,17 @@ from .admin_views import AdminPages
 from .models import CommunityPost, CommunityComment, ModerationJob
 from .serializers import CommunityPostSerializer, CommunityCommentSerializer
 from .moderation_service import review_job, retry_job
+from .moderation_config import mode_info
+from .models import ModerationSettings
+
+
+class ModeInput(serializers.Serializer):
+    mode = serializers.ChoiceField(choices=('manual', 'openai'))
+
+
+class ModeOutput(ModeInput):
+    automaticAvailable = serializers.BooleanField()
+    model = serializers.CharField()
 
 
 class PrivateResponseMixin:
@@ -18,6 +29,25 @@ class PrivateResponseMixin:
         response = super().finalize_response(request, response, *args, **kwargs)
         response['Cache-Control'] = 'private, no-store'
         return response
+
+
+class ModerationSettingsView(PrivateResponseMixin, APIView):
+    permission_classes = (StaffOnly,)
+
+    @extend_schema(responses=ModeOutput)
+    def get(self, request):
+        return Response(mode_info())
+
+    @extend_schema(request=ModeInput, responses=ModeOutput)
+    def post(self, request):
+        data = ModeInput(data=request.data)
+        data.is_valid(raise_exception=True)
+        if data.validated_data['mode'] == 'openai' and not mode_info()['automaticAvailable']:
+            raise serializers.ValidationError({'mode': '서버의 OpenAI API 키가 설정되지 않았습니다.'})
+        ModerationSettings.objects.update_or_create(pk=1, defaults={
+            'mode': data.validated_data['mode'], 'updated_by': request.user,
+        })
+        return Response(mode_info())
 
 
 class OwnPostList(PrivateResponseMixin, generics.ListAPIView):
