@@ -730,14 +730,19 @@ class Specialist:
         query_vector = self.google.embed([{"text": query}, *parts] if parts else {"text": "task: search result | query: " + query})
         groups = self.db.query_points_groups(COLLECTION, query=query_vector, using='video',
             group_by='video_id', group_size=1, limit=candidate_limit).groups
-        points = [point for group in groups for point in group.hits]
-        rankings = {"video": [str(p.id) for p in points]}
-        candidates = select_candidates(rankings["video"], self.rows, candidate_limit)
-        for sid in candidates:
-            row = self.rows[sid]
-            point = next(p for p in points if str(p.id) == sid)
-            if row.get('id') != sid or point.payload != row:
-                raise ValueError('Invalid selected corpus payload')
+        if len(groups) > candidate_limit:
+            raise ValueError('Invalid returned corpus group count')
+        points = []
+        for group in groups:
+            if len(group.hits) != 1:
+                raise ValueError('Invalid returned corpus hit count')
+            point = group.hits[0]
+            sid = str(point.id)
+            row = self.rows.get(sid)
+            if (not isinstance(row, dict) or row.get('id') != sid or point.payload != row
+                    or group.id != row.get('video_id')):
+                raise ValueError('Invalid returned corpus identity/payload')
+            points.append(point)
             if not isinstance(row.get('video_id'), str) or not re.fullmatch(r'[A-Za-z0-9_-]{11}', row['video_id']):
                 raise ValueError('Invalid selected source identity')
             start, end = number(row.get('start')), number(row.get('end'))
@@ -747,6 +752,8 @@ class Specialist:
                 source = self.sources.get(row['video_id'], {})
                 if end > number(source.get('duration')):
                     raise ValueError('Selected hint outside full source')
+        rankings = {"video": [str(p.id) for p in points]}
+        candidates = select_candidates(rankings["video"], self.rows, candidate_limit)
         retrieval_latency = time.monotonic() - started
         rows = []
         for sid in candidates:

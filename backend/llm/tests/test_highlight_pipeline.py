@@ -60,6 +60,45 @@ class PipelineTests(unittest.TestCase):
                 with self.assertRaises(ValueError): opened.validate_corpus()
             finally: opened.close()
 
+    def test_unknown_actual_point_is_not_verified_absence(self):
+        from qdrant_client import models
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)/'store'; row = self.store(root)
+            google = Mock(); google.embed.return_value = [1.]*768
+            opened = mm.Specialist(root, google)
+            try:
+                sid = '00000000-0000-0000-0000-000000000099'
+                opened.db.delete(mm.COLLECTION, [row['id']])
+                opened.db.upsert(mm.COLLECTION, [models.PointStruct(id=sid,
+                    vector={m: [1.]*768 for m in mm.MODALITIES}, payload={**row, 'id': sid})])
+                with self.assertRaises(ValueError): opened.retrieve('find')
+            finally: opened.close()
+
+    def test_returned_groups_are_validated_before_selection(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)/'store'; row = self.store(root)
+            google = Mock(); google.embed.return_value = [1.]*768
+            opened = mm.Specialist(root, google)
+            try:
+                good = SimpleNamespace(id=row['video_id'], hits=[SimpleNamespace(id=row['id'], payload=row)])
+                bad_groups = [
+                    SimpleNamespace(id='abcdefghijk', hits=good.hits),
+                    SimpleNamespace(id=row['video_id'], hits=[]),
+                    SimpleNamespace(id=row['video_id'], hits=good.hits*2),
+                    SimpleNamespace(id=row['video_id'], hits=[SimpleNamespace(id=row['id'], payload={**row, 'end': 901.})]),
+                    SimpleNamespace(id=row['video_id'], hits=[SimpleNamespace(id='unknown', payload=row)]),
+                ]
+                for bad in bad_groups:
+                    with self.subTest(group=bad), patch.object(opened.db, 'query_points_groups',
+                            return_value=SimpleNamespace(groups=[good, bad])):
+                        with self.assertRaises(ValueError): opened.retrieve('find')
+                with patch.object(opened.db, 'query_points_groups', return_value=SimpleNamespace(groups=[good]*4)):
+                    with self.assertRaises(ValueError): opened.retrieve('find')
+                opened.rows[row['id']]['end'] = 901.
+                with patch.object(opened.db, 'query_points_groups', return_value=SimpleNamespace(groups=[good])):
+                    with self.assertRaises(ValueError): opened.retrieve('find')
+            finally: opened.close()
+
     def test_query_missing_and_incomplete_never_create_store(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)/'missing'

@@ -116,7 +116,7 @@ class YouTubeVerifierTests(unittest.TestCase):
                     specialist.google, specialist.verifier = Mock(), client
                     specialist.google.embed.return_value = [1.] * mm.DIM
                     specialist.db, specialist.sql = Mock(), Mock()
-                    specialist.db.query_points_groups.return_value.groups = [SimpleNamespace(hits=[SimpleNamespace(id=ROW['id'], payload=ROW)])]
+                    specialist.db.query_points_groups.return_value.groups = [SimpleNamespace(id=ROW['video_id'], hits=[SimpleNamespace(id=ROW['id'], payload=ROW)])]
                     specialist.sources = {ROW['video_id']: {'duration': ROW['end']}}
                     specialist.sql.execute.return_value = []
                     # Invalid synthetic WebP stays original for verification; retrieval helper is independent.

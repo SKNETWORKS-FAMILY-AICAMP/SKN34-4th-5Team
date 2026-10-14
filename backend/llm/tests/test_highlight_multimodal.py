@@ -112,7 +112,7 @@ class MultimodalTests(unittest.TestCase):
         specialist.rows = {sid: {"id": sid, "video_id": 'SlvDBmr4Bd' + sid, "start": start, "end": start + 24}
                            for sid, start in (("a", 100), ("b", 646.079), ("c", 800))}
         specialist.db = Mock()
-        specialist.db.query_points_groups.return_value.groups = [SimpleNamespace(hits=[SimpleNamespace(id=sid, payload=specialist.rows[sid])]) for sid in specialist.rows]
+        specialist.db.query_points_groups.return_value.groups = [SimpleNamespace(id=specialist.rows[sid]['video_id'], hits=[SimpleNamespace(id=sid, payload=specialist.rows[sid])]) for sid in specialist.rows]
         specialist.sql = Mock()
         specialist.sql.execute.return_value = []
         specialist.verifier.verify.side_effect = lambda query, row, video, audio: {
@@ -144,7 +144,7 @@ class MultimodalTests(unittest.TestCase):
         specialist.google = Mock()
         specialist.google.embed.side_effect = lambda part: retrieval([1.] * mm.DIM)
         specialist.db = Mock()
-        specialist.db.query_points_groups.side_effect = lambda *a, **k: retrieval(SimpleNamespace(groups=[SimpleNamespace(hits=[SimpleNamespace(id=sid, payload=specialist.rows[sid])]) for sid in specialist.rows]))
+        specialist.db.query_points_groups.side_effect = lambda *a, **k: retrieval(SimpleNamespace(groups=[SimpleNamespace(id=specialist.rows[sid]['video_id'], hits=[SimpleNamespace(id=sid, payload=specialist.rows[sid])]) for sid in specialist.rows]))
         specialist.sql = Mock()
         specialist.sql.execute.side_effect = lambda *a: retrieval([])
         specialist.verifier = verifier

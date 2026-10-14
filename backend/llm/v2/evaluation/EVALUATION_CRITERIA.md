@@ -775,6 +775,12 @@ fixture는 테스트 입력·응답을 고정하는 방식이며 그 자체가 �
 - LangChain ToolMessage에는 block enum이 없으므로 status=error 및 additional_kwargs.highlight_status=block, selection artifact.status=block, result.status=block을 보존한다. 첫 오류와 마지막 결과 이유를 분리하며 반환 메시지에는 selector/tool 원시 교환을 추가하지 않는다. 공개 진행 도구명은 한국어 label을 연결한다.
 - 동결 10개 retry 계약 A2/10→B10/10(DeepEval/Ragas 각각), 실제 SDK·delegate·Meter 복구/최종 block 및 비어 있지 않은 이미지/nostream callback 검증을 free에 포함한다. scratch writer의 phase3-A9-results/phase3-B6-results와 phase3-free4, phase3-highlight, phase3-http, phase3-wiring2는 로컬 실행 근거다. 부분 실패/fixture 오류/진단 overlay 기록은 삭제하지 않는다. 결과는 합성 실행 계약이며 유료/live·hosted CI 성공을 뜻하지 않는다.
 
+## 반환 검색 경계·명시 terminal block 보완 (2026-10-14, 수정 전)
+
+- 목적/변경 변수: bounded Qdrant 반환 group/hit 전체를 후보 선택 전에 saved row/payload/canonical video ID 및 trusted source 범위와 대조한다. unknown point나 group.id와 payload.video_id 불일치는 검증 오류이며 verified no-match로 승격하지 않는다. standalone legacy select_candidates의 unknown skip 호환은 유지하고 전체 corpus scan/scroll/media 읽기는 추가하지 않는다.
+- 공개 카드 정책: ask_highlight의 status=error라도 명시 highlight_status=block은 같은 턴의 이전 카드를 지운다. 일반 non-block error는 기존 카드를 보존하고 block 이후 새 성공은 자신의 카드만 복구한다. project_history/done_payload도 같은 projection을 사용한다.
+- 동결 A/B/합격: 독립 verifier의 기존 3실패 로그·script/oracle은 불변으로 보존한다. 기존 pipeline 및 compiled retry suite에 unknown actual point, mismatched group, 반환 malformed/bounds, terminal block/history/done 및 non-block/later-success 회귀를 추가하고 동일 테스트·정답·설치 DeepEval exact/Ragas ExactMatch를 A/B에 실행한다. 모든 경계 거절·카드 정확 일치와 실제 highlight-free/free/wiring 실행이 합격이며 오류/미실행은 검증 대기다. 기존 기준/정답은 완화하지 않고 새 일반 품질 threshold·유료/provider 호출·live 품질 주장은 추가하지 않는다.
+
 ## 현재 앱 소스 10문항 단일 live 재검증 준비 (2026-10-14, 실행 전)
 
 - 목적/범위: 현재 worktree production bytes와 실제 local dependency를 동결하고 기존10문항/10영상922구간/약한 라벨(4양성 장면의8변형+쉬운 음성2)/canonical DeepEval·Ragas 채점기를 그대로 재사용한다. video top8 한 번→기존 중복·누락·시간겹침 제외→최대3→병렬3 URL 검증, text prefix/taskType 미지정/768, gemini-embedding-2 및 gemini-3.8-flash/temperature0/strict JSON/output4000은 불변이다. 이전 결과는 설명용 반복 비교이며 causal RRF A/B·이미지 품질 근거가 아니다.

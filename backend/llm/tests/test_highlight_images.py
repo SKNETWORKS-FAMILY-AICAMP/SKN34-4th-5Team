@@ -51,7 +51,7 @@ class ImageContractTests(unittest.TestCase):
         specialist.verifier.last_model_version = "synthetic"
         specialist.root = Path("/synthetic")
         specialist.rows = {"x": {"id": "x", "video_id": "SlvDBmr4Bd8", "start": 0, "end": 24}}
-        specialist.db.query_points_groups.return_value.groups = [SimpleNamespace(hits=[SimpleNamespace(id='x', payload=specialist.rows['x'])])]
+        specialist.db.query_points_groups.return_value.groups = [SimpleNamespace(id=specialist.rows['x']['video_id'], hits=[SimpleNamespace(id='x', payload=specialist.rows['x'])])]
         specialist.sql.execute.return_value = [("x",)]
         specialist.verifier.verify.return_value = {"candidate_id": "x", "match": False, "local_seconds": 0, "evidence": "absent"}
         result = specialist.ask("same scene", images=[IMAGE])

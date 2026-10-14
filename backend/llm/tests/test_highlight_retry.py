@@ -164,6 +164,34 @@ class RetryTests(unittest.TestCase):
             google = mm.Google('synthetic', quota=Mock()); google.call = Mock(return_value={'totalTokens': 9})
             with self.assertRaises(RuntimeError): mm.verify_retrieval(google, self.retrieval())
 
+    def test_terminal_block_clears_cards_in_projection_history_and_done(self):
+        from langchain_core.messages import ToolMessage
+        from llm.v2.agent.chat_ui import highlight_videos
+        from llm.serializer.message import project_history, done_payload
+        result, _, _, _ = self.run_graph([ValueError('first'), RuntimeError('second')])
+        records = result['messages']; terminal = records[-2]
+        card = {'videoId': 'SlvDBmr4Bd8', 'start': 700, 'label': 'earlier result'}
+        earlier = ToolMessage('selected', name='ask_highlight', tool_call_id='earlier', artifact=[
+            ToolMessage('selected', name='select_highlight_scenes', tool_call_id='selection', artifact={'videos': [card]})])
+        blocked = ToolMessage(records[-1].text, name='ask_highlight', tool_call_id='last', status=terminal.status,
+            additional_kwargs=terminal.additional_kwargs, artifact=records)
+        human = HumanMessage('original', id='human')
+        calls = AIMessage('', id='calls', tool_calls=[
+            {'name': 'ask_highlight', 'args': {'task': 'original'}, 'id': 'earlier'},
+            {'name': 'ask_highlight', 'args': {'task': 'original'}, 'id': 'last'}])
+        messages = [human, calls, earlier, blocked, AIMessage(blocked.content, id='answer')]
+        turns = {'human': {'status': 'completed', 'answer_id': 'answer'}}
+        self.assertEqual(highlight_videos([earlier, blocked]), [])
+        self.assertFalse(project_history(messages, turns)[-1].get('videos'))
+        self.assertFalse(done_payload(messages, turns).get('videos'))
+        failed = ToolMessage('failed', name='ask_highlight', tool_call_id='failure', status='error')
+        self.assertEqual(highlight_videos([earlier, failed]), [card])
+        later_card = {**card, 'start': 800, 'label': 'new result'}
+        later = ToolMessage('selected', name='ask_highlight', tool_call_id='later', artifact=[
+            ToolMessage('selected', name='select_highlight_scenes', tool_call_id='new-selection', artifact={'videos': [later_card]})])
+        self.assertEqual(highlight_videos([earlier, blocked, later]), [later_card])
+        self.assertEqual(highlight_videos([earlier, terminal]), [])
+
     def test_repeated_invocations_reset_bound(self):
         call = {'name': 'search_stored_highlight_rag', 'args': {'query': 'revised'}, 'id': 'retry'}
         selector = Selector(messages=iter([AIMessage('', tool_calls=[call]), AIMessage('', tool_calls=[call])]))

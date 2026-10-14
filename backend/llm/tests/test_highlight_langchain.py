@@ -86,7 +86,9 @@ class LangChainMigrationTests(unittest.TestCase):
         specialist.google.embed.return_value = [1.] * mm.DIM
         specialist.db, specialist.sql = Mock(), Mock()
         specialist.db.query_points_groups.side_effect = lambda *args, **kwargs: SimpleNamespace(
-            groups=[SimpleNamespace(hits=[SimpleNamespace(id=sid, payload=specialist.rows.get(sid))]) for sid in ranking])
+            groups=[SimpleNamespace(id=specialist.rows[sid]['video_id'],
+                hits=[SimpleNamespace(id=sid, payload=specialist.rows[sid])])
+                for sid in ranking[:kwargs['limit']]])
         specialist.sql.execute.return_value = [('a',), ('b',), ('c',)]
         specialist.verifier.verify.side_effect = lambda query, row, *args, **kwargs: {
             'candidate_id': row['id'], 'match': row['id'] == 'a', 'local_seconds': 1,
@@ -117,13 +119,13 @@ class LangChainMigrationTests(unittest.TestCase):
             self.assertEqual(call.kwargs['images'], [image])
             self.assertEqual(call.kwargs['config']['metadata']['parent_id'], 'parent')
         self.assertNotIn('base64', json.dumps(result))
-        self.assert_video_lookup(specialist, result, ranking)
+        self.assert_video_lookup(specialist, result, ['z', 'a', 'b'])
 
     def test_video_duplicates_unknown_overlap_touching_and_limits(self):
         ranking = ['unknown', 'z', 'z', 'a', 'b', 'c', 'd', 'e']
         for limit, expected in ((None, ['z', 'c', 'd']), (1, ['z']), (3, ['z', 'c', 'd'])):
             with self.subTest(limit=limit):
-                specialist = self.video_specialist(ranking)
+                specialist = self.video_specialist(expected)
                 specialist.rows['a'].update(video_id=specialist.rows['z']['video_id'], start=10, end=30)
                 specialist.rows['b'].update(video_id=specialist.rows['z']['video_id'], start=200, end=220)
                 specialist.rows['c'].update(video_id='different11', start=0, end=20)
@@ -133,7 +135,8 @@ class LangChainMigrationTests(unittest.TestCase):
                 self.assertEqual(specialist.verifier.verify.call_count, len(expected))
                 self.assertTrue(result['complete'])
                 self.assertTrue(result['no_match'])
-                self.assert_video_lookup(specialist, result, ranking, limit or 3)
+                self.assertEqual(mm.select_candidates(ranking, specialist.rows, limit or 3), expected)
+                self.assert_video_lookup(specialist, result, expected, limit or 3)
         for limit in (0, 4, 5, 6):
             specialist = self.video_specialist(ranking)
             with self.assertRaises(ValueError):
@@ -233,7 +236,7 @@ class LangChainMigrationTests(unittest.TestCase):
                     specialist.google, specialist.verifier = Mock(), mm.Google('synthetic', quota=Mock())
                     specialist.google.embed.return_value = [1.] * 768
                     specialist.db, specialist.sql = Mock(), Mock()
-                    specialist.db.query_points_groups.return_value.groups = [SimpleNamespace(hits=[SimpleNamespace(id=ROW['id'], payload=ROW)])]
+                    specialist.db.query_points_groups.return_value.groups = [SimpleNamespace(id=ROW['video_id'], hits=[SimpleNamespace(id=ROW['id'], payload=ROW)])]
                     specialist.sources = {ROW['video_id']: {'duration': ROW['end']}}
                     specialist.sql.execute.return_value = []
                     result = specialist.ask('find')
@@ -315,7 +318,7 @@ class LangChainMigrationTests(unittest.TestCase):
         specialist.verifier.verify.return_value = {'candidate_id': ROW['id'], 'match': True,
             'local_seconds': 3.125, 'evidence': OUTPUT['evidence']}
         specialist.db, specialist.sql = Mock(), Mock()
-        specialist.db.query_points_groups.return_value.groups = [SimpleNamespace(hits=[SimpleNamespace(id=ROW['id'], payload=ROW)])]
+        specialist.db.query_points_groups.return_value.groups = [SimpleNamespace(id=ROW['video_id'], hits=[SimpleNamespace(id=ROW['id'], payload=ROW)])]
         specialist.sql.execute.return_value = []
         original = RunnableLambda.batch
         batches = []
