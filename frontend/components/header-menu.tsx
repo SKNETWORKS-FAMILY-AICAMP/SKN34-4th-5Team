@@ -7,6 +7,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useChat } from "./chat-provider";
 import { CapBot, Icon } from "./icons";
 import { useMemberAuth } from "@/lib/member-auth";
+import { PwaInstallButton } from "./pwa-install-button";
 
 const groups = [
   {
@@ -80,6 +81,7 @@ function HeaderMenuContent({ pathname }: { pathname: string }) {
         <nav className="header-menu-panel" id={panelId} aria-label="카테고리 메뉴">
           <p className="header-menu-label">카테고리</p>
           <ul className="header-menu-list">
+            <li><PwaInstallButton onInstalled={closeMenu} /></li>
             <li>
               <Link className="header-menu-category" href="/" aria-current={pathname === "/" ? "page" : undefined} onClick={closeMenu}>
                 <span className="header-menu-icon"><Icon name="home" size={20} /></span>
