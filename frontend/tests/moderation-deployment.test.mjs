@@ -13,7 +13,8 @@ test('development and production deploy explicitly start the moderation worker w
       assert.match(commands, new RegExp(`docker buildx build [^\\n]*--load[^\\n]*-t dev-${image}:latest`));
     }
     assert.match(commands, /docker tag dev-backend:latest dev-lodging-warmer:latest/);
-    assert.match(commands, /docker save\s+dev-backend:latest\s+dev-lodging-warmer:latest\s+dev-frontend:latest\s+dev-jev-browser:latest/);
+    assert.match(commands, /docker buildx build [^\n]*--load[^\n]*-f docker\/vector-startup\.Dockerfile -t dev-vector-init:latest \./);
+    assert.match(commands, /docker save\s+dev-vector-init:latest\s+dev-backend:latest\s+dev-lodging-warmer:latest\s+dev-frontend:latest\s+dev-jev-browser:latest/);
     assert.ok(commands.includes(`| gzip -1 > "$RUNNER_TEMP/${archive}"`));
     assert.ok(commands.includes(`"$EC2_USER@$EC2_HOST:${archive}"`));
     assert.match(commands, new RegExp(`docker load -i (?:"\\$HOME/|~/)${archive.replaceAll('.', '\\.')}"?`));
