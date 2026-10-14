@@ -1412,6 +1412,7 @@ def _answer(question, history=None, hint_stadium=None, origin=None, requested_af
     mode = sl.get("mode")
     from .entry_timing import requested_entry
     entry_minute = requested_entry(question, game_time_of(game), history)
+    course = timeline.internal_food_last(course, lookup, question)
     rows = [{**lookup[c["key"]], **c} for c in course]
     rows, calculated, availability_changes = availability.repair(rows,
         lambda items: course_timing(items, game_time_of(game), mode, ranker, entry_minute=entry_minute),
@@ -1476,7 +1477,10 @@ def _answer(question, history=None, hint_stadium=None, origin=None, requested_af
     if not requested and game:
         text = f"{schedule_notice(game)}\n\n{text}"
     if origin and points:
-        first = points[0]
+        # A tenant pin is a display offset beside the stadium, not a reachable
+        # first stop. Measure to the first place reachable from outside.
+        stadium_row = next((p for p in points if p.get("category") == "STADIUM"), {})
+        first = next((p for p in points if not timeline.internal_food(p, stadium_row)), points[0])
         meters = geo.haversine_m(origin["lat"], origin["lng"], first.get("lat"), first.get("lng"))
         if meters is not None:
             text += f"\n{'반경 진입점' if entry_point else origin_label}에서 {first['name']}까지는 직선거리 약 {meters / 1000:.1f}km예요."

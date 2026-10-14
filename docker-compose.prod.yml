@@ -133,13 +133,13 @@ services:
       qdrant:
         condition: service_started
       minio:
-        condition: service_healthy
+        condition: service_started
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/healthz/', timeout=3)"]
-      interval: 10s
+      interval: 30s
       timeout: 5s
-      retries: 12
-      start_period: 30s
+      retries: 3
+      start_period: 10s
     logging: *default-logging
 
   community-moderation-worker:
@@ -184,13 +184,13 @@ services:
       - "127.0.0.1:3000:3000"
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/"]
-      interval: 10s
+      interval: 30s
       timeout: 5s
-      retries: 12
-      start_period: 30s
+      retries: 3
+      start_period: 10s
     depends_on:
       backend:
-        condition: service_healthy
+        condition: service_started
     logging: *default-logging
 
   nginx:
@@ -204,9 +204,9 @@ services:
       - ./nginx/ssl:/etc/nginx/ssl:ro
     depends_on:
       backend:
-        condition: service_healthy
+        condition: service_started
       frontend:
-        condition: service_healthy
+        condition: service_started
     logging: *default-logging
 
   minio:
@@ -223,9 +223,9 @@ services:
       - minio_data:/data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 5s
+      interval: 30s
       timeout: 3s
-      retries: 10
+      retries: 3
     logging: *default-logging
 
 volumes:

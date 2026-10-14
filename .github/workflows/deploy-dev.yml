@@ -78,6 +78,8 @@ jobs:
 
           docker buildx build \
             --load \
+            --provenance=false \
+            --sbom=false \
             --cache-from type=gha,scope=dev-backend \
             --cache-to type=gha,mode=max,scope=dev-backend \
             -f backend/Dockerfile \
@@ -88,6 +90,8 @@ jobs:
 
           docker buildx build \
             --load \
+            --provenance=false \
+            --sbom=false \
             --cache-from type=gha,scope=dev-frontend \
             --cache-to type=gha,mode=max,scope=dev-frontend \
             -f frontend/Dockerfile \
@@ -96,6 +100,8 @@ jobs:
 
           docker buildx build \
             --load \
+            --provenance=false \
+            --sbom=false \
             --cache-from type=gha,scope=dev-jev-browser \
             --cache-to type=gha,mode=max,scope=dev-jev-browser \
             -f docker/jev-browser/Dockerfile \
@@ -190,6 +196,10 @@ jobs:
               up -d --no-build --force-recreate --wait --wait-timeout 240 \
               backend frontend jev-browser lodging-warmer community-moderation-worker
 
+            # 이미지 교체 중 생성된 이전 레이어를 즉시 제거해 30GiB 디스크를 보호
+            docker image prune -af
+            docker builder prune -af --filter until=24h || true
+
             # 5. Nginx 재생성 및 설정 검증
             echo "===== Nginx 배포 ====="
             docker compose \
@@ -202,24 +212,28 @@ jobs:
               -f docker-compose.dev.yml \
               exec -T nginx nginx -t
 
-            # 6. HTTPS 경유 프런트엔드와 API 확인
+            # 6. EC2 내부에서 API와 프런트엔드 헬스 체크
             echo "===== 서비스 헬스 체크 ====="
+
             wait_for_endpoint() {
               endpoint=$1
               attempt=1
+              max_attempts=5
 
-              while [ "$attempt" -le 30 ]; do
-                if curl --fail --silent --insecure \
-                  --connect-timeout 3 --max-time 5 \
+              while [ "$attempt" -le "$max_attempts" ]; do
+                if curl --fail --silent \
+                  --connect-timeout 2 --max-time 3 \
                   --output /dev/null "$endpoint"; then
                   echo "Healthy: $endpoint"
                   return 0
                 fi
 
-                echo "Waiting for endpoint ($attempt/30): $endpoint"
-                if [ "$attempt" -lt 30 ]; then
-                  sleep 5
+                echo "Waiting for endpoint ($attempt/$max_attempts): $endpoint"
+
+                if [ "$attempt" -lt "$max_attempts" ]; then
+                  sleep 2
                 fi
+
                 attempt=$((attempt + 1))
               done
 
@@ -227,8 +241,8 @@ jobs:
               return 1
             }
 
-            wait_for_endpoint https://localhost/api/v1/healthz/
-            wait_for_endpoint https://localhost/
+            wait_for_endpoint http://127.0.0.1:8000/api/v1/healthz/
+            wait_for_endpoint http://127.0.0.1:3000/
 
             # 7. 배포 성공 후 미사용 익명 볼륨 정리
             # -a 옵션은 사용하지 않아 미사용 명명 볼륨을 보호
@@ -237,7 +251,10 @@ jobs:
 
             # 8. 미사용 이미지 정리
             echo "===== Docker 이미지 정리 ====="
+            docker container prune -f
             docker image prune -af
+            docker builder prune -af --filter until=24h || true
+            docker system prune -af
 
             # 9. 최종 상태 확인
             echo "===== 최종 디스크 상태 ====="

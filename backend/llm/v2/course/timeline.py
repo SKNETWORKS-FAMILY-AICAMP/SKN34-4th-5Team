@@ -13,6 +13,8 @@
     BEFORE 는 구장 입장 시각에서 거꾸로(체류·이동을 빼면서), AFTER 는 경기 종료 예상 시각에서 앞으로.
     그래서 "경기 시작 18:30" 하나만 알면 나머지 시각이 전부 따라 나온다.
 """
+import re
+
 
 GAME_DURATION_MIN = 190      # KBO 9이닝 평균 경기 시간 (약 3시간 10분)
 ENTER_BEFORE_MIN = 20
@@ -94,6 +96,27 @@ def internal_block(points):
     while first and internal_food(points[first - 1], points[g], catalogues):
         first -= 1
     return (first, g) if first < g else None
+
+
+LEAVE_STADIUM = re.compile(r"(?:야구장|경기장|구장|매장|먹고).{0,12}(?:나와|나온|나가|나간|벗어나|재입장)")
+
+
+def internal_food_last(course, lookup, question=""):
+    """Collected stadium tenants are reached only after entry.
+
+    Unless the user explicitly plans to leave and re-enter, a pre-game stop
+    inside the stadium cannot precede an outside stop. Keep the relative order
+    of each group and move tenants right before the game.
+    """
+    g = next((i for i, c in enumerate(course) if c["phase"] == "GAME"), None)
+    if g is None or LEAVE_STADIUM.search(question or ""):
+        return course
+    stadium, catalogues = lookup.get(course[g]["key"], {}), {}
+    inside = {i for i in range(g) if internal_food(lookup.get(course[i]["key"], {}), stadium, catalogues)}
+    if not inside or inside == set(range(g - len(inside), g)):
+        return course
+    return ([c for i, c in enumerate(course[:g]) if i not in inside]
+            + [c for i, c in enumerate(course[:g]) if i in inside] + course[g:])
 
 
 def scheduled_legs(points, legs):

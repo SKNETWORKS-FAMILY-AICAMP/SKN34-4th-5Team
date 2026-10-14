@@ -65,6 +65,20 @@ class CourseEntryTimingTests(SimpleTestCase):
         self.assertEqual(result["rows"][0]["stayMin"], 50)
         self.assertEqual(result["rows"][-1]["time"], "18:10")
 
+    def test_generated_course_moves_tenant_after_outside_stops_unless_user_leaves(self):
+        outside = {"key": "cafe", "phase": "BEFORE", "category": "CAFE"}
+        points = [tenant(), outside, stadium()]
+        course, lookup = course_of(points)
+        ordered = timeline.internal_food_last(course, lookup, "잠실 코스 짜줘. 경기 전에 치킨 먹고 카페도 가고 싶어")
+        self.assertEqual([c["key"] for c in ordered], ["cafe", "food", "game"])
+        result = timeline.build(ordered, lookup, "18:30", [10, 10])
+        self.assertTrue(result["internalFoodBeforeGame"])
+        self.assertEqual([r["time"] for r in result["rows"]][1:], ["18:00", "18:30"])
+        kept = timeline.internal_food_last(course, lookup, "구장에서 치킨 먹고 나와서 카페 갔다가 다시 들어갈래")
+        self.assertEqual([c["key"] for c in kept], ["food", "cafe", "game"])
+        already = [course[1], course[0], course[2]]
+        self.assertIs(timeline.internal_food_last(already, lookup, ""), already)
+
     def test_internal_rule_requires_catalogue_identity_and_matching_stadium(self):
         source = tenant()
         for invalid in ({**source, "placeId": "kakao:fake", "source": "MYSEATCHECK", "scope": "internal"},

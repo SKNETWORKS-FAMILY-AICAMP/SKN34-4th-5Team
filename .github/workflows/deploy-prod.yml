@@ -73,6 +73,8 @@ jobs:
 
           docker buildx build \
             --load \
+            --provenance=false \
+            --sbom=false \
             --cache-from type=gha,scope=prod-backend \
             --cache-to type=gha,mode=max,scope=prod-backend \
             -f backend/Dockerfile.prod \
@@ -83,6 +85,8 @@ jobs:
 
           docker buildx build \
             --load \
+            --provenance=false \
+            --sbom=false \
             --cache-from type=gha,scope=prod-frontend \
             --cache-to type=gha,mode=max,scope=prod-frontend \
             -f frontend/Dockerfile.prod \
@@ -92,6 +96,8 @@ jobs:
 
           docker buildx build \
             --load \
+            --provenance=false \
+            --sbom=false \
             --cache-from type=gha,scope=prod-jev-browser \
             --cache-to type=gha,mode=max,scope=prod-jev-browser \
             -f docker/jev-browser/Dockerfile \
@@ -137,7 +143,7 @@ jobs:
 
           # 미사용 이미지 정리
           $SSH "$EC2_USER@$EC2_HOST" \
-            'docker image prune -af'
+            'docker container prune -f && docker image prune -af && docker builder prune -af --filter until=24h || true'
 
           # 미사용 익명 볼륨 정리
           # 명명된 볼륨은 일반 prune에서 제외됨
@@ -207,6 +213,10 @@ jobs:
               up -d --no-build --force-recreate --wait --wait-timeout 240 \
               backend frontend nginx minio jev-browser lodging-warmer community-moderation-worker
 
+            # 이미지 교체 중 생성된 이전 레이어를 즉시 제거해 30GiB 디스크를 보호
+            docker image prune -af
+            docker builder prune -af --filter until=24h || true
+
             # Nginx 설정 검증
             echo "===== Nginx 설정 검증 ====="
             docker compose \
@@ -216,22 +226,26 @@ jobs:
 
             # 헬스 체크
             echo "===== 운영 헬스 체크 ====="
+
             wait_for_endpoint() {
               endpoint=$1
               attempt=1
+              max_attempts=5
 
-              while [ "$attempt" -le 30 ]; do
-                if curl --fail --silent --insecure \
-                  --connect-timeout 3 --max-time 5 \
+              while [ "$attempt" -le "$max_attempts" ]; do
+                if curl --fail --silent --show-error --insecure \
+                  --connect-timeout 2 --max-time 3 \
                   --output /dev/null "$endpoint"; then
                   echo "Healthy: $endpoint"
                   return 0
                 fi
 
-                echo "Waiting for endpoint ($attempt/30): $endpoint"
-                if [ "$attempt" -lt 30 ]; then
-                  sleep 5
+                echo "Waiting for endpoint ($attempt/$max_attempts): $endpoint"
+
+                if [ "$attempt" -lt "$max_attempts" ]; then
+                  sleep 2
                 fi
+
                 attempt=$((attempt + 1))
               done
 
@@ -239,6 +253,10 @@ jobs:
               return 1
             }
 
+            # 백엔드 직접 검사
+            wait_for_endpoint http://127.0.0.1:8000/api/v1/healthz/
+
+            # Nginx를 통한 API 및 프런트엔드 검사
             wait_for_endpoint https://localhost/api/v1/healthz/
             wait_for_endpoint https://localhost/
 
@@ -246,7 +264,10 @@ jobs:
             echo "===== 배포 후 Docker 정리 ====="
 
             docker volume prune -f
+            docker container prune -f
             docker image prune -af
+            docker builder prune -af --filter until=24h || true
+            docker system prune -af
 
             # 최종 상태 확인
             echo "===== 최종 디스크 상태 ====="
