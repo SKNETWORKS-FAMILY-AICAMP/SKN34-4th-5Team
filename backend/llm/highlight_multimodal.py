@@ -569,6 +569,7 @@ def verify_retrieval(google, retrieval, images=None, config=None):
             raise
         except (ValueError, RuntimeError) as exc:
             decisions.append({'candidate_id': checked[-1], 'model_version': google.last_model_version,
+                'quota_wait': google.last_quota_wait, 'provider_latency': google.last_provider_latency,
                 'rejected' if isinstance(exc, ValueError) else 'provider_error':
                 'malformed provider output' if isinstance(exc, ValueError) else 'verification provider/source unavailable'})
             row = None

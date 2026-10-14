@@ -993,6 +993,13 @@ fixture는 테스트 입력·응답을 고정하는 방식이며 그 자체가 �
 - 기대/합격: match=false/true의 완전한 응답은 complete=true 및 no_match=not match, truncated 응답은 false/null과 원문 비노출을 그대로 유지한다. 현재 tool 경로에서 truncated text는 유효 tool 선택이 없어 거절되어야 하며 JSON 자동 복구나 가짜 정상 tool로 바꾸지 않는다. 접근불가·잘못된 ID/타입/시각의 기존 거절도 유지하고 영향 LangChainMigrationTests 11개가 모두 통과해야 한다.
 - 범위/A/B: 수정 전 fixture A 로그·해시를 먼저 보존한 뒤 동일 입력·기대 의미·설치 환경·DeepEval custom exact/Ragas ExactMatch로 수정 후 fixture B를 비교한다. 앱 소스는 A/B 동일하며 fixture 불일치 해소이지 live 품질 개선이 아니다. 기존 highlight-free의 LangChain 하위 실행과 evaluation-regression.yml/highlight-deterministic 연결을 재사용하고 실제 이름·개수를 기록한다. 제공자 호출·설치·빌드·다운로드·배포는 하지 않으며 미실행/오류는 검증 대기로 남긴다.
 
+## Hosted CI 검증 실패 timing·quota 계약 보존 (2026-10-15, A 실행 전)
+
+- 목적/변경 변수: 순차 `verify_retrieval`의 실패 decision에도 기존 invocation-local `quota_wait`·`provider_latency`를 보존하고, countTokens 429 테스트의 오래된 일반 오류 기대만 기존 `VerificationAdmissionError` 정책에 맞춘다. `_request`의 인증/결제/quota 정책·재시도·프롬프트·모델·정답·threshold·공개 결과 의미는 변경하지 않는다.
+- 기대/합격: count/generation 실패는 검증된 없음이 아닌 incomplete/no_match=null이며 실패 timing이 누락되지 않는다. countTokens 429는 정확한 typed admission 거부, secret 비노출·HTTP 1회·sleep/retry 0회이며 503/network는 기존 기술 오류를 유지한다. 기존 16개 회귀를 재사용하고 실패 단언을 완화하지 않는다.
+- A/B/범위: 수정 전 source/test를 scratch에 동결하고 기존 16개 suite 실패를 먼저 보존한 뒤 동일 설치 환경·입력·기대 계약으로 B를 실행한다. 기존 LangChain DeepEval exact/Ragas ExactMatch runner를 동일 사례·threshold=1·네트워크 차단으로 A/B 실행하며 timing 버그 자체나 live 의미 품질의 별도 점수로 주장하지 않는다. 새 환경·제공자·다운로드·corpus 변경은 없다.
+- CI: 기존 evaluation-regression.yml/highlight-deterministic → `python -I .github/evaluation_ci.py highlight-free --output ...`의 16개 suite 포함을 재사용하고 목적 커밋 후 bounded job을 한 번 실행한다. 실제 이름/count·실패/오류/미실행을 보존하며 추가 실패는 범위를 확대하지 않고 보고한다.
+
 ## DVC Docker 기동 준비 계약 (2026-10-15, 구현 전)
 
 - 목적/범위: 문서 dense 네이티브 snapshot과 highlight backup을 별도 init에서 pull→검증→새 runtime 복원하고 backend는 init 성공 이후에만 시작한다. 검색·모델·prompt·sparse·정답은 변경하지 않는 non-LLM 인프라 변경으로 DeepEval/Ragas 제공자 평가는 면제한다.

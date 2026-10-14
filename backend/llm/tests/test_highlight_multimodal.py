@@ -90,8 +90,12 @@ class MultimodalTests(unittest.TestCase):
                       mm.errors.APIError(503, {'error': {'status': 'UNAVAILABLE'}}),
                       httpx.ConnectError('unavailable'), TimeoutError()):
             with patch('httpx.Client.send', side_effect=error) as call, patch.object(mm.time, "sleep") as sleep:
-                with self.assertRaisesRegex(RuntimeError, "Google countTokens") as caught:
+                admission = isinstance(error, mm.errors.APIError) and error.code == 429
+                expected = mm.VerificationAdmissionError if admission else RuntimeError
+                message = "^Provider authorization/billing/quota denied$" if admission else "Google countTokens"
+                with self.assertRaisesRegex(expected, message) as caught:
                     verifier.verify('hit', {'id': 'x', 'video_id': 'SlvDBmr4Bd8', 'start': 0, 'end': 24}, None, None)
+                self.assertIs(type(caught.exception), expected)
                 self.assertNotIn("secret", str(caught.exception))
                 self.assertEqual(call.call_count, 1)
                 sleep.assert_not_called()
@@ -325,6 +329,8 @@ class MultimodalTests(unittest.TestCase):
             self.assertIsNone(result["no_match"])
             self.assertIn("quota_wait", result["decisions"][0])
             self.assertIn("provider_latency", result["decisions"][0])
+            self.assertEqual(result["decisions"][0]["quota_wait"], google.last_quota_wait)
+            self.assertEqual(result["decisions"][0]["provider_latency"], google.last_provider_latency)
             google.quota.acquire.side_effect = mm.VerificationAdmissionError("Verification quota bounded wait exhausted")
             google.call = Mock(return_value={"totalTokens": 9000})
             with self.assertRaises(mm.VerificationAdmissionError):
