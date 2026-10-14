@@ -723,9 +723,45 @@ fixture는 테스트 입력·응답을 고정하는 방식이며 그 자체가 �
 
 **다음 단계는 허용된 기존 조회와 정해진 페이지 조회가 실제 어떤 capability·도구·역할에 대응하는지 기준 코드 스냅샷의 명세로 확인하는 것이다. 기존 근거로 검증 가능한 범위를 정한 뒤 데이터셋·채점기를 검토하며, 필요한 수정은 기존 기능의 소폭 조정·오류 수정에 한정한다.**
 
+## 재임베딩 없는 영상 단독 후보 검색 계약 (2026-10-14, A 실행 전)
+
+- 변경 변수: Specialist.ask 후보 조회만 video named-vector top8 한 번으로 제한하고 영상 순서를 보존한다. audio/text 검색과 FTS SELECT/bm25/RRF는 사용하지 않는다. 중복·unknown ID 제외, 동일 영상 시간겹침 제외(접한 구간 허용), 기본3/명시1–5 한도는 유지한다.
+- 보존/범위: 공동 text/image 질의, 원본 최대6 이미지·WebP embedding-only 변환·privacy·소유권, named video/audio/text 각768 및 FTS/원문 readiness, URL/원본시각·strict JSON·모든 개별 decision·병렬3/config/callback/usage/cancel 경계를 유지한다. 원본 corpus 접근/변경·재임베딩·provider·runtime·Git 이력 변경은 없다.
+- A/B: entry HEAD8549463의 source를 credential-free scratch에 동결한다. 독립 합성 ranking/요청/기대값과 기존 LangChain 계약 runner를 먼저 동결하고 actual ask의 영상순서 반례·중복/unknown/겹침/접함·한도·empty·1위거절2위일치·오류/정상 음성·원본 전달을 A부터 실행한다. 동일 관측에 설치된 DeepEval custom exact와 Ragas ExactMatch를 각각 실행하며 source만 B로 교체한다.
+- 합격/실패: 한 번의 using=video/limit8 조회, FTS zero-call, 실제 rankings={video}, 독립 기대 후보/decision/결과 정확 일치 및 기존 경계 회귀가 합격이다. A 정책 불일치·평가기 오류/미실행·분모를 그대로 보존하며 semantic accuracy/일반 품질 threshold로 해석하지 않는다. highlight-deterministic → highlight-free의 기존 contract 및 suite 자동 선택을 실제 CI 명령의 이름/개수로 검증한다. live 품질/전체 코스 지연은 미검증이며 독립 검토는 별도다.
+
 ## 비디오 단독 live 정확도 재실험 준비 (2026-10-14, 후보 준비/실행 전)
 
 - 목적/변경 변수: scratch 동결 후보만 video named-vector top8의 직접 순서·중복/누락 제외·기존 시간 겹침 제외·최대3을 사용한다. text-only 질의, gemini-embedding-2/768/taskType 미지정/기존 prefix, gemini-3.8-flash/temperature0/strict JSON/output4000/YouTube 실제 구간 검증·병렬3·오류/decision 정책은 유지한다. 운영 코드·corpus·기존 dirty 변경·런타임은 수정하지 않는다.
 - 범위: SHA256 `85d7dd7eddc0745cfac98f856a5cb006ab72d5b76017fefae4d88f795130f3fa`의 기존10문항(양성8/4장면·쉬운 음성2), 원래10영상922구간15–25초/겹침5, canonical lock/hash snapshot과 기존 scores()/실제 설치 DeepEval·Ragas non-LLM 채점기를 동결한다. 불완전 약한 라벨·과거20%의 transport 차이를 명시하며 과거 결과/저장 후보 replay는 동일 조건 live A/B나 최종 정확도 개선 근거가 아니다.
 - 기대/준비 합격: 실제 설치 SDK의 합성 HTTP/network-deny로 video-only/순서/겹침/limit3·strict error 계약, 저장10행 A 후보10/10 재현, source/dataset 변조·입력 누락·출력 재사용 거절, sanitized ledger 및 숨은 retry 포함 wire80/embedding20/count30/generation30의 사전 durable/thread-safe 차감을 검증한다. scratch 시험은 CI/제공자 품질 통과가 아니며 준비 단계 paid 호출0이다.
 - 후속 실행/실패: 독립 max 검토 뒤 별도 실행자가 승인된10문항 단일 pass만 수행하며 첫 문항이 availability preflight이다. 401/402/403 및 반복429/503은 새 HTTP 차단·중단, 접근 불가/불량/오류는 null/incomplete로 보존한다. 상한/transport interception/동결 입력을 검증할 수 없으면 실행 차단한다. 미실행·오류·분모 누락을 성공으로 표시하거나 정답/threshold를 완화하지 않으며 일반 품질 threshold를 새로 만들지 않는다.
+
+## 텍스트 영상 평가셋 생성·검사 계약 (2026-10-14, 구현/사례 실행 전)
+
+- 목적: 기존 지정10 YouTube 원본을 Gemini가 영상·음성으로 확인하여 영상당 최대5개의 서로 다른 구체적 야구 사건에 대한 한국어 text-only 후보를 만든다. 기존 embedding/corpus/검색 알고리즘/8–10문항 live 평가 CLI는 변경하지 않으며 준비 작업은 유료 호출0이다.
+- 동결: 실제 영상 ID/원본 duration, segments.json/완료 marker/source metadata와 SHA256, prompt/schema/model gemini-3.8-flash/temperature0/output8192를 새 실행 디렉터리에 보존한다. 영상과 metadata는 비신뢰 근거이며 title/upload_date만으로 선수·경기 날짜를 확정하지 않는다. URL/시각/segment ID/이미지의 query 누출 및 intro/paraphrase padding·가공 음성 사례는 금지한다.
+- 생성/독립 문맥 검토: 영상당 generation countTokens+generation, review countTokens+review 최대4 HTTP 시도, 전체40 하드 cap, SDK attempts1/앱 retry0이다. 실제 wire 전 공유 lock 아래 fsync ledger를 남긴다. 첫 영상 실제 성공 후만 최대2 병렬을 허용하고 auth/billing 오류는 남은 전송을 중단한다. 자동 재개/로컬 upload fallback은 없다. 요청/응답 model_version·실제 usage·latency를 보존하며 가격은 미측정이다.
+- 채택: A 초안은 불변이며 별도 원본 영상 검토가 facts/specificity/uniqueness/query leakage 및 필수 근거가 candidate segment 안에 들어가는지를 명시 확인해야 한다. 좁은 original_interval은 유한 non-Boolean 원본 초이며 영상/구간 경계 안에 있어야 한다. 단순 overlap은 정답이 아니다. query/label correction은 before/after/reason을 보존한 dataset refinement 제안이며 system A/B 개선이 아니다. replay/대체 근거는 관측한 것만 기록하고 exhaustive claim을 하지 않는다.
+- 품질 검사: 실제 DeepEval BaseMetric+LLMTestCase+evaluate로 text/schema, source-access review, direct grounding/specificity, timestamp validity, verified corpus references, uniqueness를 별도 exact dimension으로 채점한다. 의미 판정은 Gemini-video review에서 온 것으로 추가 독립 LLM/human judge가 아니다. 합성 정상/거짓 출처/시각 대조를 실행하고 rejected/missing/error/null 및 분모를 보존한다. 50은 목표이지 합격률/정답 보충 기준이 아니다.
+- 합격/실패: HTTP40/41 차단, retry0/fatal halt, strict JSON/unknown ID/bool/NaN/범위 밖/empty source/images/leakage/중복/weak overlap 거절, 실제 SDK full canonical URL+0/duration/no-image 및 출력 재사용 거절의 무료 계약 정확 일치가 준비 합격이다. unavailable/error는 successful no-match가 아니다. 새 test_highlight_case_quality.py를 highlight-free→evaluation-regression.yml:highlight-deterministic에 연결하고 실제 명령/이름/개수를 확인한다.
+- 모든 채택 행은 model-reviewed/needs-human-review이고 positives-only이며 golden-approved가 아니다. 원본 시각 정밀도·비포괄 reference·같은 모델의 별도 문맥 review 한계를 명시한다. 실제 제공자40회 생성/검토와 독립 사람 승인·검색 정확도 검증은 별도 대기이며 기준을 결과에 맞춰 완화하지 않는다. telemetry/trace/dotenv 자동 발견을 끄고 run-owned cache만 사용하며 raw provider error/trace/secret은 저장하지 않는다.
+
+### 첫 영상 실패 후 최소 continuation 수정 (2026-10-14, 회귀 A 실행 전)
+
+- 목적/변경 변수: thinking+JSON 공유 출력 cap을16384로 올리고 finish_reason을 기록하며 원본 초 변환(04:31=271, NOT431)·duration 경계·같은 팀 경기 구별 지침을 명시한다. 기존 실패 원문/행/설정/해시는 보존하고 기준·정답은 완화하지 않는다.
+- 명시 continuation은 검증된 첫 영상4회 실패 기록에서만 아직 시도하지 않은9영상을 새 경로로 처리한다. 이전4회는 새 HTTP가 아닌 누적 예산으로 반영하여 새36회 포함40회/영상4회/retry0를 유지한다. 입력 snapshot/ledger/settings/관측 불일치·fatal halt·성공/소진 실행은 credential 읽기 전에 거절한다.
+- 회귀 A/B: 실제 SDK MockTransport로 cap/finish reason, prior4+new36, 첫 영상 재전송 차단, 실패행 불변, source 접근 성공이나 후보 전부 거절 시 다른 영상 진행, 변경 evidence/출력 재사용 거절을 확인한다. highlight-free 기존 CI 명령으로 실행하며 유료 호출0이고 실제 의미 품질·새 prompt/settings의 causal A/B 개선은 주장하지 않는다. 실패 첫 영상 때문에 전체 실행은 계속 incomplete/needs-human-review이다.
+
+## ask_highlight 실제 Gemini 모델 노드 계약 (2026-10-14, A 실행 전)
+
+- 목적/변경 변수: 웹 tools 단계는 기존 query embedding/video top8/중복·겹침 제거/최대3 후보 조회만 수행한다. 실제 ChatGoogleGenerativeAI Gemini model 단계는 원 사용자 질문·원본 이미지·모든 후보 YouTube 원본 구간을 한 generation 요청으로 검증하고 서버가 결정적으로 카드로 투영한다. corpus/index/legacy disabled 경로는 변경하지 않는다.
+- 범위/기대: 공용 retrieval/model/validation을 CLI·평가와 재사용한다. generation 전 local Qdrant/웹 lock을 해제하고 config/callback/usage/cancellation, countTokens/quota 선검사, strict JSON·정확한 candidate-ID 전체 coverage·중복 금지·유한 non-Boolean 원본 시간/범위·source_accessible을 유지한다. 부분/형식/접근불가/제공자 오류는 전체 fail-closed(no_match=null, 카드0)이며 검증된 음성과 구분한다.
+- 동결 A/B: dirty entry source/hash를 scratch에 보존하고 동일 합성 HTTP·독립 기대값·신규 retrieval zero-generation/3후보 one-generation/경계 사례를 먼저 동결한다. 기존 실제 설치 DeepEval custom exact/Ragas ExactMatch 오프라인 runner로 수정 전 A와 수정 후 B를 같은 테스트/정답/패키지/설정에서 채점한다. 변경 전 실패·평가기 오류·미실행과 각 분모를 그대로 보존한다.
+- 합격/실패: retrieval generation0, 실제 graph Gemini generation1(3후보/원질문/이미지 동일), 정확한 후보별 검증·카드, malformed/partial/unknown/duplicate/누락/NaN/bool/범위밖/inaccessible의 오류 보존, 취소 후 generation0, CI 실제 명령의 변경 테스트 실행이 모두 필요하다. framework 점수는 synthetic 계약이며 live 품질/운영 latency/코스 전체 시간은 미측정이다. 유료 제공자 A/B·배포·Git 이력 변경은 승인되지 않았으며 not-run으로 보고한다.
+
+## 현재 앱 소스 10문항 단일 live 재검증 준비 (2026-10-14, 실행 전)
+
+- 목적/범위: 현재 worktree production bytes와 실제 local dependency를 동결하고 기존10문항/10영상922구간/약한 라벨(4양성 장면의8변형+쉬운 음성2)/canonical DeepEval·Ragas 채점기를 그대로 재사용한다. video top8 한 번→기존 중복·누락·시간겹침 제외→최대3→병렬3 URL 검증, text prefix/taskType 미지정/768, gemini-embedding-2 및 gemini-3.8-flash/temperature0/strict JSON/output4000은 불변이다. 이전 결과는 설명용 반복 비교이며 causal RRF A/B·이미지 품질 근거가 아니다.
+- 준비 합격/실패: credential/provider 호출0의 실제 설치 SDK synthetic 검증으로 current import/hash 일치, scorer/oracle 불변, 입력 변조·출력 재사용 거절, complete=false/no_match=null 오류 보존, durable thread-safe 실제 transport admission80/reject81와 embedding20/count30/generation30 하위 상한, fatal401/402/403 및 반복429/503·safe logs를 확인한다. 원본 corpus는 locked hash snapshot만 허용하고 client는 disposable copy만 연다. scratch 시험은 hosted CI가 아니며 repo 회귀/워크플로는 변경하지 않는다.
+- 후속 단일 pass: 별도 max 검증 뒤 승인된 새80 HTTP 시도 예산(이전 실패+79와 별개)에서 기존 순서10문항만 실행하고 첫 문항이 availability 검사다. 동일 frozen rows/labels/query로 실제 DeepEval·Ragas deterministic 지표별 성공수·분모·null/오류를 기록한다. case threshold1.0 및 기존 scores 정의를 유지하며 새 일반 품질 threshold를 만들지 않는다. 부분/오류/미실행은 실패·검증 대기이지 품질 통과가 아니고 라벨 완화·padding·추가 pass는 금지한다.
