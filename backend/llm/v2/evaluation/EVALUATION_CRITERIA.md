@@ -1,5 +1,13 @@
 # DeepEval 평가 기준 v1.0
 
+## 2026-10-15 JEV 하이라이트 요청 범위 명시
+
+- 목적/변경 변수: 기존 PASS 범위에 KBO 하이라이트·유튜브 장면 영상 검색을 명시한다. capability·코스 프롬프트, 모델·임계값·라우팅, NON_PASS·혼합 요청·주입 방어는 변경하지 않는다.
+- 동결 입력: `LG와 롯데 경기에서 2회말 동점 적시 2루타 장면을 유튜브 하이라이트로 찾아줘`, history/context 없음. 기대값은 guard=PASS, course_request=NONE, highlight 필수이며 다른 capability는 이 단일 사례에서 채점하지 않는다.
+- 예산/순서: 수정 전 소스·입력·정답·harness를 scratch에 동결하고 새 payload 회귀의 A 실패를 확인한다. 실제 production classify를 기존 backend 컨테이너의 새 프로세스로 A/B 각 1회(물리 HTTP 시도 각 최대1회, 총2회), tracing off로 실행한다. 재시도·전체 채팅·검색·embedding·영상 호출은 금지한다. 로컬 fix 커밋 후 B를 실행한다.
+- 합격/실패: B의 세 기대값 일치와 focused 무료 회귀 통과가 필요하다. A가 이미 PASS이면 비결정적 오거절 재현/일반 품질 개선을 주장하지 않는다. 오류·B 실패는 중단하고 보존하며 추가 유료 호출이나 사후 기준 완화는 하지 않는다. 동일 저장 A/B 관측을 실제 설치 DeepEval custom exact와 Ragas ExactMatch로 채점한다(새 judge 호출 없음). 한 문항의 두 관측은 일반 의미 품질·안전성 증거가 아니며 needs-review를 유지한다.
+- CI: evaluation-regression.yml의 deterministic → free → run_attachment_offline.py 기본 test_chain 자동 발견을 재사용한다. 실제 offline-exec 하위 명령에 새 method와 관련 가드 method를 선택하여 이름/개수를 확인하며 전체 CI·hosted 실행 성공으로 확대하지 않는다. 기존 run.py graph_regression은 명시 method만 로드하므로 새 사례의 연결 근거로 사용하지 않는다.
+
 ## 2026-10-14 커뮤니티 선공개·사후 검사
 
 - 사용자 확정: 작성·댓글·초안 게시·내용 수정은 트랜잭션에서 즉시 공개하고 최초 포인트/댓글수를 반영한다. HTTP 생성 201/수정 200과 프론트 성공 안내는 pending 검사 상태와 분리한다. 작성 요청은 제공자를 호출하지 않으며 기존 영속 큐/워커와 신고 즉시 검사 흐름을 재사용한다.
