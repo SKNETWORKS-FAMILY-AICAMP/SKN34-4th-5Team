@@ -231,6 +231,13 @@ class LangChainMigrationTests(unittest.TestCase):
                     transport.text = json.dumps({**OUTPUT, 'match': match})
                     if truncated:
                         transport.text = transport.text[:-1]
+                    elif hasattr(mm.Google, 'review_candidate'):
+                        # Current ask requires a tool verdict; frozen JSON sources keep their wire contract.
+                        transport.response = {'modelVersion': 'synthetic-version', 'candidates': [{'content': {
+                            'role': 'model', 'parts': [{'functionCall': {'name': 'review_highlight_candidate',
+                                'args': {**OUTPUT, 'match': match, 'original_end_seconds': 124.25,
+                                         'next_candidate_id': None}}}]}, 'finishReason': 'STOP'}],
+                            'usageMetadata': {'promptTokenCount': 9, 'candidatesTokenCount': 4, 'totalTokenCount': 13}}
                     specialist = object.__new__(mm.Specialist)
                     specialist.root, specialist.rows = Path('/missing'), {ROW['id']: ROW}
                     specialist.google, specialist.verifier = Mock(), mm.Google('synthetic', quota=Mock())
