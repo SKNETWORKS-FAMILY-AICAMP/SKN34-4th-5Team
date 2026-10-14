@@ -50,3 +50,9 @@ Docker 네트워크를 끊고 기존 offline-exec의 socket 차단을 유지했�
 - 원시 로그, 실패 시도, 명령/exit 기록과 A/B JSON은 로컬 `tmp/pr96-publish-20261014/`에 보존했다. 해당 임시 자료는 Git에 포함하지 않는다.
 
 실제 유료 제공자 품질 gate, 전체 채팅 시간 A/B, 운영 부하 시험과 EC2 배포 결과는 이 기록의 범위 밖이다. 기존 선택 재시도 시 날짜 변경 문제 등 별도 미해결 항목을 이번 통합이 수정했다고 주장하지 않는다.
+
+## 검증 중 추가된 develop 배포 변경
+
+- 검증 이후 팀 develop에 `7fdd5bc`가 추가됐다. 변경은 develop 이미지 빌드/전송과 배포 timeout 두 workflow뿐이며 코스·백엔드·프론트 실행 소스는 바뀌지 않았다.
+- 새 `cd-deploy` job의 첫 단계가 `docker build`인데 checkout이 없어 새 GitHub runner에 Dockerfile이 존재하지 않는 문제를 확인했다. `actions/checkout@v4`를 이미지 빌드 전에 추가하고 인증정보 보존을 비활성화했다.
+- 이는 non-LLM 배포 설정 보완이다. YAML 파싱, checkout 선행 및 세 build context/Dockerfile 존재, 기존 CI 의존성 검사를 수행한다. EC2에서 실제 배포 성공을 확인한 것으로 표시하지 않는다.
