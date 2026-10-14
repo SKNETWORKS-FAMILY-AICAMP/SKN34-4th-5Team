@@ -39,7 +39,7 @@ class InteractionApiTests(APITestCase):
 
         self.authenticate()
         created = self.client.post(url, {"content": "  첫 댓글  "}, format="json")
-        self.assertEqual(created.status_code, 202)
+        self.assertEqual(created.status_code, 201)
         self.assertEqual(
             set(created.data),
             {"id", "postId", "authorId", "authorRank", "author", "content", "createdAt", "updatedAt", "moderationStatus", "revision"},
@@ -48,7 +48,7 @@ class InteractionApiTests(APITestCase):
         self.assertEqual(created.data["content"], "첫 댓글")
         self.assertEqual(created.data["author"], "주인")
         self.post.refresh_from_db()
-        self.assertEqual((self.post.comment_count, self.post.comments.count()), (0, 1))
+        self.assertEqual((self.post.comment_count, self.post.comments.count()), (1, 1))
 
         detail_url = f"/api/v1/community/comments/{created.data['id']}/"
         self.authenticate(self.other)
@@ -57,7 +57,7 @@ class InteractionApiTests(APITestCase):
 
         self.authenticate()
         updated = self.client.patch(detail_url, {"content": "수정 댓글"}, format="json")
-        self.assertEqual((updated.status_code, updated.data["content"]), (202, "수정 댓글"))
+        self.assertEqual((updated.status_code, updated.data["content"]), (200, "수정 댓글"))
         self.assertEqual(self.client.delete(detail_url).status_code, 204)
         self.post.refresh_from_db()
         self.assertEqual((self.post.comment_count, self.post.comments.count()), (0, 0))

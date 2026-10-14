@@ -96,7 +96,7 @@ test("member cards use padded headings, wrapping status and distinct edit/delete
   assert.ok(nodes(tree).some(n => n.props.className === "submissionStatus" && n.props["data-state"] === "pending"));
   assert.ok(nodes(tree).some(n => n.props.href === "/community/write?edit=private-1" && /button-primary/.test(n.props.className)));
   assert.ok(nodes(tree).some(n => n.type === "button" && n.props.children === "삭제" && /deleteButton/.test(n.props.className)));
-  assert.equal(nodes(tree).some(n => n.props.children === "게시판에서 확인"), false);
+  assert.equal(nodes(tree).some(n => n.props.children === "게시판에서 확인"), true);
   const commentTree = submissionContent(h, [[], [{ id: 3, revision: 1, content: "댓글", moderationStatus: "pending" }], "", 0, false, false]);
   const comment = nodes(commentTree).find(n => typeof n.type === "function" && n.props.comment);
   const cardTree = h.render(comment.type, comment.props, ["댓글", false, ""]);
@@ -217,6 +217,21 @@ test("public fallback instructions keep manual review distinct from provider app
   const tree = card(h);
   assert.ok(nodes(tree).some(node => node.props.children === "선택 사유 확정·비공개 처리"));
   assert.ok(nodes(tree).some(node => typeof node.props.children === "string" && node.props.children.includes("다른 미해제 사유나 확정 사유가 있으면 비공개")));
+});
+
+test("publication succeeds independently of pending checks and UI explains post-check holds", () => {
+  const h = harness();
+  for (const status of ["pending", "error"]) {
+    assert.doesNotMatch(h.exports.moderationLabel[status], /비공개/);
+    assert.ok(nodes(submission(h, status)).some(n => n.props.children === "게시판에서 확인"));
+  }
+  const screen = submissionContent(h, [[], [], "", 0, false, false]);
+  assert.ok(nodes(screen).some(n => typeof n.props.children === "string" && n.props.children.includes("바로 게시")));
+  const editor = readFileSync(new URL("../components/community-post-editor.tsx", import.meta.url), "utf8");
+  const comments = readFileSync(new URL("../components/community-post-bottom.tsx", import.meta.url), "utf8");
+  assert.match(editor, /저장하면 바로 게시됩니다/);
+  assert.doesNotMatch(comments, /검사 완료까지 비공개|재검사 완료까지 비공개/);
+  assert.match(comments, /댓글을 등록했어요\. 사후 검사는 별도로 진행됩니다/);
 });
 
 test("empty results explain the next action without masking request errors", () => {

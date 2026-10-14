@@ -1,5 +1,14 @@
 # DeepEval 평가 기준 v1.0
 
+## 2026-10-14 커뮤니티 선공개·사후 검사
+
+- 사용자 확정: 작성·댓글·초안 게시·내용 수정은 트랜잭션에서 즉시 공개하고 최초 포인트/댓글수를 반영한다. HTTP 생성 201/수정 200과 프론트 성공 안내는 pending 검사 상태와 분리한다. 작성 요청은 제공자를 호출하지 않으며 기존 영속 큐/워커와 신고 즉시 검사 흐름을 재사용한다.
+- 내용 변경만 revision을 증가시키고 이전 lease를 취소한다. 루틴 누락 작업 수집·실패 재시도·신고는 현재 revision과 기존 공개/제재 근거를 보존한다. pending/error/큐 지연으로 공개를 회수하지 않는다. 관리자 숨김은 내용 수정·검사·복구로 해제하지 않는다.
+- 사후 완료의 기존 정책은 유지한다: 독립 open finding(이미지/수동 포함)은 검토 비공개, confirmed는 거절 비공개, 모든 사유 dismiss는 복구한다. openai automatic_check_failed/manual_review만 기존 공개 예외를 유지한다. 동일 revision의 이전 confirmed/open 근거는 정상 후속 검사로 지우지 않는다. 실제 내용 수정은 새 revision 정책을 적용한다.
+- 합격/실패: 검사 실행 전 익명 GET 가능한 글·댓글·초안·수정, provider 호출 0, 루틴/retry revision 불변·공개 유지, stale 결과 폐기·관리자 숨김·사후 제재/복구·포인트 1회·comment_count·rate-limit·idempotency·권한·입력/XSS/이미지 회귀가 모두 통과해야 한다. 운영 DB/실데이터 쓰기·유료 제공자 호출은 금지한다.
+- A/B: 동일 신규 publication 회귀를 수정 전 A와 수정 후 B의 고유 격리 PostgreSQL test DB에서 실행하여 A 실패/B 통과를 보존한다. 엔진/프롬프트/모델 변경 없는 non-LLM publication 경계다. 기존 무료 DeepEval/Ragas native/fallback/legacy 계약 runner의 적용 범위와 양쪽 실행을 확인하되 publication ORM 검증이나 실제 의미 품질을 대체하지 않는다. 정답·threshold는 변경하지 않는다.
+- CI: community-moderation.yml django-integration의 community 자동 발견 및 frontend 명시 node --test 목록에서 실제 변경 회귀의 이름/실행 개수를 확인한다. 미실행·오류는 검증 대기이며 실제 명령/결과/제한은 별도 실행 보고서에 보존한다.
+
 ## 2026-10-14 신고 재검사의 동일 내용 검토 보존
 
 - 목적/변경 변수: 신고는 내용 수정이 아니므로 content_revision 증가 및 진행 중 내용 검사 취소 없이 별도 report job을 생성한다. 동일 revision 완료 job의 open/confirmed 사유와 검토 이력은 보존하며 공개 예외는 각 원 job의 automatic_check_failed/manual_review 근거에만 적용한다.

@@ -282,11 +282,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Send Discord Notification
+      - name: Send deployment failure notification
         if: needs.ci-test.result == 'failure' || needs.evaluation-regression.result == 'failure' || needs.cd-deploy.result == 'failure'
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           BRANCH: ${{ github.head_ref || github.ref_name }}
+          CI_RESULT: ${{ needs.ci-test.result }}
+          EVALUATION_RESULT: ${{ needs.evaluation-regression.result }}
+          DEPLOY_RESULT: ${{ needs.cd-deploy.result }}
         run: |
           set -euo pipefail
 
@@ -295,10 +298,10 @@ jobs:
             exit 0
           fi
 
-          if [ "${{ needs.ci-test.result }}" = "failure" ] || [ "${{ needs.evaluation-regression.result }}" = "failure" ]; then
+          if [ "$CI_RESULT" = "failure" ] || [ "$EVALUATION_RESULT" = "failure" ]; then
             STATUS="❌ [CI 실패]"
             DETAILS="CI 검증 작업(테스트/빌드) 중 오류가 발생했습니다."
-          elif [ "${{ needs.cd-deploy.result }}" = "failure" ]; then
+          elif [ "$DEPLOY_RESULT" = "failure" ]; then
             STATUS="❌ [배포 실패]"
             DETAILS="EC2 배포 작업 중 오류가 발생했습니다."
           fi

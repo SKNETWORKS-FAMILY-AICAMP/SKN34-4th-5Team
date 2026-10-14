@@ -36,7 +36,7 @@ class DraftPublishSchema(serializers.Serializer):
     parameters=[OpenApiParameter("Idempotency-Key", OpenApiTypes.STR, OpenApiParameter.HEADER, required=True)],
     responses={
         200: CommunityPostSerializer,
-        202: CommunityPostSerializer,
+        201: CommunityPostSerializer,
         400: OpenApiTypes.OBJECT,
         401: OpenApiTypes.OBJECT,
         404: OpenApiTypes.OBJECT,
@@ -120,5 +120,5 @@ class CommunityDraftPublishView(APIView):
 
         return Response(
             CommunityPostSerializer(post_queryset().get(pk=post.pk)).data,
-            status=status.HTTP_202_ACCEPTED,
+            status=status.HTTP_201_CREATED,
         )
