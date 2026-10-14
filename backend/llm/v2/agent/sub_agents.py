@@ -19,6 +19,66 @@ SPECIALISTS = {
 }
 
 
+def image_originals(messages):
+    """Known restored inputs only; external image links remain ordinary output."""
+    originals = set()
+    for message in messages:
+        for block in message.content if isinstance(message.content, list) else ():
+            image = block.get("image_url") if isinstance(block, dict) else None
+            url = image.get("url") if isinstance(image, dict) else None
+            if isinstance(url, str) and url.startswith("data:image/") and ";base64," in url:
+                originals.update((url, url.split(";base64,", 1)[1]))
+    return sorted(originals - {""}, key=len, reverse=True)
+
+
+def redact_originals(value, originals):
+    if isinstance(value, str):
+        for original in originals:
+            value = value.replace(original, "[첨부 원문은 실행 입력에만 전달됨]")
+        return value
+    if isinstance(value, list):
+        return [redact_originals(item, originals) for item in value]
+    if isinstance(value, dict):
+        identity = {"id", "type", "name", "tool_call_id"} if value.get("type") in (
+            "human", "ai", "tool", "tool_call") else set()
+        return {key: item if key in identity else redact_originals(item, originals) for key, item in value.items()}
+    return value
+
+
+class ImageOutputStream:
+    """Hold only a possible known-image prefix, not the normal answer stream."""
+    def __init__(self, originals):
+        self.originals = originals
+        self.pending = ""
+
+    def feed(self, text, final=False):
+        text = self.pending + text
+        self.pending = ""
+        output, cursor = [], 0
+        while cursor < len(text):
+            positions = [text.find(original[0], cursor) for original in self.originals]
+            positions = [position for position in positions if position >= 0]
+            if not positions:
+                output.append(text[cursor:])
+                break
+            position = min(positions)
+            output.append(text[cursor:position])
+            match = next((original for original in self.originals if text.startswith(original, position)), None)
+            if match:
+                output.append("[첨부 원문은 실행 입력에만 전달됨]")
+                cursor = position + len(match)
+            elif any(original.startswith(text[position:]) for original in self.originals):
+                if final:
+                    output.append("[첨부 원문은 실행 입력에만 전달됨]")
+                else:
+                    self.pending = text[position:]
+                break
+            else:
+                output.append(text[position])
+                cursor = position + 1
+        return "".join(output)
+
+
 def _delegate(name, description, agent):
     @tool(name, description=description)
     def ask(task: str, runtime: ToolRuntime, summary: Annotated[str, "사용자 화면에 공개되는 40자 이내 짧은 작업명(예: 두산 다음 경기 확인). 비밀·개인정보·식별자·긴 지시 금지"] = ""):
@@ -42,6 +102,12 @@ def _delegate(name, description, agent):
             for update in agent.stream({"messages": messages, "context": runtime.state.get("context"),
                                         "decision": runtime.state.get("decision"),
                                         "attachment_read_results": runtime.state.get("attachment_read_results") or {},
+                                        **({"highlight_images": [block for m in retained if isinstance(m, HumanMessage)
+                                             and m.id in restored and isinstance(restored[m.id].content, list)
+                                             for block in restored[m.id].content if isinstance(block, dict)
+                                             and block.get("type") == "image_url"],
+                                             "highlight_original_text": next((m.text for m in reversed(retained)
+                                                 if isinstance(m, HumanMessage)), "")} if name == "ask_highlight" else {}),
                                         "tool_group_ids": list(runtime.state.get("tool_group_ids") or ()),
                                         **({"course_memory": runtime.state.get("course_memory", {})} if course else {})}, stream_mode="updates",
                                        config=merge_configs(runtime.config, {"metadata": {"parent_id": runtime.tool_call_id}})):
@@ -63,23 +129,10 @@ def _delegate(name, description, agent):
         originals.update(block["text"] for message in restored.values() if isinstance(message.content, list)
                          for block in message.content if isinstance(block, dict)
                          and isinstance(block.get("text"), str) and block["text"].startswith("<attachment_sources_"))
+        originals.update(image_originals(restored.values()))
         originals = sorted(originals, key=len, reverse=True)
-
-        def redact(value):
-            if isinstance(value, str):
-                for original in originals:
-                    value = value.replace(original, "[첨부 원문은 실행 입력에만 전달됨]")
-                return value
-            if isinstance(value, list):
-                return [redact(item) for item in value]
-            if isinstance(value, dict):
-                identity = {"id", "type", "name", "tool_call_id"} if value.get("type") in (
-                    "human", "ai", "tool", "tool_call") else set()
-                return {key: item if key in identity else redact(item) for key, item in value.items()}
-            return value
-
         if originals:
-            records = [type(message).model_validate(redact(message.model_dump())) for message in records]
+            records = [type(message).model_validate(redact_originals(message.model_dump(), originals)) for message in records]
         if failure:
             return ToolMessage(failure, name=name, tool_call_id=runtime.tool_call_id, status="error", artifact=records)
         if course:
@@ -88,8 +141,7 @@ def _delegate(name, description, agent):
                                name=name, tool_call_id=runtime.tool_call_id,
                                status=result.status if result is not None else "error", artifact=records)
         terminal = next((m for m in reversed(records) if isinstance(m, ToolMessage)), None)
-        failed = (name == "ask_highlight" and isinstance(agent, highlight_sub_agent.MultimodalAgent)
-                  and terminal is not None and terminal.status == "error")
+        failed = (name == "ask_highlight" and terminal is not None and terminal.status == "error")
         return ToolMessage(final_text({"messages": records}) or f"[조회 실패] {name}: 답변 없음",
                            name=name, tool_call_id=runtime.tool_call_id, status="error" if failed else "success", artifact=records)
     return ask

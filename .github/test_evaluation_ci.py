@@ -13,6 +13,19 @@ spec.loader.exec_module(ci)
 
 
 class WiringTest(unittest.TestCase):
+    def test_image_contracts_in_highlight_free(self):
+        with tempfile.TemporaryDirectory() as root, patch.object(ci, 'execute') as run, \
+             patch.object(ci.sys, 'argv', ['ci', 'highlight-free', '--output', str(Path(root) / 'out')]):
+            ci.main()
+        self.assertIn(unittest.mock.call(['backend/llm/tests/test_highlight_images.py', '-v'], offline=True), run.call_args_list)
+        self.assertIn(unittest.mock.call(['backend/llm/tests/test_highlight_youtube_verifier.py', '-v'], offline=True), run.call_args_list)
+        self.assertIn(unittest.mock.call(['backend/llm/tests/test_highlight_separate_ingestion.py', '-v'], offline=True), run.call_args_list)
+        self.assertIn(unittest.mock.call([ci.EVAL + 'highlight_langchain_contract.py', '--output',
+            str(Path(root) / 'out/langchain-contract')], offline=True), run.call_args_list)
+        selected = [call.args[0][0] for call in run.call_args_list]
+        for obsolete in ('test_highlight_joint.py', 'test_highlight_transcript_ingestion.py', 'test_highlight_ingestion_resume.py'):
+            self.assertFalse(any(path.endswith(obsolete) for path in selected))
+
     def test_bounded_ids_and_no_shell(self):
         self.assertEqual(ci.ids('greeting,new-course'), ['greeting', 'new-course'])
         for bad in ('', 'a,a', 'a,b,c,d,e,f', '$(touch /tmp/ci)', 'a;env', '../seed'):
@@ -167,7 +180,18 @@ class WiringTest(unittest.TestCase):
         for name in ('dev', 'prod'):
             workflow = (HERE / f'workflows/deploy-{name}.yml').read_text()
             self.assertIn('needs: [ci-test, evaluation-regression]', workflow)
-        self.assertEqual(len(ci.FREE), 10)
+        self.assertEqual(len(ci.FREE), 11)
+        self.assertIn(['backend/llm/v2/tests/run_attachment_offline.py',
+                       'llm.tests.test_highlight_multimodal_web.MultimodalWebTests.test_server_restored_images_only_reach_specialist_not_public_records',
+                       'llm.tests.test_highlight_multimodal_web.MultimodalWebTests.test_main_and_delegate_stream_and_saved_outputs_hide_original_images',
+                       'llm.tests.test_highlight_multimodal_web.MultimodalWebTests.test_over_six_images_are_incomplete_before_provider_calls',
+                       'llm.tests.test_highlight_multimodal_web.MultimodalWebTests.test_opt_out_uses_original_agent',
+                       'llm.tests.test_highlight_multimodal_web.MultimodalWebTests.test_opt_out_error_then_success_preserves_card',
+                       'llm.tests.test_highlight_multimodal_web.MultimodalWebTests.test_cards_original_time_errors_and_no_match',
+                       'llm.tests.test_highlight_langchain_web'], ci.FREE)
+        for test in ('test_highlight_images.py', 'test_highlight_multimodal.py'):
+            self.assertIn(f"execute(['backend/llm/tests/{test}', '-v'], offline=True)",
+                          (HERE / 'evaluation_ci.py').read_text())
         self.assertEqual(ci.FREE[-2:], [
             ['backend/llm/v2/tests/run_attachment_offline.py', 'llm.tests.test_domain_tools.ExternalDomainToolAdapterTest'],
             [ci.EVAL + 'weather_contract.py', 'export', '--output', 'weather.json']])

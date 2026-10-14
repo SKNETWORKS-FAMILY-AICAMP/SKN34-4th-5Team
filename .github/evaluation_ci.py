@@ -19,6 +19,13 @@ FREE = [
     [EVAL + 'test_remaining.py', '-v'],
     [EVAL + 'remaining.py', 'validate'],
     ['backend/llm/v2/tests/run_attachment_offline.py'],
+    ['backend/llm/v2/tests/run_attachment_offline.py', 'llm.tests.test_highlight_multimodal_web.MultimodalWebTests.test_server_restored_images_only_reach_specialist_not_public_records',
+     'llm.tests.test_highlight_multimodal_web.MultimodalWebTests.test_main_and_delegate_stream_and_saved_outputs_hide_original_images',
+     'llm.tests.test_highlight_multimodal_web.MultimodalWebTests.test_over_six_images_are_incomplete_before_provider_calls',
+     'llm.tests.test_highlight_multimodal_web.MultimodalWebTests.test_opt_out_uses_original_agent',
+     'llm.tests.test_highlight_multimodal_web.MultimodalWebTests.test_opt_out_error_then_success_preserves_card',
+     'llm.tests.test_highlight_multimodal_web.MultimodalWebTests.test_cards_original_time_errors_and_no_match',
+     'llm.tests.test_highlight_langchain_web'],
     ['backend/llm/v2/tests/run_attachment_offline.py', 'llm.v2.evaluation.test_eval_ragas'],
     ['backend/llm/v2/tests/run_attachment_offline.py', 'llm.tests.test_domain_tools.ExternalDomainToolAdapterTest'],
     [EVAL + 'weather_contract.py', 'export', '--output', 'weather.json'],
@@ -157,6 +164,11 @@ def main():
                 execute(command, offline=True)
             summary.update(seed=jev_report(out / 'seed.json', True), boundary=jev_report(out / 'boundary.json', True))
         elif options.mode == 'highlight-free':
+            execute([EVAL + 'highlight_langchain_contract.py', '--output', str(out / 'langchain-contract')], offline=True)
+            execute(['backend/llm/tests/test_highlight_separate_ingestion.py', '-v'], offline=True)
+            execute(['backend/llm/tests/test_highlight_images.py', '-v'], offline=True)
+            execute(['backend/llm/tests/test_highlight_multimodal.py', '-v'], offline=True)
+            execute(['backend/llm/tests/test_highlight_youtube_verifier.py', '-v'], offline=True)
             execute([EVAL + 'test_highlight_deepeval.py', '-v'], offline=True)
             execute([EVAL + 'test_relocation.py', '-v'], offline=True)
             execute([EVAL + 'weather_contract.py', 'scorer-check'], offline=True)

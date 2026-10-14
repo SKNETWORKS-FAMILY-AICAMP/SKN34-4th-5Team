@@ -12,16 +12,26 @@ from django.core.management.base import BaseCommand, CommandError
 
 from llm import highlight_vectors
 from llm.highlights import HighlightError
+from llm.highlight_ingestion import add_ingestion_arguments, run_ingestion_command
 
 
 class Command(BaseCommand):
     help = "하이라이트 장면 설명을 임베딩해 RAG 색인(Qdrant)을 만든다."
 
     def add_arguments(self, parser):
+        add_ingestion_arguments(parser)
         parser.add_argument("--video-ids", default="", help="쉼표로 구분한 영상 ID만")
         parser.add_argument("--dry-run", action="store_true", help="색인할 글만 보고 임베딩하지 않음")
 
     def handle(self, *args, **o):
+        try:
+            result = run_ingestion_command(o)
+        except (ValueError, OSError, RuntimeError) as exc:
+            raise CommandError(str(exc)) from None
+        if result is not None:
+            import json
+            self.stdout.write(json.dumps(result, ensure_ascii=False, indent=2))
+            return
         from llm.models import HighlightScene, HighlightVideo
         videos = HighlightVideo.objects.filter(status=HighlightVideo.ANALYZED).order_by("game_date")
         ids = [v.strip() for v in o["video_ids"].split(",") if v.strip()]

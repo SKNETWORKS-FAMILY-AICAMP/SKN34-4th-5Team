@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+import httpx
+from llm.tests.test_highlight_langchain import SDKTransport, canonical_part
 
 spec = importlib.util.spec_from_file_location("experiment", Path(__file__).parents[1] / "highlight_multimodal.py")
 mm = importlib.util.module_from_spec(spec)
@@ -34,64 +36,62 @@ class MultimodalTests(unittest.TestCase):
         self.assertEqual(len(mm.vector([1] * mm.DIM)), mm.DIM)
 
     def test_provider_response_shape(self):
+        from unittest.mock import patch
         g = mm.Google("test-only-not-a-key")
-        for bad in ([], {}, {"embedding": []}, {"embedding": {"values": [1]}}):
-            g.call = lambda *args, response=bad: response
-            with self.assertRaises(ValueError):
-                g.embed({"text": "test"})
+        for bad in ([], {}, {"embeddings": []}, {"embeddings": [{"values": [1]}]}):
+            with patch('httpx.Client.send', side_effect=lambda request, **kw: httpx.Response(200, json=bad, request=request)):
+                with self.assertRaises(ValueError):
+                    g.embed({"text": "test"})
         verifier = mm.Google("test-only-not-a-key")
         verifier.call = lambda *args: {"choices": []}
         with tempfile.TemporaryDirectory() as folder:
             clip = Path(folder) / "clip.mp4"
             clip.write_bytes(b"offline-test")
             with self.assertRaises(ValueError):
-                verifier.verify("test", {"id": "x", "start": 0, "end": 24}, clip, clip)
+                verifier.verify("test", {"id": "x", "video_id": "SlvDBmr4Bd8", "start": 0, "end": 24}, clip, clip)
 
     def test_provider_endpoint_serialization(self):
         import base64
         import io
         from unittest.mock import Mock, patch
         output = {"candidate_id": "x", "match": True, "local_seconds": 2, "evidence": "visible hit"}
+        provider_output = {"candidate_id": "x", "match": True, "original_seconds": 122,
+                           "source_accessible": True, "evidence": "visible hit"}
         with tempfile.TemporaryDirectory() as folder:
             video, audio = Path(folder) / "clip.mp4", Path(folder) / "clip.wav"
             video.write_bytes(b"actual-video-bytes")
             audio.write_bytes(b"separate-audio-bytes")
-            with patch.object(mm.urllib.request, "urlopen", side_effect=[
-                    io.BytesIO(json.dumps({"embedding": {"values": [1.] * mm.DIM}}).encode()),
-                    io.BytesIO(b'{"totalTokens": 9000}'),
-                    io.BytesIO(json.dumps({"modelVersion": "gemini-3.8-flash", "candidates": [{"content": {"parts": [{"text": json.dumps(output)}]}}]}).encode())]) as call:
+            with SDKTransport(provider_output) as transport:
                 mm.Google("google-test").embed(mm.media(video, "video/mp4"))
                 google = mm.Google("google-test", quota=Mock())
-                self.assertEqual(google.verify("hit", {"id": "x", "start": 120, "end": 144}, video, audio), output)
-                self.assertEqual(google.last_model_version, "gemini-3.8-flash")
-            google.quota.acquire.assert_called_once_with("gemini-3.8-flash", 9000)
-            embed, count, verify = [c.args[0] for c in call.call_args_list]
-            self.assertTrue(count.full_url.endswith(":countTokens"))
-            self.assertEqual(json.loads(count.data)["generateContentRequest"]["contents"], json.loads(verify.data)["contents"])
-            self.assertEqual(embed.full_url, "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent")
-            self.assertIsNone(embed.get_header("Authorization"))
-            self.assertEqual(verify.full_url, "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent")
-            self.assertEqual(verify.get_header("X-goog-api-key"), "google-test")
-            self.assertIsNone(verify.get_header("Authorization"))
-            body = json.loads(verify.data)
+                self.assertEqual(google.verify("hit", {"id": "x", "video_id": "SlvDBmr4Bd8", "start": 120, "end": 144}, video, audio), output)
+                self.assertEqual(google.last_model_version, "synthetic-version")
+            google.quota.acquire.assert_called_once_with("gemini-3.8-flash", 9)
+            self.assertEqual([op for op, _ in transport.requests], ["batchEmbedContents", "countTokens", "generateContent"])
+            embed, count, body = [b for _, b in transport.requests]
+            self.assertEqual(count["contents"], body["contents"])
+            self.assertEqual(embed["requests"][0]["model"], "models/gemini-embedding-2")
             content = body["contents"][0]["parts"]
-            self.assertEqual(content[1]["inlineData"], {"mimeType": "video/mp4", "data": base64.b64encode(video.read_bytes()).decode()})
-            self.assertEqual(content[2]["inlineData"], {"mimeType": "audio/wav", "data": base64.b64encode(audio.read_bytes()).decode()})
+            self.assertEqual(canonical_part(embed["requests"][0]["content"]["parts"][0]), canonical_part(mm.media(video, "video/mp4")))
+            self.assertEqual(canonical_part(content[1]), canonical_part({"fileData": {"mimeType": "video/mp4",
+                "fileUri": "https://www.youtube.com/watch?v=SlvDBmr4Bd8"},
+                "videoMetadata": {"startOffset": "120.0s", "endOffset": "144.0s"}}))
+            self.assertEqual(len(content), 2)
             self.assertEqual(body["generationConfig"]["responseMimeType"], "application/json")
             self.assertFalse(body["generationConfig"]["responseJsonSchema"]["additionalProperties"])
-            self.assertEqual(body["generationConfig"]["responseJsonSchema"]["required"], list(output))
+            self.assertEqual(body["generationConfig"]["responseJsonSchema"]["required"], list(provider_output))
 
     def test_verifier_provider_failures_are_not_absence(self):
         import io
         from unittest.mock import patch
         verifier = mm.Google("google-test")
-        for error in (mm.urllib.error.HTTPError("https://generativelanguage.googleapis.com", 429, "unavailable", {},
-                          io.BytesIO(b'{"error":{"status":"RESOURCE_EXHAUSTED","message":"secret","details":[{"reason":"RATE_LIMIT_EXCEEDED"}]}}')),
-                      mm.urllib.error.HTTPError("https://generativelanguage.googleapis.com", 503, "busy", {}, None),
-                      mm.urllib.error.URLError("unavailable"), TimeoutError()):
-            with patch.object(mm.urllib.request, "urlopen", side_effect=error) as call, patch.object(mm.time, "sleep") as sleep:
-                with self.assertRaisesRegex(RuntimeError, "Google generateContent") as caught:
-                    verifier.call(verifier.model, "generateContent", {})
+        for error in (mm.errors.APIError(429, {'error': {'status': 'RESOURCE_EXHAUSTED', 'message': 'secret',
+                          'details': [{'reason': 'RATE_LIMIT_EXCEEDED'}]}}),
+                      mm.errors.APIError(503, {'error': {'status': 'UNAVAILABLE'}}),
+                      httpx.ConnectError('unavailable'), TimeoutError()):
+            with patch('httpx.Client.send', side_effect=error) as call, patch.object(mm.time, "sleep") as sleep:
+                with self.assertRaisesRegex(RuntimeError, "Google countTokens") as caught:
+                    verifier.verify('hit', {'id': 'x', 'video_id': 'SlvDBmr4Bd8', 'start': 0, 'end': 24}, None, None)
                 self.assertNotIn("secret", str(caught.exception))
                 self.assertEqual(call.call_count, 1)
                 sleep.assert_not_called()
@@ -207,21 +207,23 @@ class MultimodalTests(unittest.TestCase):
         from unittest.mock import Mock
         google = mm.Google("test-only", quota=Mock())
         gate = Barrier(3)
-        def call(model, operation, body):
-            if operation == "countTokens":
-                return {"totalTokens": 9000}
+        def transport(request, **kwargs):
+            body = json.loads(request.content)
+            if str(request.url).endswith(':countTokens'):
+                return httpx.Response(200, json={"totalTokens": 9000}, request=request)
             prompt = body["contents"][0]["parts"][0]["text"]
             sid = prompt.split("Candidate ID: ")[1].split("\n")[0]
-            output = {"candidate_id": sid, "match": False, "local_seconds": 0, "evidence": "absent"}
-            return {"modelVersion": "version-" + sid, "candidates": [{"content": {"parts": [{"text": json.dumps(output)}]}}]}
-        google.call = call
+            output = {"candidate_id": sid, "match": False, "original_seconds": "abc".index(sid) * 24,
+                      "source_accessible": True, "evidence": "absent"}
+            return httpx.Response(200, json={"modelVersion": "version-" + sid, "candidates": [{"content": {
+                "role": "model", "parts": [{"text": json.dumps(output)}]}, "finishReason": "STOP"}]}, request=request)
         original_decision = mm.decision
         def validate(output, row):
             # Force all three responses to be parsed before their versions are read.
             gate.wait(timeout=5)
             return original_decision(output, row)
         specialist = self.offline_specialist(google, 3)
-        with patch.object(mm, "media", return_value={}), patch.object(mm, "decision", side_effect=validate):
+        with patch.object(mm, "media", return_value={}), patch.object(mm, "decision", side_effect=validate), patch('httpx.Client.send', side_effect=transport):
             result = specialist.ask("hit")
         self.assertEqual([d["model_version"] for d in result["decisions"]], ["version-a", "version-b", "version-c"])
         self.assertIsNone(google.last_model_version)
@@ -309,8 +311,9 @@ class MultimodalTests(unittest.TestCase):
                 self.assertIsNone(result["no_match"])
                 self.assertIn("rejected", result["decisions"][0])
                 google.quota.acquire.assert_not_called()
-            google.call = Mock(side_effect=[{"totalTokens": 9000}, RuntimeError("Google generateContent HTTP 503")])
-            result = specialist.ask("hit")
+            google.call = Mock(return_value={"totalTokens": 9000})
+            with patch('httpx.Client.send', side_effect=mm.errors.APIError(503, {'error': {'status': 'UNAVAILABLE'}})):
+                result = specialist.ask("hit")
             google.quota.acquire.assert_called_once_with(google.model, 9000)
             self.assertIn("provider_error", result["decisions"][0])
             self.assertIsNone(result["no_match"])
@@ -351,8 +354,13 @@ class MultimodalTests(unittest.TestCase):
             try:
                 s.db.create_collection(mm.COLLECTION, vectors_config={m: models.VectorParams(size=mm.DIM, distance=models.Distance.COSINE) for m in mm.MODALITIES})
                 sid = "12345678-1234-1234-1234-123456789012"
-                s.rows[sid] = {"id": sid, "video_id": "SlvDBmr4Bd8", "start": 0, "end": 24}
-                s.db.upsert(mm.COLLECTION, [models.PointStruct(id=sid, vector={m: [1.] * mm.DIM for m in mm.MODALITIES})])
+                s.rows[sid] = {"id": sid, "video_id": "SlvDBmr4Bd8", "start": 0, "end": 24, "text": "caption"}
+                s.db.upsert(mm.COLLECTION, [models.PointStruct(id=sid, vector={m: [1.] * mm.DIM for m in mm.MODALITIES}, payload=s.rows[sid])])
+                s.sql.execute("INSERT INTO transcript VALUES (?, ?)", (sid, "caption"))
+                s.sql.commit()
+                (Path(folder) / "clips").mkdir()
+                for suffix in (".mp4", ".wav"):
+                    (Path(folder) / "clips" / (sid + suffix)).write_bytes(b"synthetic")
                 result = s.ask('" OR unknown --', 1)
                 self.assertFalse(result["complete"])
                 self.assertIsNone(result["no_match"])
