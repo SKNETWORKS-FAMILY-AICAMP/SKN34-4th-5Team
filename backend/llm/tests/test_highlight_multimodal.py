@@ -222,7 +222,12 @@ class MultimodalTests(unittest.TestCase):
             # Force all three responses to be parsed before their versions are read.
             gate.wait(timeout=5)
             return original_decision(output, row)
-        specialist = self.offline_specialist(google, 3)
+        class ConcurrentVerifier:
+            verify = google.verify
+            @property
+            def last_model_version(self):
+                return google.last_model_version
+        specialist = self.offline_specialist(ConcurrentVerifier(), 3)
         with patch.object(mm, "media", return_value={}), patch.object(mm, "decision", side_effect=validate), patch('httpx.Client.send', side_effect=transport):
             result = specialist.ask("hit")
         self.assertEqual([d["model_version"] for d in result["decisions"]], ["version-a", "version-b", "version-c"])
@@ -326,11 +331,11 @@ class MultimodalTests(unittest.TestCase):
             self.assertFalse(result["complete"])
             self.assertIsNone(result["no_match"])
 
-    def test_fusion_overlap_unknown_duplicate(self):
+    def test_video_selection_overlap_unknown_duplicate(self):
         rows = {"a": {"video_id": "x", "start": 0, "end": 20}, "b": {"video_id": "x", "start": 10, "end": 30},
                 "c": {"video_id": "y", "start": 0, "end": 20}}
-        self.assertEqual(mm.fusion([["a", "a", "b", "c", "unknown"], ["c", "a"]], rows), ["a", "c"])
-        self.assertEqual(mm.fusion([], rows), [])
+        self.assertEqual(mm.select_candidates(["a", "a", "b", "c", "unknown"], rows), ["a", "c"])
+        self.assertEqual(mm.select_candidates([], rows), [])
 
     def test_candidate_boundaries_and_no_match(self):
         row = {"id": "a", "video_id": "SlvDBmr4Bd8", "start": 120, "end": 144}

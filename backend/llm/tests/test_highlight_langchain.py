@@ -76,6 +76,87 @@ class Trace(BaseCallbackHandler):
 
 
 class LangChainMigrationTests(unittest.TestCase):
+    def video_specialist(self, ranking):
+        specialist = object.__new__(mm.Specialist)
+        specialist.root = Path('/synthetic')
+        specialist.rows = {sid: {'id': sid, 'video_id': 'SlvDBmr4Bd8',
+            'start': i * 20, 'end': (i + 1) * 20} for i, sid in enumerate('zabcde')}
+        specialist.google, specialist.verifier = Mock(), Mock()
+        specialist.verifier.last_model_version = 'synthetic'
+        specialist.google.embed.return_value = [1.] * mm.DIM
+        specialist.db, specialist.sql = Mock(), Mock()
+        specialist.db.query_points.side_effect = lambda *args, **kwargs: SimpleNamespace(
+            points=[SimpleNamespace(id=sid) for sid in (ranking if kwargs['using'] == 'video' else ['a', 'b', 'c'])])
+        specialist.sql.execute.return_value = [('a',), ('b',), ('c',)]
+        specialist.verifier.verify.side_effect = lambda query, row, *args, **kwargs: {
+            'candidate_id': row['id'], 'match': row['id'] == 'a', 'local_seconds': 1,
+            'evidence': 'synthetic visible play'}
+        return specialist
+
+    def assert_video_lookup(self, specialist, result, ranking):
+        specialist.db.query_points.assert_called_once_with(mm.COLLECTION,
+            query=[1.] * mm.DIM, using='video', limit=8)
+        specialist.sql.execute.assert_not_called()
+        self.assertEqual(result['rankings'], {'video': ranking})
+
+    def test_video_order_beats_cross_modal_agreement_and_preserves_images(self):
+        ranking = ['z', 'a', 'b', 'c', 'd', 'e']
+        specialist = self.video_specialist(ranking)
+        image = {'type': 'image_url', 'image_url': {'url': IMAGE['image_url']['url'].replace('image/webp', 'image/png')}}
+        result = specialist.ask('find', images=[image], config={'metadata': {'parent_id': 'parent'}})
+        self.assertEqual(result['retrieval_only'], ['z', 'a', 'b'])
+        self.assertEqual([d['candidate_id'] for d in result['decisions']], ['z', 'a', 'b'])
+        self.assertEqual([m['candidate_id'] for m in result['matches']], ['a'])
+        self.assertEqual(result['matches'][0]['playback_seconds'], 21)
+        self.assertTrue(result['complete'])
+        self.assertFalse(result['no_match'])
+        specialist.google.embed.assert_called_once_with([{'text': 'find'}, *mm.image_parts([image])])
+        for call in specialist.verifier.verify.call_args_list:
+            self.assertEqual(call.args[0], 'find')
+            self.assertEqual(call.kwargs['images'], [image])
+            self.assertEqual(call.kwargs['config']['metadata']['parent_id'], 'parent')
+        self.assertNotIn('base64', json.dumps(result))
+        self.assert_video_lookup(specialist, result, ranking)
+
+    def test_video_duplicates_unknown_overlap_touching_and_limits(self):
+        ranking = ['unknown', 'z', 'z', 'a', 'b', 'c', 'd', 'e']
+        for limit, expected in ((None, ['z', 'b', 'c']), (1, ['z']), (5, ['z', 'b', 'c', 'd', 'e'])):
+            with self.subTest(limit=limit):
+                specialist = self.video_specialist(ranking)
+                specialist.rows['a'].update(start=10, end=30)
+                specialist.rows['b'].update(start=20, end=40)
+                specialist.rows['c'].update(video_id='different11', start=0, end=20)
+                result = specialist.ask('find', **({} if limit is None else {'candidate_limit': limit}))
+                self.assertEqual(result['retrieval_only'], expected)
+                self.assertEqual([d['candidate_id'] for d in result['decisions']], expected)
+                self.assertEqual(specialist.verifier.verify.call_count, len(expected))
+                self.assertTrue(result['complete'])
+                self.assertTrue(result['no_match'])
+                self.assert_video_lookup(specialist, result, ranking)
+        for limit in (0, 6):
+            specialist = self.video_specialist(ranking)
+            with self.assertRaises(ValueError):
+                specialist.ask('find', candidate_limit=limit)
+            specialist.google.embed.assert_not_called()
+            specialist.db.query_points.assert_not_called()
+
+    def test_video_empty_negative_and_verifier_errors(self):
+        for ranking, error in (([], None), (['z'], None), (['z'], ValueError('bad')),
+                               (['z'], RuntimeError('unavailable'))):
+            with self.subTest(ranking=ranking, error=error):
+                specialist = self.video_specialist(ranking)
+                if error:
+                    specialist.verifier.verify.side_effect = error
+                result = specialist.ask('find')
+                self.assertEqual(result['retrieval_only'], ranking)
+                self.assertEqual(len(result['decisions']), len(ranking))
+                self.assertEqual(result['matches'], [])
+                self.assertEqual(result['complete'], error is None)
+                self.assertIs(result['no_match'], True if error is None else None)
+                specialist.google.embed.assert_called_once_with({'text': 'task: search result | query: find'})
+                self.assertEqual(specialist.verifier.verify.call_count, len(ranking))
+                self.assert_video_lookup(specialist, result, ranking)
+
     def test_real_structured_model_serialization_callbacks(self):
         trace = Trace()
         with SDKTransport() as transport:
@@ -161,6 +242,67 @@ class LangChainMigrationTests(unittest.TestCase):
                         self.assertNotIn(transport.text, json.dumps(result))
                     else:
                         self.assertEqual(result['decisions'][0]['output']['local_seconds'], 3.125)
+
+    def test_retrieval_has_zero_generation_calls(self):
+        specialist = self.video_specialist(['z', 'a', 'b'])
+        result = specialist.retrieve('find')
+        self.assertEqual([row['id'] for row in result['candidates']], ['z', 'a', 'b'])
+        specialist.verifier.verify.assert_not_called()
+        specialist.google.verify.assert_not_called()
+        specialist.google.verify_candidates.assert_not_called()
+        self.assert_video_lookup(specialist, result, ['z', 'a', 'b'])
+
+    def test_three_candidates_one_real_gemini_generation(self):
+        rows = [{**ROW, 'id': sid, 'start': ROW['start'] + i * 30,
+                 'end': ROW['end'] + i * 30} for i, sid in enumerate('abc')]
+        outputs = [{**OUTPUT, 'candidate_id': row['id'], 'original_seconds': row['start'] + 1}
+                   for row in rows]
+        trace = Trace()
+        with SDKTransport({'decisions': outputs}) as transport:
+            google = mm.Google('synthetic', quota=Mock())
+            result = google.verify_candidates('original question', rows, images=[IMAGE],
+                config={'callbacks': [trace], 'metadata': {'parent_id': 'parent'}})
+        self.assertEqual([o['candidate_id'] for o in result], list('abc'))
+        self.assertEqual([op for op, _ in transport.requests], ['countTokens', 'generateContent'])
+        count, generate = [body for _, body in transport.requests]
+        self.assertEqual(count['contents'], generate['contents'])
+        parts = generate['contents'][0]['parts']
+        self.assertIn('original question', parts[0]['text'])
+        sources = [p for p in parts if 'fileData' in p]
+        self.assertEqual(len(sources), 3)
+        for row, source in zip(rows, sources):
+            self.assertEqual(canonical_part(source), canonical_part({'fileData': {
+                'mimeType': 'video/mp4', 'fileUri': 'https://www.youtube.com/watch?v=' + row['video_id']},
+                'videoMetadata': {'startOffset': str(row['start']) + 's', 'endOffset': str(row['end']) + 's'}}))
+        self.assertEqual(canonical_part(parts[-1]), canonical_part(mm.image_parts([IMAGE], embedding=False)[0]))
+        self.assertEqual(len(trace.starts), 1)
+        self.assertEqual(trace.starts[0]['metadata']['parent_id'], 'parent')
+        google.quota.acquire.assert_called_once_with(google.model, 9)
+
+    def test_group_exact_coverage_and_fail_closed_boundaries(self):
+        rows = [ROW, {**ROW, 'id': 'second', 'start': 200, 'end': 220}]
+        good = [OUTPUT, {**OUTPUT, 'candidate_id': 'second', 'original_seconds': 201}]
+        bad = [good[:1], [good[0], good[0]], [good[0], {**good[1], 'candidate_id': 'unknown'}]]
+        bad += [[good[0], {**good[1], **defect}] for defect in (
+            {'source_accessible': False}, {'source_accessible': 1}, {'match': 1},
+            {'original_seconds': True}, {'original_seconds': float('nan')},
+            {'original_seconds': float('inf')}, {'original_seconds': 220},
+            {'original_seconds': 199}, {'evidence': ''})]
+        for outputs in bad:
+            with self.subTest(outputs=outputs), SDKTransport({'decisions': outputs}):
+                with self.assertRaises((ValueError, RuntimeError)):
+                    mm.Google('synthetic', quota=Mock()).verify_candidates('find', rows)
+        with SDKTransport({'decisions': good}) as transport:
+            transport.text = json.dumps({'decisions': good})[:-1]
+            with self.assertRaises(ValueError):
+                mm.Google('synthetic', quota=Mock()).verify_candidates('find', rows)
+        with SDKTransport({'decisions': list(reversed(good))}):
+            result = mm.Google('synthetic', quota=Mock()).verify_candidates('find', rows)
+            self.assertEqual([o['candidate_id'] for o in result], ['candidate', 'second'])
+        with SDKTransport({'decisions': good}) as transport:
+            with self.assertRaises(ValueError):
+                mm.Google('synthetic', quota=Mock()).verify_candidates('find', [ROW, ROW])
+            self.assertEqual(transport.requests, [])
 
     def test_candidate_batch_is_real_runnable_and_ordered(self):
         from langchain_core.runnables import RunnableLambda

@@ -13,7 +13,7 @@ from llm import highlight_multimodal as mm
 from llm.service import chat_runs
 from llm.service.chat_v2 import _frames
 from llm.service.usage import Meter
-from llm.tests.test_highlight_langchain import SDKTransport, IMAGE, ROW, OUTPUT
+from llm.tests.test_highlight_langchain import SDKTransport, Trace, IMAGE, ROW, OUTPUT
 from llm.v2.agent import highlight_sub_agent, sub_agents, chain
 
 
@@ -24,34 +24,49 @@ class State(TypedDict):
 class LangChainWebTests(SimpleTestCase):
     def test_actual_graph_delegate_meter_and_public_stream(self):
         google = mm.Google('synthetic', quota=Mock())
-        meter = Meter()
+        meter, trace = Meter(), Trace()
         human = HumanMessage('find the play', id='current')
         restored = HumanMessage([{'type': 'text', 'text': human.text}, IMAGE], id=human.id)
-        def ask(query, candidate_limit, images, config):
+        rows = [{**ROW, 'id': sid, 'start': ROW['start'] + i * 30, 'end': ROW['end'] + i * 30}
+                for i, sid in enumerate('abc')]
+        outputs = [{**OUTPUT, 'candidate_id': row['id'], 'original_seconds': row['start'] + 3.125,
+                    'match': row['id'] == 'a'} for row in rows]
+        def retrieve(query, candidate_limit, images):
             self.assertEqual((query, candidate_limit, images), (human.text, 3, [IMAGE]))
-            output = google.verify(query, ROW, None, None, images=images, config=config)
-            return {'complete': True, 'no_match': False, 'decisions': [{'candidate_id': ROW['id'], 'output': output}],
-                    'matches': [mm.decision(output, ROW)]}
-        specialist = Mock(ask=ask)
+            return {'query': query, 'candidates': rows, 'retrieval_only': list('abc'),
+                    'rankings': {'video': list('abc')}, 'retrieval_latency': 0}
+        specialist = Mock(retrieve=retrieve)
+        def generate_guard(*args):
+            import fcntl
+            specialist.close.assert_called_once()
+            with open(root + '/web.lock', 'a') as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        google.quota.acquire.side_effect = generate_guard
         with tempfile.TemporaryDirectory() as root, override_settings(HIGHLIGHT_MULTIMODAL_CORPUS=root), \
              patch('llm.highlight_multimodal.Google', return_value=google), \
-             patch('llm.highlight_multimodal.Specialist', return_value=specialist), SDKTransport() as transport:
+             patch('llm.highlight_multimodal.Specialist', return_value=specialist), SDKTransport({'decisions': outputs}) as transport:
             inner = highlight_sub_agent.build(None, {})
             def tools(state, config):
                 runtime = SimpleNamespace(state={**state, 'attachment_messages': {human.id: restored}},
                     config=config, tool_call_id='outer')
                 result = sub_agents._delegate('ask_highlight', 'highlight', inner).func('invented task', runtime)
-                self.assertEqual(result.status, 'success')
+                self.assertEqual(result.status, 'success', result.text)
                 return {'messages': [result]}
             graph = StateGraph(State)
             graph.add_node('tools', tools)
             graph.add_node('model', lambda state: {'messages': [AIMessage('verified public answer')]})
             graph.add_edge(START, 'tools'); graph.add_edge('tools', 'model'); graph.add_edge('model', END)
-            compiled = graph.compile().with_config(callbacks=[meter])
+            compiled = graph.compile().with_config(callbacks=[meter, trace])
             run = {'answer': '', 'messages': []}
             with patch.object(chain, 'get_graph', return_value=compiled):
                 frames = list(_frames({'messages': [human]}, run))
         self.assertEqual(meter.totals(), (9, 4, 1, 0))
+        self.assertEqual(len(trace.starts), 1)
+        self.assertEqual(trace.starts[0]['metadata']['langgraph_node'], 'model')
+        self.assertEqual(trace.starts[0]['metadata']['parent_id'], 'outer')
+        self.assertEqual(trace.starts[0]['invocation_params']['_type'], 'chat-google-generative-ai')
+        sources = [p for p in transport.requests[-1][1]['contents'][0]['parts'] if 'fileData' in p]
+        self.assertEqual(len(sources), 3)
         self.assertEqual([op for op, _ in transport.requests], ['countTokens', 'generateContent'])
         self.assertEqual(run['answer'], 'verified public answer')
         public = str(frames)
@@ -64,6 +79,60 @@ class LangChainWebTests(SimpleTestCase):
         self.assertEqual(outer.artifact[-1].text, OUTPUT['evidence'])
         self.assertEqual(outer.artifact[-2].artifact['videos'][0]['start'], 123)
         specialist.close.assert_called_once()
+
+    def test_graph_group_boundaries_empty_and_no_unverified_cards(self):
+        rows = [{**ROW, 'id': sid, 'start': i * 30, 'end': i * 30 + 20} for i, sid in enumerate('abc')]
+        good = [{**OUTPUT, 'candidate_id': row['id'], 'original_seconds': row['start'] + 1} for row in rows]
+        fixtures = [({'decisions': good}, False), ({'decisions': good[:2]}, True),
+                    ({'decisions': [good[0], good[0], good[2]]}, True),
+                    ({'decisions': [good[0], {**good[1], 'source_accessible': False}, good[2]]}, True)]
+        for output, failed in fixtures:
+            google = mm.Google('synthetic', quota=Mock())
+            specialist = Mock()
+            specialist.retrieve.return_value = {'query': 'original', 'candidates': rows,
+                'retrieval_only': list('abc'), 'rankings': {'video': list('abc')}, 'retrieval_latency': 0}
+            with self.subTest(output=output), tempfile.TemporaryDirectory() as root, \
+                 override_settings(HIGHLIGHT_MULTIMODAL_CORPUS=root), \
+                 patch('llm.highlight_multimodal.Google', return_value=google), \
+                 patch('llm.highlight_multimodal.Specialist', return_value=specialist), SDKTransport(output) as transport:
+                result = highlight_sub_agent.MultimodalAgent().invoke({'messages': [HumanMessage('invented')],
+                    'highlight_original_text': 'original'})
+            selection = result['messages'][-2]
+            self.assertEqual(selection.status, 'error' if failed else 'success')
+            self.assertEqual(len(selection.artifact.get('videos', [])), 0 if failed else 3)
+            self.assertIs(selection.artifact['multimodal']['no_match'], None if failed else False)
+            self.assertEqual([op for op, _ in transport.requests], ['countTokens', 'generateContent'])
+            specialist.close.assert_called_once()
+        google = mm.Google('synthetic', quota=Mock())
+        specialist.retrieve.return_value['candidates'] = []
+        with tempfile.TemporaryDirectory() as root, override_settings(HIGHLIGHT_MULTIMODAL_CORPUS=root), \
+             patch('llm.highlight_multimodal.Google', return_value=google), \
+             patch('llm.highlight_multimodal.Specialist', return_value=specialist), SDKTransport() as transport:
+            result = highlight_sub_agent.MultimodalAgent().invoke({'messages': [HumanMessage('original')]})
+        self.assertEqual(transport.requests, [])
+        self.assertTrue(result['result']['no_match'])
+        self.assertEqual(result['messages'][-2].artifact['videos'], [])
+
+    def test_graph_model_cancellation_after_retrieval_and_quota(self):
+        for stop_after_quota in (False, True):
+            stopped = [False]
+            rows = [{**ROW, 'id': sid, 'start': i * 30, 'end': i * 30 + 20} for i, sid in enumerate('abc')]
+            google = mm.Google('synthetic', quota=Mock(acquire=lambda *args: stopped.__setitem__(0, True)))
+            def retrieve(*args, **kwargs):
+                stopped[0] = not stop_after_quota
+                return {'query': 'original', 'candidates': rows, 'retrieval_only': list('abc'),
+                        'rankings': {'video': list('abc')}, 'retrieval_latency': 0}
+            token = chat_runs._cancelled.set(lambda: stopped[0])
+            try:
+                with self.subTest(stop_after_quota=stop_after_quota), tempfile.TemporaryDirectory() as root, \
+                     override_settings(HIGHLIGHT_MULTIMODAL_CORPUS=root), \
+                     patch('llm.highlight_multimodal.Google', return_value=google), \
+                     patch('llm.highlight_multimodal.Specialist', return_value=Mock(retrieve=retrieve)), \
+                     SDKTransport() as transport, self.assertRaises(chat_runs.Stopped):
+                    highlight_sub_agent.MultimodalAgent().invoke({'messages': [HumanMessage('original')]})
+                self.assertEqual([op for op, _ in transport.requests], ['countTokens'] if stop_after_quota else [])
+            finally:
+                chat_runs._cancelled.reset(token)
 
     def test_real_model_meter_rejects_unsafe_override_before_generate(self):
         google = mm.Google('synthetic', quota=Mock())
@@ -115,14 +184,12 @@ class LangChainWebTests(SimpleTestCase):
 
     def test_actual_graph_error_status_reaches_main_without_fake_class(self):
         google = mm.Google('synthetic', quota=Mock())
-        def ask(query, candidate_limit, config):
-            try:
-                google.verify(query, ROW, None, None, config=config)
-            except RuntimeError as exc:
-                return {'complete': False, 'no_match': None, 'matches': [], 'decisions': [{'provider_error': str(exc)}]}
+        def retrieve(query, candidate_limit, images):
+            return {'query': query, 'candidates': [ROW], 'retrieval_only': [ROW['id']],
+                    'rankings': {'video': [ROW['id']]}, 'retrieval_latency': 0}
         with tempfile.TemporaryDirectory() as root, override_settings(HIGHLIGHT_MULTIMODAL_CORPUS=root), \
              patch('llm.highlight_multimodal.Google', return_value=google), \
-             patch('llm.highlight_multimodal.Specialist', return_value=Mock(ask=ask)), SDKTransport({**OUTPUT, 'source_accessible': False}):
+             patch('llm.highlight_multimodal.Specialist', return_value=Mock(retrieve=retrieve)), SDKTransport({**OUTPUT, 'source_accessible': False}):
             runtime = SimpleNamespace(state={}, config={}, tool_call_id='outer')
             result = sub_agents._delegate('ask_highlight', 'highlight', highlight_sub_agent.build(None, {})).func('find', runtime)
         self.assertEqual(result.status, 'error')

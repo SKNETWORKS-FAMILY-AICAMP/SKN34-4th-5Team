@@ -24,66 +24,78 @@ TOOLS = ("search_highlight_scenes", "search_highlight_rag", "select_highlight_sc
 
 
 def MultimodalAgent():
-    """Compiled execution, preserving delegation updates without a planner model."""
+    """Retrieve → actual Gemini model → deterministic validation/card projection."""
+    import fcntl
+    import math
+    from pathlib import Path
     from typing import Annotated, TypedDict
-    from langchain_core.messages import AnyMessage, AIMessage
+    from django.conf import settings
+    from langchain_core.messages import AnyMessage, AIMessage, ToolMessage
     from langchain_core.runnables import RunnableConfig
     from langgraph.graph import StateGraph, START, END
     from langgraph.graph.message import add_messages
+    from llm.highlight_multimodal import Google, Specialist, image_parts, verify_retrieval
 
     class State(TypedDict, total=False):
         messages: Annotated[list[AnyMessage], add_messages]
         highlight_images: list
         highlight_original_text: str
+        retrieval: dict
+        result: dict
 
-    def tools(inputs: State, config: RunnableConfig):
-        import fcntl
-        import math
-        from pathlib import Path
-        from django.conf import settings
-        from langchain_core.messages import AIMessage, ToolMessage
-        from llm.highlight_multimodal import Google, Specialist
-
-        root = Path(settings.HIGHLIGHT_MULTIMODAL_CORPUS)
-        # ponytail: serialize local Qdrant across workers; use a server if throughput matters.
-        with (root / "web.lock").open("a") as lock:
-            fcntl.flock(lock, fcntl.LOCK_EX)
-            specialist = Specialist(root, Google())
-            try:
+    def tools(inputs: State):
+        images = inputs.get("highlight_images") or []
+        query = inputs.get("highlight_original_text") or inputs["messages"][-1].text
+        try:
+            image_parts(images, embedding=False)
+            root = Path(settings.HIGHLIGHT_MULTIMODAL_CORPUS)
+            # ponytail: serialize local Qdrant retrieval; use a server if throughput matters.
+            with (root / "web.lock").open("a") as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX)
+                specialist = Specialist(root, Google())
                 try:
-                    images = inputs.get("highlight_images") or []
-                    query = inputs["messages"][-1].text
-                    if images:
-                        original = inputs.get("highlight_original_text", "")
-                        query = original
-                    result = specialist.ask(query, candidate_limit=3, config=config,
-                                            **({"images": images} if images else {}))
-                except (RuntimeError, ValueError) as exc:
-                    result = {"complete": False, "no_match": None, "matches": [],
-                              "decisions": [{"provider_error": str(exc)}]}
-            finally:
-                specialist.close()
+                    retrieval = specialist.retrieve(query, candidate_limit=3, images=images)
+                finally:
+                    specialist.close()
+            return {"retrieval": retrieval}
+        except (OSError, RuntimeError, ValueError):
+            reason = "하이라이트 이미지 검색은 최대 6개까지 지원합니다" if len(images) > 6 else "highlight retrieval unavailable"
+            return {"result": {"complete": False, "no_match": None, "matches": [],
+                    "decisions": [{"provider_error": reason}]}}
+
+    def model(state: State, config: RunnableConfig):
+        if "result" in state:
+            return {}
+        # No corpus client/lock survives into countTokens, quota or Gemini network calls.
+        return {"result": verify_retrieval(Google(), state["retrieval"],
+                images=state.get("highlight_images") or [], config=config)}
+
+    def validate(state: State):
+        from llm.service.chat_runs import check_cancelled
+        check_cancelled()
+        result = state["result"]
         failures = [d.get("provider_error") or d.get("rejected") for d in result["decisions"]
                     if d.get("provider_error") or d.get("rejected")]
         if not result["complete"]:
             text = "[조회 실패] 멀티모달 검증 미완료: " + "; ".join(failures) + ". 장면 없음으로 판단할 수 없습니다."
-            return {"messages": [ToolMessage(text, name="select_highlight_scenes",
-                    tool_call_id="multimodal-selection", status="error", artifact={"multimodal": result})]}
-        videos = [{"videoId": m["video_id"], "start": math.floor(m["playback_seconds"]),
-                   "label": m["evidence"][:120]} for m in result["matches"]]
-        text = "\n".join(m["evidence"] for m in result["matches"]) or "샘플링된 멀티모달 후보에서 요청 장면을 확인하지 못했습니다(전체 경기 검색 아님)."
-        return {"messages": [ToolMessage(text, name="select_highlight_scenes",
-                tool_call_id="multimodal-selection", artifact={"videos": videos, "multimodal": result})]}
-
-    def model(state: State):
-        return {"messages": [AIMessage(state["messages"][-1].content)]}
+            selection = ToolMessage(text, name="select_highlight_scenes", tool_call_id="multimodal-selection",
+                        status="error", artifact={"multimodal": result})
+        else:
+            videos = [{"videoId": m["video_id"], "start": math.floor(m["playback_seconds"]),
+                       "label": m["evidence"][:120]} for m in result["matches"]]
+            text = "\n".join(m["evidence"] for m in result["matches"]) or "샘플링된 멀티모달 후보에서 요청 장면을 확인하지 못했습니다(전체 경기 검색 아님)."
+            selection = ToolMessage(text, name="select_highlight_scenes", tool_call_id="multimodal-selection",
+                        artifact={"videos": videos, "multimodal": result})
+        return {"messages": [selection, AIMessage(text)]}
 
     graph = StateGraph(State)
     graph.add_node("tools", tools)
     graph.add_node("model", model)
+    graph.add_node("validate", validate)
     graph.add_edge(START, "tools")
     graph.add_edge("tools", "model")
-    graph.add_edge("model", END)
+    graph.add_edge("model", "validate")
+    graph.add_edge("validate", END)
     return graph.compile()
 
 

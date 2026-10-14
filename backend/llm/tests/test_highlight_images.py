@@ -43,7 +43,7 @@ class ImageContractTests(unittest.TestCase):
         self.assertEqual(canonical_part(verify_body["contents"][0]["parts"][-1]), canonical_part(mm.image_parts([IMAGE])[0]))
 
 
-    def test_image_query_reaches_named_vectors_rrf_and_all_candidates_without_output_leak(self):
+    def test_image_query_reaches_video_search_and_all_candidates_without_output_leak(self):
         from types import SimpleNamespace
         specialist = object.__new__(mm.Specialist)
         specialist.google, specialist.verifier, specialist.db, specialist.sql = Mock(), Mock(), Mock(), Mock()
@@ -56,9 +56,10 @@ class ImageContractTests(unittest.TestCase):
         specialist.verifier.verify.return_value = {"candidate_id": "x", "match": False, "local_seconds": 0, "evidence": "absent"}
         result = specialist.ask("same scene", images=[IMAGE])
         specialist.google.embed.assert_called_once_with([{"text": "same scene"}, *mm.image_parts([IMAGE])])
-        self.assertEqual([c.kwargs["using"] for c in specialist.db.query_points.call_args_list], list(mm.MODALITIES))
-        self.assertTrue(all(c.args[0] == mm.COLLECTION for c in specialist.db.query_points.call_args_list))
-        self.assertEqual(set(result["rankings"]), {*mm.MODALITIES, "lexical"})
+        specialist.db.query_points.assert_called_once_with(mm.COLLECTION,
+            query=[1.] * mm.DIM, using="video", limit=8)
+        specialist.sql.execute.assert_not_called()
+        self.assertEqual(result["rankings"], {"video": ["x"]})
         self.assertEqual(result["retrieval_only"], ["x"])
         self.assertEqual(specialist.verifier.verify.call_args.kwargs, {"images": [IMAGE]})
         self.assertNotIn("original-image", json.dumps(result))

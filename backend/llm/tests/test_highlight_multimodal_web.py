@@ -4,6 +4,8 @@ from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import ANY, patch
 
 from django.test import SimpleTestCase, override_settings
+from django.urls import path
+from llm.views.message import ChatMessageView
 from llm.tests.test_v2_chat import CheckpointTestCase
 from langchain_core.messages import HumanMessage, ToolMessage
 
@@ -12,6 +14,17 @@ from llm.v2.agent import highlight_sub_agent
 from llm.v2.agent.chat_ui import highlight_videos
 
 
+urlpatterns = [path(
+    "api/v2/chat/sessions/<uuid:session_id>/messages/",
+    ChatMessageView.as_view(), {"version": "v2"},
+)]
+
+
+@override_settings(
+    ROOT_URLCONF=__name__, ALLOWED_HOSTS=["testserver"],
+    CHAT_GUEST_RATE_LIMIT=100, CHAT_GUEST_RATE_WINDOW=60,
+    CHAT_STREAM_IDLE_TIMEOUT_SECONDS=300,
+)
 class MultimodalHTTPTests(CheckpointTestCase):
     def test_guest_sse_and_saved_card_contract(self):
         from langchain_core.messages import AIMessage
@@ -35,15 +48,25 @@ class MultimodalHTTPTests(CheckpointTestCase):
         url = f"/api/v2/chat/sessions/{session.id}/messages/"
         with tempfile.TemporaryDirectory() as root, override_settings(HIGHLIGHT_MULTIMODAL_CORPUS=root), \
                 patch.object(chain, "get_graph", return_value=Graph()), \
-                patch("llm.highlight_multimodal.Google"), patch("llm.highlight_multimodal.Specialist") as specialist:
+                patch("llm.highlight_multimodal.Google"), patch("llm.highlight_multimodal.Specialist") as specialist, \
+                patch("llm.highlight_multimodal.verify_retrieval") as verified:
+            row = {"id": "candidate", "video_id": "SlvDBmr4Bd8", "start": 120.125, "end": 140.375}
+            retrieval = {"query": "홈런", "rankings": {"video": [row["id"]]},
+                         "retrieval_only": [row["id"]], "candidates": [row], "retrieval_latency": 0.0}
+            specialist.return_value.retrieve.return_value = retrieval
             for complete in (True, False):
-                specialist.return_value.ask.return_value = {"complete": complete, "no_match": False if complete else None,
+                specialist.return_value.retrieve.reset_mock()
+                verified.reset_mock()
+                verified.return_value = {"complete": complete, "no_match": False if complete else None,
                     "decisions": [] if complete else [{"provider_error": "Google generateContent HTTP 429"}],
                     "matches": [{"video_id": "SlvDBmr4Bd8", "playback_seconds": 123.75, "evidence": "observed contact"}] if complete else []}
                 response = client.post(url, {"content": "홈런"}, format="json")
                 self.assertEqual(response.status_code, 200)
                 body = b"".join(response.streaming_content).decode()
                 self.assertIn("event: done", body)
+                specialist.return_value.retrieve.assert_called_once_with("홈런", candidate_limit=3, images=[])
+                specialist.return_value.ask.assert_not_called()
+                verified.assert_called_once_with(ANY, retrieval, images=[], config=ANY)
                 history = client.get(url).json()
                 answer = history[-1]
                 if complete:
@@ -58,7 +81,7 @@ class MultimodalHTTPTests(CheckpointTestCase):
 class MultimodalWebTests(SimpleTestCase):
     def records(self):
         return [m for update in highlight_sub_agent.MultimodalAgent().stream({"messages": [HumanMessage("홈런")]})
-                for node in update.values() for m in node["messages"]]
+                for node in update.values() for m in (node or {}).get("messages", [])]
 
     @override_settings(HIGHLIGHT_MULTIMODAL_CORPUS="")
     def test_opt_out_uses_original_agent(self):
@@ -96,25 +119,27 @@ class MultimodalWebTests(SimpleTestCase):
         with tempfile.TemporaryDirectory() as root, override_settings(HIGHLIGHT_MULTIMODAL_CORPUS=root):
             from langgraph.graph.state import CompiledStateGraph
             self.assertIsInstance(highlight_sub_agent.build(None, {}), CompiledStateGraph)
-            with patch("llm.highlight_multimodal.Specialist") as specialist, patch("llm.highlight_multimodal.Google"):
+            with patch("llm.highlight_multimodal.Specialist") as specialist, patch("llm.highlight_multimodal.Google"), \
+                 patch("llm.highlight_multimodal.verify_retrieval") as verified:
                 instance = specialist.return_value
-                instance.ask.return_value = {"complete": True, "no_match": False, "decisions": [], "matches": [
+                verified.return_value = {"complete": True, "no_match": False, "decisions": [], "matches": [
                     {"video_id": "SlvDBmr4Bd8", "playback_seconds": 123.75, "evidence": "실제 타구 확인"}]}
                 records = self.records()
                 nested = ToolMessage("answer", name="ask_highlight", tool_call_id="outer", artifact=records)
                 self.assertEqual(highlight_videos([nested]), [{"videoId": "SlvDBmr4Bd8", "start": 123, "label": "실제 타구 확인"}])
                 instance.close.assert_called_once()
-                instance.ask.assert_called_once_with("홈런", candidate_limit=3, config=ANY)
+                instance.retrieve.assert_called_once_with("홈런", candidate_limit=3, images=[])
                 for failure in ({"provider_error": "Google generateContent HTTP 429"}, {"rejected": "malformed provider output"}):
-                    instance.ask.return_value = {"complete": False, "no_match": None, "matches": [], "decisions": [failure]}
+                    verified.return_value = {"complete": False, "no_match": None, "matches": [], "decisions": [failure]}
                     records = self.records()
                     self.assertEqual(records[0].status, "error")
                     self.assertEqual(highlight_videos(records), [])
                     self.assertIn("장면 없음으로 판단할 수 없습니다", records[-1].text)
-                instance.ask.side_effect = RuntimeError("Google embedContent HTTP 429")
-                self.assertIn("Google embedContent HTTP 429", self.records()[-1].text)
-                instance.ask.side_effect = None
-                instance.ask.return_value = {"complete": True, "no_match": True, "matches": [], "decisions": []}
+                instance.retrieve.side_effect = RuntimeError("secret provider error")
+                self.assertIn("highlight retrieval unavailable", self.records()[-1].text)
+                self.assertNotIn("secret", self.records()[-1].text)
+                instance.retrieve.side_effect = None
+                verified.return_value = {"complete": True, "no_match": True, "matches": [], "decisions": []}
                 self.assertIn("전체 경기 검색 아님", self.records()[-1].text)
 
     def test_server_restored_images_only_reach_specialist_not_public_records(self):
@@ -128,11 +153,13 @@ class MultimodalWebTests(SimpleTestCase):
         runtime = SimpleNamespace(state={"messages": [injected, human], "attachment_messages": {human.id: restored}},
                                   config={}, tool_call_id="outer")
         with tempfile.TemporaryDirectory() as root, override_settings(HIGHLIGHT_MULTIMODAL_CORPUS=root), \
-             patch("llm.highlight_multimodal.Google"), patch("llm.highlight_multimodal.Specialist") as specialist:
-            specialist.return_value.ask.return_value = {"complete": True, "no_match": True, "matches": [], "decisions": []}
+             patch("llm.highlight_multimodal.Google"), patch("llm.highlight_multimodal.Specialist") as specialist, \
+             patch("llm.highlight_multimodal.verify_retrieval") as verified:
+            verified.return_value = {"complete": True, "no_match": True, "matches": [], "decisions": []}
             result = sub_agents._delegate("ask_highlight", "highlight", highlight_sub_agent.MultimodalAgent()).func("장면 찾기", runtime)
-        specialist.return_value.ask.assert_called_once_with(human.text, candidate_limit=3, images=[image], config=ANY)
-        self.assertEqual(specialist.return_value.ask.call_args.kwargs["config"]["metadata"]["parent_id"], "outer")
+        specialist.return_value.retrieve.assert_called_once_with(human.text, candidate_limit=3, images=[image])
+        self.assertEqual(verified.call_args.kwargs["config"]["metadata"]["parent_id"], "outer")
+        self.assertEqual(verified.call_args.kwargs["images"], [image])
         self.assertNotIn("base64", str(result.model_dump()))
         self.assertEqual(result.status, "success")
 
@@ -149,7 +176,7 @@ class MultimodalWebTests(SimpleTestCase):
                 constructor.return_value = specialist
                 records = [message for update in highlight_sub_agent.MultimodalAgent().stream({
                     "messages": [HumanMessage("invented delegation")], "highlight_original_text": "original",
-                    "highlight_images": [image] * count}) for node in update.values() for message in node["messages"]]
+                    "highlight_images": [image] * count}) for node in update.values() for message in (node or {}).get("messages", [])]
                 result = records[0].artifact["multimodal"]
                 self.assertFalse(result["complete"])
                 self.assertIsNone(result["no_match"])
@@ -200,11 +227,13 @@ class MultimodalWebTests(SimpleTestCase):
             self.skipTest("requires mounted preview corpus")
 
         class OfflineGoogle:
+            last_model_version = 'synthetic'
+            last_quota_wait = last_provider_latency = 0
             def embed(self, part):
                 return [1.] * DIM
-            def verify(self, query, row, video, audio):
-                assert video.exists() and audio.exists()
-                return {"candidate_id": row["id"], "match": True, "local_seconds": 2.5, "evidence": "offline routing test"}
+            def verify_candidates(self, query, rows, **kwargs):
+                return [{"candidate_id": row["id"], "match": True, "local_seconds": 2.5,
+                         "evidence": "offline routing test"} for row in rows]
 
         with patch("llm.highlight_multimodal.Google", OfflineGoogle):
             with ThreadPoolExecutor(max_workers=2) as pool:

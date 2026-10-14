@@ -1,4 +1,4 @@
-"""Five fixed synthetic migration contracts, scored by installed offline frameworks."""
+"""Fixed synthetic migration/retrieval contracts, scored by installed offline frameworks."""
 import argparse
 import asyncio
 import hashlib
@@ -14,6 +14,12 @@ os.environ['RAGAS_DO_NOT_TRACK'] = 'true'
 os.environ['LANGCHAIN_TRACING_V2'] = 'false'
 
 CASES = (
+    'test_retrieval_has_zero_generation_calls',
+    'test_three_candidates_one_real_gemini_generation',
+    'test_group_exact_coverage_and_fail_closed_boundaries',
+    'test_video_order_beats_cross_modal_agreement_and_preserves_images',
+    'test_video_duplicates_unknown_overlap_touching_and_limits',
+    'test_video_empty_negative_and_verifier_errors',
     'test_candidate_batch_is_real_runnable_and_ordered',
     'test_embedding_text_and_joint_preserve_unspecified_task',
     'test_invalid_metadata_and_image_limit_zero_transport',
@@ -54,7 +60,7 @@ def main():
     class Observations(unittest.TextTestResult):
         def startTest(self, test):
             super().startTest(test)
-            self.observed[test._testMethodName] = 'error'
+            self.observed[test._testMethodName] = 'running'
         def addSuccess(self, test):
             super().addSuccess(test)
             self.observed[test._testMethodName] = 'pass'
@@ -64,6 +70,12 @@ def main():
         def addError(self, test, err):
             super().addError(test, err)
             self.observed[test._testMethodName] = 'error'
+        def addSubTest(self, test, subtest, err):
+            super().addSubTest(test, subtest, err)
+            if err is not None:
+                observed = 'fail' if issubclass(err[0], test.failureException) else 'error'
+                if self.observed[test._testMethodName] != 'error':
+                    self.observed[test._testMethodName] = observed
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
             self.observed = {}
