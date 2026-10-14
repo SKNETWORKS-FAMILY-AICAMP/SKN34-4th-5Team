@@ -2585,11 +2585,12 @@ export interface components {
         };
         /**
          * @description * `hide` - hide
+         *     * `unhide` - unhide
          *     * `reviewed` - reviewed
          *     * `unreviewed` - unreviewed
          * @enum {string}
          */
-        AdminPostActionActionEnum: "hide" | "reviewed" | "unreviewed";
+        AdminPostActionActionEnum: "hide" | "unhide" | "reviewed" | "unreviewed";
         AdminPostOwner: {
             readonly id: number;
             /**

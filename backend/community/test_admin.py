@@ -68,7 +68,7 @@ class CommunityAdminApiTests(APITestCase):
 
     def test_review_requires_staff_and_valid_action(self):
         url = f"/api/v1/community/admin/posts/{self.post.pk}/"
-        for action in ("reviewed", "unreviewed"):
+        for action in ("reviewed", "unreviewed", "unhide"):
             self.client.force_authenticate(None)
             self.assertEqual(self.client.patch(url, {"action": action}, format="json").status_code, 401)
             self.client.force_authenticate(self.member)
@@ -104,6 +104,48 @@ class CommunityAdminApiTests(APITestCase):
         self.client.force_authenticate(self.staff)
         self.assertEqual(self.client.get(f"/api/v1/community/posts/{self.post.pk}/").status_code, 404)
 
+    def test_unhide_restores_public_post_and_comments_without_resetting_reports(self):
+        from accounts.models import PointTransaction
+
+        comment = CommunityComment.objects.create(moderation_status="approved", approved_revision=0, post=self.post, author=self.member, content="댓글")
+        CommunityComment.objects.create(moderation_status="rejected", post=self.post, author=self.member, content="차단 댓글")
+        self.act(action="hide")
+        self.report.refresh_from_db()
+        history = (self.report.status, self.report.handled_at, self.report.handled_by_id)
+        url = f"/api/v1/community/admin/posts/{self.post.pk}/"
+        for _ in range(2):
+            self.client.force_authenticate(self.staff)
+            response = self.client.patch(url, {"action": "unhide"}, format="json")
+            self.assertEqual(response.status_code, 200)
+            self.assertFalse(response.data["is_hidden"])
+            self.assertEqual(response.data["comment_count"], 1)
+            self.report.refresh_from_db()
+            self.assertEqual((self.report.status, self.report.handled_at, self.report.handled_by_id), history)
+            self.client.force_authenticate(None)
+            self.assertEqual(self.client.get(f"/api/v1/community/posts/{self.post.pk}/").status_code, 200)
+            self.assertEqual(len(self.client.get(f"/api/v1/community/posts/{self.post.pk}/comments/").data), 1)
+        comment.refresh_from_db()
+        self.assertIsNotNone(comment.first_published_at)
+        self.assertEqual(PointTransaction.objects.filter(user=self.member, source_key=str(comment.pk), source_type="comment").count(), 1)
+
+    def test_unhide_does_not_override_moderation_block(self):
+        from accounts.models import PointTransaction
+
+        self.post.is_hidden = True
+        self.post.moderation_status = "rejected"
+        self.post.approved_revision = None
+        self.post.comment_count = 7
+        self.post.save(update_fields=["is_hidden", "moderation_status", "approved_revision", "comment_count"])
+        self.client.force_authenticate(self.staff)
+        response = self.client.patch(f"/api/v1/community/admin/posts/{self.post.pk}/", {"action": "unhide"}, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.post.refresh_from_db()
+        self.assertEqual((self.post.is_hidden, self.post.moderation_status, self.post.approved_revision, self.post.comment_count), (False, "rejected", None, 0))
+        self.assertIsNone(self.post.first_published_at)
+        self.assertFalse(PointTransaction.objects.filter(user=self.member).exists())
+        self.client.force_authenticate(None)
+        self.assertEqual(self.client.get(f"/api/v1/community/posts/{self.post.pk}/").status_code, 404)
+
     def test_post_without_reports_can_be_hidden(self):
         post = CommunityPost.objects.create(moderation_status="approved", approved_revision=0, board="free", author="회원", title="신고 없음", content="본문", category="잡담")
         self.client.force_authenticate(self.staff)
@@ -118,7 +160,7 @@ class CommunityAdminApiTests(APITestCase):
         self.client.force_authenticate(self.member)
         self.assertEqual(self.client.patch(url, {"action": "hide"}, format="json").status_code, 403)
         self.client.force_authenticate(self.staff)
-        for body in ({}, {"action": "unhide"}, {"action": "hide", "title": "변경"}):
+        for body in ({}, {"action": "invalid"}, {"action": "hide", "title": "변경"}):
             self.assertEqual(self.client.patch(url, body, format="json").status_code, 400)
         self.assertEqual(self.client.patch("/api/v1/community/admin/posts/missing/", {"action": "hide"}, format="json").status_code, 404)
         self.post.refresh_from_db()

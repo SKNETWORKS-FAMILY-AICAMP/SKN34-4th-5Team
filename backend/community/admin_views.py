@@ -14,6 +14,7 @@ from rest_framework.views import APIView
 from accounts.admin_views import StaffOnly
 
 from .models import CommunityPost, CommunityReport
+from .moderation_service import publish_locked, sync_comment_count
 from .serializers import CommunityPostSerializer
 
 
@@ -104,7 +105,7 @@ def hide_post(post, actor, now):
 
 
 class AdminPostActionSerializer(serializers.Serializer):
-    action = serializers.ChoiceField(choices=("hide", "reviewed", "unreviewed"))
+    action = serializers.ChoiceField(choices=("hide", "unhide", "reviewed", "unreviewed"))
 
     def validate(self, attrs):
         if set(self.initial_data) != {"action"}:
@@ -136,6 +137,11 @@ class AdminPostDetail(generics.DestroyAPIView):
             action = serializer.validated_data["action"]
             if action == "hide":
                 hide_post(post, request.user, timezone.now())
+            elif action == "unhide":
+                post.is_hidden = False
+                post.save(update_fields=["is_hidden"])
+                publish_locked(post)
+                sync_comment_count(post.pk)
             else:
                 post.is_reviewed = action == "reviewed"
                 post.save(update_fields=["is_reviewed"])
