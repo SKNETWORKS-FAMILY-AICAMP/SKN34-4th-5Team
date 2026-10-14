@@ -362,14 +362,34 @@ class StartupTests(unittest.TestCase):
     def test_one_time_reset_documented_invocation(self):
         text = (ROOT / 'docs/QDRANT_HANDOFF.md').read_text()
         reset = 'docker compose -p dev -f docker-compose.vector-reset.yml down --volumes'
-        self.assertIn('\n   ' + reset + '\n', text)
         original = 'docker compose -p dev -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.override.yml'
         self.assertIn(original + ' ps -a', text)
-        self.assertIn('xargs ' + original + ' stop', text)
-        self.assertIn(original + ' up -d --no-build --force-recreate --wait --wait-timeout 4500', text)
+        commands = [
+            original + ' stop backend community-moderation-worker lodging-warmer course-place-warmer qdrant vector-init',
+            reset,
+            original + ' up -d --no-build --force-recreate --wait --wait-timeout 4500 backend frontend jev-browser lodging-warmer community-moderation-worker',
+        ]
+        blocks = re.findall(r'```sh\n(.*?)\n\s*```', text, re.S)
+        block, = [block for block in blocks if reset in block]
+        block = '\n'.join(line.strip() for line in block.splitlines())
+        self.assertEqual(block, ' &&\n'.join(commands))
+        self.assertNotIn('xargs', block)
+        # Execute the actual runbook block with only a shell stub, never real Docker.
+        stub = '''calls=0
+        docker() {
+            calls=$((calls + 1))
+            printf '%s\\n' "docker $*"
+            if [ "$calls" -eq "$failure" ]; then return 17; fi
+        }
+        '''
+        for failure, count in ((1, 1), (2, 2), (0, 3)):
+            with self.subTest(failure=failure):
+                result = subprocess.run(['/bin/sh', '-c', 'failure=$1\n' + stub + block, 'runbook', str(failure)],
+                                        env={'PATH': '/nonexistent'}, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 17 if failure else 0, result.stderr)
+                self.assertEqual(result.stdout.splitlines(), commands[:count])
+                self.assertEqual(result.stderr, '')
         self.assertIn('logs --no-color --tail 100 vector-init', text)
-        self.assertLess(text.index(original + ' stop'), text.index(reset))
-        self.assertLess(text.index(reset), text.index(original + ' up'))
         for retained in ('vector_cache', 'postgres_data', 'minio_data', 'Drive'):
             self.assertIn(retained, text)
 
