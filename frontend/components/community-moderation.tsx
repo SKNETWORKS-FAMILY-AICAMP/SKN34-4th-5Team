@@ -9,7 +9,7 @@ import type { TeamCommunityPost } from "@/lib/team-community";
 import { getTeamBoardHref } from "@/lib/team-community";
 import styles from "./community-moderation.module.css";
 
-export const moderationLabel: Record<string, string> = { pending: "비공개 · 검사 대기", review: "운영진 검토 · 자동 검사 오류 시 공개 가능", error: "비공개 · 검사 오류", rejected: "비공개 · 보류 확정", approved: "검사 승인" };
+export const moderationLabel: Record<string, string> = { pending: "사후 검사 대기", review: "운영진 검토 · 자동 검사 오류 시 공개 가능", error: "사후 검사 오류", rejected: "비공개 · 보류 확정", approved: "검사 승인" };
 
 export function AdminContentPreview({ id }: { id: string }) {
   const [post, setPost] = useState<TeamCommunityPost | null>(null);
@@ -94,7 +94,7 @@ function SubmissionContent() {
     return () => { active = false; };
   }, [tick]);
   return <section className={styles.submissions} aria-labelledby="submissions-heading" aria-busy={loading || busy}>
-    <header className={styles.panelHeader}><div><p className="eyebrow">COMMUNITY</p><h1 id="submissions-heading">내 게시 검사 상태</h1><p>새 글과 수정본은 검사 대기 중 비공개입니다. 자동 검사 오류 시 공개와 운영진 검토를 병행하며, 유해성 판정·이미지 검토·수동 모드는 비공개 검토합니다. 별도 운영 제재나 비공개 부모 글은 공개되지 않습니다.</p></div><button className="button button-secondary" disabled={loading || busy} onClick={() => setTick(value => value + 1)}>상태 새로고침</button></header>
+    <header className={styles.panelHeader}><div><p className="eyebrow">COMMUNITY</p><h1 id="submissions-heading">내 게시 검사 상태</h1><p>새 글과 댓글·수정본은 바로 게시되며 신고 또는 정기 검사로 사후 확인합니다. 검사 대기·오류만으로 공개를 중단하지 않습니다. 검사 완료 후 유해성 판정·이미지 검토·수동 검토 사유는 비공개 검토하며, 자동 검사 오류만 있으면 공개와 운영진 검토를 병행합니다. 별도 운영 제재나 비공개 부모 글은 유지됩니다.</p></div><button className="button button-secondary" disabled={loading || busy} onClick={() => setTick(value => value + 1)}>상태 새로고침</button></header>
     {error && <p className={styles.error} role="alert">{error}</p>}
     {loading && (posts.length > 0 || comments.length > 0) && <p className={styles.hint} role="status">검사 상태를 새로고침하고 있어요.</p>}
     {loading && posts.length === 0 && comments.length === 0 ? <div className={styles.empty} role="status">내 게시글과 댓글을 불러오고 있어요.</div> : <>
@@ -104,7 +104,7 @@ function SubmissionContent() {
           <header className={styles.submissionHeader}><h3>{post.title}</h3><span className={styles.submissionStatus} data-state={post.moderationStatus}>{moderationLabel[post.moderationStatus]}</span></header>
           <p className={styles.metadata}>버전 {post.revision}</p><p className={styles.submissionText}>{post.content}</p>
           {post.images && post.images.length > 0 && <div className={styles.attachments}>{post.images.map(image => <PrivateCommunityImage key={image.id} id={image.id} />)}</div>}
-          <div className={styles.submissionActions}><Link className="button button-primary" href={`/community/write?edit=${encodeURIComponent(post.id)}`}>수정</Link><button className={`button button-secondary ${styles.deleteButton}`} disabled={busy} onClick={() => void removePost(post.id)}>삭제</button>{post.moderationStatus === "approved" && <Link className="button button-secondary" href={post.board === "free" ? `/community?post=${encodeURIComponent(post.id)}` : getTeamBoardHref(post.teamCode, post.id)}>게시판에서 확인</Link>}</div>
+          <div className={styles.submissionActions}><Link className="button button-primary" href={`/community/write?edit=${encodeURIComponent(post.id)}`}>수정</Link><button className={`button button-secondary ${styles.deleteButton}`} disabled={busy} onClick={() => void removePost(post.id)}>삭제</button>{["approved", "pending", "error"].includes(post.moderationStatus) && <Link className="button button-secondary" href={post.board === "free" ? `/community?post=${encodeURIComponent(post.id)}` : getTeamBoardHref(post.teamCode, post.id)}>게시판에서 확인</Link>}</div>
         </article>)}
       </section>
       <section aria-labelledby="own-comments-heading"><h2 id="own-comments-heading" className={styles.submissionListHeading}>내 댓글 검사</h2>

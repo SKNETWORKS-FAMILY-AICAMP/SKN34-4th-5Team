@@ -62,7 +62,7 @@ class CommunityPostApiTests(APITestCase):
     def test_new_posts_lead_the_first_page_in_free_and_team_boards(self):
         free = self.create_post(key="new-free", title="최신 자유 글")
         team = self.create_post(key="new-team", board="teams", teamCode="LG", title="최신 팀 글")
-        self.assertEqual((free.status_code, team.status_code), (202, 202))
+        self.assertEqual((free.status_code, team.status_code), (201, 201))
         while run_one(lambda payload: ([], {})):
             pass
         self.client.force_authenticate(user=None)
@@ -95,12 +95,12 @@ class CommunityPostApiTests(APITestCase):
             format="json",
             HTTP_IDEMPOTENCY_KEY="jwt-create",
         )
-        self.assertEqual((response.status_code, response.data["teamCode"], response.data["authorId"]), (202, "LG", self.owner.id))
+        self.assertEqual((response.status_code, response.data["teamCode"], response.data["authorId"]), (201, "LG", self.owner.id))
         self.assertEqual(response.data["authorRank"], 1)
 
     def test_create_is_server_owned_idempotent_and_uses_common_sequence(self):
         response = self.create_post(author="위조", postNumber="999999", views=999)
-        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.status_code, 201)
         self.assertEqual((response.data["authorId"], response.data["author"], response.data["views"]), (self.owner.id, "글쓴이", 0))
         self.assertRegex(response.data["id"], r"^[0-9a-f]{32}$")
         self.assertRegex(response.data["postNumber"], r"^[0-9]{6}$")
@@ -132,7 +132,7 @@ class CommunityPostApiTests(APITestCase):
 
         for category in ("소식·정보", "이적·신인"):
             response = self.create_post(key=f"category-{category}", board="teams", teamCode="LG", category=category)
-            self.assertEqual((response.status_code, response.data["category"]), (202, category))
+            self.assertEqual((response.status_code, response.data["category"]), (201, category))
 
     def test_detail_counts_views_and_only_owner_can_mutate(self):
         created = self.create_post()
@@ -149,7 +149,7 @@ class CommunityPostApiTests(APITestCase):
         self.assertEqual(self.client.delete(url).status_code, 403)
         self.client.force_authenticate(self.owner)
         updated = self.client.patch(url, {"title": "수정됨"}, format="json")
-        self.assertEqual((updated.status_code, updated.data["title"]), (202, "수정됨"))
+        self.assertEqual((updated.status_code, updated.data["title"]), (200, "수정됨"))
         self.assertEqual(self.client.delete(url).status_code, 204)
 
     def test_legacy_post_is_readable_but_not_mutable_and_mine_is_scoped(self):
@@ -200,7 +200,7 @@ class CommunityRichPostTests(APITestCase):
         image_id = uploaded.data["id"]
         doc = self.document(image_id)
         created = self.client.post("/api/v1/community/posts/", {"board": "free", "teamCode": "", "category": "잡담", "title": "서식 글", "content": "직관 사진\n[이미지]", "contentDoc": doc}, format="json", HTTP_IDEMPOTENCY_KEY="rich-1")
-        self.assertEqual(created.status_code, 202)
+        self.assertEqual(created.status_code, 201)
         self.assertEqual(created.data["contentDoc"], doc)
         retried = self.client.post("/api/v1/community/posts/", {"board": "free", "teamCode": "", "category": "잡담", "title": "서식 글", "content": "직관 사진\n[이미지]", "contentDoc": doc}, format="json", HTTP_IDEMPOTENCY_KEY="rich-1")
         self.assertEqual((retried.status_code, retried.data["id"]), (200, created.data["id"]))
@@ -213,7 +213,7 @@ class CommunityRichPostTests(APITestCase):
         self.assertEqual(fetched.data["contentDoc"], doc)
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {RefreshToken.for_user(self.owner).access_token}")
         edited = self.client.patch(f"/api/v1/community/posts/{created.data['id']}/", {"title": "수정된 서식 글", "content": "직관 사진\n[이미지]", "contentDoc": doc}, format="json")
-        self.assertEqual((edited.status_code, edited.data["title"], edited.data["contentDoc"]), (202, "수정된 서식 글", doc))
+        self.assertEqual((edited.status_code, edited.data["title"], edited.data["contentDoc"]), (200, "수정된 서식 글", doc))
         self.assertEqual(str(CommunityImage.objects.get(pk=image_id).post_id), created.data["id"])
         self.client.patch(f"/api/v1/community/posts/{created.data['id']}/", {"content": "이미지 제거", "contentDoc": None}, format="json")
         self.assertIsNone(CommunityImage.objects.get(pk=image_id).post_id)
@@ -268,7 +268,7 @@ class CommunityPostConcurrencyTests(TransactionTestCase):
         with ThreadPoolExecutor(max_workers=2) as pool:
             results = list(pool.map(lambda _: submit(), range(2)))
 
-        self.assertEqual(sorted(code for code, _ in results), [200, 202])
+        self.assertEqual(sorted(code for code, _ in results), [200, 201])
         self.assertEqual(len({source_id for _, source_id in results}), 1)
         self.assertEqual(CommunityPost.objects.filter(owner=user, idempotency_key="same-key").count(), 1)
 

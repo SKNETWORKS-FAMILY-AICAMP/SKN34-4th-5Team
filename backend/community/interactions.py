@@ -57,7 +57,7 @@ class CommentListCreateView(APIView):
 
     @extend_schema(
         request=CommunityCommentWriteSerializer,
-        responses={202: CommunityCommentSerializer, 400: OpenApiTypes.OBJECT, 401: OpenApiTypes.OBJECT, 404: OpenApiTypes.OBJECT},
+        responses={201: CommunityCommentSerializer, 400: OpenApiTypes.OBJECT, 401: OpenApiTypes.OBJECT, 404: OpenApiTypes.OBJECT},
     )
     @transaction.atomic
     def post(self, request, source_id):
@@ -68,7 +68,7 @@ class CommentListCreateView(APIView):
             post=post, author=request.user, **serializer.validated_data
         )
         enqueue_locked(comment)
-        return Response(CommunityCommentSerializer(comment).data, status=status.HTTP_202_ACCEPTED)
+        return Response(CommunityCommentSerializer(comment).data, status=status.HTTP_201_CREATED)
 
 
 class CommentDetailView(APIView):
@@ -91,7 +91,7 @@ class CommentDetailView(APIView):
 
     @extend_schema(
         request=CommunityCommentWriteSerializer,
-        responses={202: CommunityCommentSerializer, 400: OpenApiTypes.OBJECT, 401: OpenApiTypes.OBJECT, 403: OpenApiTypes.OBJECT, 404: OpenApiTypes.OBJECT},
+        responses={200: CommunityCommentSerializer, 400: OpenApiTypes.OBJECT, 401: OpenApiTypes.OBJECT, 403: OpenApiTypes.OBJECT, 404: OpenApiTypes.OBJECT},
     )
     @transaction.atomic
     def patch(self, request, comment_id):
@@ -101,7 +101,7 @@ class CommentDetailView(APIView):
         comment.content = serializer.validated_data["content"]
         comment.save(update_fields=("content", "updated_at"))
         enqueue_locked(comment)
-        return Response(CommunityCommentSerializer(comment).data, status=202)
+        return Response(CommunityCommentSerializer(comment).data, status=200)
 
     @extend_schema(responses={204: OpenApiResponse(description="본문 없음"), 401: OpenApiTypes.OBJECT, 403: OpenApiTypes.OBJECT, 404: OpenApiTypes.OBJECT})
     @transaction.atomic

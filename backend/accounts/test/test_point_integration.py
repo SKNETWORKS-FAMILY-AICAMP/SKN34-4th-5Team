@@ -144,8 +144,8 @@ class PointIntegrationTests(TestCase):
             "teamCode": "",
             "images": []
         }, format="json", HTTP_IDEMPOTENCY_KEY="test-key-1")
-        self.assertEqual(response.status_code, 202)
-        self.assertFalse(PointWallet.objects.filter(user=self.user).exists())
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(PointWallet.objects.get(user=self.user).balance, 1)
         run_one(lambda payload: ([], {}))
         
         wallet = PointWallet.objects.get(user=self.user)
@@ -169,7 +169,7 @@ class PointIntegrationTests(TestCase):
             {"title": "Edited Post"},
             format="json",
         )
-        self.assertEqual(edited.status_code, 202)
+        self.assertEqual(edited.status_code, 200)
         wallet.refresh_from_db()
         self.assertEqual(wallet.balance, 1)
 
@@ -222,8 +222,8 @@ class PointIntegrationTests(TestCase):
         response = self.client.post(f"/api/v1/community/posts/{post.pk}/comments/", {
             "content": "Test comment"
         })
-        self.assertEqual(response.status_code, 202)
-        self.assertFalse(PointWallet.objects.filter(user=self.user).exists())
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(PointWallet.objects.get(user=self.user).balance, 1)
         run_one(lambda payload: ([], {}))
         wallet = PointWallet.objects.get(user=self.user)
         self.assertEqual(wallet.balance, 1)
@@ -232,7 +232,7 @@ class PointIntegrationTests(TestCase):
             {"content": "Edited comment"},
             format="json",
         )
-        self.assertEqual(edited.status_code, 202)
+        self.assertEqual(edited.status_code, 200)
         wallet.refresh_from_db()
         self.assertEqual(wallet.balance, 1)
 
