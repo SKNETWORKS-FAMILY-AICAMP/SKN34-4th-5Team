@@ -398,8 +398,8 @@ class Google:
             "Require every requested identity/action/inning and image condition to be directly supported; reject uncertainty. "
             "Call review_highlight_candidate exactly once with the current candidate's observed verdict. "
             "Return ORIGINAL-video start AND end seconds, source_accessible and concise visible/audible evidence. "
-            "If matched, next_candidate_id=null and stop immediately. If absent or this source is inaccessible, "
-            "choose the next ranked unchecked candidate ID in next_candidate_id; at the final candidate use null. "
+            "If matched, next_candidate_id must be JSON null (never the string \"null\") and stop immediately. If absent or this source is inaccessible, "
+            "choose the next ranked unchecked candidate ID in next_candidate_id; at the final candidate use JSON null, never a string. "
             "Unavailable is not verified absence. Never repeat a video, invent IDs/times/URLs, search again, "
             "or bypass authentication/billing/quota/cancellation. Do not output prose or extra tool calls.")
         sources = []
@@ -524,12 +524,13 @@ def verify_retrieval(google, retrieval, images=None, config=None):
     properties = {"candidate_id": {"type": "string"}, "match": {"type": "boolean"},
         "original_seconds": {"type": "number"}, "original_end_seconds": {"type": "number"},
         "source_accessible": {"type": "boolean"}, "evidence": {"type": "string"},
-        "next_candidate_id": {"type": ["string", "null"]}}
+        "next_candidate_id": {"anyOf": [{"type": "string"}, {"type": "null"}],
+            "description": "Next ranked unchecked candidate ID, or JSON null to finish; never the string null"}}
 
     @tool(args_schema={"type": "object", "properties": properties,
                        "required": list(properties), "additionalProperties": False})
     def review_highlight_candidate(**output):
-        """Submit the observed current-video verdict and choose the next original, or null to finish."""
+        """Submit the current-video verdict and next original ID, or JSON null (not a string) to finish."""
         if (row is None or set(output) != set(properties) or output['candidate_id'] != row['id']
                 or type(output['match']) is not bool or type(output['source_accessible']) is not bool):
             raise ValueError("Invalid candidate verdict")

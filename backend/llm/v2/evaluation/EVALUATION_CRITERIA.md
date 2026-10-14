@@ -1000,6 +1000,12 @@ fixture는 테스트 입력·응답을 고정하는 방식이며 그 자체가 �
 - A/B/범위: 수정 전 source/test를 scratch에 동결하고 기존 16개 suite 실패를 먼저 보존한 뒤 동일 설치 환경·입력·기대 계약으로 B를 실행한다. 기존 LangChain DeepEval exact/Ragas ExactMatch runner를 동일 사례·threshold=1·네트워크 차단으로 A/B 실행하며 timing 버그 자체나 live 의미 품질의 별도 점수로 주장하지 않는다. 새 환경·제공자·다운로드·corpus 변경은 없다.
 - CI: 기존 evaluation-regression.yml/highlight-deterministic → `python -I .github/evaluation_ci.py highlight-free --output ...`의 16개 suite 포함을 재사용하고 목적 커밋 후 bounded job을 한 번 실행한다. 실제 이름/count·실패/오류/미실행을 보존하며 추가 실패는 범위를 확대하지 않고 보고한다.
 
+## 순차 검증 종료 ID의 nullable 전송 계약 (2026-10-15, A 실행 전)
+
+- 목적/변경 변수: 설치된 LangChain Google·공식 SDK의 실제 HTTP 직렬화에서 `next_candidate_id`가 JSON null을 허용하는지 먼저 실패 회귀로 확인하고, 지원되는 도구 schema 및 JSON null 설명만 수정한다. 문자열 `"null"`을 변환하거나 자동 다음 후보·출력 보정·추가 재시도를 도입하지 않는다.
+- 기대/합격: 실제 wire schema가 STRING 및 nullable=true를 보존하고 JSON null 일치는 즉시 성공, 마지막 정상 음성의 JSON null은 complete=true/no_match=true여야 한다. 일치 뒤 실제 다음 ID, 문자열 null, unknown/중복/건너뛴 ID·출처/Boolean/시각 위반은 fail-closed를 유지한다. 단일 모델·영상당1회/최대3·순위·원문/이미지·quota/인증/취소 계약은 불변이다.
+- A/B/범위: entry d693262의 source와 신규 입력/정답을 scratch에 동결하고 production 수정 전에 실제 SDK transport 회귀 A 및 기존 --retry DeepEval custom exact/Ragas ExactMatch A를 실행한다. 동일 테스트·정답·설치 환경·threshold=1로 B를 비교하며 synthetic 실행 계약 외 의미 품질은 not_measured다. 기존 deterministic/free/run_attachment_offline.py의 retry 전체 자동 발견과 실제 CI 하위 명령의 이름/count를 확인한다. 제공자·새 환경·재시작·배포는 실행하지 않는다. 초기 환경 import 실패는 보존하며 coordinator의 별도 승인으로 기존 retry-venv의 langchain-community만 CI pin 0.4.1로 교체한 뒤 동일 환경에서 A/B를 실행한다.
+
 ## DVC Docker 기동 준비 계약 (2026-10-15, 구현 전)
 
 - 목적/범위: 문서 dense 네이티브 snapshot과 highlight backup을 별도 init에서 pull→검증→새 runtime 복원하고 backend는 init 성공 이후에만 시작한다. 검색·모델·prompt·sparse·정답은 변경하지 않는 non-LLM 인프라 변경으로 DeepEval/Ragas 제공자 평가는 면제한다.

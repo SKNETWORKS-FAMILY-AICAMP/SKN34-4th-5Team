@@ -94,6 +94,31 @@ class RetryTests(unittest.TestCase):
         self.assertEqual(trace.starts[0]['metadata']['parent_id'], 'outer')
         self.assertNotIn(IMAGE['image_url']['url'].split(',')[1], str(result['messages']) + str(result['result']))
 
+    def test_terminal_next_candidate_id_is_nullable_on_sdk_wire(self):
+        result, _, transport, _ = self.run_graph([call(verdict())])
+        body = next(body for op, body in transport.requests if op == 'generateContent')
+        declaration, = [declaration for tool in body['tools']
+                        for declaration in tool['functionDeclarations']
+                        if declaration['name'] == 'review_highlight_candidate']
+        terminal = declaration['parameters']['properties']['next_candidate_id']
+        self.assertEqual(terminal['type'], 'STRING')
+        self.assertIs(terminal.get('nullable'), True, terminal)
+        self.assertIn('next_candidate_id', declaration['parameters']['required'])
+        self.assertTrue(result['result']['complete'])
+        self.assertEqual(result['result']['checked_candidates'], ['a'])
+
+    def test_terminal_string_null_and_match_continuation_are_rejected(self):
+        for match, next_id in ((True, 'null'), (False, 'null'), (True, 'b')):
+            with self.subTest(match=match, next_id=next_id):
+                result, store, transport, _ = self.run_graph([
+                    call(verdict(match=match, next_id=next_id)), {'text': 'stop'}])
+                self.assertFalse(result['result']['complete'])
+                self.assertIsNone(result['result']['no_match'])
+                self.assertEqual(result['result']['matches'], [])
+                self.assertEqual(result['result']['checked_candidates'], ['a'])
+                self.assertEqual(self.video_ids(transport), [[ROWS[0]['video_id']], []])
+                self.assertEqual(store.retrieve.call_count, 1)
+
     def test_model_selects_rank2_then_rank3_with_one_video_per_call(self):
         for winner in ('b', 'c'):
             parts = [call(verdict('a', False, 'b')), call(verdict('b', winner == 'b', 'c' if winner == 'c' else None))]
