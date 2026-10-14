@@ -151,6 +151,7 @@ test("category menu ends with Admin only for authenticated active staff; header 
       "@/lib/member-auth": { useMemberAuth: () => ({ status, user }) },
       "./chat-provider": { useChat: () => ({ onExpand() {} }) },
       "./icons": { Icon: "icon", CapBot: "cap-bot" },
+      "./pwa-install-button": { PwaInstallButton: () => null },
     }).HeaderMenu();
     const tree = nodes(menu.type(menu.props));
     const admin = tree.find(n => n.props.href === "/admin");
