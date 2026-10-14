@@ -283,22 +283,16 @@ jobs:
   # 3. 실패 시에만 Discord 알림
   notify-discord:
     needs: [ci-test, evaluation-regression, deploy]
-    # Temporarily disabled. Change false to true to enable this job.
-    if: ${{ false }}
-    # if: >-
-    #   always() &&
-    #   (
-    #     needs.ci-test.result != 'success' ||
-    #     needs.evaluation-regression.result != 'success' ||
-    #     needs.deploy.result != 'success'
-    #   )
+    if: always()
 
     runs-on: ubuntu-latest
 
     steps:
-      - name: Send production deployment failure notification
+      - name: Send deployment failure notification
+        if: needs.ci-test.result == 'failure' || needs.evaluation-regression.result == 'failure' || needs.deploy.result == 'failure'
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
           CI_RESULT: ${{ needs.ci-test.result }}
           EVALUATION_RESULT: ${{ needs.evaluation-regression.result }}
           DEPLOY_RESULT: ${{ needs.deploy.result }}
@@ -310,8 +304,7 @@ jobs:
             exit 0
           fi
 
-          if [ "$CI_RESULT" != "success" ] || \
-             [ "$EVALUATION_RESULT" != "success" ]; then
+          if [ "$CI_RESULT" = "failure" ] || [ "$EVALUATION_RESULT" = "failure" ]; then
             STATUS="❌ [운영 CI 실패]"
             DETAILS="CI 검증 또는 회귀 테스트가 실패하거나 실행되지 않았습니다."
           else
