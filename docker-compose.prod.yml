@@ -6,6 +6,7 @@ x-logging: &default-logging
 
 services:
   jev-browser:
+    image: dev-jev-browser:latest
     build: ./docker/jev-browser
     restart: unless-stopped
     cap_add: [NET_ADMIN]
@@ -38,6 +39,7 @@ services:
     logging: *default-logging
 
   backend:
+    image: dev-backend:latest
     build: &backend-build
       context: ./backend
       dockerfile: Dockerfile.prod
@@ -155,6 +157,7 @@ services:
     logging: *default-logging
 
   lodging-warmer:
+    image: dev-lodging-warmer:latest
     build: *backend-build
     restart: unless-stopped
     environment: *backend-environment
@@ -169,6 +172,7 @@ services:
     logging: *default-logging
 
   frontend:
+    image: dev-frontend:latest
     build:
       context: ./frontend
       dockerfile: Dockerfile.prod
