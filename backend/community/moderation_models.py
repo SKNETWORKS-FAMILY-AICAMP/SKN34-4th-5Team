@@ -45,7 +45,8 @@ class ModerationJob(models.Model):
     class Meta:
         constraints = [
             models.CheckConstraint(condition=(Q(post__isnull=False, comment__isnull=True) | Q(post__isnull=True, comment__isnull=False)), name='community_mod_one_target'),
-            models.UniqueConstraint(fields=('post', 'revision'), name='community_mod_post_revision'),
+            models.UniqueConstraint(fields=('post', 'revision'), name='community_mod_post_revision',
+                                    condition=Q(payload__trigger__isnull=True) | ~Q(payload__trigger='report')),
             models.UniqueConstraint(fields=('comment', 'revision'), name='community_mod_comment_revision'),
         ]
         indexes = [models.Index(fields=('state', 'available_at'), name='community_mod_due')]

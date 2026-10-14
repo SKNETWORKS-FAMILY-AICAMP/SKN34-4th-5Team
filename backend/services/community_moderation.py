@@ -53,17 +53,8 @@ def enqueue_report_locked(post):
     ).first()
     if active is not None:
         return active
-    was_approved = post.approved_revision == post.content_revision
-    previous_status = post.moderation_status
-    job = enqueue_locked(post, enforce_limit=False, mode='openai')
-    job.payload['trigger'] = 'report'
-    job.save(update_fields=['payload'])
-    # A report alone is not a harmful-content finding. Await the actual check.
-    if was_approved:
-        post.approved_revision = post.content_revision
-        post.moderation_status = previous_status
-        post.save(update_fields=['approved_revision', 'moderation_status'])
-    return job
+    # A report is not a content edit: keep the revision, decisions and other leases.
+    return enqueue_locked(post, enforce_limit=False, mode='openai', trigger='report')
 
 
 @transaction.atomic

@@ -41,7 +41,7 @@ def locked_target(job):
     return comment
 
 
-def enqueue_locked(obj, *, enforce_limit=True, mode=None):
+def enqueue_locked(obj, *, enforce_limit=True, mode=None, trigger=None):
     """Caller must hold the content lock (or own its creation transaction)."""
     is_post = isinstance(obj, CommunityPost)
     owner_id = obj.owner_id if is_post else obj.author_id
@@ -55,11 +55,12 @@ def enqueue_locked(obj, *, enforce_limit=True, mode=None):
             raise Throttled(detail='게시 요청이 많습니다. 잠시 후 다시 시도해 주세요.')
         ModerationAdmission.objects.create(account_id=owner_id)
     related = obj.moderation_jobs
-    related.filter(state__in=('queued', 'running')).update(state='cancelled', lease_token=None, lease_until=None)
-    obj.content_revision += 1
-    obj.approved_revision = None
-    obj.moderation_status = 'pending'
-    obj.save(update_fields=('content_revision', 'approved_revision', 'moderation_status'))
+    if trigger != 'report':
+        related.filter(state__in=('queued', 'running')).update(state='cancelled', lease_token=None, lease_until=None)
+        obj.content_revision += 1
+        obj.approved_revision = None
+        obj.moderation_status = 'pending'
+        obj.save(update_fields=('content_revision', 'approved_revision', 'moderation_status'))
     payload = {
         'text': f'{obj.title}\n{obj.content}' if is_post else obj.content,
         'is_trade': obj.is_trade if is_post else False,
@@ -68,6 +69,8 @@ def enqueue_locked(obj, *, enforce_limit=True, mode=None):
         'policy_version': settings.COMMUNITY_POLICY_VERSION,
         'mode': mode or current_mode(),
     }
+    if trigger is not None:
+        payload['trigger'] = trigger
     job = related.create(revision=obj.content_revision, payload=payload)
     if not is_post:
         sync_comment_count(obj.post_id)
@@ -96,15 +99,20 @@ def publish_locked(obj):
 
 
 def apply_decision_locked(obj, job):
-    states = {item['resolution'] for item in job.findings}
+    # finish's current job is not saved yet; combine it with persisted same-content decisions.
+    jobs = list(obj.moderation_jobs.filter(revision=obj.content_revision, state='done').exclude(pk=job.pk))
+    jobs.append(job)
+    states = {item['resolution'] for decision in jobs for item in decision.findings}
     obj.moderation_status = 'rejected' if 'confirmed' in states else 'review' if 'open' in states else 'approved'
-    # Only provider failure's manual finding is non-blocking; other reasons still hold publication.
-    fallback = (job.payload.get('mode') == 'openai'
-                and job.error_code == 'automatic_check_failed'
-                and job.evidence.get('fallback') == 'manual_review')
-    blocking = any(item['resolution'] == 'confirmed' or
-                   (item['resolution'] == 'open' and not (fallback and item['code'] == 'manual_review'))
-                   for item in job.findings)
+    blocking = False
+    for decision in jobs:
+        # The public fallback exception belongs only to this finding's original job.
+        fallback = (decision.payload.get('mode') == 'openai'
+                    and decision.error_code == 'automatic_check_failed'
+                    and decision.evidence.get('fallback') == 'manual_review')
+        blocking |= any(item['resolution'] == 'confirmed' or
+                        (item['resolution'] == 'open' and not (fallback and item['code'] == 'manual_review'))
+                        for item in decision.findings)
     obj.approved_revision = None if blocking else obj.content_revision
     obj.save(update_fields=('moderation_status', 'approved_revision'))
     publish_locked(obj)

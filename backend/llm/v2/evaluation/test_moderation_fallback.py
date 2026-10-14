@@ -43,7 +43,9 @@ with patch.object(socket.socket, 'connect', side_effect=AssertionError('network 
         # Publication side effects are covered by the disposable-DB Django suite.
         with patch('services.community_moderation.locked_target', return_value=obj), \
                 patch('community.moderation_service.publish_locked'), \
+                patch.object(CommunityPost, 'moderation_jobs') as previous, \
                 patch('services.community_moderation.ModerationJob.objects.select_for_update') as manager:
+            previous.filter.return_value.exclude.return_value = []
             manager.return_value.filter.return_value.first.return_value = job
             finish(NS(pk=1, lease_token='fixture'), error=error)
         actual = f'{job.state}/{obj.moderation_status}/' + ','.join(sorted(f['code'] for f in job.findings))

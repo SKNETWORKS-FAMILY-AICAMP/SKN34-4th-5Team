@@ -1,5 +1,12 @@
 # DeepEval 평가 기준 v1.0
 
+## 2026-10-14 신고 재검사의 동일 내용 검토 보존
+
+- 목적/변경 변수: 신고는 내용 수정이 아니므로 content_revision 증가 및 진행 중 내용 검사 취소 없이 별도 report job을 생성한다. 동일 revision 완료 job의 open/confirmed 사유와 검토 이력은 보존하며 공개 예외는 각 원 job의 automatic_check_failed/manual_review 근거에만 적용한다.
+- 기대/합격: 실제 ReportCreateView → enqueue → claim/finish → ModerationList → review_job에서 기존 fallback 검토가 접근 가능하고 정상 후속 검사도 미해결 사유를 지우지 않는다. confirm/dismiss와 여러 완료/진행 job의 순서에 무관하게 현재 사유를 반영한다. 기존 image_review의 새 open 동작, 관리자 숨김, 최초 포인트, 실제 내용 수정의 revision/lease stale 차단을 유지한다.
+- A/B: 먼저 새 회귀를 수정 전 A에서 실행하고 수정 후 B에서 동일 사례를 실행한다. 기존 native/fallback DeepEval·Ragas는 동일 입력/정답/exact=1/cache off/네트워크 차단으로 양쪽 실행한다. 운영 DB/유료 제공자/전체 채팅 성능은 범위 밖이다.
+- CI: community-moderation.yml django-integration의 기존 community 자동 발견 명령에서 새 test_report_moderation 이름과 개수를 실제 확인한다. 오류·누락·미실행은 통과가 아니며 PostgreSQL 동시성은 SQLite 결과로 주장하지 않는다.
+
 ## 2026-10-14 로컬 develop 통합 및 검사 워커 배포 연결
 
 - 기준: A는 현재 로컬 변경 포함 코드, B는 upstream/develop c528926 통합과 워커 배포 연결 후 코드. 신고/포인트/공개 정책과 기존 코스 조건은 모두 유지한다. Git 병합 커밋·push·EC2 배포는 하지 않는다.
