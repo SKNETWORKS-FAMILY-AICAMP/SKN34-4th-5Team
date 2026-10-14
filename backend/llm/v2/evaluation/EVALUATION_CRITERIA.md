@@ -781,6 +781,13 @@ fixture는 테스트 입력·응답을 고정하는 방식이며 그 자체가 �
 - 공개 카드 정책: ask_highlight의 status=error라도 명시 highlight_status=block은 같은 턴의 이전 카드를 지운다. 일반 non-block error는 기존 카드를 보존하고 block 이후 새 성공은 자신의 카드만 복구한다. project_history/done_payload도 같은 projection을 사용한다.
 - 동결 A/B/합격: 독립 verifier의 기존 3실패 로그·script/oracle은 불변으로 보존한다. 기존 pipeline 및 compiled retry suite에 unknown actual point, mismatched group, 반환 malformed/bounds, terminal block/history/done 및 non-block/later-success 회귀를 추가하고 동일 테스트·정답·설치 DeepEval exact/Ragas ExactMatch를 A/B에 실행한다. 모든 경계 거절·카드 정확 일치와 실제 highlight-free/free/wiring 실행이 합격이며 오류/미실행은 검증 대기다. 기존 기준/정답은 완화하지 않고 새 일반 품질 threshold·유료/provider 호출·live 품질 주장은 추가하지 않는다.
 
+## Gemini 동적 단일 영상 순차 검증 (2026-10-14, A 실행 전)
+
+- 목적/변경 변수: 저장 검색의 고유 원본 영상 최대3개·순위를 유지하고 Gemini에 1위 영상만 먼저 전달한다. 동일 Gemini가 직접 관측한 판정과 다음 후보 ID를 도구 호출로 제출해 필요할 때만 2위·3위 원본을 요청한다. 별도 selector 모델, 3영상 일괄 입력, 오류 뒤 DB/RAG 재검색은 제거한다. 이 계약은 위 일괄 검증·저장 재조회 정책을 대체하며 과거 증거는 보존한다.
+- 기대/경계: 한 모델 요청에는 원본 영상 최대1개, 영상별 검증1회·최대3개이며 일치하면 즉시 종료한다. 코드는 bound ID/순서/중복·출처·유한 non-Boolean 원본 시작/종료 시각·이미지6개·취소·인증/결제·사용량 경계만 강제한다. 다음 후보 선택이 없으면 코드가 자동 대체하지 않는다. 후보별 접근/형식/기술 오류는 미완료로 기록하고 같은 Gemini가 다음 후보를 선택할 수 있으나 quota/인증/결제/취소는 우회하지 않는다. 모두 정상 불일치이면 complete=true/no_match=true, 하나라도 미검증이면 false/null 및 카드0이다. 뒤 후보에서 검증된 일치를 찾으면 앞 오류와 함께 성공을 반환한다.
+- 동결 A/B: HEAD778a48a의 영향 source를 scratch에 보존하고 동일 합성 SDK/compiled graph·독립 기대값으로 새 순차 계약을 A부터 실행한다. 실제 설치된 DeepEval exact·Ragas ExactMatch로 같은 관측을 채점한다. 1위 조기종료, 1→2 및 1→2→3, 도구 미선택/잘못된·중복·건너뛴 ID, 정상 음성/기술 미완료, 원문·이미지·callback/usage·시각 경계와 stale 카드 제거를 관련 기존 CI runner에 연결한다.
+- 합격/한계: 독립 기대값 전부 일치 및 변경 테스트의 실제 CI 하위 명령 실행이 오프라인 계약 합격이다. 실제 Gemini 의미 판단/정확도·HTTP 운영·유료 호출·성능 측정은 이번 범위 밖이다. 기존18만 요청 token capacity/TPM 보호는 해제하지 않으며 한 영상도 초과하면 명시 실패한다. 평가 실패/오류/미실행은 그대로 보존하고 새 일반 품질 threshold·정답 완화·원본 corpus 수정·재시작/배포는 하지 않는다.
+
 ## 현재 앱 소스 10문항 단일 live 재검증 준비 (2026-10-14, 실행 전)
 
 - 목적/범위: 현재 worktree production bytes와 실제 local dependency를 동결하고 기존10문항/10영상922구간/약한 라벨(4양성 장면의8변형+쉬운 음성2)/canonical DeepEval·Ragas 채점기를 그대로 재사용한다. video top8 한 번→기존 중복·누락·시간겹침 제외→최대3→병렬3 URL 검증, text prefix/taskType 미지정/768, gemini-embedding-2 및 gemini-3.8-flash/temperature0/strict JSON/output4000은 불변이다. 이전 결과는 설명용 반복 비교이며 causal RRF A/B·이미지 품질 근거가 아니다.

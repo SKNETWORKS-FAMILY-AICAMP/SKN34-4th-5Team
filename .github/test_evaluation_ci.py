@@ -203,6 +203,7 @@ class WiringTest(unittest.TestCase):
                        'llm.tests.test_highlight_multimodal_web.MultimodalWebTests.test_opt_out_uses_original_agent',
                        'llm.tests.test_highlight_multimodal_web.MultimodalWebTests.test_opt_out_error_then_success_preserves_card',
                        'llm.tests.test_highlight_multimodal_web.MultimodalWebTests.test_cards_original_time_errors_and_no_match',
+                       'llm.tests.test_highlight_multimodal_web.MultimodalWebTests.test_disposable_corpus_concurrent_requests_close_local_client',
                        'llm.tests.test_highlight_langchain_web', 'llm.tests.test_highlight_retry'], ci.FREE)
         for test in ('test_highlight_images.py', 'test_highlight_multimodal.py'):
             self.assertIn(f"execute(['backend/llm/tests/{test}', '-v'], offline=True)",

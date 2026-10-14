@@ -14,6 +14,7 @@ from llm.service import chat_runs
 from llm.service.chat_v2 import _frames
 from llm.service.usage import Meter
 from llm.tests.test_highlight_langchain import SDKTransport, Trace, IMAGE, ROW, OUTPUT
+from llm.tests.test_highlight_retry import SequentialTransport, call, verdict
 from llm.v2.agent import highlight_sub_agent, sub_agents, chain
 
 
@@ -29,8 +30,6 @@ class LangChainWebTests(SimpleTestCase):
         restored = HumanMessage([{'type': 'text', 'text': human.text}, IMAGE], id=human.id)
         rows = [{**ROW, 'id': sid, 'video_id': f'SlvDBmr4Bd{i}', 'start': 0., 'end': 900.134}
                 for i, sid in enumerate('abc')]
-        outputs = [{**OUTPUT, 'candidate_id': row['id'], 'original_seconds': 123.25,
-                    'match': row['id'] == 'a'} for row in rows]
         def retrieve(query, candidate_limit, images):
             self.assertEqual((query, candidate_limit, images), (human.text, 3, [IMAGE]))
             return {'query': query, 'candidates': rows, 'retrieval_only': list('abc'),
@@ -44,7 +43,7 @@ class LangChainWebTests(SimpleTestCase):
         google.quota.acquire.side_effect = generate_guard
         with tempfile.TemporaryDirectory() as root, override_settings(HIGHLIGHT_MULTIMODAL_CORPUS=root), \
              patch('llm.highlight_multimodal.Google', return_value=google), \
-             patch('llm.highlight_multimodal.Specialist', return_value=specialist), SDKTransport({'decisions': outputs}) as transport:
+             patch('llm.highlight_multimodal.Specialist', return_value=specialist), SequentialTransport([call(verdict('a', original_seconds=123.25, original_end_seconds=130.5, evidence=OUTPUT['evidence']))]) as transport:
             inner = highlight_sub_agent.build(None, {})
             def tools(state, config):
                 runtime = SimpleNamespace(state={**state, 'attachment_messages': {human.id: restored}},
@@ -66,7 +65,7 @@ class LangChainWebTests(SimpleTestCase):
         self.assertEqual(trace.starts[0]['metadata']['parent_id'], 'outer')
         self.assertEqual(trace.starts[0]['invocation_params']['_type'], 'chat-google-generative-ai')
         sources = [p for p in transport.requests[-1][1]['contents'][0]['parts'] if 'fileData' in p]
-        self.assertEqual(len(sources), 3)
+        self.assertEqual(len(sources), 1)
         self.assertEqual([op for op, _ in transport.requests], ['countTokens', 'generateContent'])
         self.assertEqual(run['answer'], 'verified public answer')
         public = str(frames)
@@ -80,72 +79,63 @@ class LangChainWebTests(SimpleTestCase):
         self.assertEqual(outer.artifact[-2].artifact['videos'][0]['start'], 123)
         specialist.close.assert_called_once()
 
-    def test_actual_retry_delegate_sdk_meter_and_block_status(self):
-        from llm.tests.test_highlight_retry import Selector
-        call = {'name': 'search_stored_highlight_rag', 'args': {'query': 'revised'}, 'id': 'retry'}
+    def test_actual_next_candidate_delegate_sdk_meter_and_block_status(self):
         for recover in (True, False):
-            selector = Selector(messages=iter([AIMessage('', tool_calls=[call],
-                usage_metadata={'input_tokens': 2, 'output_tokens': 1, 'total_tokens': 3})]))
             google = mm.Google('synthetic', quota=Mock())
-            rows = [{**ROW, 'start': 0., 'end': 900.134}]
+            rows = [{**ROW, 'id': sid, 'video_id': f'SlvDBmr4Bd{i}', 'start': 0., 'end': 900.134}
+                    for i, sid in enumerate('ab')]
             specialist = Mock()
-            specialist.retrieve.side_effect = [
-                {'query': query, 'candidates': rows, 'retrieval_only': [ROW['id']],
-                 'rankings': {'video': [ROW['id']]}, 'retrieval_latency': 0}
-                for query in ('original', 'revised')]
+            specialist.retrieve.return_value = {'query': 'original', 'candidates': rows,
+                'retrieval_only': list('ab'), 'rankings': {'video': list('ab')}, 'retrieval_latency': 0}
             meter, trace = Meter(), Trace()
             human = HumanMessage('original', id='current')
             from llm.tests.test_highlight_images import IMAGE as original_image
             restored = HumanMessage([{'type': 'text', 'text': 'original'}, original_image], id=human.id)
-            def change_retry(*args):
-                if google.quota.acquire.call_count == 2 and recover:
-                    transport.output = OUTPUT
-            google.quota.acquire.side_effect = change_retry
+            parts = [call(verdict('a', False, 'b', source_accessible=False)),
+                     call(verdict('b', recover))]
             with self.subTest(recover=recover), tempfile.TemporaryDirectory() as root, \
                  override_settings(HIGHLIGHT_MULTIMODAL_CORPUS=root), \
                  patch('llm.highlight_multimodal.Google', return_value=google), \
                  patch('llm.highlight_multimodal.Specialist', return_value=specialist), \
-                 SDKTransport({**OUTPUT, 'source_accessible': False}) as transport:
+                 SequentialTransport(parts) as transport:
                 runtime = SimpleNamespace(state={'messages': [human], 'attachment_messages': {human.id: restored}},
                     config={'callbacks': [meter, trace]}, tool_call_id='outer')
-                result = sub_agents._delegate('ask_highlight', 'highlight', highlight_sub_agent.build(selector, {})).func('invented', runtime)
-            self.assertEqual(specialist.retrieve.call_count, 2)
-            self.assertEqual([op for op, _ in transport.requests], ['countTokens', 'generateContent']*2)
-            self.assertEqual(meter.totals(), (20, 9, 3, 0))
-            self.assertEqual(len(trace.starts), 3)
+                result = sub_agents._delegate('ask_highlight', 'highlight', highlight_sub_agent.build(None, {})).func('invented', runtime)
+            specialist.retrieve.assert_called_once_with('original', candidate_limit=3, images=[original_image])
+            self.assertEqual([op for op, _ in transport.requests], ['countTokens', 'generateContent'] * 2)
+            self.assertEqual(meter.totals(), (18, 8, 2, 0))
+            self.assertEqual(len(trace.starts), 2)
             self.assertTrue(all('nostream' in start['tags'] for start in trace.starts))
             self.assertNotIn(original_image['image_url']['url'].split(',')[1], str(result))
-            self.assertTrue(all(c.kwargs['images'] == [original_image] for c in specialist.retrieve.call_args_list))
             for _, body in transport.requests:
                 self.assertIn(original_image['image_url']['url'].split(',')[1], str(body))
             from llm.v1.progress import LABELS
-            self.assertEqual(LABELS['search_stored_highlight_rag'], '저장된 하이라이트 다시 조회 중')
+            self.assertEqual(LABELS['review_highlight_candidate'], '하이라이트 영상 판정 중')
+            self.assertEqual(LABELS['inspect_highlight_candidate'], '다음 하이라이트 후보 확인 중')
             self.assertEqual(result.additional_kwargs['highlight_status'], 'success' if recover else 'block')
             self.assertEqual(result.status, 'success' if recover else 'error')
             self.assertEqual(len(result.artifact[-2].artifact['videos']), 1 if recover else 0)
-            self.assertEqual(result.artifact[-2].artifact['multimodal']['retry_executed'], 1)
+            self.assertEqual(result.artifact[-2].artifact['multimodal']['checked_candidates'], list('ab'))
             self.assertNotIn('source_accessible', result.text)
 
-    def test_graph_group_boundaries_empty_and_no_unverified_cards(self):
-        rows = [{**ROW, 'id': sid, 'video_id': f'SlvDBmr4Bd{i}', 'start': 0., 'end': 900.134} for i, sid in enumerate('abc')]
-        good = [{**OUTPUT, 'candidate_id': row['id'], 'original_seconds': row['start'] + 1} for row in rows]
-        fixtures = [({'decisions': good}, False), ({'decisions': good[:2]}, True),
-                    ({'decisions': [good[0], good[0], good[2]]}, True),
-                    ({'decisions': [good[0], {**good[1], 'source_accessible': False}, good[2]]}, True)]
+    def test_graph_verdict_boundaries_empty_and_no_unverified_cards(self):
+        rows = [{**ROW, 'id': 'a', 'start': 0., 'end': 900.134}]
+        fixtures = [(verdict(), False), (verdict(candidate_id='unknown'), True),
+                    (verdict(original_end_seconds=901.), True), (verdict(source_accessible=False), True)]
         for output, failed in fixtures:
             google = mm.Google('synthetic', quota=Mock())
             specialist = Mock()
             specialist.retrieve.return_value = {'query': 'original', 'candidates': rows,
-                'retrieval_only': list('abc'), 'rankings': {'video': list('abc')}, 'retrieval_latency': 0}
+                'retrieval_only': ['a'], 'rankings': {'video': ['a']}, 'retrieval_latency': 0}
             with self.subTest(output=output), tempfile.TemporaryDirectory() as root, \
                  override_settings(HIGHLIGHT_MULTIMODAL_CORPUS=root), \
                  patch('llm.highlight_multimodal.Google', return_value=google), \
-                 patch('llm.highlight_multimodal.Specialist', return_value=specialist), SDKTransport(output) as transport:
+                 patch('llm.highlight_multimodal.Specialist', return_value=specialist), SequentialTransport([call(output)]) as transport:
                 result = highlight_sub_agent.MultimodalAgent().invoke({'messages': [HumanMessage('invented')],
                     'highlight_original_text': 'original'})
             selection = result['messages'][-2]
             self.assertEqual(selection.status, 'error' if failed else 'success')
-            self.assertEqual(len(selection.artifact.get('videos', [])), 0 if failed else 3)
+            self.assertEqual(len(selection.artifact.get('videos', [])), 0 if failed else 1)
             self.assertIs(selection.artifact['multimodal']['no_match'], None if failed else False)
             self.assertEqual([op for op, _ in transport.requests], ['countTokens', 'generateContent'])
             specialist.close.assert_called_once()
@@ -235,7 +225,7 @@ class LangChainWebTests(SimpleTestCase):
                     'rankings': {'video': [ROW['id']]}, 'retrieval_latency': 0}
         with tempfile.TemporaryDirectory() as root, override_settings(HIGHLIGHT_MULTIMODAL_CORPUS=root), \
              patch('llm.highlight_multimodal.Google', return_value=google), \
-             patch('llm.highlight_multimodal.Specialist', return_value=Mock(retrieve=retrieve)), SDKTransport({**OUTPUT, 'source_accessible': False}):
+             patch('llm.highlight_multimodal.Specialist', return_value=Mock(retrieve=retrieve)), SequentialTransport([call(verdict('candidate', False, source_accessible=False, original_seconds=123.25, original_end_seconds=130.5))]):
             runtime = SimpleNamespace(state={}, config={}, tool_call_id='outer')
             result = sub_agents._delegate('ask_highlight', 'highlight', highlight_sub_agent.build(None, {})).func('find', runtime)
         self.assertEqual(result.status, 'error')

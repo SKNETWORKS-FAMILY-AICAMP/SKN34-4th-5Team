@@ -57,6 +57,12 @@ Runner는 highlight-free의 run-owned `DEEPEVAL_CACHE_FOLDER`를 child에 전파
 
 pipeline 전체 자동 발견은 반환 경계 보완 후 8개이며 기존6개에 unknown actual Qdrant point 및 선택 전 group/hit identity·payload·source/count 거절을 추가한다. retry 전체 자동 발견은 11개이며 실제 compiled terminal block의 이전 카드 제거/history/done, 일반 오류 보존 및 후속 성공 복구를 추가한다. 변경 테스트는 기존 `highlight-deterministic → highlight-free → highlight_langchain_contract.py --pipeline` 및 `deterministic → free → run_attachment_offline.py llm.tests.test_highlight_retry`에 그대로 포함된다. 기존 SDK/image/multimodal 합성 group fixture는 실제 Qdrant의 group.id 및 limit 응답 계약에 맞추며 standalone selection의 unknown skip·unique source 기대값은 보존한다. 기존6개는 분리2·unique source/최대3·실제 Qdrant의 다중 원본/비연속 hint grouping·원본3영상 단일 generation/Duration 소수9자리·hint 밖 시간/신뢰 duration을 확인한다. 이전 구간 top8/겹침 제외/최대5 단언은 사용자 승인 영상 단위 계약으로 대체하며 과거 A/B를 보존한다. 새 A/B는 run-owned HOME/TMP/cache·socket-denied 동일 합성 입력으로 실행하며 원본 corpus·유료 제공자·hosted CI 성공의 근거가 아니다.
 
+## Gemini 동적 순차 검증 (2026-10-14, 최신 계약)
+
+위 3영상 일괄 검증·저장 RAG 재조회 계약은 현재 앱 경로에서 대체됐다. 검색은 고유 원본 최대3개를 한 번 확보하고, 같은 Gemini가 1위부터 단일 영상 판정을 `review_highlight_candidate` 도구로 제출하면서 다음 순위 ID 또는 종료를 선택한다. 후보별 기술 오류 뒤에는 영상 없는 같은 Gemini 호출이 `inspect_highlight_candidate`를 선택할 수 있다. 영상 최대3회·오류 선택 최대2회이며 모델 선택 없는 자동 다음 영상/재검색은 없다. 시작·종료 시각, 출처, 취소·인증/결제/quota 및 원본 이미지 경계를 검사하고, 이전 영상은 다음 미디어 요청에 재전송하지 않는다. `Google.verify/verify_candidates`의 기존 직접 호출 호환 테스트는 남지만 웹·CLI의 `verify_retrieval`은 순차 경로다.
+
+`evaluation-regression.yml:deterministic` → `free` → 기존 `run_attachment_offline.py` 명령이 변경된 `llm.tests.test_highlight_retry` 전체10개와 `llm.tests.test_highlight_langchain_web` 전체9개를 자동 실행한다. 첫 후보 조기종료, 1→2/3 모델 선택, 미선택·잘못된·중복·건너뛴 ID, 오류 회복/미완료/검증된 부재, 시작·종료 시각, 사용량·취소, SDK/Meter/상속 callback 및 SSE·이력 비노출을 검사한다. 테스트 수는 실제 실행 로그로 확인한다. `highlight-deterministic → highlight-free → --pipeline`의 기존8개 검색·원본/신원 경계도 유지한다. 로컬에서는 이 CI 하위 명령을 관련 모듈에만 실행하고 전체 CI 성공이나 실제 Gemini 의미 품질로 보고하지 않는다. DeepEval/Ragas는 격리 환경을 섞지 않고 같은 저장 A/B 관측을 별도 채점할 수 있다.
+
 ## 수동 실행
 
 GitHub Actions → **Manual evaluation (bounded, paid opt-in)** → Run workflow. 신뢰된 `develop`/`main`만 허용하고 `authorize=true`가 필수입니다. 다른 ref 또는 승인 누락은 preflight에서 **실패**합니다. `evaluation` GitHub Environment에 required reviewer와 develop/main deployment branch 제한을 설정하고, 팀 저장소에서만 승인합니다. Fork에는 Secrets를 복제하지 않습니다.

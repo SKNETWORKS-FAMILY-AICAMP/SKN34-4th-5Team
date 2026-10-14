@@ -220,23 +220,25 @@ class MultimodalWebTests(SimpleTestCase):
                 output = guard.feed(original[:split]) + guard.feed(original[split:]) + guard.feed("", final=True)
                 self.assertNotIn(original, output)
 
-    def test_mounted_corpus_concurrent_requests_close_local_client(self):
-        from django.conf import settings
-        root = settings.HIGHLIGHT_MULTIMODAL_CORPUS
-        if not root:
-            self.skipTest("requires mounted preview corpus")
+    def test_disposable_corpus_concurrent_requests_close_local_client(self):
+        from pathlib import Path
+        from llm.tests.test_highlight_pipeline import PipelineTests
 
         class OfflineGoogle:
             last_model_version = 'synthetic'
             last_quota_wait = last_provider_latency = 0
             def embed(self, part):
                 return [1.] * DIM
-            def verify_candidates(self, query, rows, **kwargs):
-                return [{"candidate_id": row["id"], "match": True, "local_seconds": 2.5,
-                         "evidence": "offline routing test"} for row in rows]
+            def review_candidate(self, query, rows, row, decisions, tools, **kwargs):
+                return {"name": "review_highlight_candidate", "args": {
+                    "candidate_id": row["id"], "match": True,
+                    "original_seconds": row["start"] + 2.5, "original_end_seconds": row["start"] + 3.5,
+                    "source_accessible": True, "evidence": "offline routing test", "next_candidate_id": None}}
 
-        with patch("llm.highlight_multimodal.Google", OfflineGoogle):
-            with ThreadPoolExecutor(max_workers=2) as pool:
+        with tempfile.TemporaryDirectory() as folder, patch("llm.highlight_multimodal.Google", OfflineGoogle):
+            root = Path(folder) / 'store'
+            PipelineTests().store(root)
+            with override_settings(HIGHLIGHT_MULTIMODAL_CORPUS=str(root)), ThreadPoolExecutor(max_workers=2) as pool:
                 results = list(pool.map(lambda _: self.records(), range(2)))
             for records in results:
                 result = records[0].artifact["multimodal"]
@@ -246,9 +248,8 @@ class MultimodalWebTests(SimpleTestCase):
                 self.assertEqual(cards[0]["start"], int(match["playback_seconds"]))
             specialist = Specialist(root, OfflineGoogle())
             try:
-                self.assertEqual(len(specialist.rows), 12)
-                self.assertEqual(specialist.db.count("highlight_multimodal_experiment_v1").count, 12)
-                row = specialist.rows[results[0][0].artifact["multimodal"]["matches"][0]["candidate_id"]]
-                self.assertAlmostEqual(results[0][0].artifact["multimodal"]["matches"][0]["playback_seconds"], row["start"] + 2.5)
+                self.assertEqual(len(specialist.rows), 1)
+                self.assertEqual(specialist.db.count("highlight_multimodal_experiment_v1").count, 1)
+                self.assertAlmostEqual(results[0][0].artifact["multimodal"]["matches"][0]["playback_seconds"], 2.5)
             finally:
                 specialist.close()

@@ -1,174 +1,194 @@
-"""Frozen compiled stored-search retry contracts; no live models or source data."""
+"""Frozen sequential Gemini contracts; actual SDK/graph, synthetic HTTP, no live calls."""
 import importlib.util
+import json
 import os
 from pathlib import Path
 import sys
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
+
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 import django
 django.setup()
 from django.test import override_settings
-from langchain_core.messages import AIMessage, HumanMessage
-from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from llm.tests.test_highlight_langchain import SDKTransport, Trace, canonical_part
+from llm.tests.test_highlight_images import IMAGE
 
 spec = importlib.util.spec_from_file_location('retry_mm', os.environ.get('HIGHLIGHT_CONTRACT_SOURCE',
-    str(Path(__file__).parents[1]/'highlight_multimodal.py')))
+    str(Path(__file__).parents[1] / 'highlight_multimodal.py')))
 mm = importlib.util.module_from_spec(spec); spec.loader.exec_module(mm)
 spec = importlib.util.spec_from_file_location('llm.v2.agent.retry_graph', os.environ.get('HIGHLIGHT_GRAPH_SOURCE',
-    str(Path(__file__).parents[1]/'v2/agent/highlight_sub_agent.py')))
+    str(Path(__file__).parents[1] / 'v2/agent/highlight_sub_agent.py')))
 graph_source = importlib.util.module_from_spec(spec); spec.loader.exec_module(graph_source)
 
+ROWS = [{'id': sid, 'video_id': vid, 'start': 0., 'end': 900.134,
+         'hint': {'start': 120., 'end': 140.}}
+        for sid, vid in zip('abc', ('SlvDBmr4Bd8', 'abcdefghijk', '12345678901'))]
 
-class Selector(GenericFakeChatModel):
-    bound_tools: list = []
-    def _get_invocation_params(self, stop=None, **kwargs):
-        return {**super()._get_invocation_params(stop=stop, **kwargs), 'max_output_tokens': 4000}
-    def bind_tools(self, tools, **kwargs):
-        self.bound_tools = tools
-        return self
+
+def verdict(sid='a', match=True, next_id=None, **changes):
+    return {'candidate_id': sid, 'match': match, 'original_seconds': 700.25,
+            'original_end_seconds': 708.5, 'source_accessible': True,
+            'evidence': 'visible play outside retrieval hint', 'next_candidate_id': next_id, **changes}
+
+
+def call(args, name='review_highlight_candidate'):
+    return {'functionCall': {'name': name, 'args': args}}
+
+
+class SequentialTransport(SDKTransport):
+    def __init__(self, parts):
+        super().__init__()
+        self.parts = iter(parts)
+    def send(self, request, **kwargs):
+        if str(request.url).endswith(':generateContent'):
+            part = next(self.parts)
+            if isinstance(part, Exception):
+                raise part
+            self.response = {'modelVersion': 'synthetic-version', 'candidates': [{'content': {
+                'role': 'model', 'parts': part if isinstance(part, list) else [part]}, 'finishReason': 'STOP'}],
+                'usageMetadata': {'promptTokenCount': 9, 'candidatesTokenCount': 4, 'totalTokenCount': 13}}
+        return super().send(request, **kwargs)
 
 
 class RetryTests(unittest.TestCase):
-    row = {'id': 'a', 'video_id': 'SlvDBmr4Bd8', 'start': 0., 'end': 900.134}
-    def retrieval(self, query='original', empty=False):
-        return {'query': query, 'candidates': [] if empty else [self.row],
-                'retrieval_only': [] if empty else ['a'], 'rankings': {'video': ['a']}, 'retrieval_latency': 0}
-    def output(self, match=True):
-        return {'candidate_id': 'a', 'match': match, 'local_seconds': 700.25, 'evidence': 'visible play'}
-    def selector(self, calls=None):
-        calls = [{'name': 'search_stored_highlight_rag', 'args': {'query': 'revised'}, 'id': 'retry'}] if calls is None else calls
-        return Selector(messages=iter([AIMessage('', tool_calls=calls)]))
-    def run_graph(self, outputs, selector=None, retry=None, images=None, repeat=1):
-        selector = selector or self.selector()
-        google = Mock(last_model_version='synthetic', last_quota_wait=0, last_provider_latency=0)
-        google.verify_candidates.side_effect = outputs * repeat
-        specialist = Mock()
-        specialist.retrieve.side_effect = [self.retrieval(), retry if retry is not None else self.retrieval('revised')] * repeat
+    def run_graph(self, parts, rows=None, images=None, repeat=1, quota=None):
+        rows = ROWS if rows is None else rows
+        google = mm.Google('synthetic', quota=quota or Mock())
+        store = Mock()
+        store.retrieve.return_value = {'query': 'original', 'candidates': rows,
+            'retrieval_only': [r['id'] for r in rows], 'rankings': {'video': [r['id'] for r in rows]},
+            'retrieval_latency': 0}
+        trace = Trace()
         with tempfile.TemporaryDirectory() as root, override_settings(HIGHLIGHT_MULTIMODAL_CORPUS=root), \
              patch.dict(sys.modules, {'llm.highlight_multimodal': mm}), \
-             patch.object(mm, 'Google', return_value=google), patch.object(mm, 'Specialist', return_value=specialist):
-            compiled = graph_source.build(selector, {})
+             patch.object(mm, 'Google', return_value=google), patch.object(mm, 'Specialist', return_value=store), \
+             SequentialTransport(parts * repeat) as transport:
+            unrelated_model = Mock()
+            compiled = graph_source.build(unrelated_model, {})
             for _ in range(repeat):
-                result = compiled.invoke({'messages': [HumanMessage('invented')],
-                    'highlight_original_text': 'original', 'highlight_images': images or []})
-        return result, specialist, google, selector
+                result = compiled.invoke({'messages': [HumanMessage('invented delegation')],
+                    'highlight_original_text': 'original', 'highlight_images': images or []},
+                    config={'callbacks': [trace], 'metadata': {'parent_id': 'outer'}})
+            unrelated_model.bind_tools.assert_not_called()
+        return result, store, transport, trace
 
-    def test_recovery_uses_real_tool_and_original_question(self):
-        from llm.tests.test_highlight_images import IMAGE
-        result, store, google, selector = self.run_graph([ValueError('secret provider JSON'), [self.output()]], images=[IMAGE])
-        self.assertTrue(all(c.kwargs['images'] == [IMAGE] for c in store.retrieve.call_args_list))
-        self.assertTrue(all(c.kwargs['images'] == [IMAGE] for c in google.verify_candidates.call_args_list))
-        self.assertNotIn(IMAGE['image_url']['url'].split(',')[1], str(result['messages']))
-        self.assertEqual(store.retrieve.call_count, 2)
-        self.assertEqual(store.retrieve.call_args.args, ('revised',))
-        self.assertEqual([c.args[0] for c in google.verify_candidates.call_args_list], ['original', 'original'])
-        self.assertEqual(selector.bound_tools[0].name, 'search_stored_highlight_rag')
-        self.assertEqual(result['result']['status'], 'success')
-        self.assertEqual(result['result']['retry_executed'], 1)
+    def video_ids(self, transport):
+        return [[canonical_part(p)['file_data']['file_uri'].split('=')[-1]
+                 for content in body['contents'] for p in content['parts'] if 'fileData' in p]
+                for op, body in transport.requests if op == 'generateContent']
+
+    def test_rank1_stops_and_keeps_three_candidates(self):
+        result, store, transport, trace = self.run_graph([call(verdict())], images=[IMAGE])
+        self.assertEqual(store.retrieve.call_count, 1)
+        self.assertEqual(result['result']['retrieval_only'], list('abc'))
+        self.assertEqual(self.video_ids(transport), [[ROWS[0]['video_id']]])
+        self.assertEqual([op for op, _ in transport.requests], ['countTokens', 'generateContent'])
+        self.assertEqual(result['result']['matches'][0]['playback_seconds'], 700.25)
+        self.assertEqual(result['result']['matches'][0]['playback_end_seconds'], 708.5)
         self.assertEqual(result['messages'][-2].artifact['videos'][0]['start'], 700)
-        self.assertNotIn('secret', str(result))
+        self.assertEqual(len(trace.starts), 1)
+        self.assertEqual(trace.starts[0]['invocation_params']['_type'], 'chat-google-generative-ai')
+        self.assertEqual(trace.starts[0]['metadata']['parent_id'], 'outer')
+        self.assertNotIn(IMAGE['image_url']['url'].split(',')[1], str(result['messages']) + str(result['result']))
 
-    def test_empty_retry_blocks_as_verified_absence(self):
-        result, store, google, _ = self.run_graph([ValueError('secret')], retry=self.retrieval('revised', empty=True))
-        self.assertEqual(store.retrieve.call_count, 2)
-        self.assertEqual(google.verify_candidates.call_count, 1)
-        self.assertEqual(result['result']['status'], 'block')
-        self.assertTrue(result['result']['complete'])
-        self.assertTrue(result['result']['no_match'])
-        self.assertEqual(result['messages'][-2].artifact['videos'], [])
-
-    def test_error_and_negative_retry_block_without_cards(self):
-        for final in (RuntimeError('secret'), [self.output(False)]):
-            with self.subTest(final=final):
-                result, store, _, _ = self.run_graph([ValueError('first secret'), final])
-                self.assertEqual(store.retrieve.call_count, 2)
-                self.assertEqual(result['result']['status'], 'block')
-                self.assertEqual(result['messages'][-2].artifact['videos'], [])
-                self.assertTrue(result['result']['first_failure'])
-                self.assertTrue(result['result']['block_reason'])
-                self.assertNotIn('secret', str(result))
-                self.assertIs(result['result']['no_match'], None if isinstance(final, Exception) else True)
-
-    def test_duplicate_missing_unknown_invalid_calls_do_not_execute_retry(self):
-        call = {'name': 'search_stored_highlight_rag', 'args': {'query': 'revised'}, 'id': 'one'}
-        for calls in ([], [call, {**call, 'id': 'two'}], [{**call, 'name': 'ask_highlight'}],
-                      [{**call, 'args': {'query': ''}}], [{**call, 'args': {'query': 'q', 'path': '/secret'}}]):
-            with self.subTest(calls=calls):
-                result, store, _, _ = self.run_graph([ValueError('failed')], self.selector(calls))
+    def test_model_selects_rank2_then_rank3_with_one_video_per_call(self):
+        for winner in ('b', 'c'):
+            parts = [call(verdict('a', False, 'b')), call(verdict('b', winner == 'b', 'c' if winner == 'c' else None))]
+            if winner == 'c':
+                parts.append(call(verdict('c')))
+            with self.subTest(winner=winner):
+                result, store, transport, trace = self.run_graph(parts, images=[IMAGE])
+                self.assertEqual(self.video_ids(transport), [[r['video_id']] for r in ROWS[:len(parts)]])
                 self.assertEqual(store.retrieve.call_count, 1)
-                self.assertEqual(result['result']['status'], 'block')
-                self.assertEqual(result['result']['retry_executed'], 0)
+                self.assertEqual(result['result']['matches'][0]['candidate_id'], winner)
+                self.assertEqual(len(trace.starts), len(parts))
+                for op, body in transport.requests:
+                    self.assertIn(IMAGE['image_url']['url'].split(',')[1], str(body))
+                    self.assertIn('original', str(body))
+                    self.assertNotIn('invented delegation', str(body))
+                self.assertIn('visible play outside retrieval hint', str(transport.requests[3][1]))
 
-        selector = Selector(messages=iter([AIMessage('', tool_calls=[call], invalid_tool_calls=[
-            {'name': call['name'], 'args': '{', 'id': 'invalid', 'error': 'bad JSON'}])]))
-        result, store, _, _ = self.run_graph([ValueError('failed')], selector)
-        self.assertEqual(store.retrieve.call_count, 1)
-        self.assertEqual(result['result']['status'], 'block')
-
-    def test_normal_negative_never_calls_retry_model(self):
-        result, store, _, selector = self.run_graph([[self.output(False)]])
-        self.assertEqual(store.retrieve.call_count, 1)
-        self.assertEqual(selector.bound_tools, [])
-        self.assertTrue(result['result']['complete'])
-        self.assertTrue(result['result']['no_match'])
-
-    def test_budget_and_cancellation_do_not_trigger_retry(self):
-        from llm.service.usage import InsufficientCredits, WalletBusy, UnsafeOutputLimit
-        from llm.service.chat_runs import Stopped
-        for error in (InsufficientCredits(), WalletBusy(), UnsafeOutputLimit(), Stopped()):
-            with self.subTest(error=type(error).__name__), self.assertRaises(type(error)):
-                self.run_graph([error])
-
-    def test_retry_storage_error_blocks_and_selector_failure_is_private(self):
-        result, store, _, _ = self.run_graph([ValueError('first')], retry=OSError('/secret/source'))
-        self.assertEqual(store.retrieve.call_count, 2)
-        self.assertEqual(result['result']['status'], 'block')
-        self.assertEqual(result['result']['retry_executed'], 1)
+    def test_no_tool_choice_never_auto_falls_back(self):
+        result, store, transport, _ = self.run_graph([call(verdict('a', False))])
+        self.assertFalse(result['result']['complete'])
         self.assertIsNone(result['result']['no_match'])
-        selector = Mock()
-        selector.bind_tools.return_value.invoke.side_effect = Exception('secret provider JSON')
-        result, store, _, _ = self.run_graph([ValueError('first')], selector)
+        self.assertEqual(self.video_ids(transport), [[ROWS[0]['video_id']]])
         self.assertEqual(store.retrieve.call_count, 1)
-        self.assertEqual(result['result']['status'], 'block')
-        self.assertNotIn('secret', str(result))
 
-    def test_actual_generation_budget_error_preserves_exception(self):
-        from llm.tests.test_highlight_langchain import SDKTransport
+    def test_normal_absence_and_inaccessible_exhaustion_differ(self):
+        for accessible in (True, False):
+            parts = [call(verdict('a', False, 'b', source_accessible=accessible)),
+                     call(verdict('b', False, 'c')), call(verdict('c', False))]
+            with self.subTest(accessible=accessible):
+                result, _, transport, _ = self.run_graph(parts)
+                self.assertEqual(len(self.video_ids(transport)), 3)
+                self.assertEqual(result['result']['complete'], accessible)
+                self.assertIs(result['result']['no_match'], True if accessible else None)
+                self.assertEqual(result['messages'][-2].artifact['videos'], [])
+
+    def test_candidate_error_allows_same_gemini_to_choose_next(self):
+        parts = [{'text': 'malformed private body'},
+                 call({'candidate_id': 'b'}, 'inspect_highlight_candidate'), call(verdict('b'))]
+        result, store, transport, trace = self.run_graph(parts)
+        self.assertEqual(self.video_ids(transport), [[ROWS[0]['video_id']], [], [ROWS[1]['video_id']]])
+        self.assertTrue(result['result']['complete'])
+        self.assertEqual(result['result']['matches'][0]['candidate_id'], 'b')
+        self.assertEqual(store.retrieve.call_count, 1)
+        self.assertTrue(all(s['invocation_params']['_type'] == 'chat-google-generative-ai' for s in trace.starts))
+        self.assertNotIn('private body', str(result))
+
+    def test_invalid_duplicate_unknown_skipped_choices_are_bounded(self):
+        for part in (call(verdict('a', False, 'a')), call(verdict('a', False, 'c')),
+                     call(verdict('a', False, 'unknown')), call(verdict('a', False, 'b'), 'ask_highlight'),
+                     [call(verdict('a', False, 'b')), call(verdict('a', False, 'b'))]):
+            with self.subTest(part=part):
+                result, store, transport, _ = self.run_graph([part, {'text': 'stop'}])
+                self.assertFalse(result['result']['complete'])
+                self.assertEqual([v for v in self.video_ids(transport) if v], [[ROWS[0]['video_id']]])
+                self.assertEqual(store.retrieve.call_count, 1)
+                self.assertEqual(result['messages'][-2].artifact['videos'], [])
+
+    def test_identity_source_time_and_image_boundaries(self):
+        for defect in ({'candidate_id': 'unknown'}, {'match': 1}, {'source_accessible': False},
+                       {'original_seconds': True}, {'original_end_seconds': 700.},
+                       {'original_end_seconds': 901.}, {'original_end_seconds': float('nan')}):
+            with self.subTest(defect=defect):
+                result, _, _, _ = self.run_graph([call(verdict(**defect))], rows=ROWS[:1])
+                self.assertFalse(result['result']['complete'])
+                self.assertIsNone(result['result']['no_match'])
+                self.assertEqual(result['messages'][-2].artifact['videos'], [])
+        result, store, transport, _ = self.run_graph([], images=[IMAGE] * 7)
+        self.assertFalse(result['result']['complete'])
+        self.assertEqual(transport.requests, [])
+        store.retrieve.assert_not_called()
+
+    def test_quota_auth_billing_cancellation_do_not_fallback(self):
+        from llm.service.chat_runs import Stopped
         from llm.service.usage import InsufficientCredits, WalletBusy, UnsafeOutputLimit
-        for error in (InsufficientCredits(), WalletBusy(), UnsafeOutputLimit()):
-            with self.subTest(error=type(error).__name__), SDKTransport() as transport, \
-                 patch.object(mm.ChatGoogleGenerativeAI, 'with_structured_output') as structured:
-                structured.return_value.invoke.side_effect = error
-                with self.assertRaises(type(error)):
-                    mm.Google('synthetic', quota=Mock()).verify_candidates('original', [self.row])
-                self.assertEqual([op for op, _ in transport.requests], ['countTokens'])
+        for error in (mm.VerificationAdmissionError('limit'), Stopped(), InsufficientCredits(), WalletBusy(), UnsafeOutputLimit()):
+            quota = Mock(); quota.acquire.side_effect = error
+            with self.subTest(error=type(error).__name__), self.assertRaises(type(error)):
+                self.run_graph([], quota=quota)
+        for code in (401, 402, 403, 429):
+            with self.subTest(code=code), self.assertRaises(mm.VerificationAdmissionError):
+                self.run_graph([mm.errors.APIError(code, {'error': {'status': 'RESOURCE_EXHAUSTED'}})])
 
-    def test_provider_auth_and_token_capacity_fail_closed(self):
-        for code in (401, 402, 403):
-            with self.subTest(code=code), patch('httpx.Client.send', side_effect=mm.errors.APIError(code, {'error': {'status': 'PERMISSION_DENIED'}})):
-                with self.assertRaises(RuntimeError):
-                    mm.verify_retrieval(mm.Google('synthetic', quota=Mock()), self.retrieval())
-        for code in (401, 402, 403):
-            selector = Mock(); denied = RuntimeError('private provider body'); denied.status_code = code
-            selector.bind_tools.return_value.invoke.side_effect = denied
-            with self.subTest(selector_code=code), self.assertRaises(RuntimeError):
-                self.run_graph([ValueError('first')], selector)
-        with tempfile.TemporaryDirectory() as root:
-            quota = mm.VerificationQuota(Path(root)/'quota.sqlite3', tpm=10, max_wait=0)
-            google = mm.Google('synthetic', quota=quota)
-            google.call = Mock(return_value={'totalTokens': 20})
-            with self.assertRaises(RuntimeError): mm.verify_retrieval(google, self.retrieval())
-        with override_settings(USAGE_MAX_CALL_OUTPUT_TOKENS=0):
-            google = mm.Google('synthetic', quota=Mock()); google.call = Mock(return_value={'totalTokens': 9})
-            with self.assertRaises(RuntimeError): mm.verify_retrieval(google, self.retrieval())
+    def test_empty_candidates_and_repeated_invocations(self):
+        result, _, transport, _ = self.run_graph([], rows=[])
+        self.assertTrue(result['result']['no_match'])
+        self.assertEqual(transport.requests, [])
+        result, store, transport, _ = self.run_graph([call(verdict())], repeat=2)
+        self.assertEqual(store.retrieve.call_count, 2)
+        self.assertEqual(len(self.video_ids(transport)), 2)
+        self.assertEqual(result['result']['checked_candidates'], ['a'])
 
     def test_terminal_block_clears_cards_in_projection_history_and_done(self):
-        from langchain_core.messages import ToolMessage
         from llm.v2.agent.chat_ui import highlight_videos
         from llm.serializer.message import project_history, done_payload
-        result, _, _, _ = self.run_graph([ValueError('first'), RuntimeError('second')])
+        result, _, _, _ = self.run_graph([call(verdict('a', False))])
         records = result['messages']; terminal = records[-2]
         card = {'videoId': 'SlvDBmr4Bd8', 'start': 700, 'label': 'earlier result'}
         earlier = ToolMessage('selected', name='ask_highlight', tool_call_id='earlier', artifact=[
@@ -191,13 +211,6 @@ class RetryTests(unittest.TestCase):
             ToolMessage('selected', name='select_highlight_scenes', tool_call_id='new-selection', artifact={'videos': [later_card]})])
         self.assertEqual(highlight_videos([earlier, blocked, later]), [later_card])
         self.assertEqual(highlight_videos([earlier, terminal]), [])
-
-    def test_repeated_invocations_reset_bound(self):
-        call = {'name': 'search_stored_highlight_rag', 'args': {'query': 'revised'}, 'id': 'retry'}
-        selector = Selector(messages=iter([AIMessage('', tool_calls=[call]), AIMessage('', tool_calls=[call])]))
-        result, store, _, _ = self.run_graph([ValueError('failed'), [self.output()]], selector, repeat=2)
-        self.assertEqual(store.retrieve.call_count, 4)
-        self.assertEqual(result['result']['retry_executed'], 1)
 
 
 if __name__ == '__main__':
