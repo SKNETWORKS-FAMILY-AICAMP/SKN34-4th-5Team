@@ -167,6 +167,7 @@ def main():
             os.environ['DEEPEVAL_CACHE_FOLDER'] = str(out / 'deepeval-cache')
             execute([EVAL + 'test_highlight_case_quality.py', '-v'], offline=True)
             execute([EVAL + 'highlight_langchain_contract.py', '--output', str(out / 'langchain-contract')], offline=True)
+            execute([EVAL + 'highlight_langchain_contract.py', '--pipeline', '--output', str(out / 'pipeline-contract')], offline=True)
             execute(['backend/llm/tests/test_highlight_separate_ingestion.py', '-v'], offline=True)
             execute(['backend/llm/tests/test_highlight_images.py', '-v'], offline=True)
             execute(['backend/llm/tests/test_highlight_multimodal.py', '-v'], offline=True)

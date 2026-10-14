@@ -112,7 +112,7 @@ class MultimodalTests(unittest.TestCase):
         specialist.rows = {sid: {"id": sid, "video_id": "SlvDBmr4Bd8", "start": start, "end": start + 24}
                            for sid, start in (("a", 100), ("b", 646.079), ("c", 800))}
         specialist.db = Mock()
-        specialist.db.query_points.return_value.points = [SimpleNamespace(id=sid) for sid in specialist.rows]
+        specialist.db.query_points.return_value.points = [SimpleNamespace(id=sid, payload=specialist.rows[sid]) for sid in specialist.rows]
         specialist.sql = Mock()
         specialist.sql.execute.return_value = []
         specialist.verifier.verify.side_effect = lambda query, row, video, audio: {
@@ -144,7 +144,7 @@ class MultimodalTests(unittest.TestCase):
         specialist.google = Mock()
         specialist.google.embed.side_effect = lambda part: retrieval([1.] * mm.DIM)
         specialist.db = Mock()
-        specialist.db.query_points.side_effect = lambda *a, **k: retrieval(SimpleNamespace(points=[SimpleNamespace(id=sid) for sid in specialist.rows]))
+        specialist.db.query_points.side_effect = lambda *a, **k: retrieval(SimpleNamespace(points=[SimpleNamespace(id=sid, payload=specialist.rows[sid]) for sid in specialist.rows]))
         specialist.sql = Mock()
         specialist.sql.execute.side_effect = lambda *a: retrieval([])
         specialist.verifier = verifier
@@ -355,7 +355,7 @@ class MultimodalTests(unittest.TestCase):
                 return {"candidate_id": "wrong", "match": True, "local_seconds": 1, "evidence": "fabricated"}
         from qdrant_client import models
         with tempfile.TemporaryDirectory() as folder:
-            s = mm.Specialist(folder, FakeGoogle(), FakeGoogle())
+            s = mm.Specialist(folder, FakeGoogle(), FakeGoogle(), ingesting=True)
             try:
                 s.db.create_collection(mm.COLLECTION, vectors_config={m: models.VectorParams(size=mm.DIM, distance=models.Distance.COSINE) for m in mm.MODALITIES})
                 sid = "12345678-1234-1234-1234-123456789012"

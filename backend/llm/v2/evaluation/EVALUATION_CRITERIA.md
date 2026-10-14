@@ -760,6 +760,14 @@ fixture는 테스트 입력·응답을 고정하는 방식이며 그 자체가 �
 - 동결 A/B: dirty entry source/hash를 scratch에 보존하고 동일 합성 HTTP·독립 기대값·신규 retrieval zero-generation/3후보 one-generation/경계 사례를 먼저 동결한다. 기존 실제 설치 DeepEval custom exact/Ragas ExactMatch 오프라인 runner로 수정 전 A와 수정 후 B를 같은 테스트/정답/패키지/설정에서 채점한다. 변경 전 실패·평가기 오류·미실행과 각 분모를 그대로 보존한다.
 - 합격/실패: retrieval generation0, 실제 graph Gemini generation1(3후보/원질문/이미지 동일), 정확한 후보별 검증·카드, malformed/partial/unknown/duplicate/누락/NaN/bool/범위밖/inaccessible의 오류 보존, 취소 후 generation0, CI 실제 명령의 변경 테스트 실행이 모두 필요하다. framework 점수는 synthetic 계약이며 live 품질/운영 latency/코스 전체 시간은 미측정이다. 유료 제공자 A/B·배포·Git 이력 변경은 승인되지 않았으며 not-run으로 보고한다.
 
+## 수집/질의 분리·원본 영상 후보·저장 RAG 재시도 계약 (2026-10-14, 새 A 실행 전)
+
+- 사용자 승인 목표: 수집 완료 및 명시 readback/audit에서 전체 벡터·payload·FTS·media hash/ffprobe 검사를 유지하고 요청 질의는 완료/layout/model/dimensions 및 반환된 후보 신원·원문 범위만 확인한다. 빈/미완료 경로는 생성·수리하지 않는다. 기존 유효 corpus는 재임베딩·원본 변경 없이 사용한다.
+- 후보는 최대3개의 서로 다른 canonical 원본 video ID다. 동일 영상의 겹친/분리된 구간은 한 슬롯이며 검색 hint 밖의 장면도 ingestion_complete.per_video.duration 안이면 검증할 수 있다. 원문 duration/label/seconds를 바꾸지 않고 Duration 전송만 소수9자리 이하로 정규화하고 적용 여부를 기록한다. 원본 질문·최대6 이미지·3영상 단일 정상 generation, countTokens/quota/output cap/엄격 JSON·coverage·유한 non-Boolean 시각·접근성 검사는 유지한다. 이전 구간중복/1–5 후보 및 hint 내 시각 단언은 이 승인 영상 단위 계약으로 대체하며 역사적 결과를 보존한다.
+- 검증 오류에서만 실제 모델이 제한된 수정 query를 선택하는 저장 multimodal DB/RAG 도구를 한 번 실행하고 결과를 원본 질문·이미지로 다시 검증한다. 다른 비어 있는 legacy scene store·웹·keyword 검색·전문 재귀 위임은 금지한다. 실행 횟수는 코드로 제한하고 정상 음성은 재시도하지 않는다. 소진/빈/미검증은 status=block 및 카드0이며 검증된 없음(complete=true/no_match=true)과 오류(false/null)를 구분한다. 입력·권한·취소·사용량 한도는 우회하지 않는다. 공개 응답/history/SSE에 원시 JSON/이미지/파일경로/provider exception을 노출하지 않는다.
+- 동결 A/B: production 수정 전 checkpoint source와 신규 합성 입력·독립 oracle/테스트를 scratch에 동결한다. 동일 offline SDK transport/실제 compiled graph/설치된 DeepEval custom exact 및 Ragas ExactMatch를 A와 B에 실행한다. 검색에 gold ID를 주입하지 않으며 신규 점수는 video-level 실행 계약이지 live 의미 품질·비용·지연 개선이 아니다. 일반 품질 threshold는 추가하지 않는다.
+- 합격: 질의에서 full validators/scroll/ffprobe/media reads zero, 선택 payload/time 변조 fail-closed 및 audit corruption 검출; unique3/full Parts/정확한 source 범위·이미지·정상 generation1; compiled graph의 모델 선택→실제 tool boundary→1회 재조회→원문 검증·복구/빈/오류/block·중복 호출/반복 invocation·취소/예산 전파·privacy의 정확한 독립 기대값 전부 일치다. 기존 실제 highlight-free/free/wiring 명령과 변경 Django HTTP suite 실행을 기록한다. 실패/오류/미실행은 성공이 아니며 hosted CI·유료/live·재시작/배포·원본 수정은 하지 않는다.
+
 ## 현재 앱 소스 10문항 단일 live 재검증 준비 (2026-10-14, 실행 전)
 
 - 목적/범위: 현재 worktree production bytes와 실제 local dependency를 동결하고 기존10문항/10영상922구간/약한 라벨(4양성 장면의8변형+쉬운 음성2)/canonical DeepEval·Ragas 채점기를 그대로 재사용한다. video top8 한 번→기존 중복·누락·시간겹침 제외→최대3→병렬3 URL 검증, text prefix/taskType 미지정/768, gemini-embedding-2 및 gemini-3.8-flash/temperature0/strict JSON/output4000은 불변이다. 이전 결과는 설명용 반복 비교이며 causal RRF A/B·이미지 품질 근거가 아니다.

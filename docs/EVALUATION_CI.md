@@ -51,6 +51,10 @@ Python 3.12의 별도 평가 job을 사용하며 DeepEval/Ragas는 운영 requir
 
 Runner는 highlight-free의 run-owned `DEEPEVAL_CACHE_FOLDER`를 child에 전파하며 새 suite도 import 전 telemetry/tracing/dotenv 자동 발견을 끄고 test-owned scratch cache를 사용한다. `highlight_case_quality.py prepare/offline`과 CLI help는 provider0이며 `generate --run-provider`는 CI에서 실행하지 않는다. 새 suite 통과와 전체 highlight-free 성공을 구분하며 다른 suite 의존성/기존 실패는 따로 보고한다. 생성된 최대50 positives-only 후보는 여전히 `model-reviewed/needs-human-review`이고 기존 8–10-case 검색 CLI 상한/정답·threshold를 변경하지 않는다.
 
+## 수집/질의 분리 영상 단위 계약 (2026-10-14)
+
+기존 `highlight-deterministic` → `highlight-free`는 `highlight_langchain_contract.py --pipeline --output <fresh>/pipeline-contract`도 실행한다. `test_highlight_pipeline.PipelineTests`의 전체 자동 발견을 실제 DeepEval exact/Ragas ExactMatch로 채점한다. 질의에서 전체 validator/scroll/ffprobe/media 읽기를 금지하고 반환 후보 payload만 검사하며, 전체 부패 검사는 명시 audit/readback 테스트로 유지한다. 새 A/B는 run-owned HOME/TMP/cache·socket-denied 동일 합성 입력으로 실행하며 원본 corpus·유료 제공자·hosted CI 성공의 근거가 아니다.
+
 ## 수동 실행
 
 GitHub Actions → **Manual evaluation (bounded, paid opt-in)** → Run workflow. 신뢰된 `develop`/`main`만 허용하고 `authorize=true`가 필수입니다. 다른 ref 또는 승인 누락은 preflight에서 **실패**합니다. `evaluation` GitHub Environment에 required reviewer와 develop/main deployment branch 제한을 설정하고, 팀 저장소에서만 승인합니다. Fork에는 Secrets를 복제하지 않습니다.

@@ -116,7 +116,7 @@ class YouTubeVerifierTests(unittest.TestCase):
                     specialist.google, specialist.verifier = Mock(), client
                     specialist.google.embed.return_value = [1.] * mm.DIM
                     specialist.db, specialist.sql = Mock(), Mock()
-                    specialist.db.query_points.return_value.points = [SimpleNamespace(id=ROW["id"])]
+                    specialist.db.query_points.return_value.points = [SimpleNamespace(id=ROW["id"], payload=ROW)]
                     specialist.sql.execute.return_value = []
                     # Invalid synthetic WebP stays original for verification; retrieval helper is independent.
                     with patch.object(mm, "image_parts", wraps=lambda blocks, **kw: [] if not blocks else [{"inlineData": {"mimeType": "image/webp", "data": IMAGE["image_url"]["url"].split(",")[1]}}]):

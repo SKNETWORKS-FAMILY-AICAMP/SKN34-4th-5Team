@@ -31,12 +31,22 @@ CASES = (
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', required=True)
+    parser.add_argument('--pipeline', action='store_true', help='Video-level pipeline contracts, not segment accuracy')
+    parser.add_argument('--source', help='Immutable pre-edit source for offline A')
     args = parser.parse_args()
     output = Path(args.output)
     if output.exists():
         raise ValueError('Use fresh contract evidence path')
     output.mkdir(parents=True)
-    from llm.tests import test_highlight_langchain as contract
+    if args.source:
+        os.environ['HIGHLIGHT_CONTRACT_SOURCE'] = str(Path(args.source).resolve(strict=True))
+    if args.pipeline:
+        from llm.tests import test_highlight_pipeline as contract
+        test_class = contract.PipelineTests
+        cases = tuple(unittest.defaultTestLoader.getTestCaseNames(test_class))
+    else:
+        from llm.tests import test_highlight_langchain as contract
+        test_class, cases = contract.LangChainMigrationTests, CASES
     from deepeval.metrics import BaseMetric
     from deepeval.test_case import LLMTestCase
     from ragas.dataset_schema import SingleTurnSample
@@ -80,11 +90,11 @@ def main():
             super().__init__(*args, **kwargs)
             self.observed = {}
 
-    suite = unittest.TestSuite(contract.LangChainMigrationTests(name) for name in CASES)
+    suite = unittest.TestSuite(test_class(name) for name in cases)
     result = unittest.TextTestRunner(verbosity=2, resultclass=Observations).run(suite)
     rows = []
     metric, exact = Metric(), ExactMatch()
-    for name in CASES:
+    for name in cases:
         actual = result.observed[name]
         rows.append({'id': name, 'actual': actual, 'expected': 'pass',
             'deepeval': metric.measure(LLMTestCase(input=name, actual_output=actual, expected_output='pass')),

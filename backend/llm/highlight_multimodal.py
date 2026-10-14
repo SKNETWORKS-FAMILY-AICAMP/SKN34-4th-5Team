@@ -552,12 +552,16 @@ def decision(output, row):
 
 
 class Specialist:
-    def __init__(self, workspace, google, verifier=None, *, ingesting=False):
+    def __init__(self, workspace, google, verifier=None, *, ingesting=False, audit=False):
         from qdrant_client import QdrantClient
         self.root = Path(workspace).resolve()
         if not ingesting and (self.root / 'ingestion_pending.json').exists() and not (self.root / 'ingestion_complete.json').exists():
             raise ValueError('Incomplete transcript ingestion')
-        self.root.mkdir(parents=True, exist_ok=True)
+        if not ingesting and not all((self.root / name).exists() for name in
+                ('qdrant', 'segments.json', 'transcripts.sqlite3')):
+            raise ValueError('Missing corpus; query never creates a store')
+        if ingesting:
+            self.root.mkdir(parents=True, exist_ok=True)
         # Explicit local client: never consult production Qdrant settings.
         self.db = QdrantClient(path=str(self.root / "qdrant"))
         self.sql = None
@@ -574,7 +578,9 @@ class Specialist:
                 raise ValueError("Corpus index mode mismatch")
             self.rows = json.loads((self.root / "segments.json").read_text()) if (self.root / "segments.json").exists() else {}
             if existing or self.rows:
-                self.validate_corpus()
+                self.validate_readiness()
+                if audit:
+                    self.validate_corpus()
         except BaseException:
             self.close()
             raise
@@ -585,6 +591,30 @@ class Specialist:
                 self.sql.close()
         finally:
             self.db.close()
+
+    def validate_readiness(self):
+        """Constant-layout checks only; full integrity belongs to ingest/audit."""
+        from qdrant_client import models
+        if not isinstance(self.rows, dict) or not self.rows:
+            raise ValueError('Invalid corpus segments')
+        if {c.name for c in self.db.get_collections().collections} != {COLLECTION}:
+            raise ValueError('Invalid corpus layout')
+        config = self.db.get_collection(COLLECTION).config.params.vectors
+        if (not isinstance(config, dict) or set(config) != set(MODALITIES)
+                or any(c.size != DIM or c.distance != models.Distance.COSINE for c in config.values())):
+            raise ValueError('Invalid corpus vector layout')
+        marker = self.root / 'ingestion_complete.json'
+        self.sources = {}
+        if marker.exists():
+            report = json.loads(marker.read_text())
+            if (report.get('status') != 'complete' or report.get('index_mode') != 'separate'
+                    or report.get('model') != 'gemini-embedding-2' or report.get('dimensions') != DIM
+                    or report.get('segments') != len(self.rows) or not isinstance(report.get('per_video'), dict)
+                    or report.get('videos') != len(report['per_video'])):
+                raise ValueError('Invalid corpus completion/model')
+            self.sources = report['per_video']
+        elif (self.root / 'ingestion_pending.json').exists():
+            raise ValueError('Incomplete transcript ingestion')
 
     def validate_corpus(self, *, ingesting=False):
         """Read-only readiness: a partial/mixed index is not a verified negative."""
@@ -664,8 +694,23 @@ class Specialist:
             self._retrieval_closed = False
         parts = image_parts(images or [])
         query_vector = self.google.embed([{"text": query}, *parts] if parts else {"text": "task: search result | query: " + query})
-        rankings = {"video": [str(p.id) for p in self.db.query_points(COLLECTION, query=query_vector, using="video", limit=8).points]}
+        points = self.db.query_points(COLLECTION, query=query_vector, using="video", limit=8).points
+        rankings = {"video": [str(p.id) for p in points]}
         candidates = select_candidates(rankings["video"], self.rows, candidate_limit)
+        for sid in candidates:
+            row = self.rows[sid]
+            point = next(p for p in points if str(p.id) == sid)
+            if row.get('id') != sid or point.payload != row:
+                raise ValueError('Invalid selected corpus payload')
+            if not isinstance(row.get('video_id'), str) or not re.fullmatch(r'[A-Za-z0-9_-]{11}', row['video_id']):
+                raise ValueError('Invalid selected source identity')
+            start, end = number(row.get('start')), number(row.get('end'))
+            if not 0 <= start < end:
+                raise ValueError('Invalid selected source range')
+            if getattr(self, 'sources', {}):
+                source = self.sources.get(row['video_id'], {})
+                if end > number(source.get('duration')):
+                    raise ValueError('Selected hint outside full source')
         retrieval_latency = time.monotonic() - started
         return {"query": query, "rankings": rankings, "retrieval_only": candidates,
                 "candidates": [dict(self.rows[sid]) for sid in candidates], "retrieval_latency": retrieval_latency}
@@ -738,7 +783,7 @@ def main():
     if args.env_file:
         from dotenv import dotenv_values
         os.environ.update({k.strip(): v.strip() for k, v in dotenv_values(args.env_file).items() if v})
-    specialist = Specialist(args.workspace, Google(model=args.verifier))
+    specialist = Specialist(args.workspace, Google(model=args.verifier), ingesting=args.command == 'index')
     try:
         result = specialist.index(json.loads(Path(args.manifest).read_text()), args.segments) if args.command == "index" else specialist.ask(args.query, args.candidates)
         print(json.dumps(result, ensure_ascii=False, indent=2))

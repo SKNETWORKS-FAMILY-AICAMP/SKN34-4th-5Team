@@ -86,7 +86,7 @@ class LangChainMigrationTests(unittest.TestCase):
         specialist.google.embed.return_value = [1.] * mm.DIM
         specialist.db, specialist.sql = Mock(), Mock()
         specialist.db.query_points.side_effect = lambda *args, **kwargs: SimpleNamespace(
-            points=[SimpleNamespace(id=sid) for sid in (ranking if kwargs['using'] == 'video' else ['a', 'b', 'c'])])
+            points=[SimpleNamespace(id=sid, payload=specialist.rows.get(sid)) for sid in (ranking if kwargs['using'] == 'video' else ['a', 'b', 'c'])])
         specialist.sql.execute.return_value = [('a',), ('b',), ('c',)]
         specialist.verifier.verify.side_effect = lambda query, row, *args, **kwargs: {
             'candidate_id': row['id'], 'match': row['id'] == 'a', 'local_seconds': 1,
@@ -232,7 +232,7 @@ class LangChainMigrationTests(unittest.TestCase):
                     specialist.google, specialist.verifier = Mock(), mm.Google('synthetic', quota=Mock())
                     specialist.google.embed.return_value = [1.] * 768
                     specialist.db, specialist.sql = Mock(), Mock()
-                    specialist.db.query_points.return_value.points = [SimpleNamespace(id=ROW['id'])]
+                    specialist.db.query_points.return_value.points = [SimpleNamespace(id=ROW['id'], payload=ROW)]
                     specialist.sql.execute.return_value = []
                     result = specialist.ask('find')
                     self.assertEqual([op for op, _ in transport.requests], ['countTokens', 'generateContent'])
@@ -313,7 +313,7 @@ class LangChainMigrationTests(unittest.TestCase):
         specialist.verifier.verify.return_value = {'candidate_id': ROW['id'], 'match': True,
             'local_seconds': 3.125, 'evidence': OUTPUT['evidence']}
         specialist.db, specialist.sql = Mock(), Mock()
-        specialist.db.query_points.return_value.points = [SimpleNamespace(id=ROW['id'])]
+        specialist.db.query_points.return_value.points = [SimpleNamespace(id=ROW['id'], payload=ROW)]
         specialist.sql.execute.return_value = []
         original = RunnableLambda.batch
         batches = []

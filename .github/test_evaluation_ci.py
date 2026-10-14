@@ -22,6 +22,8 @@ class WiringTest(unittest.TestCase):
         self.assertIn(unittest.mock.call(['backend/llm/tests/test_highlight_separate_ingestion.py', '-v'], offline=True), run.call_args_list)
         self.assertIn(unittest.mock.call([ci.EVAL + 'highlight_langchain_contract.py', '--output',
             str((Path(root) / 'out/langchain-contract').resolve())], offline=True), run.call_args_list)
+        self.assertIn(unittest.mock.call([ci.EVAL + 'highlight_langchain_contract.py', '--pipeline', '--output',
+            str((Path(root) / 'out/pipeline-contract').resolve())], offline=True), run.call_args_list)
         selected = [call.args[0][0] for call in run.call_args_list]
         for obsolete in ('test_highlight_joint.py', 'test_highlight_transcript_ingestion.py', 'test_highlight_ingestion_resume.py'):
             self.assertFalse(any(path.endswith(obsolete) for path in selected))

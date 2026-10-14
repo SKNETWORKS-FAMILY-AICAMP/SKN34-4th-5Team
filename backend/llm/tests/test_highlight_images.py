@@ -51,7 +51,7 @@ class ImageContractTests(unittest.TestCase):
         specialist.verifier.last_model_version = "synthetic"
         specialist.root = Path("/synthetic")
         specialist.rows = {"x": {"id": "x", "video_id": "SlvDBmr4Bd8", "start": 0, "end": 24}}
-        specialist.db.query_points.return_value.points = [SimpleNamespace(id="x")]
+        specialist.db.query_points.return_value.points = [SimpleNamespace(id="x", payload=specialist.rows['x'])]
         specialist.sql.execute.return_value = [("x",)]
         specialist.verifier.verify.return_value = {"candidate_id": "x", "match": False, "local_seconds": 0, "evidence": "absent"}
         result = specialist.ask("same scene", images=[IMAGE])
@@ -100,6 +100,7 @@ class ImageContractTests(unittest.TestCase):
             with tempfile.TemporaryDirectory() as root:
                 sqlite3.connect(Path(root) / "transcripts.sqlite3").close()
                 (Path(root) / "segments.json").write_text("{broken")
+                (Path(root) / "qdrant").mkdir()
                 with patch("qdrant_client.QdrantClient", side_effect=capture):
                     if sql_failure:
                         with patch.object(mm.sqlite3, "connect", side_effect=sqlite3.OperationalError("open")), self.assertRaises(sqlite3.Error):
@@ -116,7 +117,7 @@ class ImageContractTests(unittest.TestCase):
         for mode in ("separate",):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as folder:
                 root = Path(folder)
-                seed = mm.Specialist(root, Mock())
+                seed = mm.Specialist(root, Mock(), ingesting=True)
                 sid = "12345678-1234-1234-1234-123456789012"
                 row = {"id": sid, "video_id": "SlvDBmr4Bd8", "start": 0, "end": 24, "text": "caption"}
                 collection = mm.COLLECTION
@@ -138,7 +139,7 @@ class ImageContractTests(unittest.TestCase):
                 client = QdrantClient(path=str(root / "qdrant"))
                 client.create_collection("unexpected_stored_layout", vectors_config=config)
                 client.close()
-                with self.assertRaisesRegex(ValueError, "corpus layout/readiness"):
+                with self.assertRaisesRegex(ValueError, "corpus layout"):
                     opened = mm.Specialist(root, google)
                     opened.close()
                 client = QdrantClient(path=str(root / "qdrant"))
@@ -155,7 +156,7 @@ class ImageContractTests(unittest.TestCase):
         for defect in ("vector", "identity", "payload", "transcript", "media", "empty"):
             with self.subTest(defect=defect), tempfile.TemporaryDirectory() as folder:
                 root = Path(folder)
-                seed = mm.Specialist(root, Mock())
+                seed = mm.Specialist(root, Mock(), ingesting=True)
                 sid = "12345678-1234-1234-1234-123456789012"
                 row = {"id": sid, "video_id": "SlvDBmr4Bd8", "start": 0, "end": 24, "text": "caption"}
                 size = 3 if defect == "vector" else mm.DIM
@@ -173,7 +174,7 @@ class ImageContractTests(unittest.TestCase):
                     for suffix in (".mp4", ".wav"):
                         (root / "clips" / (sid + suffix)).write_bytes(b"synthetic")
                 with self.assertRaises(ValueError):
-                    opened = mm.Specialist(root, Mock())
+                    opened = mm.Specialist(root, Mock(), audit=True)
                     opened.close()
 
     def test_trusted_text_harness_uses_exact_old_api_and_binds_input(self):

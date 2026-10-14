@@ -71,7 +71,7 @@ class SeparateIngestionTests(unittest.TestCase):
         self.addCleanup(measured.stop)
 
     def reopen(self):
-        opened = mm.Specialist(self.root / 'corpus', None)
+        opened = mm.Specialist(self.root / 'corpus', None, audit=True)
         opened.close()
 
     def test_shared_readback_actual_duration_bounds_are_strict(self):
@@ -79,7 +79,7 @@ class SeparateIngestionTests(unittest.TestCase):
         root = self.root / 'corpus'
         for mode, seconds in (('video', 14.981648), ('video', 14.999999),
                               ('audio', 14.999999), ('video', 120.000001), ('audio', 180.000001)):
-            opened = mm.Specialist(root, None)
+            opened = mm.Specialist(root, None, audit=True)
             try:
                 with patch.object(ingestion, 'duration', side_effect=lambda p: seconds if Path(p).suffix == ('.mp4' if mode == 'video' else '.wav') else 15.):
                     with self.subTest(mode=mode, seconds=seconds, entry='pending'):
@@ -100,7 +100,7 @@ class SeparateIngestionTests(unittest.TestCase):
     def test_shared_readback_row_provenance_binds_exact_per_video_hashes(self):
         self.ingest()
         root = self.root / 'corpus'
-        opened = mm.Specialist(root, None)
+        opened = mm.Specialist(root, None, audit=True)
         sid, row = next(iter(opened.rows.items()))
         good = dict(row['provenance'])
         try:
@@ -132,7 +132,7 @@ class SeparateIngestionTests(unittest.TestCase):
                         db.overwrite_payload(mm.COLLECTION, row, points=[sid], wait=True)
                     finally:
                         db.close()
-                    opened = mm.Specialist(root, None)
+                    opened = mm.Specialist(root, None, audit=True)
                     sid, row = next(iter(opened.rows.items()))
         finally:
             opened.close()
@@ -149,7 +149,7 @@ class SeparateIngestionTests(unittest.TestCase):
         self.assertEqual([(op, mode) for op, mode, _ in self.calls],
                          [(op, mode) for mode in mm.MODALITIES for op in ('countTokens', 'embedContent')])
         self.assertEqual(self.calls[-1][2]['text'], '첫 타구 다음 타구 마지막 타구')
-        opened = mm.Specialist(self.root / 'corpus', None)
+        opened = mm.Specialist(self.root / 'corpus', None, audit=True)
         try:
             self.assertEqual(len(opened.rows), 1)
             point = opened.db.retrieve(mm.COLLECTION, list(opened.rows), with_vectors=True)[0]
@@ -244,18 +244,18 @@ class SeparateIngestionTests(unittest.TestCase):
         good = complete.read_text()
         complete.unlink()
         with self.assertRaisesRegex(ValueError, 'Incomplete'):
-            mm.Specialist(root, None)
+            mm.Specialist(root, None, audit=True)
         report = json.loads(good)
         report['segments'] = 2
         complete.write_text(json.dumps(report))
         with self.assertRaises(ValueError):
-            mm.Specialist(root, None)
+            mm.Specialist(root, None, audit=True)
         complete.write_text(good)
         ledger = root / 'ingestion_attempts.json'
         original_ledger = ledger.read_text()
         ledger.write_text(json.dumps({'countTokens': 3, 'embedContent': 30}))
         with self.assertRaises(ValueError):
-            mm.Specialist(root, None)
+            mm.Specialist(root, None, audit=True)
         ledger.write_text(original_ledger)
         probes = root / 'embedding_probe.json'
         original = probes.read_text()
@@ -263,11 +263,11 @@ class SeparateIngestionTests(unittest.TestCase):
         changed[0]['tokens']['audio'] = 8193
         probes.write_text(json.dumps(changed))
         with self.assertRaises(ValueError):
-            mm.Specialist(root, None)
+            mm.Specialist(root, None, audit=True)
         probes.write_text(original)
         next((root / 'clips').glob('*.wav')).write_bytes(b'modified audio')
         with self.assertRaises(ValueError):
-            mm.Specialist(root, None)
+            mm.Specialist(root, None, audit=True)
 
     def test_true_cue_policy_min15_overlap5_tail_and_raw_provenance(self):
         rows = ingestion.transcript_segments('SlvDBmr4Bd8', cues_at([(i, i + 5) for i in range(0, 41, 5)]), 45)

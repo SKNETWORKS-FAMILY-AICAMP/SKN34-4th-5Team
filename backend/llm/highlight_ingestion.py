@@ -322,7 +322,7 @@ def ingest_transcripts(manifest, workspace, *, dry_run=False, max_calls=None, go
     if readback:
         if not root.is_dir() or not (root / 'ingestion_complete.json').is_file():
             raise ValueError('Incomplete separate transcript corpus')
-        specialist = mm.Specialist(root, None)
+        specialist = mm.Specialist(root, None, audit=True)
         try:
             return validate_ingestion(specialist)
         finally:
