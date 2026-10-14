@@ -113,7 +113,14 @@ def highlight_videos(messages):
     from llm.serializer.message import _artifact_messages
     found = []
     for message in messages:
-        if not isinstance(message, ToolMessage) or message.status == "error":
+        if not isinstance(message, ToolMessage):
+            continue
+        if message.name in ("ask_highlight", "select_highlight_scenes") and (
+                message.additional_kwargs.get("highlight_status") == "block"
+                or isinstance(message.artifact, dict) and message.artifact.get("status") == "block"):
+            found = []
+            continue
+        if message.status == "error":
             continue
         if message.name == "select_highlight_scenes":
             found = public_videos(message.artifact) or found

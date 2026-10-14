@@ -72,6 +72,8 @@ def _frames(graph_input, run):
     new_course, course_failed = False, False
     streamed = False  # 마지막 메인 도구 호출 뒤 메인 텍스트를 흘렸는지
     sources = []  # Only provenance returned with context accepted by the main agent.
+    from llm.v2.agent.sub_agents import image_originals, redact_originals, ImageOutputStream
+    originals, output_streams = image_originals(graph_input.get("messages", [])), {}
     with closing(stream):
         for ns, mode, data in stream:
             parent = parents.get(ns[0]) if ns else None
@@ -85,18 +87,31 @@ def _frames(graph_input, run):
                     continue  # 출처를 모르는 하위 텍스트는 메인 답에 섞지 않는다
                 if not ns:
                     streamed = True
-                yield PublicChatEvent.DELTA.value, {"text": chunk.text, **({"parent_id": parent} if ns else {})}
+                key = (ns, meta.get("langgraph_step"), meta.get("langgraph_node"), chunk.id)
+                guard = output_streams.setdefault(key, (ImageOutputStream(originals), parent))[0]
+                text = guard.feed(chunk.text)
+                if text:
+                    yield PublicChatEvent.DELTA.value, {"text": text, **({"parent_id": parent} if ns else {})}
                 continue
+            for key in [key for key in output_streams if key[0] == ns]:
+                guard, stream_parent = output_streams.pop(key)
+                text = guard.feed("", final=True)
+                if text:
+                    yield PublicChatEvent.DELTA.value, {"text": text, **({"parent_id": stream_parent} if ns else {})}
             for update in data.values():
+                if isinstance(update, dict) and "attachment_messages" in update:
+                    originals = sorted(set(originals) | set(image_originals((update["attachment_messages"] or {}).values())), key=len, reverse=True)
                 if not ns and isinstance(update, dict) and "attachment_sources" in update:
                     sources = update["attachment_sources"] or []
                 if not ns and isinstance(update, dict) and (update.get("decision") or {}).get("course_request") == "NEW":
                     new_course = True
                 for message in (update or {}).get("messages") or [] if isinstance(update, dict) else ():
+                    if originals:
+                        message = type(message).model_validate(redact_originals(message.model_dump(), originals))
                     if ns and isinstance(message, AIMessage) and message.response_metadata.get("parent_id"):
                         parents[ns[0]] = parent = message.response_metadata["parent_id"]
                     if not ns and isinstance(message, AIMessage) and not message.tool_calls:
-                        citations = _citation_links(message, sources)
+                        citations = redact_originals(_citation_links(message, sources), originals)
                         run["answer"] = str(message.text) + citations
                         if not streamed:
                             yield PublicChatEvent.DELTA.value, {"text": run["answer"]}  # 청크 없이 끝난 답: 한 번에
@@ -126,6 +141,10 @@ def _frames(graph_input, run):
                         yield PublicChatEvent.TOOL.value, _public_tool(
                             message.tool_call_id, message.name, status.value, parent, titles.get(message.tool_call_id),
                             summaries.get(message.tool_call_id))
+    for guard, stream_parent in output_streams.values():
+        text = guard.feed("", final=True)
+        if text:
+            yield PublicChatEvent.DELTA.value, {"text": text, **({"parent_id": stream_parent} if stream_parent else {})}
     if new_course and not course_failed:
         run["course_history_reset"] = True
 

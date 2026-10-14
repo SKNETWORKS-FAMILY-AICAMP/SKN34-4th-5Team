@@ -18,12 +18,14 @@ from datetime import date
 from django.core.management.base import BaseCommand, CommandError
 
 from llm import highlights
+from llm.highlight_ingestion import add_ingestion_arguments, run_ingestion_command
 
 
 class Command(BaseCommand):
     help = "KBO 하이라이트 영상을 Gemini(OpenRouter)로 분석해 장면표를 저장한다."
 
     def add_arguments(self, parser):
+        add_ingestion_arguments(parser)
         parser.add_argument("--since", type=date.fromisoformat, help="이 날짜(YYYY-MM-DD) 이후 업로드만")
         parser.add_argument("--team", choices=[code for _, code in highlights.TITLE_TEAM], help="이 팀 경기만")
         parser.add_argument("--limit", type=int, default=5, help="최대 영상 수 (기본 5)")
@@ -38,6 +40,14 @@ class Command(BaseCommand):
                                  "(재분석·비용 없음, --dry-run 이면 숫자만)")
 
     def handle(self, *args, **o):
+        try:
+            result = run_ingestion_command(o)
+        except (ValueError, OSError, RuntimeError) as exc:
+            raise CommandError(str(exc)) from None
+        if result is not None:
+            import json
+            self.stdout.write(json.dumps(result, ensure_ascii=False, indent=2))
+            return
         if o["limit"] < 1 or o["budget"] <= 0:
             raise CommandError("--limit 은 1 이상, --budget 은 0 보다 커야 합니다.")
         if o["refill_players"]:

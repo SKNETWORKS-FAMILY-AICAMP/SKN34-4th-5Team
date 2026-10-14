@@ -19,6 +19,7 @@ pydantic==2.13.5
 langchain
 langchain-core
 langchain-openai
+langchain-google-genai==4.4.1
 langchain-mcp-adapters==0.2.1
 mcp==1.26.0
 openai==3.19.2

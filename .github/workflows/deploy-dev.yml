@@ -87,6 +87,8 @@ jobs:
             backend
 
           docker tag dev-backend:latest dev-lodging-warmer:latest
+          docker buildx build --load --provenance=false --sbom=false \
+            -f docker/vector-startup.Dockerfile -t dev-vector-init:latest .
 
           docker buildx build \
             --load \
@@ -109,6 +111,7 @@ jobs:
             docker/jev-browser
 
           docker save \
+            dev-vector-init:latest \
             dev-backend:latest \
             dev-lodging-warmer:latest \
             dev-frontend:latest \
@@ -165,7 +168,7 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          command_timeout: 20m
+          command_timeout: 90m
 
           script: |
             set -eu
@@ -193,7 +196,8 @@ jobs:
             docker compose \
               -f docker-compose.yml \
               -f docker-compose.dev.yml \
-              up -d --no-build --force-recreate --wait --wait-timeout 240 \
+              -f docker-compose.override.yml \
+              up -d --no-build --force-recreate --wait --wait-timeout 4500 \
               backend frontend jev-browser lodging-warmer community-moderation-worker
 
             # 이미지 교체 중 생성된 이전 레이어를 즉시 제거해 30GiB 디스크를 보호
@@ -205,11 +209,13 @@ jobs:
             docker compose \
               -f docker-compose.yml \
               -f docker-compose.dev.yml \
+              -f docker-compose.override.yml \
               up -d --no-deps --force-recreate nginx
 
             docker compose \
               -f docker-compose.yml \
               -f docker-compose.dev.yml \
+              -f docker-compose.override.yml \
               exec -T nginx nginx -t
 
             # 6. EC2 내부에서 API와 프런트엔드 헬스 체크
@@ -241,6 +247,7 @@ jobs:
               docker compose \
                 -f docker-compose.yml \
                 -f docker-compose.dev.yml \
+                -f docker-compose.override.yml \
                 ps >&2 || true
               return 1
             }

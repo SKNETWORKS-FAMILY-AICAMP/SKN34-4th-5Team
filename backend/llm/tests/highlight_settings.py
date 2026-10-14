@@ -17,7 +17,7 @@ DATABASES = {
         "NAME": "highlight_ci",
         "USER": "highlight_ci",
         "PASSWORD": "highlight_ci",
-        "TEST": {"NAME": "test_highlight_ci"},
+        "TEST": {"NAME": os.environ.get("HIGHLIGHT_TEST_DB_NAME", "test_highlight_ci")},
     },
 }
 DATABASE_ROUTERS = []

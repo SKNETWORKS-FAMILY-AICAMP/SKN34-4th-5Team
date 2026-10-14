@@ -77,8 +77,12 @@ jobs:
         env:
           TIKTOKEN_CACHE_DIR: ${{ runner.temp }}/evaluation-tiktoken
         run: python -I -c 'import tiktoken; tiktoken.get_encoding("cl100k_base")'
+      - name: Vector startup preparation (non-LLM, no provider network)
+        run: python -I .github/evaluation_ci.py offline-exec scripts/tests/test_vector_startup.py
+      - name: Highlight corpus backup and restore (non-LLM, no provider network)
+        run: python -I .github/evaluation_ci.py offline-exec scripts/tests/test_highlight_corpus.py
       - name: Full highlight Django regression (disposable PostgreSQL, no provider network)
-        run: python -I .github/evaluation_ci.py offline-exec backend/manage.py test llm.tests.test_highlights --settings=llm.tests.highlight_settings --noinput --verbosity=2
+        run: python -I .github/evaluation_ci.py offline-exec backend/manage.py test llm.tests.test_highlights llm.tests.test_highlight_multimodal_web.MultimodalHTTPTests --settings=llm.tests.highlight_settings --noinput --verbosity=2
       - name: Course menu evidence regression (same disposable PostgreSQL, no provider network)
         run: python -I .github/evaluation_ci.py offline-exec backend/manage.py test llm.tests.test_course_evidence --settings=llm.tests.highlight_settings --noinput --verbosity=2
       - uses: actions/setup-node@v4
@@ -118,6 +122,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:

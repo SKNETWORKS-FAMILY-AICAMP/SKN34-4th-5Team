@@ -1,0 +1,3 @@
+.secrets/
+.dvc/config.local
+.env

@@ -8,7 +8,7 @@
 
 `evaluation-regression.yml`을 dev/prod 배포 워크플로가 재사용합니다. `develop` PR/Push, `main` Push에서 배포는 기존 Django check/Next build와 **두 평가 job 모두 성공**해야 가능합니다. `main` PR은 평가 워크플로가 직접 실행합니다. 경로 필터가 없으므로 테스트·데이터 변경도 항상 실행됩니다.
 
-Python 3.12의 별도 job을 사용하며 운영 requirements는 변경하지 않습니다.
+Python 3.12의 별도 평가 job을 사용하며 DeepEval/Ragas는 운영 requirements에 추가하지 않습니다. 하이라이트 실행용 `langchain-google-genai==4.4.1`은 운영과 해당 격리 평가 환경에 설치합니다.
 
 2026-10-14 PR96 CI completeness 보정: 독립 검증에서 빠진 `llm.tests.test_llm_temperature.ResponsesPayloadTest.test_v2_agents_use_the_single_v2_model_factory`와 `llm.tests.test_llm_temperature.ResponsesPayloadTest.test_luna_constructors_omit_temperature`를 기존 FREE 첫 offline course runner에 정확한 method selector로 연결했다. `evaluation-regression.yml`의 `deterministic` job에서 `python -I .github/evaluation_ci.py free --output "$RUNNER_TEMP/evaluation-free"`로 실행하고, 같은 job의 `python -I .github/test_evaluation_ci.py` guard가 두 selector를 요구한다. 로컬 실제 free의 첫 runner는 두 이름을 포함한 109개를 통과했다(107→109); 기존 WEB_RESEARCH_ENABLED=false와 충돌하는 native web-search 테스트를 모듈 전체로 추가하지 않았다. 최종 실행 근거는 [PR96 보존 검증](test_results/pr96-v2-preservation-20261014.md)을 참고한다.
 
@@ -20,9 +20,9 @@ Python 3.12의 별도 job을 사용하며 운영 requirements는 변경하지 �
 
 | 환경 | 실제 실행 대상 |
 | --- | --- |
-| DeepEval/backend | seed offline 13개, reviewed boundary offline 26개, test_evaluation 전체, attachment_shared 전체(소유 SQLite runner), test_remaining 전체 및 60-case validate, 기존 attachment offline runner 기본 5개 모듈 전체, relocated test_eval_ragas mock 회귀, 정확한 `llm.tests.test_domain_tools.ExternalDomainToolAdapterTest`(DB-heavy DomainToolsTest 제외), `weather_contract.py export` 실제 도구 11개 고정 계약/DeepEval, `llm.tests.test_chat_eval` 전체(같은 SQLite runner, 모의 stream·결정적 채점·명령 저장 회귀) |
+| DeepEval/backend | seed offline 13개, reviewed boundary offline 26개, test_evaluation 전체, attachment_shared 전체(소유 SQLite runner), test_remaining 전체 및 60-case validate, 기존 attachment offline runner 기본 5개 모듈 전체 및 MultimodalWebTests의 명시 6개 회귀(원본 query/비공개/7·10개 zero-call/legacy opt-out/복구 card/오류·no-match) 및 test_highlight_langchain_web 8개(실제 compiled graph model node·SDK·Meter·lock release·group fail-closed·cancel·copy admission), relocated test_eval_ragas mock 회귀, 정확한 `llm.tests.test_domain_tools.ExternalDomainToolAdapterTest`(DB-heavy DomainToolsTest 제외), `weather_contract.py export` 실제 도구 11개 고정 계약/DeepEval, `llm.tests.test_chat_eval` 전체(같은 SQLite runner, 모의 stream·결정적 채점·명령 저장 회귀) |
 | highlight Django/frontend (`deterministic`) | `llm.tests.test_highlights` 전체 28개(실제 Django TestCase/ORM/migrations), `frontend/tests/youtube-highlight.test.mjs` 전체 3개(Node test runner) |
-| highlight isolated | relocated test_highlight_deepeval(DeepEval/Ragas scoring), test_relocation(실제 두 framework offline evaluate 및 legacy CLI/import/data 호환), `weather_contract.py scorer-check` 실제 DeepEval/Ragas 정상·오류 채점기 대조(합성, production 증거 아님) |
+| highlight isolated | highlight_langchain_contract의 고정 11개(기존5 SDK/LangChain 계약 + 영상 단독 actual ask 계약3 + retrieval-only/단일 Gemini group/정확한 coverage 계약3, DeepEval/Ragas exact), test_highlight_separate_ingestion 19개(모든 SDK HTTP 시도 admission/Retry-After·RetryInfo 포함), test_highlight_youtube_verifier 7개, test_highlight_images 10개(원본 이미지 질의·video 단독 조회/separate named vectors readiness·6개/WebP·corpus reopen/cleanup·exact pinned A evaluator/hash·실제 DeepEval/Ragas), test_highlight_multimodal 16개, relocated test_highlight_deepeval(DeepEval/Ragas scoring), test_relocation(실제 두 framework offline evaluate 및 legacy CLI/import/data 호환), `weather_contract.py scorer-check` 실제 DeepEval/Ragas 정상·오류 채점기 대조(합성, production 증거 아님) |
 | CI wiring | `.github/test_evaluation_ci.py`: ID cap/중복/주입 거부, argv 실행, 실행 오류와 품질 불일치 구분, trusted-ref 수동 gate와 배포 needs 확인 |
 
 `deterministic` job은 기존 evaluation requirements/`offline-exec` launcher를 재사용하여 `python -I .github/evaluation_ci.py offline-exec backend/manage.py test llm.tests.test_highlights --settings=llm.tests.highlight_settings --noinput --verbosity=2`를 실행합니다. 전용 `pgvector/pgvector:pg18` service의 loopback DB에만 연결하며 Django가 `test_highlight_ci`를 생성·삭제합니다. 독립 settings는 운영 settings/dotenv를 import하지 않고 DB host/user/name을 고정하며, 로컬 disposable service 포트만 `HIGHLIGHT_TEST_DB_PORT`로 바꿀 수 있습니다. 전체 migration graph에 필요한 앱과 PostgreSQL/vector extension을 유지하므로 migration 생략·AST 대체가 아닙니다. Python socket 차단은 제공자 네트워크를 막고 psycopg/libpq의 전용 DB 연결만 사용합니다. 이는 하이라이트 회귀 증거이며 전체 운영 settings/제공자 품질 검증은 아닙니다.
@@ -32,6 +32,48 @@ Python 3.12의 별도 job을 사용하며 운영 requirements는 변경하지 �
 무료 회귀 job은 먼저 `TIKTOKEN_CACHE_DIR=$RUNNER_TEMP/evaluation-tiktoken`에서 `tiktoken.get_encoding("cl100k_base")`를 실행해 공개 tokenizer asset을 내려받고 tiktoken의 지정 SHA-256으로 검증합니다. 이는 모델/API 평가 호출이 아닌 설치 사전준비이며, 다운로드·hash 검증 실패는 job 실패입니다. 이후 동일 cache를 사용하여 네트워크 차단을 유지합니다. 빈 HOME/cache에서도 이 준비 단계를 먼저 수행해야 합니다.
 
 무료 실행은 Python socket connect를 거부하는 subprocess에서 수행합니다. Mock/scorer/스크립트 회귀이지 실제 제공자 품질이나 전체 챗봇 E2E 증거가 아닙니다. 새 테스트가 자동 발견되지 않으면 `.github/evaluation_ci.py` 실행 목록과 이 표를 함께 갱신합니다.
+
+## YouTube verifier 무료 전송 계약 (2026-10-13)
+
+`deploy-dev.yml`/`deploy-prod.yml`의 재사용 호출 또는 `main` PR 직접 트리거 → `evaluation-regression.yml:highlight-deterministic` → `python -I .github/evaluation_ci.py highlight-free --output <new scratch>`에서 `backend/llm/tests/test_highlight_youtube_verifier.py -v` 7개를 명시 실행한다. count/generate URL+소수 offset 동일성, local media zero-read, 원본 이미지, 원본 시간→local 호환, metadata zero-call, unreadable/error/malformed incomplete 및 text/image callers를 검증한다. 기존 image/multimodal suite 이름과 독립 정답·평가 라벨은 유지하며 provider mock JSON만 새 원본 시간/source_accessible 계약에 맞춘다. `.github/test_evaluation_ci.py`가 선택을 검사한다. 동결 dirty A/B 같은 7개 계약은 실제 설치 DeepEval custom exact 및 Ragas ExactMatch로 채점하며 live 의미 품질과 구분한다.
+
+## LangChain 무료 계약 (2026-10-14)
+
+`evaluation-regression.yml:highlight-deterministic`의 기존 `highlight-free` 명령이 `highlight_langchain_contract.py --output <new>/langchain-contract`를 먼저 실행한다. 고정 5개 사례는 실제 설치된 ChatGoogleGenerativeAI/GoogleGenerativeAIEmbeddings·공식 SDK의 직렬화 이후 httpx transport만 합성 응답으로 대체하고 socket을 차단한다. 실제 DeepEval custom exact 및 Ragas ExactMatch 점수는 실행 계약이며 영상 인식·live 품질 점수가 아니다. `deterministic`의 `free` 명령은 공용 attachment/delegation runner 101개와 highlight web 명시 14개(기존 MultimodalWebTests 6개 + LangChainWebTests 전체 8개)를 실행한다. mounted application corpus 테스트는 선택하지 않는다. 배선 guard는 두 명령/모듈 연결을 검증한다.
+
+고정 5개 중 `test_malformed_and_inaccessible_are_not_negative`는 완전/잘린 JSON의 match=false/true를 같은 실제 SDK transport로 비교하고, countTokens/generateContent 각 1회와 malformed → incomplete/no_match=null을 확인한다. JsonOutputParser의 partial JSON 복구 결과 대신 raw 모델 text의 엄격 JSON을 검증한다. 동결 pre-migration A 재실행에는 해당 사례만 legacy urllib 합성 응답을 연결해 transport 미도달 예외로 통과하지 못하게 한다. 수정 전 post-migration A·원래 entry A·최종 B의 corrected harness 해시와 역사적 harness/로그를 구분해 보존한다.
+
+공식 Developer API countTokens에는 generationConfig/schema를 전달할 수 없어 generation과 동일 모델·contents/Part만 센다. generation의 temperature0/schema/server cap4000과 상속 callback을 유지하며 count를 Meter 과금 usage에 더하지 않는다. media/joint embedding은 공식 SDK의 단일 batch request이고 text는 Google LangChain Embeddings를 사용한다. 두 경로 모두 taskType을 추가하지 않는다. SDK retry attempts1을 설정하고 ingestion의 모든 실제 시도를 기존 4회/공유 budget에서 센다.
+
+실제 runtime/evaluation 의존성 resolution에는 `langchain==1.4.5`, `langchain-core==1.6.10`이 필요하다(Google package requires core>=1.6.9,<2). DeepEval/Ragas 환경은 여전히 별도이며 운영에 평가 패키지를 넣지 않는다. 요청 모델 alias·실제 제공자 URL 읽기·live usage/품질·운영 부하/지연·배포는 이 합성 검증으로 확인되지 않는다.
+
+## 영상 단독 후보 검색 무료 계약 (2026-10-14)
+
+기존 `highlight-deterministic` → `highlight-free` → `highlight_langchain_contract.py`의 CASES에 actual `Specialist.ask` 사례3개를 추가하여 총8개를 실행한다. 영상1위가 audio/text/FTS 교차 일치에 밀리는 반례, 원본 이미지/config 전달, 중복·unknown·동일영상 겹침/접한 구간·다른영상, 기본3/명시1·5/잘못된 한도, 빈 결과·정상 음성·형식/제공자 오류를 검증한다. Qdrant `using=video, limit=8` 정확히1회와 FTS zero-call 및 실제 rankings의 video만을 확인한다. 기존 image10/multimodal16 suite는 자동 발견되어 변경 회귀도 같은 명령에 포함된다. DeepEval custom exact/Ragas ExactMatch는 동일 실행 관측을 채점하며 의미 품질이 아니다; A/B 입력/정답은 동일하고 source만 변경한다.
+
+## 실제 highlight 모델 노드 무료 계약 (2026-10-14)
+
+현재 CASES는 위 기존8개에 `test_retrieval_has_zero_generation_calls`, `test_three_candidates_one_real_gemini_generation`, `test_group_exact_coverage_and_fail_closed_boundaries`를 더한 총11개다. 같은 동결 harness/정답/격리 환경에서 dirty A는 두 framework 모두8/11, B는11/11로 실행 계약을 비교한다. 실제 Google 경로는 retrieval-only → 후보 전체 단일 Gemini → 결정론적 검증이며 웹 model 노드에서 원본 질문/이미지/최대3개 clip을 함께 보낸다. 로컬 Qdrant와 web.lock은 countTokens/모델 호출 전에 해제한다. 정확한 ID coverage/중복/원본시각/접근불가/잘린 JSON은 fail-closed이며 native `nostream`으로 원시 모델 JSON을 공개 스트림에서 제외한다.
+
+`highlight-deterministic`의 `highlight-free`가 위11개를 실행하고, `deterministic`의 `free`가 full `test_highlight_langchain_web` 자동 발견으로 새 `test_graph_group_boundaries_empty_and_no_unverified_cards`와 `test_graph_model_cancellation_after_retrieval_and_quota`를 포함한다. 실제 compiled graph 테스트는 Meter1회, callback의 `langgraph_node=model`, 단일 count/generate, 원본3개 clip, lock 해제, 미검증 card0, 취소 및 공개 JSON/이미지 비노출을 확인한다. mounted corpus 및 DB 기반 HTTP 테스트는 이 SQLite 무료 runner에서 선택하지 않으며 전체 endpoint E2E 통과를 뜻하지 않는다. 유료/live A/B는 승인되지 않아 미실행이며 의미 품질은 여전히 not_measured다.
+
+## 텍스트 영상 후보 품질 무료 계약 (2026-10-14)
+
+`evaluation-regression.yml:highlight-deterministic` → 기존 `python -I .github/evaluation_ci.py highlight-free --output <new scratch>` → `backend/llm/v2/evaluation/test_highlight_case_quality.py -v`를 명시 실행한다. 실제 설치 google-genai/httpx.MockTransport와 socket 차단으로 full canonical URL+0/duration/모델/temperature0/output8192/no-image, count+generate+count+review 최대4회, global40/41차단, SDK retry0/fatal halt, strict JSON/이미지·누출/Boolean·NaN/ID/시간/근거/중복/correction/출력 재사용을 확인한다. 실제 DeepEval exact 6차원은 합성 정상1/거짓 출처1/거짓 시각1을 각각 수용/거절/거절해야 한다. 이 intentional metric failure 대조는 test 실패가 아니라 채점기 정확성 증거이며 실제 영상 의미 품질·검색 정확도를 측정하지 않는다. Ragas 유료 judge는 추가하지 않는다.
+
+Runner는 highlight-free의 run-owned `DEEPEVAL_CACHE_FOLDER`를 child에 전파하며 새 suite도 import 전 telemetry/tracing/dotenv 자동 발견을 끄고 test-owned scratch cache를 사용한다. `highlight_case_quality.py prepare/offline`과 CLI help는 provider0이며 `generate --run-provider`는 CI에서 실행하지 않는다. 새 suite 통과와 전체 highlight-free 성공을 구분하며 다른 suite 의존성/기존 실패는 따로 보고한다. 생성된 최대50 positives-only 후보는 여전히 `model-reviewed/needs-human-review`이고 기존 8–10-case 검색 CLI 상한/정답·threshold를 변경하지 않는다.
+
+## 수집/질의 분리 영상 단위 계약 (2026-10-14)
+
+기존 `highlight-deterministic` → `highlight-free`는 `highlight_langchain_contract.py --pipeline --output <fresh>/pipeline-contract`도 실행한다. `test_highlight_pipeline.PipelineTests`의 전체 자동 발견을 실제 DeepEval exact/Ragas ExactMatch로 채점한다. 질의에서 전체 validator/scroll/ffprobe/media 읽기를 금지하고 반환 후보 payload만 검사하며, 전체 부패 검사는 명시 audit/readback 테스트로 유지한다. native Qdrant `query_points_groups(using=video, group_by=video_id, group_size=1, limit=1..3)`로 서로 다른 영상의 대표 hint를 선택하고 저장된 per_video.duration의 0..duration 원본 Part를 검증한다. 저장 RAG 재시도 회귀(`llm.tests.test_highlight_retry`)는 앱 의존성이 있는 `deterministic` job의 `free` → `run_attachment_offline.py` 실제 그래프 명령에 포함된다. `highlight_langchain_contract.py --retry`로 동일 케이스에 DeepEval/Ragas exact를 적용하는 A/B도 별도 실행하며 실제 품질 평가는 아니다. 재시도는 전달된 specialist 모델의 실제 tool call 한 개만 허용하고 기존 corpus만 검색한다. `result.status`와 selection artifact `status`는 `block`을 전달한다. LangChain ToolMessage는 success/error만 지원하므로 block은 `status=error`, `additional_kwargs.highlight_status=block`으로 delegate까지 보존한다. `first_failure`, `retry_executed`, `block_reason`, `complete/no_match`로 첫 오류·실행 횟수·최종 미완료와 검증된 부재를 구분한다. 정상 no-match는 재조회하지 않는다.
+
+pipeline 전체 자동 발견은 반환 경계 보완 후 8개이며 기존6개에 unknown actual Qdrant point 및 선택 전 group/hit identity·payload·source/count 거절을 추가한다. retry 전체 자동 발견은 11개이며 실제 compiled terminal block의 이전 카드 제거/history/done, 일반 오류 보존 및 후속 성공 복구를 추가한다. 변경 테스트는 기존 `highlight-deterministic → highlight-free → highlight_langchain_contract.py --pipeline` 및 `deterministic → free → run_attachment_offline.py llm.tests.test_highlight_retry`에 그대로 포함된다. 기존 SDK/image/multimodal 합성 group fixture는 실제 Qdrant의 group.id 및 limit 응답 계약에 맞추며 standalone selection의 unknown skip·unique source 기대값은 보존한다. 기존6개는 분리2·unique source/최대3·실제 Qdrant의 다중 원본/비연속 hint grouping·원본3영상 단일 generation/Duration 소수9자리·hint 밖 시간/신뢰 duration을 확인한다. 이전 구간 top8/겹침 제외/최대5 단언은 사용자 승인 영상 단위 계약으로 대체하며 과거 A/B를 보존한다. 새 A/B는 run-owned HOME/TMP/cache·socket-denied 동일 합성 입력으로 실행하며 원본 corpus·유료 제공자·hosted CI 성공의 근거가 아니다.
+
+## Gemini 동적 순차 검증 (2026-10-14, 최신 계약)
+
+위 3영상 일괄 검증·저장 RAG 재조회 계약은 현재 앱 경로에서 대체됐다. 검색은 고유 원본 최대3개를 한 번 확보하고, 같은 Gemini가 1위부터 단일 영상 판정을 `review_highlight_candidate` 도구로 제출하면서 다음 순위 ID 또는 종료를 선택한다. 후보별 기술 오류 뒤에는 영상 없는 같은 Gemini 호출이 `inspect_highlight_candidate`를 선택할 수 있다. 영상 최대3회·오류 선택 최대2회이며 모델 선택 없는 자동 다음 영상/재검색은 없다. 시작·종료 시각, 출처, 취소·인증/결제/quota 및 원본 이미지 경계를 검사하고, 이전 영상은 다음 미디어 요청에 재전송하지 않는다. `Google.verify/verify_candidates`의 기존 직접 호출 호환 테스트는 남지만 웹·CLI의 `verify_retrieval`은 순차 경로다.
+
+`evaluation-regression.yml:deterministic` → `free` → 기존 `run_attachment_offline.py` 명령이 변경된 `llm.tests.test_highlight_retry` 전체10개와 `llm.tests.test_highlight_langchain_web` 전체9개를 자동 실행한다. 첫 후보 조기종료, 1→2/3 모델 선택, 미선택·잘못된·중복·건너뛴 ID, 오류 회복/미완료/검증된 부재, 시작·종료 시각, 사용량·취소, SDK/Meter/상속 callback 및 SSE·이력 비노출을 검사한다. 테스트 수는 실제 실행 로그로 확인한다. `highlight-deterministic → highlight-free → --pipeline`의 기존8개 검색·원본/신원 경계도 유지한다. 로컬에서는 이 CI 하위 명령을 관련 모듈에만 실행하고 전체 CI 성공이나 실제 Gemini 의미 품질로 보고하지 않는다. DeepEval/Ragas는 격리 환경을 섞지 않고 같은 저장 A/B 관측을 별도 채점할 수 있다.
 
 ## 수동 실행
 
@@ -110,5 +152,7 @@ DEEPEVAL_DISABLE_DOTENV=1 DEEPEVAL_DISABLE_LEGACY_KEYFILE=1 "$HIGHLIGHT_PY" -I .
 "$PY" -I .github/test_evaluation_ci.py
 actionlint -shellcheck= .github/workflows/*.yml
 ```
+
+2026-10-13 최소 이미지 복원: joint/서버 transcript ingestion/min15/resume/병렬/RPM 추가는 철회했고 관련 task-only 테스트는 CI 목록에서 제거했습니다. 이미지·privacy·corpus integrity·evaluator hash 사례는 `test_highlight_images.py -v`로 분리하여 같은 `highlight-deterministic` → `highlight-free`에 명시 연결했습니다. 과거 실행 결과와 runtime corpus/downloads는 이력으로 보존하며 현재 separate 웹 준비 완료의 증거로 사용하지 않습니다.
 
 실제 paid modes는 로컬 검증에서 실행하지 않습니다. 기존 frozen 실제 출력 replay만 network-denied 환경으로 검증했습니다. 제공자/실제 runner/Environment 승인 설정/GitHub에서의 배포 gate 실행은 별도 운영 검증입니다.
