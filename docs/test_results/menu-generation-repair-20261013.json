@@ -1,0 +1,2044 @@
+{
+  "scope": "Local diagnostic executions and deterministic contract A/B; not live quality/latency A/B",
+  "date": "2026-10-13",
+  "base_head": "4437abff5f09ff45fc842b76be1fb44cbcf5674f",
+  "baseline": "Preserved prior cafe changes; restored catalog_conditions and the prior evidence path in an isolated process",
+  "baseline_files_sha256": {
+    "A-catalog.py": "ccad740687e99d380a6d710f4ed6178045246cc5a69538fe3fcb1c06dddfee57",
+    "A-evidence.py": "19f24b0d2f79bbc49ef456759b38ddc67c828717a67be3bd7eebdda164d5985e"
+  },
+  "contract": {
+    "A": {
+      "scope": "Offline meal replacement contracts; fixed evidence, no provider/semantic judge.",
+      "cases_sha256": "e7babaf0ce571e9709df7ca8189541d166aa3bc548e7d6c15816b3eb2d5da691",
+      "results": [
+        {
+          "id": "chinese-semantic-menu",
+          "expected": [
+            "meal"
+          ],
+          "actual": []
+        },
+        {
+          "id": "chinese-quiet-unconfirmed",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "chinese-quiet-confirmed",
+          "expected": [
+            "meal"
+          ],
+          "actual": []
+        },
+        {
+          "id": "chinese-explicit-non-sale",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "chinese-exclusion",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "chinese-internal",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "chinese-strict-menu-proof",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "chinese-policy-0",
+          "expected": [
+            "meal"
+          ],
+          "actual": []
+        },
+        {
+          "id": "chinese-policy-1",
+          "expected": [
+            "meal"
+          ],
+          "actual": []
+        },
+        {
+          "id": "chinese-policy-2",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "chinese-policy-3",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "chinese-policy-4",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "new-route-0",
+          "expected": [
+            "cutlet"
+          ],
+          "actual": []
+        },
+        {
+          "id": "new-route-1",
+          "expected": [
+            "cutlet"
+          ],
+          "actual": []
+        },
+        {
+          "id": "new-route-2",
+          "expected": [
+            "cutlet"
+          ],
+          "actual": []
+        },
+        {
+          "id": "new-route-extra-condition",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "new-route-negative",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "profile-menu-0",
+          "expected": [
+            "meal"
+          ],
+          "actual": []
+        },
+        {
+          "id": "profile-menu-1",
+          "expected": [
+            "meal"
+          ],
+          "actual": []
+        },
+        {
+          "id": "profile-menu-2",
+          "expected": [
+            "meal"
+          ],
+          "actual": []
+        },
+        {
+          "id": "profile-menu-3",
+          "expected": [
+            "meal"
+          ],
+          "actual": []
+        },
+        {
+          "id": "profile-menu-4",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "profile-menu-5",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "profile-menu-6",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "semantic-menu-alias",
+          "expected": [
+            "돈까스"
+          ],
+          "actual": [
+            "돈카츠"
+          ]
+        },
+        {
+          "id": "replace-0",
+          "expected": [
+            "meal"
+          ],
+          "actual": [
+            "meal"
+          ]
+        },
+        {
+          "id": "replace-1",
+          "expected": [
+            "meal"
+          ],
+          "actual": [
+            "meal"
+          ]
+        },
+        {
+          "id": "replace-2",
+          "expected": [
+            "meal"
+          ],
+          "actual": [
+            "meal"
+          ]
+        },
+        {
+          "id": "only-internal-bar",
+          "expected": null,
+          "actual": null
+        },
+        {
+          "id": "parking-preserved",
+          "expected": null,
+          "actual": null
+        },
+        {
+          "id": "two-meals-ambiguous",
+          "expected": null,
+          "actual": null
+        },
+        {
+          "id": "preserve-phrase-selection",
+          "expected": "cutlet",
+          "actual": "cutlet"
+        },
+        {
+          "id": "menu-alias-selection",
+          "expected": "cutlet",
+          "actual": "cutlet"
+        },
+        {
+          "id": "station-not-cutlet",
+          "expected": null,
+          "actual": null
+        },
+        {
+          "id": "steak-protect-internal",
+          "expected": "meal",
+          "actual": "meal"
+        },
+        {
+          "id": "sushi-protect-internal",
+          "expected": "meal",
+          "actual": "meal"
+        },
+        {
+          "id": "meal-protect-bar",
+          "expected": "meal",
+          "actual": "meal"
+        },
+        {
+          "id": "explicit-internal",
+          "expected": "snack",
+          "actual": "snack"
+        },
+        {
+          "id": "explicit-number",
+          "expected": "snack",
+          "actual": "snack"
+        },
+        {
+          "id": "explicit-bar",
+          "expected": "bar",
+          "actual": "bar"
+        },
+        {
+          "id": "no-external-meal",
+          "expected": null,
+          "actual": null
+        },
+        {
+          "id": "ambiguous-external-meals",
+          "expected": null,
+          "actual": null
+        }
+      ],
+      "deep_scores": [
+        0.0,
+        1.0,
+        0.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "B": {
+      "scope": "Offline meal replacement contracts; fixed evidence, no provider/semantic judge.",
+      "cases_sha256": "e7babaf0ce571e9709df7ca8189541d166aa3bc548e7d6c15816b3eb2d5da691",
+      "results": [
+        {
+          "id": "chinese-semantic-menu",
+          "expected": [
+            "meal"
+          ],
+          "actual": [
+            "meal"
+          ]
+        },
+        {
+          "id": "chinese-quiet-unconfirmed",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "chinese-quiet-confirmed",
+          "expected": [
+            "meal"
+          ],
+          "actual": [
+            "meal"
+          ]
+        },
+        {
+          "id": "chinese-explicit-non-sale",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "chinese-exclusion",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "chinese-internal",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "chinese-strict-menu-proof",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "chinese-policy-0",
+          "expected": [
+            "meal"
+          ],
+          "actual": [
+            "meal"
+          ]
+        },
+        {
+          "id": "chinese-policy-1",
+          "expected": [
+            "meal"
+          ],
+          "actual": [
+            "meal"
+          ]
+        },
+        {
+          "id": "chinese-policy-2",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "chinese-policy-3",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "chinese-policy-4",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "new-route-0",
+          "expected": [
+            "cutlet"
+          ],
+          "actual": [
+            "cutlet"
+          ]
+        },
+        {
+          "id": "new-route-1",
+          "expected": [
+            "cutlet"
+          ],
+          "actual": [
+            "cutlet"
+          ]
+        },
+        {
+          "id": "new-route-2",
+          "expected": [
+            "cutlet"
+          ],
+          "actual": [
+            "cutlet"
+          ]
+        },
+        {
+          "id": "new-route-extra-condition",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "new-route-negative",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "profile-menu-0",
+          "expected": [
+            "meal"
+          ],
+          "actual": [
+            "meal"
+          ]
+        },
+        {
+          "id": "profile-menu-1",
+          "expected": [
+            "meal"
+          ],
+          "actual": [
+            "meal"
+          ]
+        },
+        {
+          "id": "profile-menu-2",
+          "expected": [
+            "meal"
+          ],
+          "actual": [
+            "meal"
+          ]
+        },
+        {
+          "id": "profile-menu-3",
+          "expected": [
+            "meal"
+          ],
+          "actual": [
+            "meal"
+          ]
+        },
+        {
+          "id": "profile-menu-4",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "profile-menu-5",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "profile-menu-6",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "semantic-menu-alias",
+          "expected": [
+            "돈까스"
+          ],
+          "actual": [
+            "돈까스"
+          ]
+        },
+        {
+          "id": "replace-0",
+          "expected": [
+            "meal"
+          ],
+          "actual": [
+            "meal"
+          ]
+        },
+        {
+          "id": "replace-1",
+          "expected": [
+            "meal"
+          ],
+          "actual": [
+            "meal"
+          ]
+        },
+        {
+          "id": "replace-2",
+          "expected": [
+            "meal"
+          ],
+          "actual": [
+            "meal"
+          ]
+        },
+        {
+          "id": "only-internal-bar",
+          "expected": null,
+          "actual": null
+        },
+        {
+          "id": "parking-preserved",
+          "expected": null,
+          "actual": null
+        },
+        {
+          "id": "two-meals-ambiguous",
+          "expected": null,
+          "actual": null
+        },
+        {
+          "id": "preserve-phrase-selection",
+          "expected": "cutlet",
+          "actual": "cutlet"
+        },
+        {
+          "id": "menu-alias-selection",
+          "expected": "cutlet",
+          "actual": "cutlet"
+        },
+        {
+          "id": "station-not-cutlet",
+          "expected": null,
+          "actual": null
+        },
+        {
+          "id": "steak-protect-internal",
+          "expected": "meal",
+          "actual": "meal"
+        },
+        {
+          "id": "sushi-protect-internal",
+          "expected": "meal",
+          "actual": "meal"
+        },
+        {
+          "id": "meal-protect-bar",
+          "expected": "meal",
+          "actual": "meal"
+        },
+        {
+          "id": "explicit-internal",
+          "expected": "snack",
+          "actual": "snack"
+        },
+        {
+          "id": "explicit-number",
+          "expected": "snack",
+          "actual": "snack"
+        },
+        {
+          "id": "explicit-bar",
+          "expected": "bar",
+          "actual": "bar"
+        },
+        {
+          "id": "no-external-meal",
+          "expected": null,
+          "actual": null
+        },
+        {
+          "id": "ambiguous-external-meals",
+          "expected": null,
+          "actual": null
+        }
+      ],
+      "deep_scores": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    }
+  },
+  "ragas_scores": {
+    "A": [
+      0.0,
+      1.0,
+      0.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      0.0,
+      0.0,
+      1.0,
+      1.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      1.0,
+      1.0,
+      0.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "B": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  "live": [
+    {
+      "case": "before-tonkatsu",
+      "question": "16일 경기 돈카츠먹고 구장 가고 싶어 코스 추천해줘",
+      "context": {
+        "intent": "route",
+        "stadium": "JAMSIL"
+      },
+      "seconds": 27.017,
+      "places": [],
+      "game": null,
+      "errors": [],
+      "calls": [
+        {
+          "kind": "classifier",
+          "model": "jev-1.13",
+          "seconds": 0.651
+        },
+        {
+          "kind": "chat",
+          "model": "gpt-6-luna",
+          "seconds": 3.899
+        },
+        {
+          "kind": "embedding",
+          "model": "text-embedding-3-small",
+          "seconds": 0.483
+        },
+        {
+          "kind": "chat",
+          "model": "gpt-6-luna",
+          "seconds": 2.459
+        },
+        {
+          "kind": "chat",
+          "model": "gpt-6-luna",
+          "seconds": 4.903
+        },
+        {
+          "kind": "chat",
+          "model": "gpt-6-luna",
+          "seconds": 2.331
+        }
+      ],
+      "call_counts": {
+        "classifier": 1,
+        "chat": 4,
+        "embedding": 1
+      },
+      "stream_completed": true,
+      "menu_web_searches": 0
+    },
+    {
+      "case": "before-jajang",
+      "question": "16일 경기 자장면 먹고 구장 가고 싶어 코스 짜줘",
+      "context": {
+        "intent": "route",
+        "stadium": "JAMSIL"
+      },
+      "seconds": 31.126,
+      "places": [],
+      "game": null,
+      "errors": [],
+      "calls": [
+        {
+          "kind": "classifier",
+          "model": "jev-1.13",
+          "seconds": 0.411
+        },
+        {
+          "kind": "chat",
+          "model": "gpt-6-luna",
+          "seconds": 3.64
+        },
+        {
+          "kind": "embedding",
+          "model": "text-embedding-3-small",
+          "seconds": 0.477
+        },
+        {
+          "kind": "chat",
+          "model": "gpt-6-luna",
+          "seconds": 7.472
+        },
+        {
+          "kind": "chat",
+          "model": "gpt-6-luna",
+          "seconds": 1.682
+        }
+      ],
+      "call_counts": {
+        "classifier": 1,
+        "chat": 3,
+        "embedding": 1
+      },
+      "stream_completed": true,
+      "menu_web_searches": 0
+    },
+    {
+      "case": "after-tonkatsu",
+      "question": "16일 경기 돈카츠먹고 구장 가고 싶어 코스 추천해줘",
+      "context": {
+        "intent": "route",
+        "stadium": "JAMSIL"
+      },
+      "seconds": 12.421,
+      "places": [
+        {
+          "name": "사보텐 신천점",
+          "phase": "BEFORE",
+          "category": "FOOD",
+          "time": "15:26"
+        },
+        {
+          "name": "잠실야구장",
+          "phase": "GAME",
+          "category": "STADIUM",
+          "time": "16:40"
+        }
+      ],
+      "game": {
+        "date": "2026-10-16",
+        "time": "17:00",
+        "isDemo": true
+      },
+      "errors": [],
+      "calls": [
+        {
+          "kind": "classifier",
+          "model": "jev-1.13",
+          "seconds": 0.638
+        },
+        {
+          "kind": "chat",
+          "model": "gpt-6-luna",
+          "seconds": 2.341
+        },
+        {
+          "kind": "embedding",
+          "model": "text-embedding-3-small",
+          "seconds": 0.685
+        }
+      ],
+      "call_counts": {
+        "classifier": 1,
+        "chat": 1,
+        "embedding": 1
+      },
+      "stream_completed": true,
+      "menu_web_searches": 0
+    },
+    {
+      "case": "after-jajang",
+      "question": "16일 경기 자장면 먹고 구장 가고 싶어 코스 짜줘",
+      "context": {
+        "intent": "route",
+        "stadium": "JAMSIL"
+      },
+      "seconds": 18.157,
+      "places": [
+        {
+          "name": "짬뽕지존 잠실새내점",
+          "phase": "BEFORE",
+          "category": "FOOD",
+          "time": "15:21"
+        },
+        {
+          "name": "잠실야구장",
+          "phase": "GAME",
+          "category": "STADIUM",
+          "time": "16:40"
+        }
+      ],
+      "game": {
+        "date": "2026-10-16",
+        "time": "17:00",
+        "isDemo": true
+      },
+      "errors": [],
+      "calls": [
+        {
+          "kind": "classifier",
+          "model": "jev-1.13",
+          "seconds": 0.431
+        },
+        {
+          "kind": "chat",
+          "model": "gpt-6-luna",
+          "seconds": 2.295
+        },
+        {
+          "kind": "embedding",
+          "model": "text-embedding-3-small",
+          "seconds": 0.418
+        }
+      ],
+      "call_counts": {
+        "classifier": 1,
+        "chat": 1,
+        "embedding": 1
+      },
+      "stream_completed": true,
+      "menu_web_searches": 0
+    },
+    {
+      "case": "policy-jajang",
+      "question": "16일 경기 자장면 먹고 구장 가고 싶어 코스 짜줘",
+      "context": {
+        "intent": "route",
+        "stadium": "JAMSIL"
+      },
+      "seconds": 8.995,
+      "places": [
+        {
+          "name": "빈궁",
+          "phase": "BEFORE",
+          "category": "FOOD",
+          "time": "15:26"
+        },
+        {
+          "name": "잠실야구장",
+          "phase": "GAME",
+          "category": "STADIUM",
+          "time": "16:40"
+        }
+      ],
+      "game": {
+        "date": "2026-10-16",
+        "time": "17:00",
+        "isDemo": true
+      },
+      "errors": [],
+      "calls": [
+        {
+          "kind": "classifier",
+          "model": "jev-1.13",
+          "seconds": 0.627
+        },
+        {
+          "kind": "chat",
+          "model": "gpt-6-luna",
+          "seconds": 2.551
+        },
+        {
+          "kind": "embedding",
+          "model": "text-embedding-3-small",
+          "seconds": 0.546
+        }
+      ],
+      "call_counts": {
+        "classifier": 1,
+        "chat": 1,
+        "embedding": 1
+      },
+      "stream_completed": true,
+      "menu_web_searches": 0
+    },
+    {
+      "case": "cold-jjajang",
+      "question": "16일 경기 짜장면 먹고 구장 가고 싶어 코스 짜줘",
+      "context": {
+        "intent": "route",
+        "stadium": "JAMSIL"
+      },
+      "seconds": 10.642,
+      "places": [
+        {
+          "name": "빈궁",
+          "phase": "BEFORE",
+          "category": "FOOD",
+          "time": "15:26"
+        },
+        {
+          "name": "잠실야구장",
+          "phase": "GAME",
+          "category": "STADIUM",
+          "time": "16:40"
+        }
+      ],
+      "game": {
+        "date": "2026-10-16",
+        "time": "17:00",
+        "isDemo": true
+      },
+      "errors": [],
+      "calls": [
+        {
+          "kind": "classifier",
+          "model": "jev-1.13",
+          "seconds": 0.702
+        },
+        {
+          "kind": "chat",
+          "model": "gpt-6-luna",
+          "seconds": 4.816
+        },
+        {
+          "kind": "embedding",
+          "model": "text-embedding-3-small",
+          "seconds": 1.339
+        }
+      ],
+      "call_counts": {
+        "classifier": 1,
+        "chat": 1,
+        "embedding": 1
+      },
+      "stream_completed": true,
+      "menu_web_searches": 0
+    },
+    {
+      "case": "cold-tonkatsu",
+      "question": "16일 경기 돈카츠먹고 구장 가고 싶어 코스 추천해줘",
+      "context": {
+        "intent": "route",
+        "stadium": "JAMSIL"
+      },
+      "seconds": 7.109,
+      "places": [
+        {
+          "name": "사보텐 신천점",
+          "phase": "BEFORE",
+          "category": "FOOD",
+          "time": "15:41"
+        },
+        {
+          "name": "잠실야구장",
+          "phase": "GAME",
+          "category": "STADIUM",
+          "time": "16:40"
+        }
+      ],
+      "game": {
+        "date": "2026-10-16",
+        "time": "17:00",
+        "isDemo": true
+      },
+      "errors": [],
+      "calls": [
+        {
+          "kind": "classifier",
+          "model": "jev-1.13",
+          "seconds": 0.44
+        },
+        {
+          "kind": "chat",
+          "model": "gpt-6-luna",
+          "seconds": 2.717
+        },
+        {
+          "kind": "embedding",
+          "model": "text-embedding-3-small",
+          "seconds": 0.21
+        }
+      ],
+      "call_counts": {
+        "classifier": 1,
+        "chat": 1,
+        "embedding": 1
+      },
+      "stream_completed": true,
+      "menu_web_searches": 0
+    }
+  ],
+  "limits": [
+    "User approved Chinese restaurant policy differs from prior menu-proof policy",
+    "Ordinary executions use normal caches; cold-* bypass dynamic Django cache/evidence read+store/verdict cache but retain static datasets, Qdrant and provider prompt-cache behavior",
+    "Cold route results contain estimated/fallback travel times; not fully verified route API success",
+    "No browser/proxy latency included; not a guaranteed SLA or paired cost comparison"
+  ],
+  "pr_integration": {
+    "code_sha": "4bea4a2",
+    "upstream": "2d1eb00",
+    "personal_remote": "2fb45e4",
+    "deepeval": {
+      "scope": "Offline meal replacement contracts; fixed evidence, no provider/semantic judge.",
+      "cases_sha256": "2787a34aeb8a3fd89f6e5273a1b070a25057775308216c9680cbaa3b3a6106d6",
+      "results": [
+        {
+          "id": "chinese-semantic-menu",
+          "expected": [
+            "meal"
+          ],
+          "actual": [
+            "meal"
+          ]
+        },
+        {
+          "id": "chinese-quiet-unconfirmed",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "chinese-quiet-confirmed",
+          "expected": [
+            "meal"
+          ],
+          "actual": [
+            "meal"
+          ]
+        },
+        {
+          "id": "chinese-explicit-non-sale",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "chinese-exclusion",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "chinese-internal",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "chinese-strict-menu-proof",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "chinese-policy-0",
+          "expected": [
+            "meal"
+          ],
+          "actual": [
+            "meal"
+          ]
+        },
+        {
+          "id": "chinese-policy-1",
+          "expected": [
+            "meal"
+          ],
+          "actual": [
+            "meal"
+          ]
+        },
+        {
+          "id": "chinese-policy-2",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "chinese-policy-3",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "chinese-policy-4",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "new-route-0",
+          "expected": [
+            "cutlet"
+          ],
+          "actual": [
+            "cutlet"
+          ]
+        },
+        {
+          "id": "new-route-1",
+          "expected": [
+            "cutlet"
+          ],
+          "actual": [
+            "cutlet"
+          ]
+        },
+        {
+          "id": "new-route-2",
+          "expected": [
+            "cutlet"
+          ],
+          "actual": [
+            "cutlet"
+          ]
+        },
+        {
+          "id": "new-route-extra-condition",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "new-route-negative",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "profile-menu-0",
+          "expected": [
+            "meal"
+          ],
+          "actual": [
+            "meal"
+          ]
+        },
+        {
+          "id": "profile-menu-1",
+          "expected": [
+            "meal"
+          ],
+          "actual": [
+            "meal"
+          ]
+        },
+        {
+          "id": "profile-menu-2",
+          "expected": [
+            "meal"
+          ],
+          "actual": [
+            "meal"
+          ]
+        },
+        {
+          "id": "profile-menu-3",
+          "expected": [
+            "meal"
+          ],
+          "actual": [
+            "meal"
+          ]
+        },
+        {
+          "id": "profile-menu-4",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "profile-menu-5",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "profile-menu-6",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "semantic-menu-alias",
+          "expected": [
+            "돈까스"
+          ],
+          "actual": [
+            "돈까스"
+          ]
+        },
+        {
+          "id": "replace-0",
+          "expected": [
+            "meal"
+          ],
+          "actual": [
+            "meal"
+          ]
+        },
+        {
+          "id": "replace-1",
+          "expected": [
+            "meal"
+          ],
+          "actual": [
+            "meal"
+          ]
+        },
+        {
+          "id": "replace-2",
+          "expected": [
+            "meal"
+          ],
+          "actual": [
+            "meal"
+          ]
+        },
+        {
+          "id": "only-internal-bar",
+          "expected": null,
+          "actual": null
+        },
+        {
+          "id": "parking-preserved",
+          "expected": null,
+          "actual": null
+        },
+        {
+          "id": "two-meals-ambiguous",
+          "expected": null,
+          "actual": null
+        },
+        {
+          "id": "preserve-phrase-selection",
+          "expected": "cutlet",
+          "actual": "cutlet"
+        },
+        {
+          "id": "menu-alias-selection",
+          "expected": "cutlet",
+          "actual": "cutlet"
+        },
+        {
+          "id": "station-not-cutlet",
+          "expected": null,
+          "actual": null
+        },
+        {
+          "id": "steak-protect-internal",
+          "expected": "meal",
+          "actual": "meal"
+        },
+        {
+          "id": "sushi-protect-internal",
+          "expected": "meal",
+          "actual": "meal"
+        },
+        {
+          "id": "meal-protect-bar",
+          "expected": "meal",
+          "actual": "meal"
+        },
+        {
+          "id": "explicit-internal",
+          "expected": "snack",
+          "actual": "snack"
+        },
+        {
+          "id": "explicit-number",
+          "expected": "snack",
+          "actual": "snack"
+        },
+        {
+          "id": "explicit-bar",
+          "expected": "bar",
+          "actual": "bar"
+        },
+        {
+          "id": "preserve-bar-role",
+          "expected": "meal",
+          "actual": "meal"
+        },
+        {
+          "id": "preserve-number-name",
+          "expected": "meal",
+          "actual": "meal"
+        },
+        {
+          "id": "explicit-bar-name",
+          "expected": "bar",
+          "actual": "bar"
+        },
+        {
+          "id": "bar-clarification-role",
+          "expected": "술집은 유지했어요",
+          "actual": "술집은 유지했어요"
+        },
+        {
+          "id": "cafe-clarification-role",
+          "expected": "구장 내부 카페는 유지했어요",
+          "actual": "구장 내부 카페는 유지했어요"
+        },
+        {
+          "id": "bar-brand-mixed",
+          "expected": {
+            "ids": [
+              "9101"
+            ],
+            "reads": 1
+          },
+          "actual": {
+            "ids": [
+              "9101"
+            ],
+            "reads": 1
+          }
+        },
+        {
+          "id": "food-brand-mixed-no-io",
+          "expected": {
+            "ids": [
+              "9102"
+            ],
+            "reads": 0
+          },
+          "actual": {
+            "ids": [
+              "9102"
+            ],
+            "reads": 0
+          }
+        },
+        {
+          "id": "bar-jibun-only",
+          "expected": {
+            "ids": [
+              "9101"
+            ],
+            "reads": 1
+          },
+          "actual": {
+            "ids": [
+              "9101"
+            ],
+            "reads": 1
+          }
+        },
+        {
+          "id": "bar-other-branch",
+          "expected": {
+            "ids": [],
+            "reads": 1
+          },
+          "actual": {
+            "ids": [],
+            "reads": 1
+          }
+        },
+        {
+          "id": "no-external-meal",
+          "expected": null,
+          "actual": null
+        },
+        {
+          "id": "ambiguous-external-meals",
+          "expected": null,
+          "actual": null
+        }
+      ],
+      "deep_scores": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "ragas": {
+      "scope": "Offline meal replacement contracts; fixed evidence, no provider/semantic judge.",
+      "cases_sha256": "2787a34aeb8a3fd89f6e5273a1b070a25057775308216c9680cbaa3b3a6106d6",
+      "results": [
+        {
+          "id": "chinese-semantic-menu",
+          "expected": [
+            "meal"
+          ],
+          "actual": [
+            "meal"
+          ]
+        },
+        {
+          "id": "chinese-quiet-unconfirmed",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "chinese-quiet-confirmed",
+          "expected": [
+            "meal"
+          ],
+          "actual": [
+            "meal"
+          ]
+        },
+        {
+          "id": "chinese-explicit-non-sale",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "chinese-exclusion",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "chinese-internal",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "chinese-strict-menu-proof",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "chinese-policy-0",
+          "expected": [
+            "meal"
+          ],
+          "actual": [
+            "meal"
+          ]
+        },
+        {
+          "id": "chinese-policy-1",
+          "expected": [
+            "meal"
+          ],
+          "actual": [
+            "meal"
+          ]
+        },
+        {
+          "id": "chinese-policy-2",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "chinese-policy-3",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "chinese-policy-4",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "new-route-0",
+          "expected": [
+            "cutlet"
+          ],
+          "actual": [
+            "cutlet"
+          ]
+        },
+        {
+          "id": "new-route-1",
+          "expected": [
+            "cutlet"
+          ],
+          "actual": [
+            "cutlet"
+          ]
+        },
+        {
+          "id": "new-route-2",
+          "expected": [
+            "cutlet"
+          ],
+          "actual": [
+            "cutlet"
+          ]
+        },
+        {
+          "id": "new-route-extra-condition",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "new-route-negative",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "profile-menu-0",
+          "expected": [
+            "meal"
+          ],
+          "actual": [
+            "meal"
+          ]
+        },
+        {
+          "id": "profile-menu-1",
+          "expected": [
+            "meal"
+          ],
+          "actual": [
+            "meal"
+          ]
+        },
+        {
+          "id": "profile-menu-2",
+          "expected": [
+            "meal"
+          ],
+          "actual": [
+            "meal"
+          ]
+        },
+        {
+          "id": "profile-menu-3",
+          "expected": [
+            "meal"
+          ],
+          "actual": [
+            "meal"
+          ]
+        },
+        {
+          "id": "profile-menu-4",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "profile-menu-5",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "profile-menu-6",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "id": "semantic-menu-alias",
+          "expected": [
+            "돈까스"
+          ],
+          "actual": [
+            "돈까스"
+          ]
+        },
+        {
+          "id": "replace-0",
+          "expected": [
+            "meal"
+          ],
+          "actual": [
+            "meal"
+          ]
+        },
+        {
+          "id": "replace-1",
+          "expected": [
+            "meal"
+          ],
+          "actual": [
+            "meal"
+          ]
+        },
+        {
+          "id": "replace-2",
+          "expected": [
+            "meal"
+          ],
+          "actual": [
+            "meal"
+          ]
+        },
+        {
+          "id": "only-internal-bar",
+          "expected": null,
+          "actual": null
+        },
+        {
+          "id": "parking-preserved",
+          "expected": null,
+          "actual": null
+        },
+        {
+          "id": "two-meals-ambiguous",
+          "expected": null,
+          "actual": null
+        },
+        {
+          "id": "preserve-phrase-selection",
+          "expected": "cutlet",
+          "actual": "cutlet"
+        },
+        {
+          "id": "menu-alias-selection",
+          "expected": "cutlet",
+          "actual": "cutlet"
+        },
+        {
+          "id": "station-not-cutlet",
+          "expected": null,
+          "actual": null
+        },
+        {
+          "id": "steak-protect-internal",
+          "expected": "meal",
+          "actual": "meal"
+        },
+        {
+          "id": "sushi-protect-internal",
+          "expected": "meal",
+          "actual": "meal"
+        },
+        {
+          "id": "meal-protect-bar",
+          "expected": "meal",
+          "actual": "meal"
+        },
+        {
+          "id": "explicit-internal",
+          "expected": "snack",
+          "actual": "snack"
+        },
+        {
+          "id": "explicit-number",
+          "expected": "snack",
+          "actual": "snack"
+        },
+        {
+          "id": "explicit-bar",
+          "expected": "bar",
+          "actual": "bar"
+        },
+        {
+          "id": "preserve-bar-role",
+          "expected": "meal",
+          "actual": "meal"
+        },
+        {
+          "id": "preserve-number-name",
+          "expected": "meal",
+          "actual": "meal"
+        },
+        {
+          "id": "explicit-bar-name",
+          "expected": "bar",
+          "actual": "bar"
+        },
+        {
+          "id": "bar-clarification-role",
+          "expected": "술집은 유지했어요",
+          "actual": "술집은 유지했어요"
+        },
+        {
+          "id": "cafe-clarification-role",
+          "expected": "구장 내부 카페는 유지했어요",
+          "actual": "구장 내부 카페는 유지했어요"
+        },
+        {
+          "id": "bar-brand-mixed",
+          "expected": {
+            "ids": [
+              "9101"
+            ],
+            "reads": 1
+          },
+          "actual": {
+            "ids": [
+              "9101"
+            ],
+            "reads": 1
+          }
+        },
+        {
+          "id": "food-brand-mixed-no-io",
+          "expected": {
+            "ids": [
+              "9102"
+            ],
+            "reads": 0
+          },
+          "actual": {
+            "ids": [
+              "9102"
+            ],
+            "reads": 0
+          }
+        },
+        {
+          "id": "bar-jibun-only",
+          "expected": {
+            "ids": [
+              "9101"
+            ],
+            "reads": 1
+          },
+          "actual": {
+            "ids": [
+              "9101"
+            ],
+            "reads": 1
+          }
+        },
+        {
+          "id": "bar-other-branch",
+          "expected": {
+            "ids": [],
+            "reads": 1
+          },
+          "actual": {
+            "ids": [],
+            "reads": 1
+          }
+        },
+        {
+          "id": "no-external-meal",
+          "expected": null,
+          "actual": null
+        },
+        {
+          "id": "ambiguous-external-meals",
+          "expected": null,
+          "actual": null
+        }
+      ],
+      "deep_scores": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "ragas_scores": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "regression_counts": {
+      "ci_modules": 96,
+      "evidence_db": 35,
+      "wiring": 11,
+      "extended": 243
+    },
+    "live": [
+      {
+        "case": "pr-cold-jjajang",
+        "input": "16일 경기 짜장면 먹고 구장 가고 싶어 코스 짜줘",
+        "context": {
+          "intent": "route",
+          "stadium": "JAMSIL"
+        },
+        "seconds": 9.442,
+        "game": {
+          "date": "2026-10-16",
+          "time": "17:00",
+          "isDemo": true
+        },
+        "places": [
+          {
+            "name": "빈궁",
+            "phase": "BEFORE",
+            "category": "FOOD",
+            "time": "15:41"
+          },
+          {
+            "name": "잠실야구장",
+            "phase": "GAME",
+            "category": "STADIUM",
+            "time": "16:40"
+          }
+        ],
+        "call_counts": {
+          "classifier": 1,
+          "chat": 1,
+          "embedding": 1
+        },
+        "errors": []
+      },
+      {
+        "case": "pr-cold-tonkatsu",
+        "input": "16일 경기 돈카츠먹고 구장 가고 싶어 코스 추천해줘",
+        "context": {
+          "intent": "route",
+          "stadium": "JAMSIL"
+        },
+        "seconds": 8.522,
+        "game": {
+          "date": "2026-10-16",
+          "time": "17:00",
+          "isDemo": true
+        },
+        "places": [
+          {
+            "name": "사보텐 신천점",
+            "phase": "BEFORE",
+            "category": "FOOD",
+            "time": "15:41"
+          },
+          {
+            "name": "잠실야구장",
+            "phase": "GAME",
+            "category": "STADIUM",
+            "time": "16:40"
+          }
+        ],
+        "call_counts": {
+          "classifier": 1,
+          "chat": 1,
+          "embedding": 1
+        },
+        "errors": []
+      }
+    ]
+  }
+}

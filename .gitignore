@@ -264,6 +264,9 @@ data/raw/rules/*.pdf
 
 # Local verification artifacts (keep test code and golden datasets tracked)
 /docs/test_results/*-20??????.*
+!/docs/test_results/menu-generation-repair-20261013.md
+!/docs/test_results/menu-generation-repair-20261013.json
+!/docs/test_results/pr96-v2-preservation-20261014.md
 **/.deepeval/
 **/playwright-report/
 **/test-results/
