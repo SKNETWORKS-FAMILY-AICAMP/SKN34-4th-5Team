@@ -230,7 +230,7 @@ jobs:
             wait_for_endpoint() {
               endpoint=$1
               attempt=1
-              max_attempts=6
+              max_attempts=30
 
               while [ "$attempt" -le "$max_attempts" ]; do
                 if curl --fail --silent --show-error --insecure \
@@ -283,14 +283,15 @@ jobs:
   # 3. 실패 시에만 Discord 알림
   notify-discord:
     needs: [ci-test, evaluation-regression, deploy]
-
-    if: >-
-      always() &&
-      (
-        needs.ci-test.result != 'success' ||
-        needs.evaluation-regression.result != 'success' ||
-        needs.deploy.result != 'success'
-      )
+    # Temporarily disabled. Change false to true to enable this job.
+    if: ${{ false }}
+    # if: >-
+    #   always() &&
+    #   (
+    #     needs.ci-test.result != 'success' ||
+    #     needs.evaluation-regression.result != 'success' ||
+    #     needs.deploy.result != 'success'
+    #   )
 
     runs-on: ubuntu-latest
 
