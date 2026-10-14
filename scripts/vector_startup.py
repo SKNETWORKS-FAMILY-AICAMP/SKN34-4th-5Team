@@ -1,5 +1,4 @@
 """One-shot, no-destroy DVC vector preparation. No app/provider dependencies."""
-import configparser
 from contextlib import closing
 import fcntl
 import importlib.util
@@ -174,62 +173,35 @@ def prepare(artifacts, runtime, db, name, model):
     return {'documents': documents, 'highlights': highlights}
 
 
-def drive_remote(path):
-    config = configparser.ConfigParser(interpolation=None)
-    config.read(path)
-    selected = 'remote "highlight-drive"'
-    section = next(section for section in config.sections()
-                   if section.removeprefix("'").removesuffix("'") == selected)
-    remote = dict(config[section])
-    if not re.fullmatch(r'gdrive://[a-zA-Z0-9_-]+(?:/[a-zA-Z0-9_-]+)*', remote.get('url', '')):
-        raise ValueError('Only selected private Drive remote is supported')
-    if set(remote) - {'url', 'gdrive_client_id', 'gdrive_client_secret', 'gdrive_user_credentials_file'}:
-        raise ValueError('Unsupported Drive configuration')
-    return remote
+DRIVE_URL = 'https://drive.google.com/drive/folders/1PYIWVi_85-FW_Jsjz413IoAcDNxOvQqR'
+
+
+def drive_folder(value):
+    match = re.fullmatch(r'(?:https://drive\.google\.com/drive/folders/)?([a-zA-Z0-9_-]+)', value)
+    if not match:
+        raise ValueError('Only a Google Drive folder URL or ID is supported')
+    return match[1]
 
 
 def pull(work):
-    """Child process, bounded by parent. Keep selected remote/auth only in memory."""
+    """Child process, bounded by parent; DVC owns cache checking and restoration."""
     from dvc.repo import Repo
-    from pydrive2.auth import GoogleAuth
-    import httplib2
+    from dvc.exceptions import CheckoutError, DownloadError
+    import gdown
 
-    remote = drive_remote('/run/secrets/dvc_config')
-    credentials = json.loads(Path('/run/secrets/drive_user').read_text())
-    if not credentials.get('refresh_token') or credentials.get('token_uri') not in (
-            'https://oauth2.googleapis.com/token', 'https://accounts.google.com/o/oauth2/token'):
-        raise ValueError('Provisioned Google refresh credentials required')
-
-    def noninteractive(auth, *args, **kwargs):
-        auth.LoadCredentials()
-        if auth.credentials is None:
-            raise ValueError('Missing stored Drive credentials')
-        if auth.access_token_expired:
-            auth.Refresh()
-        auth.Authorize()
-
-    GoogleAuth.LocalWebserverAuth = noninteractive
-    GoogleAuth.CommandLineAuth = noninteractive
-    original_request = httplib2.Http.request
-
-    def google_request(http, uri, *args, **kwargs):
-        parsed = urllib.parse.urlsplit(uri)
-        if parsed.scheme != 'https' or parsed.hostname not in ('oauth2.googleapis.com', 'accounts.google.com', 'www.googleapis.com'):
-            raise ValueError('Untrusted Drive request destination')
-        http.follow_redirects = False
-        kwargs['redirections'] = 0
-        return original_request(http, uri, *args, **kwargs)
-
-    httplib2.Http.request = google_request
-    with tempfile.TemporaryDirectory(prefix='vector-auth-') as temp:
-        token = Path(temp) / 'drive-user.json'
-        token.write_text(json.dumps(credentials))
-        token.chmod(0o600)
-        remote['gdrive_user_credentials_file'] = str(token)
+    folder = drive_folder(os.environ.get('VECTOR_GDRIVE_URL', DRIVE_URL))
+    work = work.resolve()
+    targets = [str(work / 'data/artifacts' / (name + '.dvc')) for name in ARTIFACTS]
+    with tempfile.TemporaryDirectory(prefix='vector-download-') as temp:
         with Repo(str(work), config={'core': {'no_scm': True, 'analytics': False}, 'cache': {'type': 'copy'},
-                                      'remote': {'highlight-drive': remote}}) as repo:
-            repo.pull(targets=[str(work.resolve() / 'data/artifacts' / (name + '.dvc')) for name in ARTIFACTS],
-                      remote='highlight-drive')
+                                      'remote': {'highlight-public': {'url': temp}}}) as repo:
+            try:
+                # Empty local remote: a complete persistent cache needs no Drive access.
+                repo.pull(targets=targets, remote='highlight-public')
+            except (DownloadError, CheckoutError):
+                # No trailing slash: gdown must preserve the remote's files/md5 layout.
+                gdown.download_folder(id=folder, output=temp, quiet=True, use_cookies=False, timeout=(30, 120))
+                repo.pull(targets=targets, remote='highlight-public')
 
 
 def run():
@@ -265,9 +237,13 @@ def run():
             pointers.mkdir(parents=True, exist_ok=True)
             for name in ARTIFACTS:
                 shutil.copyfile(Path('/opt/vector-startup/pointers') / (name + '.dvc'), pointers / (name + '.dvc'))
-            subprocess.run([sys.executable, '-I', __file__, '--pull', str(work)], check=True,
-                           stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                           timeout=3600, env={'PATH': os.environ['PATH'], 'HOME': '/tmp', 'DVC_NO_ANALYTICS': '1'})
+            # Parent owns the transport root, including cleanup if the child times out.
+            with tempfile.TemporaryDirectory(prefix='vector-transport-') as transport:
+                subprocess.run([sys.executable, '-I', __file__, '--pull', str(work)], check=True,
+                               stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                               timeout=3600, env={'PATH': os.environ['PATH'], 'HOME': '/tmp', 'DVC_NO_ANALYTICS': '1',
+                                                 'TMPDIR': transport,
+                                                 'VECTOR_GDRIVE_URL': os.environ.get('VECTOR_GDRIVE_URL', DRIVE_URL)})
             print(json.dumps(prepare(pointers, runtime, Qdrant(os.environ['QDRANT_URL'], os.environ['QDRANT_API_KEY']),
                                      os.environ['QDRANT_DOCUMENT_COLLECTION'], os.environ['EMBEDDING_MODEL'])))
 
@@ -276,6 +252,6 @@ if __name__ == '__main__':
     try:
         run()
     except Exception:
-        # Third-party auth/HTTP exceptions can contain secrets: never print their bodies.
-        print('Vector startup failed: pull/auth/integrity/target readiness; inspect private operator configuration', file=sys.stderr)
+        # Third-party HTTP exceptions can contain secrets: never print their bodies.
+        print('Vector startup failed: download/cache/integrity/target readiness; inspect operator configuration', file=sys.stderr)
         sys.exit(1)

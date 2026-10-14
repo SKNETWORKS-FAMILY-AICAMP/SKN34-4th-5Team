@@ -180,31 +180,105 @@ class StartupTests(unittest.TestCase):
             self.assertIsNone(db.request('GET', '/collections/test', missing=True))
         self.assertIsNone(startup.NoRedirect().redirect_request(None, None, None, None, None, None))
 
-    def test_dvc_quoted_remote_sections_and_destination_boundary(self):
-        config = self.root / 'dvc-config'
-        for section in ('remote "highlight-drive"', '\'remote "highlight-drive"\''):
-            config.write_text('[' + section + ']\nurl = gdrive://private_folder\ngdrive_client_id = fake-client\n')
-            self.assertEqual(startup.drive_remote(config)['url'], 'gdrive://private_folder')
-        config.write_text('[\'remote "highlight-drive"\']\nurl = https://untrusted.invalid\n')
-        with self.assertRaises(ValueError):
-            startup.drive_remote(config)
-        config.write_text('[\'remote "highlight-drive"\']\nurl = gdrive://private_folder\nendpointurl = https://untrusted.invalid\n')
-        with self.assertRaises(ValueError):
-            startup.drive_remote(config)
+    def test_drive_folder_destination_boundary(self):
+        self.assertEqual(startup.drive_folder(startup.DRIVE_URL), '1PYIWVi_85-FW_Jsjz413IoAcDNxOvQqR')
+        self.assertEqual(startup.drive_folder('folder_id-123'), 'folder_id-123')
+        for value in ('', 'gdrive://folder', 'https://untrusted.invalid/folder',
+                      'http://drive.google.com/drive/folders/id',
+                      'https://user@drive.google.com/drive/folders/id',
+                      startup.DRIVE_URL + '?token=secret', startup.DRIVE_URL + '/child',
+                      'https://drive.google.com/file/d/id', '../escape'):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                startup.drive_folder(value)
 
-    def test_pull_targets_are_bound_to_work_not_process_cwd(self):
-        repo = MagicMock()
-        modules = {'dvc.repo': SimpleNamespace(Repo=repo),
-                   'pydrive2.auth': SimpleNamespace(GoogleAuth=MagicMock()),
-                   'httplib2': SimpleNamespace(Http=MagicMock())}
-        credentials = {'refresh_token': 'fake-token', 'token_uri': 'https://oauth2.googleapis.com/token'}
-        with patch.dict(sys.modules, modules), \
-                patch.object(startup, 'drive_remote', return_value={'url': 'gdrive://private_folder'}), \
-                patch.object(Path, 'read_text', return_value=json.dumps(credentials)):
-            startup.pull(self.root / 'work')
-        repo.return_value.__enter__.return_value.pull.assert_called_once_with(
-            targets=[str(self.root.resolve() / 'work/data/artifacts' / (name + '.dvc'))
-                     for name in startup.ARTIFACTS], remote='highlight-drive')
+    def test_public_pull_wiring_cleanup_failures_and_cache_reuse(self):
+        class DownloadError(Exception):
+            pass
+
+        class CheckoutError(Exception):
+            pass
+
+        for outcome in ('download', 'checkout', 'reuse', 'inaccessible', 'missing', 'corrupt'):
+            with self.subTest(outcome=outcome):
+                repo, download = MagicMock(), MagicMock()
+                client = repo.return_value.__enter__.return_value
+                client.pull.side_effect = ([None] if outcome == 'reuse' else
+                                           [DownloadError(), ValueError('invalid cache')] if outcome == 'corrupt' else
+                                           [DownloadError(), DownloadError()] if outcome == 'missing' else
+                                           [CheckoutError() if outcome == 'checkout' else DownloadError(), None])
+                seen = []
+
+                def fetch(**kwargs):
+                    root = Path(kwargs['output'])
+                    self.assertTrue(root.is_dir())
+                    self.assertFalse(kwargs['output'].endswith('/'))
+                    shard = root / 'files/md5/ab'
+                    shard.mkdir(parents=True)
+                    (shard / 'tiny-object').write_bytes(b'explicit transport fixture')
+                    seen.append(root)
+                    if outcome == 'inaccessible':
+                        raise OSError('private source')
+                    return [str(shard / 'tiny-object')]
+
+                download.side_effect = fetch
+                modules = {'dvc.repo': SimpleNamespace(Repo=repo),
+                           'dvc.exceptions': SimpleNamespace(DownloadError=DownloadError, CheckoutError=CheckoutError),
+                           'gdown': SimpleNamespace(download_folder=download)}
+                with patch.dict(sys.modules, modules), \
+                        patch.dict(startup.os.environ, {'VECTOR_GDRIVE_URL': 'approved_folder'}), \
+                        patch.object(Path, 'read_text', side_effect=AssertionError('No auth file reads')):
+                    if outcome in ('inaccessible', 'missing', 'corrupt'):
+                        with self.assertRaises((OSError, DownloadError, ValueError)):
+                            startup.pull(self.root / 'work')
+                    else:
+                        startup.pull(self.root / 'work')
+                config = repo.call_args.kwargs['config']
+                temp = config['remote']['highlight-public']['url']
+                self.assertFalse(Path(temp).exists())
+                self.assertEqual(config['remote'], {'highlight-public': {'url': temp}})
+                self.assertEqual(config['cache'], {'type': 'copy'})
+                expected = {'targets': [str(self.root.resolve() / 'work/data/artifacts' / (name + '.dvc'))
+                                        for name in startup.ARTIFACTS], 'remote': 'highlight-public'}
+                for call in client.pull.call_args_list:
+                    self.assertEqual(call.kwargs, expected)
+                if outcome == 'reuse':
+                    download.assert_not_called()
+                    self.assertEqual(client.pull.call_count, 1)
+                else:
+                    download.assert_called_once_with(id='approved_folder', output=temp, quiet=True,
+                                                     use_cookies=False, timeout=(30, 120))
+                    self.assertEqual(seen, [Path(temp)])
+                    self.assertEqual(client.pull.call_count, 1 if outcome == 'inaccessible' else 2)
+
+    def test_child_timeout_cleans_transport_and_preserves_cache(self):
+        cache = self.root / 'cache'
+        cache.mkdir()
+        (cache / 'startup-owner.json').write_text('{"version": 1}')
+        (cache / 'work/.dvc').mkdir(parents=True)
+        transports = []
+
+        def timeout(command, **kwargs):
+            transport = Path(kwargs['env']['TMPDIR'])
+            (transport / 'partial').write_bytes(b'partial download')
+            transports.append(transport)
+            self.assertEqual(kwargs['timeout'], 3600)
+            self.assertEqual(kwargs['env']['VECTOR_GDRIVE_URL'], 'approved_folder')
+            self.assertNotIn('QDRANT_API_KEY', kwargs['env'])
+            raise subprocess.TimeoutExpired(command, kwargs['timeout'])
+
+        with patch.object(startup.corpus, 'safe_root', side_effect=[cache, self.runtime]), \
+                patch.object(startup.shutil, 'copyfile'), \
+                patch.object(startup.subprocess, 'run', side_effect=timeout), \
+                patch.object(startup, 'prepare') as prepare, \
+                patch.object(startup.sys, 'argv', ['vector_startup.py']), \
+                patch.dict(startup.os.environ, {'VECTOR_GDRIVE_URL': 'approved_folder'}):
+            with self.assertRaises(subprocess.TimeoutExpired):
+                startup.run()
+        self.assertEqual(len(transports), 1)
+        self.assertFalse(transports[0].exists())
+        self.assertTrue((cache / 'work/.dvc').is_dir())
+        self.assertTrue(self.runtime.is_dir())
+        prepare.assert_not_called()
 
     def test_cli_failure_secret_safe(self):
         result = subprocess.run([sys.executable, '-I', str(ROOT / 'scripts/vector_startup.py'), '--pull', '/missing'],
@@ -220,15 +294,15 @@ class StartupTests(unittest.TestCase):
         overlay = (ROOT / 'docker-compose.override.yml').read_text()
         self.assertIn('condition: service_completed_successfully', overlay)
         self.assertIn('HIGHLIGHT_MULTIMODAL_CORPUS: /vector-runtime/highlight-corpus', overlay)
-        self.assertIn('    file: ./.dvc/config.local', overlay)
-        self.assertIn('    file: ./.secrets/drive-user.json', overlay)
+        self.assertNotIn('dvc_config', overlay)
+        self.assertNotIn('drive_user', overlay)
+        self.assertIn('VECTOR_GDRIVE_URL: ${VECTOR_GDRIVE_URL:-' + startup.DRIVE_URL + '}', overlay)
         example = (ROOT / '.env.example').read_text()
         for name in ('VECTOR_DVC_CONFIG', 'VECTOR_DRIVE_USER'):
             self.assertNotIn(name, overlay)
             self.assertNotIn(name, example)
-        init, backend = overlay.split('  backend:', 1)
-        self.assertIn('    secrets:\n      - dvc_config\n      - drive_user', init)
-        self.assertNotIn('    secrets:', backend.split('\nsecrets:', 1)[0])
+        self.assertIn('VECTOR_GDRIVE_URL=' + startup.DRIVE_URL, example)
+        self.assertNotIn('secrets:', overlay)
         self.assertIn('.secrets/', (ROOT / '.gitignore').read_text().splitlines())
         dockerignore = (ROOT / '.dockerignore').read_text().splitlines()
         for path in ('.secrets/', '.dvc/config.local', '.env'):
@@ -248,6 +322,9 @@ class StartupTests(unittest.TestCase):
         dockerfile = (ROOT / 'docker/vector-startup.Dockerfile').read_text()
         self.assertNotIn('ARG ', dockerfile)
         self.assertNotIn('COPY . ', dockerfile)
+        self.assertIn('dvc==3.67.1 gdown==6.4.2', dockerfile)
+        self.assertNotIn('dvc[gdrive]', dockerfile)
+        self.assertNotIn('requirements-data.txt', dockerfile)
         self.assertIn('!data/artifacts/document-vectors.dvc', (ROOT / 'docker/vector-startup.Dockerfile.dockerignore').read_text())
 
 

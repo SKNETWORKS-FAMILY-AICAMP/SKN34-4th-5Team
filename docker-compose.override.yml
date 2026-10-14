@@ -14,9 +14,7 @@ services:
       QDRANT_API_KEY: ${QDRANT_API_KEY:?Set QDRANT_API_KEY}
       QDRANT_DOCUMENT_COLLECTION: ${QDRANT_DOCUMENT_COLLECTION:-kbo_documents_openai}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
-    secrets:
-      - dvc_config
-      - drive_user
+      VECTOR_GDRIVE_URL: ${VECTOR_GDRIVE_URL:-https://drive.google.com/drive/folders/1PYIWVi_85-FW_Jsjz413IoAcDNxOvQqR}
     volumes:
       - vector_cache:/vector-cache
       - vector_runtime:/vector-runtime
@@ -28,12 +26,6 @@ services:
       HIGHLIGHT_MULTIMODAL_CORPUS: /vector-runtime/highlight-corpus
     volumes:
       - vector_runtime:/vector-runtime
-
-secrets:
-  dvc_config:
-    file: ./.dvc/config.local
-  drive_user:
-    file: ./.secrets/drive-user.json
 
 volumes:
   vector_cache:
