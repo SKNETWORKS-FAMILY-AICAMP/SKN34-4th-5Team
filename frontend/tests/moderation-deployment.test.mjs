@@ -17,7 +17,7 @@ test('development and production deploy explicitly start the moderation worker w
     assert.ok(commands.includes(`| gzip -1 > "$RUNNER_TEMP/${archive}"`));
     assert.ok(commands.includes(`"$EC2_USER@$EC2_HOST:${archive}"`));
     assert.match(commands, new RegExp(`docker load -i (?:"\\$HOME/|~/)${archive.replaceAll('.', '\\.')}"?`));
-    assert.match(workflow, /max_attempts=6/);
+    assert.match(workflow, /max_attempts=30/);
     assert.match(workflow, /--connect-timeout 2 --max-time 10/);
   }
 });
