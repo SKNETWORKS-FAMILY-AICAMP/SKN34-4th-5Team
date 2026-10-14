@@ -179,6 +179,18 @@ class StartupTests(unittest.TestCase):
             self.assertIsNone(db.request('GET', '/collections/test', missing=True))
         self.assertIsNone(startup.NoRedirect().redirect_request(None, None, None, None, None, None))
 
+    def test_dvc_quoted_remote_sections_and_destination_boundary(self):
+        config = self.root / 'dvc-config'
+        for section in ('remote "highlight-drive"', '\'remote "highlight-drive"\''):
+            config.write_text('[' + section + ']\nurl = gdrive://private_folder\ngdrive_client_id = fake-client\n')
+            self.assertEqual(startup.drive_remote(config)['url'], 'gdrive://private_folder')
+        config.write_text('[\'remote "highlight-drive"\']\nurl = https://untrusted.invalid\n')
+        with self.assertRaises(ValueError):
+            startup.drive_remote(config)
+        config.write_text('[\'remote "highlight-drive"\']\nurl = gdrive://private_folder\nendpointurl = https://untrusted.invalid\n')
+        with self.assertRaises(ValueError):
+            startup.drive_remote(config)
+
     def test_cli_failure_secret_safe(self):
         result = subprocess.run([sys.executable, '-I', str(ROOT / 'scripts/vector_startup.py'), '--pull', '/missing'],
                                 capture_output=True, text=True)

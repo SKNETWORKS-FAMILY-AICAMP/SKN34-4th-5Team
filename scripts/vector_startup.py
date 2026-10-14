@@ -174,21 +174,27 @@ def prepare(artifacts, runtime, db, name, model):
     return {'documents': documents, 'highlights': highlights}
 
 
+def drive_remote(path):
+    config = configparser.ConfigParser(interpolation=None)
+    config.read(path)
+    selected = 'remote "highlight-drive"'
+    section = next(section for section in config.sections()
+                   if section.removeprefix("'").removesuffix("'") == selected)
+    remote = dict(config[section])
+    if not re.fullmatch(r'gdrive://[a-zA-Z0-9_-]+(?:/[a-zA-Z0-9_-]+)*', remote.get('url', '')):
+        raise ValueError('Only selected private Drive remote is supported')
+    if set(remote) - {'url', 'gdrive_client_id', 'gdrive_client_secret', 'gdrive_user_credentials_file'}:
+        raise ValueError('Unsupported Drive configuration')
+    return remote
+
+
 def pull(work):
     """Child process, bounded by parent. Keep selected remote/auth only in memory."""
     from dvc.repo import Repo
     from pydrive2.auth import GoogleAuth
     import httplib2
 
-    config = configparser.ConfigParser(interpolation=None)
-    config.read('/run/secrets/dvc_config')
-    selected = 'remote "highlight-drive"'
-    section = next(section for section in config.sections() if section.strip("'\"") == selected)
-    remote = dict(config[section])
-    if not re.fullmatch(r'gdrive://[a-zA-Z0-9_-]+(?:/[a-zA-Z0-9_-]+)*', remote.get('url', '')):
-        raise ValueError('Only selected private Drive remote is supported')
-    if set(remote) - {'url', 'gdrive_client_id', 'gdrive_client_secret', 'gdrive_user_credentials_file'}:
-        raise ValueError('Unsupported Drive configuration')
+    remote = drive_remote('/run/secrets/dvc_config')
     credentials = json.loads(Path('/run/secrets/drive_user').read_text())
     if not credentials.get('refresh_token') or credentials.get('token_uri') not in (
             'https://oauth2.googleapis.com/token', 'https://accounts.google.com/o/oauth2/token'):
