@@ -228,7 +228,8 @@ def pull(work):
         remote['gdrive_user_credentials_file'] = str(token)
         with Repo(str(work), config={'core': {'no_scm': True, 'analytics': False}, 'cache': {'type': 'copy'},
                                       'remote': {'highlight-drive': remote}}) as repo:
-            repo.pull(targets=['data/artifacts/' + name + '.dvc' for name in ARTIFACTS], remote='highlight-drive')
+            repo.pull(targets=[str(work.resolve() / 'data/artifacts' / (name + '.dvc')) for name in ARTIFACTS],
+                      remote='highlight-drive')
 
 
 def run():

@@ -6,7 +6,8 @@ import subprocess
 import sys
 import unittest
 import urllib.error
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -190,6 +191,20 @@ class StartupTests(unittest.TestCase):
         config.write_text('[\'remote "highlight-drive"\']\nurl = gdrive://private_folder\nendpointurl = https://untrusted.invalid\n')
         with self.assertRaises(ValueError):
             startup.drive_remote(config)
+
+    def test_pull_targets_are_bound_to_work_not_process_cwd(self):
+        repo = MagicMock()
+        modules = {'dvc.repo': SimpleNamespace(Repo=repo),
+                   'pydrive2.auth': SimpleNamespace(GoogleAuth=MagicMock()),
+                   'httplib2': SimpleNamespace(Http=MagicMock())}
+        credentials = {'refresh_token': 'fake-token', 'token_uri': 'https://oauth2.googleapis.com/token'}
+        with patch.dict(sys.modules, modules), \
+                patch.object(startup, 'drive_remote', return_value={'url': 'gdrive://private_folder'}), \
+                patch.object(Path, 'read_text', return_value=json.dumps(credentials)):
+            startup.pull(self.root / 'work')
+        repo.return_value.__enter__.return_value.pull.assert_called_once_with(
+            targets=[str(self.root.resolve() / 'work/data/artifacts' / (name + '.dvc'))
+                     for name in startup.ARTIFACTS], remote='highlight-drive')
 
     def test_cli_failure_secret_safe(self):
         result = subprocess.run([sys.executable, '-I', str(ROOT / 'scripts/vector_startup.py'), '--pull', '/missing'],
