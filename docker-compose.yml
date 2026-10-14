@@ -43,6 +43,7 @@ services:
 
   jev-browser:
     build: ./docker/jev-browser
+    platform: linux/amd64
     restart: unless-stopped
     cap_add: [NET_ADMIN]
     security_opt:
