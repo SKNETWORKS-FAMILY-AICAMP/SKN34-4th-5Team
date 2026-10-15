@@ -8,6 +8,8 @@ from .models import FREE_CATEGORIES, TEAM_CATEGORIES, TEAM_CODES
 
 
 class DraftInput(BaseModel):
+    is_trade: bool = Field(default=False, alias='isTrade')
+    is_advertisement: bool = Field(default=False, alias='isAdvertisement')
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     board: Literal["free", "teams"]
@@ -39,6 +41,8 @@ class DraftInput(BaseModel):
 
 
 class DraftPatch(BaseModel):
+    is_trade: bool | None = Field(default=None, alias='isTrade')
+    is_advertisement: bool | None = Field(default=None, alias='isAdvertisement')
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     revision: StrictInt = Field(gt=0)
@@ -68,6 +72,8 @@ class DraftPatch(BaseModel):
 
 
 class DraftOutput(BaseModel):
+    is_trade: bool = Field(alias='isTrade')
+    is_advertisement: bool = Field(alias='isAdvertisement')
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
     id: UUID

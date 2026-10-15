@@ -5,7 +5,7 @@ import time
 import httpx
 from django.test import SimpleTestCase
 from travel.public_page_reader import PublicReader
-from llm.v1.rag.course.quality_research import ProfileReader
+from llm.v2.course.quality_research import ProfileReader
 
 
 class ConcurrentReaderTests(SimpleTestCase):

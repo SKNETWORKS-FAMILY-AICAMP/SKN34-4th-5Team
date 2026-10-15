@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { createCommunityPost, getCommunityPost, updateCommunityPost, type CommunityPostInput } from "@/lib/community-api";
+import { createCommunityPost, getOwnCommunityPost, updateCommunityPost, type CommunityPostInput } from "@/lib/community-api";
 import { writablePostCategories } from "@/lib/community-post-category";
 import { createCommunitySubmissionKey } from "@/lib/community-post-key";
 import { plainRichDoc } from "@/lib/community-rich-content";
 import { useMemberAuth } from "@/lib/member-auth";
 import { getTeamBoard, getTeamBoardHref, teamBoards, type TeamCommunityPost } from "@/lib/team-community";
 import { CommunityRichEditor } from "./community-rich-editor";
+import { MemberName } from "./member-name";
 import boardStyles from "./community-board.module.css";
 import styles from "./community-post-editor.module.css";
 
@@ -39,10 +40,10 @@ export function CommunityPostEditor({ board, teamCode = "", editId = "" }: Props
   useEffect(() => {
     if (!editId) return;
     let current = true;
-    void getCommunityPost(editId).then(post => {
+    void getOwnCommunityPost(editId).then(post => {
       if (!current) return;
       setEditing(post);
-      setDraft({ board: post.board, teamCode: post.teamCode, category: post.category, title: post.title, content: post.content, contentDoc: post.contentDoc });
+      setDraft({ board: post.board, teamCode: post.teamCode, category: post.category, title: post.title, content: post.content, contentDoc: post.contentDoc, isTrade: post.isTrade, isAdvertisement: post.isAdvertisement });
       setLoadingEdit(false);
     }).catch(cause => {
       if (!current) return;
@@ -91,7 +92,7 @@ export function CommunityPostEditor({ board, teamCode = "", editId = "" }: Props
   return <main className={`container ${boardStyles.page} ${styles.page} header-aligned-content`}>
     <p className="eyebrow">COMMUNITY</p>
     <h1>{editId ? "게시글 수정" : "게시글 작성"}</h1>
-    <p className={boardStyles.description}>작성한 글은 선택한 게시판에 등록됩니다.</p>
+    <p className={boardStyles.description}>저장하면 바로 게시됩니다. 이후 신고 또는 정기 검사 결과에 따라 비공개로 전환될 수 있습니다.</p>
     {loadingEdit ? <p role="status" className={styles.notice}>게시글을 불러오고 있어요.</p> : editId && !editing ? <div className={styles.notice} role="alert">{error || "게시글을 찾지 못했어요."} <Link href="/community">게시판으로 돌아가기</Link></div> : <form onSubmit={submit} className={`${boardStyles.postDetail} ${styles.form}`}>
       <div className={boardStyles.postHeader}>
         <div className={styles.options}>
@@ -104,7 +105,7 @@ export function CommunityPostEditor({ board, teamCode = "", editId = "" }: Props
         </fieldset>
         <label className={styles.titleLabel} htmlFor="community-post-title">제목 <span>{draft.title.length} / 200자</span></label>
         <input id="community-post-title" className={styles.titleInput} value={draft.title} onChange={event => setDraft(value => ({ ...value, title: event.target.value }))} maxLength={200} placeholder="제목을 입력해 주세요." required disabled={saving} />
-        <p className={styles.byline}>작성자 <strong>{editing?.author ?? user?.nickname ?? user?.username ?? "로그인 필요"}</strong></p>
+        <p className={styles.byline}>작성자 <strong><MemberName name={editing?.author ?? user?.nickname ?? user?.username ?? "로그인 필요"} rank={editing?.authorRank ?? user?.rank} size="community" /></strong></p>
       </div>
       <div className={`${boardStyles.postBody} ${styles.body}`}>
         <label htmlFor="community-post-content">내용</label>

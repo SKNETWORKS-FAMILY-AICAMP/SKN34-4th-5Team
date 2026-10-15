@@ -9,7 +9,7 @@ from django.test import SimpleTestCase
 
 from travel import course_place_warmer as warmer
 from llm.service import chat_runs
-from llm.v1.rag.course import place_quality as quality, quality_research, venue_policy, evidence_memory
+from llm.v2.course import place_quality as quality, quality_research, venue_policy, evidence_memory
 
 
 PLACE = {"placeId": "9001", "name": "시험중식당", "lat": 35.166, "lng": 126.902,

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { deleteCommunityPost, getCommunityPost, retryCommunityPosts, useCommunityPosts } from "@/lib/community-api";
+import { deleteCommunityPost, getCommunityPost, getOwnCommunityPost, retryCommunityPosts, useCommunityPosts } from "@/lib/community-api";
 import { useMemberAuth } from "@/lib/member-auth";
 import { getCommunityPostHref, getCommunityWriteHref, getTeamBoard, getTeamBoardHref, teamBoards, type TeamCommunityPost } from "@/lib/team-community";
 import { CommunityNavigation } from "./community-navigation";
@@ -36,9 +36,9 @@ export function CommunityBoard({ section, teamCode = "", postId = "", category =
   const community = useCommunityPosts();
   const team = section === "teams" ? getTeamBoard(teamCode) : undefined;
   const board = boards[section];
-  const detailKey = `${section}:${postId}`;
+  const detailKey = `${section}:${postId}:${user?.id ?? "guest"}`;
   const detailRequest = useRef("");
-  const [detail, setDetail] = useState<{ key: string; post: TeamCommunityPost | null; loading: boolean; error: string }>({ key: "", post: null, loading: false, error: "" });
+  const [detail, setDetail] = useState<{ key: string; post: TeamCommunityPost | null; loading: boolean; error: string; privatePreview?: boolean }>({ key: "", post: null, loading: false, error: "" });
   const [deleting, setDeleting] = useState(false);
   const [actionError, setActionError] = useState("");
 
@@ -47,13 +47,19 @@ export function CommunityBoard({ section, teamCode = "", postId = "", category =
     if (detailRequest.current === detailKey) return;
     detailRequest.current = detailKey;
     setDetail({ key: detailKey, post: null, loading: true, error: "" });
-    void getCommunityPost(postId).then(post => {
+    void getCommunityPost(postId).then(post => ({ post, privatePreview: false })).catch(async cause => {
+      if (!user) throw cause;
+      const post = await getOwnCommunityPost(postId);
+      if (post.authorId !== user.id) throw cause;
+      return { post, privatePreview: true };
+    }).then(({ post, privatePreview }) => {
       if (detailRequest.current !== detailKey) return;
-      setDetail(post.board === section ? { key: detailKey, post, loading: false, error: "" } : { key: detailKey, post: null, loading: false, error: "게시글을 찾을 수 없어요." });
+      setDetail(post.board === section ? { key: detailKey, post, loading: false, error: "", privatePreview } : { key: detailKey, post: null, loading: false, error: "게시글을 찾을 수 없어요." });
     }).catch(cause => {
       if (detailRequest.current === detailKey) setDetail({ key: detailKey, post: null, loading: false, error: cause instanceof Error ? cause.message : "게시글을 불러오지 못했어요." });
     });
-  }, [detailKey, postId, section]);
+    return () => { if (detailRequest.current === detailKey) detailRequest.current = ""; };
+  }, [detailKey, postId, section, user]);
 
   const allPosts = community.posts.filter(post => post.board === section);
   const searchContext = `${section}:${teamCode}`;
@@ -100,24 +106,26 @@ export function CommunityBoard({ section, teamCode = "", postId = "", category =
     {section === "teams" && <nav className={styles.teamTabs} aria-label="팀 게시판 선택"><Link href={getTeamBoardHref()} aria-current={!team ? "page" : undefined}>전체</Link>{teamBoards.map(item => <Link key={item.code} href={getTeamBoardHref(item.code)} aria-current={team?.code === item.code ? "page" : undefined}>{item.shortName}</Link>)}</nav>}
     {community.error && community.posts.length > 0 && <p role="alert">{community.error} <button type="button" onClick={() => void retryCommunityPosts()}>다시 시도</button></p>}
     {postId && detail.key === detailKey && detail.loading && <p role="status">게시글을 불러오고 있어요.</p>}
-    {postId && detail.key === detailKey && detail.error && <p role="alert">{detail.error} <Link href={listHref}>목록으로</Link></p>}
+    {postId && detail.key === detailKey && detail.error && <div className={styles.postNotice}><p role="alert">{detail.error}</p><div className={styles.noticeActions}><Link className="button button-secondary" href={listHref}>목록으로</Link>{user && <Link className="button button-primary" href="/community/submissions">내 검사 상태</Link>}</div></div>}
     {selectedPost && <article className={styles.postDetail}>
       <header className={styles.postHeader}>
         <h2 className={styles.postHeading}>{section === "teams" && <strong>{getTeamBoard(selectedPost.teamCode)?.shortName}</strong>}{categoryLink(selectedPost.category)}<span>{selectedPost.title}<PostCommentCount count={selectedPost.commentCount} /></span></h2>
-        <div className={styles.postMeta}><div className={styles.postMetaInfo}><span aria-label={`게시글 번호 ${selectedPost.postNumber}`}>{selectedPost.postNumber}</span><span><CommunityMemberLink memberId={selectedPost.authorId} nickname={selectedPost.author} /></span><time dateTime={selectedPost.createdAt ?? undefined}>{formatDate(selectedPost.createdAt, true)}</time></div><div className={styles.postMetrics}><span>조회 <b>{selectedPost.views}</b></span><span>추천 <b>{selectedPost.recommendations}</b></span><span>댓글 <b>{selectedPost.commentCount ?? 0}</b></span></div></div>
+        <div className={styles.postMeta}><div className={styles.postMetaInfo}><span aria-label={`게시글 번호 ${selectedPost.postNumber}`}>{selectedPost.postNumber}</span><span><CommunityMemberLink memberId={selectedPost.authorId} nickname={selectedPost.author} rank={selectedPost.authorRank} /></span><time dateTime={selectedPost.createdAt ?? undefined}>{formatDate(selectedPost.createdAt, true)}</time></div><div className={styles.postMetrics}><span>조회 <b>{selectedPost.views}</b></span><span>추천 <b>{selectedPost.recommendations}</b></span><span>댓글 <b>{selectedPost.commentCount ?? 0}</b></span></div></div>
         {owned && <div className={styles.ownerActions}><Link href={`/community/write?edit=${encodeURIComponent(selectedPost.id)}`}>수정</Link><button type="button" onClick={() => void removePost()} disabled={deleting}>{deleting ? "삭제 중…" : "삭제"}</button></div>}
         {actionError && <p role="alert">{actionError}</p>}
       </header>
-      <div className={`${styles.postBody} ${styles.teamPostBody} ${styles.reportableBody}`}><CommunityPostContent content={selectedPost.content} document={selectedPost.contentDoc} /><PostReportButton postNumber={selectedPost.postNumber} postId={selectedPost.id} /></div>
+      <div className={`${styles.postBody} ${styles.teamPostBody} ${styles.reportableBody}`}><CommunityPostContent content={selectedPost.content} document={selectedPost.contentDoc} />{!detail.privatePreview && <PostReportButton postNumber={selectedPost.postNumber} postId={selectedPost.id} />}</div>
+      {detail.privatePreview ? <p role="status">아직 공개되지 않은 글입니다. 작성자에게만 표시됩니다. <Link href={`/community/submissions?post=${encodeURIComponent(selectedPost.id)}`}>검사 상태 확인</Link> · <Link href={listHref}>목록으로</Link></p> : <>
       <CommunityPostVote post={selectedPost} />
       <CommunityPostBottom key={selectedPost.id} post={selectedPost} posts={posts} teamCode={team?.code} isFree={section === "free"} writeHref={writeHref} category={category} />
+      </>}
     </article>}
     <section aria-label={`${board.title} 글 목록`}>
       {category && <div className={styles.categoryFilter} role="status"><span>{isCommunityCategory(category) ? `[${category}] 분류의 글` : "지원하지 않는 분류입니다."}</span><Link href={categoryHref("")}>분류 해제 · 전체 글</Link></div>}
       {user && <div className={styles.listWriteActions}><Link href={writeHref}>글쓰기</Link></div>}
       {community.loading && community.posts.length === 0 ? <p role="status">게시글을 불러오고 있어요.</p> : community.error && community.posts.length === 0 ? <p role="alert">{community.error} <button type="button" onClick={() => void retryCommunityPosts()}>다시 시도</button></p> : <div className={styles.tableScroll} role="region" aria-label={`${board.title} 목록, 좁은 화면에서는 좌우로 스크롤`} tabIndex={0}>
         <table className={styles.boardTable}><caption className="sr-only">{board.title} 게시글 목록. 구분은 게시글 고유 번호입니다.</caption><colgroup><col className={styles.numberCol} />{section === "teams" && <col className={styles.teamCol} />}<col /><col className={styles.authorCol} /><col className={styles.dateCol} /><col className={styles.countCol} /><col className={styles.countCol} /></colgroup><thead><tr>{["구분", ...(section === "teams" ? ["팀"] : []), "제목", "글쓴이", "작성일", "조회", "추천"].map(label => <th key={label} scope="col">{label}</th>)}</tr></thead>
-          <tbody>{visiblePosts.length ? visiblePosts.map(post => <tr key={post.id} className={post.id === postId ? styles.selectedRow : undefined}><td>{post.postNumber}</td>{section === "teams" && <td className={styles.teamCell}>{getTeamBoard(post.teamCode)?.shortName}</td>}<td className={styles.titleCell}><div className={styles.titleLinks}>{categoryLink(post.category)}<Link href={postHref(post.teamCode, post.id)} aria-current={post.id === postId ? "page" : undefined}>{post.title}<PostCommentCount count={post.commentCount} /></Link></div></td><td><CommunityMemberLink memberId={post.authorId} nickname={post.author} /></td><td>{formatDate(post.createdAt)}</td><td>{post.views}</td><td>{post.recommendations}</td></tr>) : <tr><td colSpan={section === "free" ? 6 : 7} className={styles.emptyCell}>{query || category || activeSearch.team !== "all" ? "검색 결과가 없어요." : "등록된 게시글이 없어요."}</td></tr>}</tbody>
+          <tbody>{visiblePosts.length ? visiblePosts.map(post => <tr key={post.id} className={post.id === postId ? styles.selectedRow : undefined}><td>{post.postNumber}</td>{section === "teams" && <td className={styles.teamCell}>{getTeamBoard(post.teamCode)?.shortName}</td>}<td className={styles.titleCell}><div className={styles.titleLinks}>{categoryLink(post.category)}<Link href={postHref(post.teamCode, post.id)} aria-current={post.id === postId ? "page" : undefined}>{post.title}<PostCommentCount count={post.commentCount} /></Link></div></td><td><CommunityMemberLink memberId={post.authorId} nickname={post.author} rank={post.authorRank} /></td><td>{formatDate(post.createdAt)}</td><td>{post.views}</td><td>{post.recommendations}</td></tr>) : <tr><td colSpan={section === "free" ? 6 : 7} className={styles.emptyCell}>{query || category || activeSearch.team !== "all" ? "검색 결과가 없어요." : "등록된 게시글이 없어요."}</td></tr>}</tbody>
         </table>
       </div>}
       {user && <div className={styles.listWriteActions}><Link href={writeHref}>글쓰기</Link></div>}

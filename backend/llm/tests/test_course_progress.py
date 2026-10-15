@@ -4,7 +4,7 @@ from unittest.mock import patch
 from django.test import SimpleTestCase
 
 from llm.tests.test_course_editing import CURRENT, GAME, PLACES, REPLACEMENT, plan
-from llm.v1.rag.course import agent, editing, edit_context, memory, progress
+from llm.v2.course import agent, editing, edit_context, memory, progress
 from llm.v2.agent.course_output import public_course
 
 

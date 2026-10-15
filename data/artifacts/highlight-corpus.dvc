@@ -1,0 +1,6 @@
+outs:
+- md5: 9f5f3c4225e5ba0a365ed918717bb3f8.dir
+  size: 2258592975
+  nfiles: 1866
+  hash: md5
+  path: highlight-corpus

@@ -44,7 +44,7 @@ def vector_search(query: str, stadium: str | None, categories: list[str] | None,
                   in_stadium_flag: str | None = None, qvec: list[float] | None = None) -> list[dict]:
     """구장·카테고리·안팎 조건을 적용한 벡터 검색. qvec 을 주면 임베딩을 다시 하지 않는다(평가용)."""
     if qvec is None:
-        from ..v1.rag.club.retrieval import embed
+        from llm.v2.club.retrieval import embed
         qvec = embed(query)
     from llm import vector_store
     rows = [(doc["content"], doc["metadata"], doc["dist"]) for doc in vector_store.search(
@@ -161,7 +161,7 @@ def search_mode(venue=False):
 def hybrid_kbo_rows(query, vec, candidate_k, stadium, cats, k, mode=None) -> list[dict]:
     """벡터 상위 candidate_k 와 키워드(BM25, llm.sparse_index) 상위 candidate_k 를 RRF 로 합친다.
     sparse 색인이 없거나 키워드 결과가 비면 이전 방식(벡터 + 키워드 재정렬)으로 돌아간다."""
-    from ..v1.rag.club.retrieval import keyword_rerank, keywords, search
+    from llm.v2.club.retrieval import keyword_rerank, keywords, search
     mode = mode or search_mode()
     dense = search(vec, k=candidate_k, stadium=stadium, categories=cats)[0]
     if mode == "vector":
@@ -208,7 +208,7 @@ EXACT_BONUS, KEYWORD_BONUS, AUTHORITY_BONUS = 0.020, 0.010, 0.005
 def rule_rerank(query, rows):
     """규칙 기반 리랭크(모델 없음): rrf + 0.020×제목 정확 일치 + 0.010×본문 키워드 비율 + 0.005×공식 문서.
     제목은 청크 첫 줄('[KBO 리그규정 2026] 제5장 … > 제34조 준플레이오프')이라 쌍둥이 조항(준PO·PO)을 가른다."""
-    from ..v1.rag.club.retrieval import keywords
+    from llm.v2.club.retrieval import keywords
     toks = [t.upper() for t in keywords(query)]
 
     def score(row):
@@ -225,7 +225,7 @@ def rule_rerank(query, rows):
 def score_fusion(query, vec, dense, sparse, k, weight=None) -> list[dict]:
     """후보 = 벡터 상위 ∪ 키워드 상위. 키워드로만 들어온 후보도 벡터 거리를 구해, 이전 방식(벡터 유사도 + 키워드 재정렬)에
     키워드(BM25) 점수를 최고점 대비 0~1 로 맞춰 weight 만큼 더한다. 벡터가 놓친 후보를 살리면서 벡터 순위는 크게 흔들지 않는다."""
-    from ..v1.rag.club.retrieval import keywords
+    from llm.v2.club.retrieval import keywords
     from llm import sparse_index, vector_store
     weight = sparse_index.SPARSE_WEIGHT if weight is None else weight
     have = {row.get("doc_id") for row in dense}
@@ -249,7 +249,7 @@ def search_kbo_rows(query, stadium=None, categories=None, k=DOC_K, _search=None,
     """Qdrant 하이브리드 검색(벡터+키워드 RRF, RAG_SEARCH_MODE). 카테고리로 0건이면 카테고리를 풀고 한 번 더."""
     cats = [c.upper() for c in (categories or []) if c and c.upper() in CATEGORIES] or None
     if _search is None:
-        from ..v1.rag.club.retrieval import embed
+        from llm.v2.club.retrieval import embed
         _embed = _embed or embed
         _search = lambda v, kk, st, ct: hybrid_kbo_rows(query, v, kk, st, ct, k, mode)  # noqa: E731
     vec = _embed(query)
@@ -332,7 +332,7 @@ def transform_query(query: str) -> str:
     """검색어만 변환하며 답변 도구 루프를 시작하지 않는다."""
     global _transformer
     if _transformer is None:
-        from ..v1.rag.venue.prompts import QUERY_TRANSFORM
+        from llm.v2.venue.prompts import QUERY_TRANSFORM
         prompt = ChatPromptTemplate.from_messages([("system", QUERY_TRANSFORM), ("human", "{query}")])
         model = ChatOpenAI(model=os.getenv("LLM_MODEL") or "gpt-6-luna", timeout=25, max_retries=0, reasoning_effort="medium", use_responses_api=True,
                           max_tokens=settings.USAGE_MAX_CALL_OUTPUT_TOKENS)
@@ -376,7 +376,7 @@ def _stadium_code(value):
     code = str(value or "").strip().upper()
     if code in STADIUMS:
         return code
-    from ..v1.rag.club.router import detect_stadium
+    from llm.v2.club.router import detect_stadium
     result = detect_stadium(str(value or ""))
     return result if result in STADIUMS else None
 

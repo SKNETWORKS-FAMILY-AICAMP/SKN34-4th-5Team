@@ -8,6 +8,7 @@ import { MAX_MESSAGE_LENGTH } from "@/lib/chat/types";
 import { useMemberAuth } from "@/lib/member-auth";
 import { useChat } from "./chat-provider";
 import { Icon } from "./icons";
+import { MemberName } from "./member-name";
 import { ChatAttachmentCards, ChatComposerTools } from "./chat-composer-tools";
 import { ChatInlineInput } from "./chat-inline-input";
 import { ChatAnswer } from "./chat-answer";
@@ -37,6 +38,7 @@ export function ChatWorkspace() {
   const profileRef = useRef<HTMLButtonElement>(null);
   const mobileProfileRef = useRef<HTMLButtonElement>(null);
   const profileName = authStatus === "authenticated" ? user?.nickname?.trim() || user?.first_name?.trim() || user?.username?.trim() || "회원" : authStatus === "anonymous" ? "게스트" : authStatus === "loading" ? "계정 확인 중" : "계정 확인 불가";
+  const profileRank = authStatus === "authenticated" ? user?.rank : undefined;
   const profileAvatar = authStatus === "authenticated" && user?.avatar ? user.avatar : "/images/default-avatar.svg";
   const usageMode = authStatus === "authenticated" && user ? "member" : null;
   const usageIdentity = usageMode === "member" ? `member:${user!.id}` : authStatus;
@@ -162,9 +164,9 @@ export function ChatWorkspace() {
             </div>
           ))}</nav> : <p className="workspace-history-empty">함께 나눈 이야기가<br />여기에 모여요.</p>}
         </div>
-        {guest ? <Link href="/login" className="workspace-login" onClick={() => closeDrawer()}><Icon name="login" size={20} /><span>로그인</span></Link> : usageMode ? <button ref={mobile ? mobileProfileRef : profileRef} type="button" className="workspace-profile" aria-label={`${profileName} 설정 열기`} aria-haspopup="dialog" onClick={event => openSettings(event.currentTarget, mobile)}>
+        {guest ? <Link href="/login" className="workspace-login" onClick={() => closeDrawer()}><Icon name="login" size={20} /><span>로그인</span></Link> : usageMode ? <button ref={mobile ? mobileProfileRef : profileRef} type="button" className="workspace-profile" aria-label={`${profileRank ? `${profileRank}등급 ` : ""}${profileName} 설정 열기`} aria-haspopup="dialog" onClick={event => openSettings(event.currentTarget, mobile)}>
           <Image key={profileAvatar} src={profileAvatar} alt="" width={36} height={36} unoptimized onError={event => { event.currentTarget.src = "/images/default-avatar.svg"; }} />
-          <span><strong>{profileName}</strong><small>{user?.is_staff || user?.is_superuser ? "관리자" : "일반 유저"}</small></span>
+          <span><strong><MemberName name={profileName} rank={profileRank} size="small" /></strong><small>{user?.is_staff || user?.is_superuser ? "관리자" : "일반 유저"}</small></span>
         </button> : <button type="button" className="workspace-profile" disabled><span role="status">{profileName}</span></button>}
       </>
     );
@@ -182,7 +184,7 @@ export function ChatWorkspace() {
           <h3 id="workspace-account-title">계정</h3>
           <div className="workspace-account-row">
             <Image key={profileAvatar} src={profileAvatar} alt="" width={36} height={36} unoptimized onError={event => { event.currentTarget.src = "/images/default-avatar.svg"; }} />
-            <strong className="workspace-account-name">{profileName}</strong>
+            <strong className="workspace-account-name"><MemberName name={profileName} rank={profileRank} size="small" /></strong>
             <div className="workspace-account-actions">
               <Link href="/mypage?tab=profile" className="workspace-icon-button" aria-label="회원 정보 관리" title="회원 정보 관리"><Icon name="book" size={20} /></Link>
             </div>

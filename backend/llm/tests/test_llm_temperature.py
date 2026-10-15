@@ -74,8 +74,6 @@ class ResponsesPayloadTest(TestCase):
         root = Path(__file__).resolve().parents[1]
         paths = [
             "v2/agent/common.py", "tools/knowledge.py",
-            "v1/rag/venue/agent.py", "v1/rag/nearby/agent.py",
-            "v1/rag/course/agent.py", "v1/rag/club/agent.py",
             "v1/rag/assistant/pipeline.py",
         ]
         for configured, expected in [(None, "gpt-6-luna"), ("", "gpt-6-luna"), ("override-model", "override-model")]:
@@ -107,3 +105,16 @@ class ResponsesPayloadTest(TestCase):
                         self.assertEqual(model.request_timeout, 25)
                         self.assertEqual(model.max_retries, 0)
                         self.assertTrue(model.use_responses_api)
+
+    def test_v2_agents_use_the_single_v2_model_factory(self):
+        """course/club/nearby/venue build no model of their own; v2/agent/common.llm owns the settings."""
+        root = Path(__file__).resolve().parents[1]
+        for path in ("v2/course/agent.py", "v2/club/agent.py", "v2/nearby/agent.py", "v2/venue/agent.py"):
+            with self.subTest(path=path):
+                tree = ast.parse((root / path).read_text())
+                calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)
+                         and isinstance(node.func, ast.Name) and node.func.id == "ChatOpenAI"]
+                self.assertEqual(calls, [])
+                imports = [node for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)
+                           and node.module == "llm.v2.agent.common" and any(a.name == "llm" for a in node.names)]
+                self.assertEqual(len(imports), 1)

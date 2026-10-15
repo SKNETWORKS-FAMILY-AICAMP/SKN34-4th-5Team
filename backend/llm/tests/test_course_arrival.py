@@ -2,7 +2,7 @@ from unittest.mock import Mock, patch
 
 from django.test import SimpleTestCase
 
-from ..v1.rag.course import arrival, geo
+from ..v2.course import arrival, geo
 
 ANCHOR = {"lat": 37.5, "lng": 127.0}
 WEST = {"lat": 37.5, "lng": 126.94}
@@ -120,7 +120,7 @@ class NamedOriginTests(SimpleTestCase):
 
 class ArrivalPlanningTests(SimpleTestCase):
     def test_first_search_uses_real_entry_and_places_stay_within_radius(self):
-        from ..v1.rag.course import agent, slots
+        from ..v2.course import agent, slots
         entry, _ = arrival.approach(WEST, ANCHOR, "walk", Mock(return_value={"legs": [
             {"status": "ok", "paths": [[WEST, NORTHWEST, NORTH, ANCHOR]]}]}))
         calls = []

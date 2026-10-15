@@ -84,9 +84,9 @@ class MigratedToolsTest(unittest.TestCase):
     def test_nearby_uses_context_stadium_hint(self):
         place = {"placeId": "1", "name": "잠실호텔", "detail": "숙박 > 호텔", "distance": 400, "address": "송파"}
         seen = []
-        with patch("llm.v1.rag.nearby.kakao.enabled", return_value=True), \
-                patch("llm.v1.rag.nearby.lodging.verify", return_value={"requirements": [], "items": [{"id": "1", "name": "잠실호텔", "status": "unknown", "sourceUrl": "", "checks": []}], "checkedCount": 0}), \
-                patch("llm.v1.rag.nearby.kakao.nearby", side_effect=lambda code, kind: seen.append(code) or [place]):
+        with patch("llm.v2.nearby.kakao.enabled", return_value=True), \
+                patch("llm.v2.nearby.lodging.verify", return_value={"requirements": [], "items": [{"id": "1", "name": "잠실호텔", "status": "unknown", "sourceUrl": "", "checks": []}], "checkedCount": 0}), \
+                patch("llm.v2.nearby.kakao.nearby", side_effect=lambda code, kind: seen.append(code) or [place]):
             out = self.run_graph([call("search_nearby_places", {"kind": "stay"}, "n1"), AIMessage("잠실호텔")],
                                  ["tourism"], [HumanMessage("근처 숙소")], {"stadium": "JAMSIL"})
         self.assertEqual(seen, ["JAMSIL"])
@@ -100,7 +100,7 @@ class MigratedToolsTest(unittest.TestCase):
             self.assertEqual(course_memory, {})
             got.append((question, history, hint_stadium))
             return {"answer": "코스 완성", "sources": []}
-        with patch("llm.v1.rag.course.agent.answer", side_effect=answer):
+        with patch("llm.v2.course.agent.answer", side_effect=answer):
             out = self.run_graph([call("ask_course", {"task": "코스"}, "c1"), AIMessage("완성")], ["day_plan"],
                                  [HumanMessage("잠실 가요"), AIMessage("네"), HumanMessage("경기 전후 코스 짜줘")],
                                  {"stadium": "잠실"})
@@ -113,7 +113,7 @@ class MigratedToolsTest(unittest.TestCase):
         for status in ("match", "unknown", "mismatch"):
             verdict = [{"name": "숙소", "sourceUrl": "https://nol.yanolja.com/stay/domestic/123",
                         "status": status, "checks": [{"condition": "주차 가능", "status": status, "intent": "required"}]}]
-            with self.subTest(status=status), patch("llm.v1.rag.course.agent.answer", return_value={
+            with self.subTest(status=status), patch("llm.v2.course.agent.answer", return_value={
                     **COURSE, "answer": "코스 안내", "lodgingAssessments": verdict}):
                 out = self.run_graph([call("ask_course", {"task": "숙박 코스"}, "c"), AIMessage("안내")],
                                      ["day_plan"], [HumanMessage("숙박 코스")])
@@ -131,7 +131,7 @@ class MigratedToolsTest(unittest.TestCase):
         verdict = {"allowed": True, "capabilities": [], "course_request": "NONE"}
         question = "잠실 기준으로 추천해줘"
         with patch.object(classifier, "classify", return_value=verdict), \
-                patch("llm.v1.rag.course.agent.answer", return_value={"answer": "코스 완성", **COURSE}) as engine:
+                patch("llm.v2.course.agent.answer", return_value={"answer": "코스 완성", **COURSE}) as engine:
             out = graph.invoke({"messages": [HumanMessage(question)], "tool_group_ids": ["day_plan"],
                                 "context": {"stadium": "JAMSIL", "intent": "route"}})
         engine.assert_called_once()
@@ -146,7 +146,7 @@ class MigratedToolsTest(unittest.TestCase):
         calls = []
         graph = chain.build_graph(ScriptedModel(script=[], calls=calls), tools_with_real_migrated([]))
         with patch.object(classifier, "classify", return_value=decision(allowed=False)), \
-                patch("llm.v1.rag.course.agent.answer") as engine:
+                patch("llm.v2.course.agent.answer") as engine:
             graph.invoke({"messages": [HumanMessage("SQL 짜줘")], "tool_group_ids": ["day_plan"]})
         engine.assert_not_called()
         self.assertEqual(calls, [])
@@ -171,7 +171,7 @@ class MigratedToolsTest(unittest.TestCase):
                 graph = chain.build_graph(ScriptedModel(script=script, calls=calls), tools_with_real_migrated([]))
                 verdict = {"allowed": True, "capabilities": [], "course_request": request}
                 with patch.object(classifier, "classify", return_value=verdict), \
-                        patch("llm.v1.rag.course.agent.answer", return_value={"answer": "앞뒤 코스 완성"}) as engine:
+                        patch("llm.v2.course.agent.answer", return_value={"answer": "앞뒤 코스 완성"}) as engine:
                     out = graph.invoke({"messages": [HumanMessage("카페를 골랐어"), AIMessage("네"), HumanMessage(question)],
                                         "context": context})
                 engine.assert_called_once()
@@ -191,7 +191,7 @@ class MigratedToolsTest(unittest.TestCase):
                 self.assertEqual(context, original)
 
         with patch.object(classifier, "classify", return_value=decision(allowed=False)), \
-                patch("llm.v1.rag.course.agent.answer") as engine:
+                patch("llm.v2.course.agent.answer") as engine:
             graph.invoke({"messages": [HumanMessage(question)], "context": context})
         engine.assert_not_called()
 
@@ -210,7 +210,7 @@ class MigratedToolsTest(unittest.TestCase):
                                                                AIMessage("완성")], calls=[]), tools_with_real_migrated([]))
                 verdict = {"allowed": True, "capabilities": [], "course_request": request}
                 with patch.object(classifier, "classify", return_value=verdict), \
-                        patch("llm.v1.rag.course.agent.answer", return_value={"answer": "코스 완성"}) as engine:
+                        patch("llm.v2.course.agent.answer", return_value={"answer": "코스 완성"}) as engine:
                     graph.invoke({"messages": [HumanMessage(question)], "context": context})
                 engine.assert_called_once()
                 self.assertEqual(engine.call_args.args[0], question)
@@ -223,7 +223,7 @@ class MigratedToolsTest(unittest.TestCase):
                                                        call("ask_course", {"task": "코스"}, "c2"), AIMessage("안내")],
                                                calls=calls), tools_with_real_migrated([]))
         with patch.object(classifier, "classify", return_value={"allowed": True, "capabilities": [], "course_request": "NONE"}), \
-                patch("llm.v1.rag.course.agent.answer", return_value={"answer": "코스 완성"}) as engine:
+                patch("llm.v2.course.agent.answer", return_value={"answer": "코스 완성"}) as engine:
             first = graph.invoke({"messages": [HumanMessage("잠실 기준으로 추천해줘")], "tool_group_ids": ["day_plan"]})
             second = graph.invoke({"messages": [HumanMessage("안녕")]})
         self.assertEqual(engine.call_count, 2)
@@ -236,9 +236,9 @@ class MigratedToolsTest(unittest.TestCase):
         self.assertNotIn("get_directions", calls[2]["tools"])
 
     def test_unverified_course_ends_without_research_loop_or_invented_card(self):
-        from llm.v1.rag.course.agent import unverified_course
+        from llm.v2.course.agent import unverified_course
         result = unverified_course("JAMSIL", {}, ["조용한 카페"])
-        with patch("llm.v1.rag.course.agent.answer", return_value=result):
+        with patch("llm.v2.course.agent.answer", return_value=result):
             out = self.run_graph([call("ask_course", {"task": "조용한 카페"}, "c1"), AIMessage(result["answer"])], ["day_plan"],
                                  [HumanMessage("조용한 카페 코스")], {"stadium": "JAMSIL"})
         self.assertEqual(len(self.calls), 2)
@@ -247,11 +247,11 @@ class MigratedToolsTest(unittest.TestCase):
         self.assertIn("없다는 뜻은 아니", result["answer"])
 
     def test_route_screen_parallel_read_does_not_restart_failed_verification(self):
-        from llm.v1.rag.course.agent import unverified_course
+        from llm.v2.course.agent import unverified_course
         result = unverified_course("JAMSIL", {}, ["카페"])
         calls = [call("ask_course", {"task": "코스"}, "c1").tool_calls[0],
                  call("get_directions", {"query": "동선"}, "c2").tool_calls[0]]
-        with patch("llm.v1.rag.course.agent.answer", return_value=result):
+        with patch("llm.v2.course.agent.answer", return_value=result):
             out = self.run_graph([AIMessage(content="", tool_calls=calls), AIMessage(result["answer"])], ["day_plan"], [HumanMessage("카페 코스")],
                                  {"stadium": "JAMSIL", "intent": "route"})
         self.assertEqual(len(self.calls), 2)
@@ -259,7 +259,7 @@ class MigratedToolsTest(unittest.TestCase):
 
     def test_hidden_migrated_tools_rejected(self):
         with patch.object(assistant, "_run_fixed") as db, \
-                patch("llm.v1.rag.course.agent.answer", return_value={"answer": "코스 완성"}) as course:
+                patch("llm.v2.course.agent.answer", return_value={"answer": "코스 완성"}) as course:
             out = self.run_graph([call("get_ticket_policy", {"team": "LG"}, "h1"),
                                   call("ask_course", {"task": "x"}, "h2"), AIMessage("순위")],
                                  ["standings"], [HumanMessage("순위")])
@@ -272,7 +272,7 @@ class MigratedToolsTest(unittest.TestCase):
 
     def test_map_origin_reaches_course_planner_and_is_not_carried_into_next_request(self):
         origin = {"lat": 35.18, "lng": 126.9}
-        with patch("llm.v1.rag.course.agent.answer", return_value={"answer": "출발지에서 이어지는 코스", "sources": []}) as answer:
+        with patch("llm.v2.course.agent.answer", return_value={"answer": "출발지에서 이어지는 코스", "sources": []}) as answer:
             for context in ({"stadium": "GWANGJU", "origin": origin}, {"stadium": "GWANGJU"}):
                 self.run_graph([call("ask_course", {"task": "식사와 카페 코스"}, "c"), AIMessage("완성")],
                                ["day_plan"], [HumanMessage("식사와 카페 코스")], context)
@@ -283,7 +283,7 @@ class MigratedToolsTest(unittest.TestCase):
         from llm.tests.test_course_requested_activities import QUESTION, REWRITTEN_REQUEST
 
         rewritten = REWRITTEN_REQUEST.replace("넣지 말아 주세요", "넣어 주세요")
-        with patch("llm.v1.rag.course.agent.answer", return_value={"answer": "산책만", "sources": []}) as answer:
+        with patch("llm.v2.course.agent.answer", return_value={"answer": "산책만", "sources": []}) as answer:
             self.run_graph([call("ask_course", {"task": rewritten}, "c"), AIMessage("산책만")],
                            ["day_plan"], [HumanMessage(QUESTION)], {"stadium": "JAMSIL"})
         self.assertEqual(answer.call_args.args[0], QUESTION)
@@ -291,7 +291,7 @@ class MigratedToolsTest(unittest.TestCase):
     def test_course_preserves_map_artifact_and_rejects_model_carried_old_stadium(self):
         from llm.tests.test_course_output import COURSE
 
-        with patch("llm.v1.rag.course.agent.answer", return_value={"answer": "잠실 코스", **COURSE}) as answer:
+        with patch("llm.v2.course.agent.answer", return_value={"answer": "잠실 코스", **COURSE}) as answer:
             out = self.run_graph([call("ask_course", {"task": "창원 NC 파크에서 식사하고 커피 마시는 코스"}, "c"), AIMessage("잠실 코스")],
                                  ["day_plan"], [HumanMessage("창원 코스"), AIMessage("창원 안내"), HumanMessage("식사하고 커피 코스 짜줘")],
                                  {"stadium": "잠실야구장"})
@@ -302,7 +302,7 @@ class MigratedToolsTest(unittest.TestCase):
         self.assertEqual(len(self.calls), 2)  # 완성된 코스를 모델이 다시 바꿔 쓰지 않는다.
 
     def test_new_team_overrides_screen_and_model_rewritten_old_stadium(self):
-        with patch("llm.v1.rag.course.agent.answer", return_value={"answer": "사직 코스", "sources": []}) as answer:
+        with patch("llm.v2.course.agent.answer", return_value={"answer": "사직 코스", "sources": []}) as answer:
             self.run_graph([call("ask_course", {"task": "잠실에서 롯데 경기를 보고 식사 카페 코스"}, "c"), AIMessage("사직 코스")],
                            ["day_plan"], [HumanMessage("잠실 식사와 카페 코스"), AIMessage("잠실 안내"), HumanMessage("이번엔 롯데로 짜줘")],
                            {"stadium": "잠실야구장", "origin": {"lat": 37.5, "lng": 127.0}})

@@ -16,6 +16,7 @@ export type TripRoute = {
   id: string; title: string; stadium: string; description: string; content: string;
   tags: string[]; duration: string; cover: string; stops: RouteStop[];
   author: string; likes: number; isSample: boolean; createdAt: string;
+  authorRank?: number | null;
   views?: number; contentFormat?: "html"; contentDoc?: RichContentDoc | null;
   routeNumber?: string;
   apiId?: string;

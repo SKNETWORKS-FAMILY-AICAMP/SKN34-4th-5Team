@@ -7,14 +7,14 @@ from django.test import SimpleTestCase
 from langchain_core.messages import AIMessage, ToolMessage
 
 from ..v1.rag import dispatcher
-from ..v1.rag import domain_tools
+from llm.v2 import domain_tools
 from ..v1.rag.assistant import pipeline as assistant_pipeline
-from ..v1.rag.club import agent as club
-from ..v1.rag.club import retrieval
-from ..v1.rag.course import agent as course
-from ..v1.rag.nearby import agent as nearby
+from llm.v2.club import agent as club
+from llm.v2.club import retrieval
+from ..v2.course import agent as course
+from llm.v2.nearby import agent as nearby
 from ..tools import assistant as assistant_tools
-from ..v1.rag.venue import agent as venue
+from llm.v2.venue import agent as venue
 from ..tools import DOMAIN_TOOL_NAMES
 
 

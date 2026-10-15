@@ -1,5 +1,130 @@
 # DeepEval 평가 기준 v1.0
 
+## 2026-10-15 JEV 하이라이트 요청 범위 명시
+
+- 목적/변경 변수: 기존 PASS 범위에 KBO 하이라이트·유튜브 장면 영상 검색을 명시한다. capability·코스 프롬프트, 모델·임계값·라우팅, NON_PASS·혼합 요청·주입 방어는 변경하지 않는다.
+- 동결 입력: `LG와 롯데 경기에서 2회말 동점 적시 2루타 장면을 유튜브 하이라이트로 찾아줘`, history/context 없음. 기대값은 guard=PASS, course_request=NONE, highlight 필수이며 다른 capability는 이 단일 사례에서 채점하지 않는다.
+- 예산/순서: 수정 전 소스·입력·정답·harness를 scratch에 동결하고 새 payload 회귀의 A 실패를 확인한다. 실제 production classify를 기존 backend 컨테이너의 새 프로세스로 A/B 각 1회(물리 HTTP 시도 각 최대1회, 총2회), tracing off로 실행한다. 재시도·전체 채팅·검색·embedding·영상 호출은 금지한다. 로컬 fix 커밋 후 B를 실행한다.
+- 합격/실패: B의 세 기대값 일치와 focused 무료 회귀 통과가 필요하다. A가 이미 PASS이면 비결정적 오거절 재현/일반 품질 개선을 주장하지 않는다. 오류·B 실패는 중단하고 보존하며 추가 유료 호출이나 사후 기준 완화는 하지 않는다. 동일 저장 A/B 관측을 실제 설치 DeepEval custom exact와 Ragas ExactMatch로 채점한다(새 judge 호출 없음). 한 문항의 두 관측은 일반 의미 품질·안전성 증거가 아니며 needs-review를 유지한다.
+- CI: evaluation-regression.yml의 deterministic → free → run_attachment_offline.py 기본 test_chain 자동 발견을 재사용한다. 실제 offline-exec 하위 명령에 새 method와 관련 가드 method를 선택하여 이름/개수를 확인하며 전체 CI·hosted 실행 성공으로 확대하지 않는다. 기존 run.py graph_regression은 명시 method만 로드하므로 새 사례의 연결 근거로 사용하지 않는다.
+
+## 2026-10-14 커뮤니티 선공개·사후 검사
+
+- 사용자 확정: 작성·댓글·초안 게시·내용 수정은 트랜잭션에서 즉시 공개하고 최초 포인트/댓글수를 반영한다. HTTP 생성 201/수정 200과 프론트 성공 안내는 pending 검사 상태와 분리한다. 작성 요청은 제공자를 호출하지 않으며 기존 영속 큐/워커와 신고 즉시 검사 흐름을 재사용한다.
+- 내용 변경만 revision을 증가시키고 이전 lease를 취소한다. 루틴 누락 작업 수집·실패 재시도·신고는 현재 revision과 기존 공개/제재 근거를 보존한다. pending/error/큐 지연으로 공개를 회수하지 않는다. 관리자 숨김은 내용 수정·검사·복구로 해제하지 않는다.
+- 사후 완료의 기존 정책은 유지한다: 독립 open finding(이미지/수동 포함)은 검토 비공개, confirmed는 거절 비공개, 모든 사유 dismiss는 복구한다. openai automatic_check_failed/manual_review만 기존 공개 예외를 유지한다. 동일 revision의 이전 confirmed/open 근거는 정상 후속 검사로 지우지 않는다. 실제 내용 수정은 새 revision 정책을 적용한다.
+- 합격/실패: 검사 실행 전 익명 GET 가능한 글·댓글·초안·수정, provider 호출 0, 루틴/retry revision 불변·공개 유지, stale 결과 폐기·관리자 숨김·사후 제재/복구·포인트 1회·comment_count·rate-limit·idempotency·권한·입력/XSS/이미지 회귀가 모두 통과해야 한다. 운영 DB/실데이터 쓰기·유료 제공자 호출은 금지한다.
+- A/B: 동일 신규 publication 회귀를 수정 전 A와 수정 후 B의 고유 격리 PostgreSQL test DB에서 실행하여 A 실패/B 통과를 보존한다. 엔진/프롬프트/모델 변경 없는 non-LLM publication 경계다. 기존 무료 DeepEval/Ragas native/fallback/legacy 계약 runner의 적용 범위와 양쪽 실행을 확인하되 publication ORM 검증이나 실제 의미 품질을 대체하지 않는다. 정답·threshold는 변경하지 않는다.
+- CI: community-moderation.yml django-integration의 community 자동 발견 및 frontend 명시 node --test 목록에서 실제 변경 회귀의 이름/실행 개수를 확인한다. 미실행·오류는 검증 대기이며 실제 명령/결과/제한은 별도 실행 보고서에 보존한다.
+
+## 2026-10-14 신고 재검사의 동일 내용 검토 보존
+
+- 목적/변경 변수: 신고는 내용 수정이 아니므로 content_revision 증가 및 진행 중 내용 검사 취소 없이 별도 report job을 생성한다. 동일 revision 완료 job의 open/confirmed 사유와 검토 이력은 보존하며 공개 예외는 각 원 job의 automatic_check_failed/manual_review 근거에만 적용한다.
+- 기대/합격: 실제 ReportCreateView → enqueue → claim/finish → ModerationList → review_job에서 기존 fallback 검토가 접근 가능하고 정상 후속 검사도 미해결 사유를 지우지 않는다. confirm/dismiss와 여러 완료/진행 job의 순서에 무관하게 현재 사유를 반영한다. 기존 image_review의 새 open 동작, 관리자 숨김, 최초 포인트, 실제 내용 수정의 revision/lease stale 차단을 유지한다.
+- A/B: 먼저 새 회귀를 수정 전 A에서 실행하고 수정 후 B에서 동일 사례를 실행한다. 기존 native/fallback DeepEval·Ragas는 동일 입력/정답/exact=1/cache off/네트워크 차단으로 양쪽 실행한다. 운영 DB/유료 제공자/전체 채팅 성능은 범위 밖이다.
+- CI: community-moderation.yml django-integration의 기존 community 자동 발견 명령에서 새 test_report_moderation 이름과 개수를 실제 확인한다. 오류·누락·미실행은 통과가 아니며 PostgreSQL 동시성은 SQLite 결과로 주장하지 않는다.
+
+## 2026-10-14 로컬 develop 통합 및 검사 워커 배포 연결
+
+- 기준: A는 현재 로컬 변경 포함 코드, B는 upstream/develop c528926 통합과 워커 배포 연결 후 코드. 신고/포인트/공개 정책과 기존 코스 조건은 모두 유지한다. Git 병합 커밋·push·EC2 배포는 하지 않는다.
+- 동일 native/fallback/legacy moderation synthetic 계약을 A/B에서 DeepEval 및 Ragas로 실행한다. 코스 계약은 A의 케이스/정답/채점기를 고정하고 B에서 V2 이동 경로만 대응시킨다. 네트워크 없는 계약 검증이며 실제 제공자 정확도·실시간 코스 지연은 별도 미측정으로 기록한다.
+- 배포 합격 기준: 개발·운영 모두 동일 backend 이미지의 워커를 명시 실행하며 backend 준비 후 시작. CI에 배포 구성 회귀를 포함. Django 통합·전체 프론트 테스트·타입·빌드·마이그레이션 충돌 검사를 통과해야 한다. 실패/미실행은 그대로 기록하고 기준은 완화하지 않는다.
+
+## 2026-10-14 신고 접수 즉시 재검사와 신고 우선 조회
+
+- 목적: 신고 저장만 하던 경로를 기존 OpenAI 기본 검사 서비스에 연결한다. 새 신고 트랜잭션 커밋 직후 해당 job만 즉시 실행하며, 호출 장애 시 영속 큐와 기존 worker가 복구한다. 별도 문맥 모델·정치 임계값은 추가하지 않는다.
+- 신고 재검사는 명시적으로 openai 모드를 사용하며 전역 자동/수동 선택은 변경하지 않는다. 신고 내용은 모델 입력으로 쓰지 않고 게시글 제목·본문을 검사한다. 동일 사용자 중복 신고는 재호출하지 않으며 동일 글 진행 중 신고 검사는 공유한다.
+- 기존 공개 글은 재검사 도중 공개를 유지한다. flagged 정상은 공개, 유해는 비공개 검토, 공급자 오류는 기존 공개·manual_review 정책, 이미지는 기존 image_review를 유지한다. 관리자 숨김·기존 이력·포인트 중복 방지·revision/lease 폐기는 보존한다. 새 신고는 운영진의 수동 확인 표시를 미완료로 바꾼다. 신고 자체는 LLM만으로 기각/삭제하지 않는다.
+- 게시글 관리 기본값은 신고 건수 내림차순 후 최신 글 순이며, 신고 글만/최신순 선택을 제공한다. 검색·페이지네이션과 함께 서버에서 적용한다.
+- A/B: 수정 전·후 동일 고정 native/fallback DeepEval 및 Ragas 사례(네트워크 차단, cache off, exact=1)를 실행한다. 분류 정책은 동일하므로 A/B 모두 전건 통과해야 한다. 신규 신고 트리거·권한·중복·결과 적용·필터는 격리 DB 회귀로 A 실패/B 통과 및 CI 실행을 확인한다. 이는 동작 계약 검증이며 실제 의미 정확도 평가는 아니다.
+- CI: community-moderation.yml django-integration의 community 자동 발견 및 admin-dashboard.test.mjs 명시 실행, provider-contracts의 기존 native/fallback 명령을 사용한다. 유료 제공자 평가와 운영 배포는 범위 밖이다.
+
+## 최신 develop 통합 검증 (2026-10-14)
+
+- 목적: PR96의 V2 이전 및 기능 보존 커밋 `215fc5d`에 팀 develop `fb4b391`을 통합한다. 문서 충돌은 코스 기준과 커뮤니티 기준을 모두 보존하며 정책·정답·합격 기준은 변경하지 않는다.
+- A는 통합 전 `215fc5d`, B는 통합 후 코드다. 기존 PR96의 고정 54개 계약을 같은 입력·정답·평가 환경에서 DeepEval export와 Ragas replay로 비교하고 관측값 일치를 확인한다. 후보 생성·교체·병렬·취소·v2 도구 연결 및 변경된 팀 기능의 무료 회귀를 함께 확인한다.
+- 합격/실패 기준은 기존 계약을 재사용한다. 실행 오류·누락은 통과가 아니며, 운영 캐시·DB를 사용하지 않는다. 유료 제공자와 전체 채팅 지연 A/B는 미실행으로 표시하고 무료 계약 성공을 실제 품질·속도 보장으로 확대하지 않는다.
+- CI는 develop PR/Push의 `deploy-dev.yml` → `evaluation-regression.yml`을 사용한다. 실제 실행 명령과 테스트 수·오류·환경 보완은 통합 검증 기록에 남긴다.
+
+## PR96 V2 기능 보존 계약 (2026-10-14)
+
+- 기준 A는 `e96d3f0c39d8739127f01cb6c18ae3c1d3f3ec7a` 실제 V1 모듈, B는 V2 이전을 유지한 후보다. 동일 synthetic/offline 입력·fixture·oracle·harness를 고정하고 시험 harness의 import 경로만 remap한다.
+- 범위/기대: 이동한 코스·공용 모듈의 반환값, 후보 검색 순서/IO, 메뉴 판정, 모델/reasoning/timeout/retry/복제 설정, 취소·병렬·오류·근거 검증을 보존한다. 신규 정책이나 기존 baseline 결함 수정은 포함하지 않는다.
+- 합격은 관측한 A/B 동작 delta 0 및 관련 무료 회귀/실제 DeepEval·Ragas 계약 실행 성공이다. 오류·누락·미실행은 성공이 아니며 정답/threshold를 사후 변경하지 않는다. 신규 계약은 독립 검토 대상이다.
+- 유료 제공자 평가 및 전체 실제 채팅 성능 A/B는 미승인/not-run이며 offline IO 계약을 품질·속도 승인으로 확대하지 않는다. 변경 테스트는 기존 무료 CI 명령에 포함하고 실제 이름/count를 확인한다.
+
+## 코스 후기 특성 기준 변경 (2026-10-13 사용자 확정)
+
+- 조용함·넓음·좋은 분위기는 동일 매장의 실제 이용 후기 1건이 해당 조건을 직접 지지하면 후보와 코스에 사용할 수 있다. 결과에는 후기 출처 링크를 붙이며, 이 이유만으로 별도 한계 문구를 추가하지 않는다.
+- 코스의 후기 조건에 일괄 적용하던 180일 제한은 제거한다. 날짜가 오래됐다는 이유만으로 제외하지 않는다. 현재 읽은 원문의 매장명·주소 일치, 실제 본문 확인, 광고·미래 날짜·상충 근거 검사는 유지한다. 사용자가 명시한 최근 후기 등 별도 조건은 버리지 않는다.
+- 콘센트·주차 같은 시설 조건의 근거 건수와 제외 조건은 이번 1건 완화에 포함하지 않는다. 술집 평점 필수, 내부 먹거리 출처, 경기·동선 조건도 유지한다.
+- 빈 로컬 근거 DB와 신규 웹 검색 비활성 환경에서도 기존 매장 프로필 수집기로 후기 조건을 확인한다. 최근성 정책의 변경은 코스에 한정하며 공용 키워드 저장소의 다른 호출자는 기본 정책을 유지한다.
+- 평가 시 후기 조회 실패와 실제 부정 근거를 구분한다. 전후 정책이 달라졌으므로 성공률 차이를 순수 모델 성능 개선이나 동일 조건 속도 A/B로 표시하지 않는다.
+
+## 새 코스의 돈카츠 조건 전달 회귀 (2026-10-13)
+
+- 목적: `16일 경기 돈카츠먹고 구장 가고 싶어 코스 추천해줘` 새 코스에서 메뉴는 인식했으나 후보 검증에 실패한 요청을 재현하고, 기존 교체 경로와 같은 확정 추천 기준으로 처리한다.
+- 기대 동작: 돈카츠·돈까스·돈가스의 단순 긍정 요청은 외부 전문 업종/상호가 확인된 가까운 후보로 구성한다. 구장 내부 매장·일반 일식·검색어 적중만으로 대체하지 않는다. 제외·알레르기·주차·수식어와 내부 한정, 원문 조건은 보존한다.
+- 평가 범위: 먼저 동일한 고정 입력/후보/정답의 새 코스 방문 조건 → 후보 선택 경로를 DeepEval·Ragas 무료 계약 평가로 A/B 비교한다. 실제 요청 재현은 별도 세션에서 수행하고 날짜·구장·출발지, 전체 채팅 시간·호출 수와 실패를 기록한다. 사용자 대화와 운영 캐시는 삭제하지 않는다.
+- 합격 기준: 단순 요청은 외부 돈카츠 후보 및 10월 16일 잠실 17시 경기를 반환한다. 기존 식당 교체/내부 간식 구분과 부정·추가 조건 회귀를 유지하며, 근거 없는 다른 메뉴나 내부 매장 대체·조건 누락은 실패다. 고정 입력 평가는 실제 제공자 품질 승인으로 확대하지 않는다.
+- CI: 기존 tonkatsu 계약 export/score와 `test_course_tonkatsu` 자동 실행 대상에 새 코스 사례를 연결하고 같은 실행 명령으로 검증한다.
+
+2026-10-13 사용자 추가 확정: 일반 중국집은 자장면을 판매하는 것으로 보고 자장면/짜장면 추천 후보로 인정한다. balanced의 새 코스·교체 모두 일반 중국요리 업종을 근거로 사용하고 별도 메뉴판 조회를 필수화하지 않는다. 양꼬치·마라탕·딤섬 전문 업종만으로 일반 중국집을 추정하거나 구장 내부 매장에 이 기준을 적용하지 않는다. 메뉴판을 실제로 확인한 것처럼 표시하지 않으며 확인된 휴무·사용자의 추가 조건은 유지한다. 복합 문장의 의미 해석 경로에서도 자장면 조건만 업종으로 인정하고 조용함·주차 등은 독립적으로 검사한다. 명시적 비판매 근거·제외 조건은 업종으로 덮지 않는다. 이 정책 변경을 기존 메뉴 원문 필수 기준과 동일한 품질 A/B로 주장하지 않는다.
+## 2026-10-13 사용자 정정: 자동 검사 오류는 공개와 수동 검토 병행
+
+- 앞선 오류 비공개 계약을 supersede한다. A는 HEAD가 아닌 현재 dirty 소스이며 scratch에 보존한다. 환경 모드 제거·DB 관리자 선택·자동 기본 계약은 그대로 유지한다.
+- openai 제공자 오류만 안전한 automatic_check_failed/fallback 근거와 open manual_review를 유지하면서 현재 approved_revision을 허용한다. moderation_status는 review로 남겨 제공자 승인으로 표시하지 않는다. confirm은 rejected/비공개, dismiss는 공개 유지다. 독립 image_review·유해 판정·명시 manual·숨김·비공개 부모는 공개 예외가 아니다.
+- 동일 synthetic 사례·정답·네트워크 차단·cache off·DeepEval/Ragas exact threshold=1로 수정 전 A/후 B를 실행한다. 새 사용자 정책 계약이지 threshold 완화가 아니다. 기존 native/live 성공·유해 계약은 유지한다.
+- 합격: 공개 post/comment·관리자 사후검토 발견·confirm/dismiss·다중사유·부모 복구 시 최초 포인트/댓글수·숨김·revision/lease·storage 오류·권한/이력 무료 회귀 및 두 framework 계약 전건 일치다. community-moderation.yml의 django-integration/community 자동 발견 및 provider-contracts/fallback 명령에서 실제 이름·개수를 검증한다. 프론트 안내 변경은 기존 4파일 node --test CI 명령으로 검증한다. 실제 제공자/운영 DB/유료 의미 품질은 범위 밖이며 needs-review다.
+
+## 2026-10-13 환경 모드 제거와 자동 검사 실패의 수동 검토 이관
+
+- 목적/변경 변수: COMMUNITY_MODERATION_MODE 설정과 읽기를 제거한다. 관리자 DB의 자동/수동 선택만 유지하고 DB 선택이 없으면 항상 openai를 사용한다. OPENAI_API_KEY와 다른 설정은 보존한다.
+- 기대 동작(같은 날 사용자 정정 반영): openai 검사의 키 누락·timeout·결과 누락/오형은 최초 실패에 안전한 error_code/evidence와 manual_review 사유를 남긴 완료 작업으로 전환한다. status=review와 공개 가능한 현재 approved_revision을 병행하되 독립 이미지 사유·숨김·비공개 부모는 비공개로 유지한다. 전역/DB 모드를 바꾸거나 제공자 승인으로 표시하지 않는다. 저장/DB 오류는 검사 실패로 처리하지 않는다.
+- 보존 범위: legacy live 스냅샷의 기존 재시도·실패 계약, flagged 및 이미지 검토, revision/lease 무효 결과 폐기, 검토 권한, 최초 포인트·이력·관리자 숨김을 유지한다. 실제 .env/운영 DB/실제 제공자 호출은 범위 밖이다.
+- A/B: 동일 신규 synthetic 실패 이관 케이스·독립 기대값·DeepEval/Ragas exact 지표·네트워크 차단·cache off를 수정 전 A와 수정 후 B에 실행한다. 기존 native 및 live 정답은 바꾸지 않고 신규 이관 계약을 별도로 평가한다. native 평가도 양 프레임워크의 점수/실행 개수를 assert한다.
+- 합격/실패: B 전건 기대 상태/근거 일치 및 무료 Django 회귀 통과가 합격이다. 누락·오류·미실행은 실패/검증 대기로 보존한다. community-moderation.yml의 django-integration 자동 발견과 provider-contracts 명령에서 신규 대상의 실제 이름/개수를 확인한다. 유료 의미 품질은 not-measured/needs-review다.
+
+## 2026-10-13 OpenAI 기본 자동 검사와 관리자 모드 선택
+
+- 사용자 결정: 새 자동 모드는 omni-moderation-latest의 flagged만 사용한다. 정치 임베딩, 별도 문맥 모델, harassment 예외, URL 단독 보류는 적용하지 않는다. 첨부 이미지는 기존 미검사 상태를 명확히 표시하고 운영진 검토를 유지한다.
+- 수동은 전건 검토, 자동은 flagged=false이면 공개, true이면 비공개 검토다. 자동 검사 오류는 같은 날 사용자 정정에 따라 공개와 사후 검토를 병행한다(독립 이미지·숨김·비공개 부모 제외). 관리자만 DB에 모드를 저장하며 새 접수부터 적용한다. 기존 작업의 스냅샷/검토/포인트는 변경하지 않는다.
+- 고정 synthetic 응답으로 정상·harassment·정치·URL·거래·실패·이미지 경로를 검증한다. 새 계약을 변경 전 A와 변경 후 B에 동일하게 실행하고 DeepEval/Ragas exact 지표로 각각 채점한다. API 호출 0, 의미 정확도는 not-measured. 기존 live 계약은 과거 스냅샷 호환 회귀로 유지한다.
+- 합격: B의 계약 전건 일치, 관리자 전용 권한·모드 영속·새 작업 적용·기존 작업 유지·정정된 오류 공개/사후검토 및 독립 비공개 사유 회귀 통과. community-moderation.yml의 django-integration 및 provider-contracts에 연결한다. 신규 정답은 사용자 요청에 따른 별도 계약이며 기존 정답을 변경하지 않는다.
+
+## 코스 리뷰 5건 수정 계약 (2026-10-13)
+
+- 목적: 보존 대상의 번호·상호·술집 언급을 수정 허용으로 오판하는 경계, BAR 방문의 FOOD 상호 혼합 검색에서 평점 조사 누락, 지번 주소 누락, 무료 CI 대상 누락, 보존 안내의 역할 오류를 수정한다.
+- 기대/범위: `술집은 그대로 두고 식당을 돈카츠로 바꿔줘`와 `2번 STATION은 그대로 두고 식당을 돈카츠로 바꿔줘`는 meal만 수정한다. 실제 번호·상호·선택·내부·술집 변경 허용은 유지한다. BAR 의도는 검색 업종과 별도로 전달하며 실제 술집만 기존 예산·병렬·취소·지점 일치 검사로 조사한다. 일반 식당 혼합 검색은 추가 IO 0회다. Kakao address_name만 있는 술집도 조사하되 다른 지점 근거는 거절한다. 확인 안내는 실제 보호된 술집/내부 카페/내부 먹거리 역할을 표시한다.
+- A/B: 신규 고정 입력·독립 기대값·exact scorer를 먼저 작성하고 수정 전 A 실패와 수정 후 B를 같은 Django runner 및 실제 DeepEval/Ragas 무료 계약 지표로 보존한다. 기존 정답/threshold는 변경하지 않는다. 신규 계약은 독립 검토 대상이며 자동 golden 승격하지 않는다.
+- 합격/실패: 대상·보존 안내·평점 조사 대상/횟수·주소 및 지점 일치의 기대값 전체 일치가 합격이다. 오류/누락/미실행은 성공이 아니다. 네 개 누락 모듈과 신규 회귀는 evaluation-regression deterministic의 free 명령에 연결하고 실제 테스트 이름/count를 기록한다. 유료 전체 채팅 성능 A/B는 미승인/검증 대기이며 무료 IO 경계 검사를 전체 채팅 성능 증거로 대체하지 않는다.
+
+## 구장 내부·외부 방문 구분과 메뉴 교체 회귀 (2026-10-13)
+
+추가 확정: 원인은 특정 메뉴가 아니라 공개 FOOD 분류에 내부 먹거리·외부 식당·술집이 함께 담긴 경계 손실이다. 모든 메뉴의 일반 식당 수정에서 내부 방문을 보호하고, 일반 카페 수정에서도 내부 카페와 외부 카페를 구분한다. 내부 위치 표현 또는 해당 매장 이름·번호·선택 지칭이 있을 때만 내부 방문을 수정 대상으로 허용한다. 서버의 부분 수정 적용 단계에서도 검사하여 의미 해석 모델의 잘못된 대상 선택이 그대로 반영되지 않게 한다. 내부 후보 허용은 기존 자리어때 전용·이번 요청 한정 규칙을 유지한다. 추가 회귀는 초밥·스테이크 등 비사전 메뉴의 잘못된 내부 대상, 명시 내부 수정, 일반 카페, 대상 없음·복수 대상, 공개 결과 왕복 이후 역할 복원이다.
+
+- 목적: 같은 식당 교체가 보존 문구·돈카츠 표기에 따라 실패하거나, 구장 간식 STATION·술집을 일반 식당으로 혼동하는 문제 수정.
+- 기대 동작: `식당이 좀 별로다. 돈카츠 가게로 수정해줘`, `경기 전 자장면 식당만 돈카츠 가게로 바꿔줘. 나머지 일정은 유지해줘`는 일반 식사 방문만 교체한다. 명시적 대상이 없는 경우 내부 간식·술집을 임의 식당 후보로 고르지 않는다. 내부 간식만 있는 코스의 모호한 식당 교체는 확인이 필요하다.
+- 후보 기준: balanced의 기존 상호·전문 업종 근거를 동일하게 적용한다. 돈카츠 검색어에 잡혔다는 이유만으로 국밥·횟집·STATION을 돈카츠로 간주하지 않는다. 돈까스, 돈가스, 돈카츠 표기를 일관되게 처리한다. 알레르기·주차 등 추가 조건은 버리지 않고 기존 해석·검증으로 전달한다. 구체적인 지점·메뉴 근거가 없는 성공을 만들지 않는다.
+- 범위: 실제 해석·후보 선택 함수의 고정 입력 오프라인 A/B를 DeepEval·Ragas custom exact metric으로 각각 실행한다. 외부 응답은 고정하고 일반 의미 품질 점수로 확대하지 않는다. 이어 같은 광주 10/16 14시·광주역·기존 코스에서 실제 채팅 수정 반복을 확인한다. 운영 캐시는 삭제하지 않는다.
+- 합격: 지정 방문의 교체 완료, STATION은 기존 간식 방문으로만 보존, 경기·출발지·다른 방문 보존, 원문 추가 조건 누락 없음. 실패·시간·호출 수를 함께 기록하고 실패 표본을 속도 개선에서 제외한다. 네트워크 공급자 가용성까지 항상 성공한다고 보장하지 않는다.
+- CI: 무료 deterministic job에서 새 교체 회귀와 양 프레임워크 계약 평가를 실행한다. 유료 judge 호출이나 운영 요청의 추가 모델 검증은 넣지 않는다.
+
+## 2026-10-13 커뮤니티 접수·재시도·삭제 회귀 보완
+
+- 목적/변경 변수: 삭제 가능한 검사 작업과 분리한 계정별 시간당 접수 기록, 최초 접수와 재시도의 Boolean 정규화 일치, 비공개 게시글 삭제 UI, 댓글 응답 검증 및 CI 발견 범위 보완이다. non-LLM 수정이며 정책·모델·정답·threshold는 변경하지 않는다.
+- 기대 동작/범위: limit=1에서 글/댓글 삭제 후 재접수는 429, 다른 계정은 독립 접수, 동일 계정 동시 접수는 하나만 성공한다. 기존 작업/리뷰를 보존하고 삭제 원문은 접수 기록에 남기지 않는다. 허용 Boolean 문자열/0/1의 동일 body/key 재시도는 200, 다른 본문은 409이며 수정/이미지 이동 후에도 재시도가 가능하다.
+- UI 합격/실패: pending 포함 비공개 글 삭제는 확인 취소 시 호출 0, 성공 시 목록 새로고침, 실패 시 오류 표시와 목록 유지다. 댓글 moderationStatus/revision 누락·오형은 거절한다. 관련 회귀와 community 전체·DomainTools·point/probe를 disposable PostgreSQL CI 명령 및 프론트 4파일 명령에서 실제 발견/실행해야 합격이다.
+- A/B: 수정 전 A와 수정 후 B에서 기존 synthetic 10개 CASES, 정답, DeepEval/Ragas deterministic routing 지표, synthetic 모델/embedding, threshold=0.8, cache off, network 금지 조건을 동결하여 각각 실행한다. 두 프레임워크 각 10/10 및 provider_calls=0이어야 하며 의미 품질은 not-measured다. 실제 유료 호출은 하지 않는다. 실행 오류/미실행은 검증 대기로 보존한다.
+
+## 2026-10-13 커뮤니티 비공개 검사 통합
+
+- 범위: 게시글/댓글 비공개 접수, 영속 작업, 정치 유사도/문맥 정책, 사유별 운영진 해제, 공개 접근 및 최초 포인트 지급.
+- 정상 거래/야구 광고 및 감탄형 비속어는 일괄 차단하지 않는다. 여러 격리 사유 중 일부 해제만으로 공개하지 않는다.
+- 결정론적 합격 기준: 미검사 내용 공개 0건, 오래된 작업 결과 적용 0건, 중복 포인트 0건, 타인 비공개 조회 0건. worker 재시작/수정/검토 경합 회귀를 포함한다.
+- A는 기존 공개 저장 API, B는 비공개 접수 API다. 외부 호출 없는 고정 사례로 처리 상태를 비교하며 DeepEval/Ragas의 결정론적 채점은 분류 품질의 증거가 아니다.
+- 실제 정치 threshold/사례집 및 정책 모델은 아직 운영 확정하지 않는다. manual 모드는 모든 새 내용을 운영진 검토로 보내며 live 검사 통과로 표시하지 않는다. 실제 제공자 품질은 not-run/needs-review로 보고한다.
+
 상태: 확정 정책의 평가 기준선 v1.0 — 일부 미결 항목은 아래 평가 적용 범위에 따라 채점 보류
 
 주요 정책은 기준선으로 확정했다. 다음은 문서의 최소 보완 → 실제 도구·capability·역할 매핑 확인 → 기존 근거의 검증 가능 범위 확인 → 데이터셋·채점기 검토 순서로 진행한다. 문서 확정은 운영 구현 완료나 실제 모델 평가 통과를 뜻하지 않는다.
@@ -28,6 +153,14 @@
 - A/B: 동일한 실제 ChatOpenAI SDK + MockTransport, disposable synthetic retrieval/독립 fixture 라벨, adapter → Django export_ragas → JSONL 경로를 네트워크 차단 상태로 실행한다. 기존 verifier probe의 A 오류와 같은 fixture의 B 결과를 보존한다. fixture는 live 제공자 지원·답변 품질·DeepEval/Ragas 유료 채점 근거가 아니다.
 - SDK 경계 추가 회귀: LangChain의 lossy 변환 이전 실제 Responses HTTP output을 CI 소유 SDK client 경계에서 검사한다. assistant message의 사용자 가시 content는 유효 output_text만 허용하며, 정상 text와 혼합된 refusal/unknown/malformed도 전체 실패다. 별도 reasoning output의 유효 summary_text/encrypted_content는 사용자 가시 답변이 아닌 reasoning metadata로 보존하며 native text 추출에서 제외한다. 같은 합성 transport로 scratch에 동결한 수정 전 adapter A와 후보 B를 실행하고 파일명 아닌 실제 결과/adapter 해시로 출처를 확인한다.
 - 합격: 복수 text block 순서와 plain string을 보존한 비어 있지 않은 문자열, usage/response metadata 및 별도 reasoning metadata 보존, canonical export 오류 0. 빈/공백·refusal·malformed·nontext 출력은 fail-closed하며 실패를 성공 JSONL로 기록하지 않는다. SDK 요청 계약·A/B 관련 회귀 및 CI 자동 발견/명령 포함을 검증한다. 실제 제공자 평가는 승인 전 미실행/검증 대기로 유지한다.
+
+## 코스 발표용 평가 데이터 초안 2026-10-13
+
+- 목적: `course_dataset_20261013/cases.json`의 핵심 6종과 회귀 14종으로 생성·부분 수정의 조건 충족, 전체 완료, 지연·호출 수를 따로 기록한다. 운영 코드·정책·기존 golden 정답은 변경하지 않는다.
+- 기대 동작: 같은 날짜·출발 좌표·원본 코스에서 요청한 메뉴·브랜드·순서·내부 출처·평점 정책·입장 시간과 수정 대상 외 방문을 보존한다. 기존 확정 정책만 정답 조건으로 사용한다.
+- 판정: 필수 조건에 위배된 결과는 빠르더라도 실패다. 증거 부족은 미확인, 사용자 답변 대기는 미완료, 실행 환경 오류는 실행 오류로 남긴다. 코드가 검사하는 구조와 사람이 대조할 메뉴·출처·화면은 별도 기록한다. 새 전체 품질 threshold는 정하지 않는다.
+- 범위: 이번 작업은 문항·기대 조건·비식별 원본 코스 fixture·빈 기록 양식 작성과 오프라인 데이터 무결성 검사이다. DeepEval/Ragas 실제 제공자 평가, 사용자 코스 생성, 유료 A/B는 포함하지 않는다. 이 문항들은 독립 검토 전 초안이며 기존 승인 golden/CI 품질 정답으로 자동 승격하지 않는다.
+- 실행 연결: 기존 `evaluate_courses`는 시나리오가 코드에 고정되어 이 JSON을 직접 입력받지 못한다. `chat_eval`도 지도/currentCourse 입력과 전체 SSE 완료를 재현하지 않으므로 완주 평가의 대체 경로로 쓰지 않는다. 실제 채점·계측은 기존 도구를 활용해 연결할 후속 범위이며, 이번 무료 CI는 데이터 무결성만 확인한다.
 
 ## 정책 상태표
 
@@ -580,6 +713,26 @@ fixture는 테스트 입력·응답을 고정하는 방식이며 그 자체가 �
 
 추가 지표: 잘못된 결과의 통과율, 올바른 결과의 탈락률, 재채점 변동률, 평가 불가율, 평가 시스템 오류율. 각 지표에 실제 분모를 표시한다.
 
+## 2026-10-13 거래·광고 체크박스 제거
+
+- 사용자 확정 정책: 티켓·굿즈 거래 및 야구 관련 광고·협찬 자체는 허용하며 작성자 표시를 요구하지 않는다. 표시 누락은 검토 사유가 아니다. 사기·개인정보·정치 등 독립 위반 검사는 유지한다.
+- 변경 범위: 글쓰기/수정 체크박스 제거, 문맥 검사에서 표시 누락 사유와 작성자 태그 의존 제거. 기존 API/DB 필드는 호환성을 위해 유지한다.
+- 동일 합성 사례로 변경 전 A/변경 후 B의 DeepEval·Ragas adapter 회귀를 실행한다. 표시 없는 거래/야구 광고는 위반 없는 제공자 응답을 공개로 연결하고, 태그가 있어도 사기는 검토로 연결해야 한다. 모든 계약 사례 통과와 실제 UI 체크박스 부재가 합격 조건이다.
+- 합성 제공자 회귀는 실제 문맥 모델 정확도 평가가 아니다. 유료 호출은 하지 않고 의미 정확도는 미측정으로 기록한다.
+
+## 2026-10-13 검사 서비스·실행 명령 분리
+
+- 목적: 정책 변경 없이 기존 Django ORM 작업 조회·결과 반영을 `backend/services`로, 워커 실행 명령을 `backend/llm/commands`로 분리한다. Django 명령 발견용 `llm/management/commands`는 얇은 진입점으로 둔다.
+- 불변 조건: 기존 게시글·댓글·ModerationJob/Review 모델, 저장 시 비공개, 입력 버전 스냅샷, lease 검증, 오류 재시도, 운영진 복구, 모델·프롬프트·임계값을 유지한다. 새 DB 모델이나 전체 게시물 재검사는 추가하지 않는다.
+- 변경 전 A/후 B는 같은 합성 10개 사례와 DeepEval/Ragas 지표로 평가한다. 두 평가 모두 10/10 및 Django 게시글·댓글·오래된 결과 차단 회귀 통과가 합격 기준이다. 실행 명령이 새 서비스에 연결되는지도 확인한다.
+- 유료 모델 호출 및 의미 정확도는 평가하지 않는다. 리팩터링으로 정책 품질이 개선됐다고 주장하지 않는다.
+
+## 2026-10-13 미검사 전체 수집 명령
+
+- 명령만 추가하며 운영 데이터에 일괄 실행하거나 스케줄을 등록하지 않는다. 기존 정책·모델 입력·판정은 변경하지 않는 non-LLM ORM 연결 변경이다.
+- 현재 내용 버전의 작업이 없는 기존 게시글·댓글(과거 승인 버전 0 포함)을 비공개 큐로 수집한다. 완료·검토·거절 결과, 실행 중 작업, 실패 작업의 재시도 한도는 유지한다. 중복 실행은 동일 버전의 새 작업을 만들지 않아야 한다.
+- 테스트 DB에서 누락 작업 수집, 이미 있는 작업 중복 방지, 기존 숨김 보존, 예약 명령의 일회 실행을 검증한다. 기존 정책 adapter 합성 회귀는 유지하며 실제 제공자 호출은 하지 않는다.
+
 ## 날씨 도구 리뷰 수정 — 좁은 오프라인 계약 기준 (2026-10-13)
 
 - 목적/변경 변수: `get_weather`의 시각 생략/null + 정상 무예보(None) 예외와 오늘 23시의 잘못된 다음 정시 표기를 수정한다. 같은 날짜 23:00 cap을 유지하고 오늘 마지막 정시 예보 기준(경기 시각 아님)으로 밝힌다.
@@ -595,6 +748,97 @@ fixture는 테스트 입력·응답을 고정하는 방식이며 그 자체가 �
 - 생략/null 시 무예보는 available=False, requestedTime, timeBasis, `기상청 단기예보에 해당 시각 예보가 아직 없다` message를 반환한다. 명시 시각의 무예보 None은 유지한다. 오늘 23:00·23:30·23:59는 같은 날짜 23:00과 마지막 정시 근거를 유지하며 일반 다음 정시·미래18:30·실제 예보 불일치·잘못된 입력 거절도 유지한다.
 - 동일 11개 입력의 v2 독립 기대값과 harness를 A 실행 전에 동결한다. A는 pinned afcfaaa 실제 StructuredTool.invoke, B는 원격 계약과 로컬23h/CI를 통합한 후보다. 두 framework의 기존 exact 1.0 조건·버전·네트워크 차단 설정과 canonical replay 변조 거절은 불변이며 결과에 맞춘 완화가 아니다.
 - 전 사례 반환/호출 완전 일치가 합격이며 실패/오류 원시 로그를 보존한다. 실제 free/highlight-free/wiring 및 pinned Docker adapter를 재실행한다. 최종 LLM·실제 제공자 품질은 미측정, 유료 호출 없음, 새 기준/harness 독립 검토는 별도다.
+
+## 하이라이트 이미지 입력만 유지하는 최소 복원 계약 (2026-10-13, A 실행 전)
+
+- 사용자 목표: 기존 원래 코드의 검색 범위를 유지하고 이미지만 입력받아 검색할 수 있게 한다. HEAD `35d0b794bfa6ffcd4d806e7c31106f0bbd8e09cd`의 separate video/audio/text named vectors(각 768) + lexical/RRF 및 원래 서버 text 수집·색인 경로를 기준으로 한다. joint 색인·server transcript ingestion·min15 planner·resume·병렬 ingestion·RPM/retry·Docker 추가는 철회한다. 기존 corpus/downloads는 수정·삭제·재색인하지 않는다.
+- 보존: 서버 소유권/최근4턴 복원 → 전문 위임 → 원 사용자 text+최대6 원본 이미지 질의 embedding → 기존 named vectors/RRF → 후보 원본 영상/오디오+이미지 검증. WebP embedding-only lossless PNG 변환, 초과/외부URL/malformed 실패 폐쇄, 원본 출력 redaction, corpus integrity/자원 정리, dataset hash/token malformed 경계를 유지한다. delegation 발명 조건은 이미지 query에 넣지 않는다.
+- A/B: 원래 HEAD35d0b794 소스를 image 기능 전 A-original로 동결하며 이미지 계약 미지원 실패와 기존 text 회귀를 그대로 보존한다. 수정 전 credential-free 전체 dirty source snapshot은 A-rollback으로 별도 동결하고 동일 기존 이미지·text·integrity·HTTP 사례와 독립 기대값/설치된 DeepEval/Ragas deterministic metrics를 B에도 실행한다. joint 전용 사례는 목표에서 철회하며 이미지 사례는 별도 이미지 테스트로 보존한다. 결과를 보고 기대값을 완화하지 않는다. 네트워크/유료 호출 없이 실제 free/highlight-free CI 명령과 격리 DB HTTP 회귀를 실행하고 실행 이름·개수를 보고한다.
+- 합격: separate collection의 세 named vector 검색 및 lexical/RRF, 이미지 원문 전달/정확한 검증, text 회귀, 정책 경계 전 사례 통과. 기존 joint runtime을 separate-ready로 주장하거나 corpus를 암묵적 변환하면 실패다. runtime switch는 coordinator의 별도 작업이며 원래 separate corpus의 metadata/FTS/clips/vector readiness·mount/config/권한/lock 확인과 서비스 재시작 뒤 readback이 선행되어야 한다. 실행 불가·provider 품질·실제 전체 코스 지연은 미검증으로 남긴다.
+
+## 실제 cue 15–25초 범위 재실험 계약 (2026-10-13, A 실행 전)
+
+- 최신 사용자는 원복을 중단하고 기존 separate ingestion에서 실제 자막 cue 기반 최소15/최대25초·인접 겹침5초를 재실험하도록 승인했다. 아래 이전 120/180초 구현 계약은 변경 전 A의 기록이며 현재 구간 상한은25초다. 기존 이미지 입력·named video/audio/text 각768·동일 point·원문·privacy 흐름은 불변이다.
+- 시작/끝은 실제 cue 경계만 사용하고 순방향·전체 cue 근거를 보존한다. 짧은 tail도15–25 안에서 해결하며 불가능하면 누락·고정 window·padding 없이 실패한다. frame quantization으로 실제15 미만인 경우 기존 next-real-cue-end 보정도25초 이내여야 한다. 계획과 실제 MP4/WAV 양쪽 길이 모두15–25초, token count는 각 모달 독립1–8192 정수여야 한다. 근거 없는 해상도/fps 변경·OpenCV·요약·truncation은 없다.
+- 변경 전 A 소스와 독립 고정 경계/겹침/tail/보정/실제 readback 사례를 동결하고 같은 테스트·설치된 DeepEval/Ragas exact 계약·조건으로 B를 실행한다. 신규 일반 품질 threshold는 만들지 않는다. 기존 CI highlight-free의 ingestion suite 안에 회귀를 추가하여 실제 이름·개수 및 free/wiring 결과를 기록한다. 제공자 품질 점수와 결정론적 계약 점수는 구분한다.
+- 제한된 실험만 승인: 실패했던 실제3lp-50c1LPM 913–941.47초 구간과 일부 긴 구간의 countTokens 실제 HTTP 시도를 합계 최대30회, embedContent0회로 실행한다. 원본과 현재 FFmpeg scale/codec/fps 정책은 유지하며 원본/추출본의 실제 해상도·fps·길이와 count를 기록한다. 기존255 paid point·corpus·source는 수정하지 않는다. 전체922 재임베딩·resume 추가·삭제·cleanup·mount·restart·배포·commit/push는 승인되지 않았다. 일부 token 통과는 전체 corpus 또는 웹 준비 완료가 아니다.
+
+## 이전 원본 10개 전체 자막 별도 모달 색인 계약 (2026-10-13, 변경 전 A 이력)
+
+- 최신 승인 범위는 image-only 검색 경로를 그대로 보존하고 명시 manifest의 실제 원본 10개 전체 VTT를 fresh separate corpus로 색인하는 것이다. 아래 joint 실험은 계속 철회된 이력이다. source/download/caption/audio/무관 DB를 변경하지 않으며 cleanup은 coordinator의 별도 승인 작업이다.
+- 실제 cue 최소15초/겹침5초 planner 및 raw cue 보존·rolling 중복 정책을 재사용한다. 임의 요약·고정 샘플·15초 미만·누락·truncation은 금지한다. video<=120초, audio<=180초, 각 실제 video/audio/text 입력을 독립 countTokens<=8192 검사 후 독립 embedContent하여 동일 point의 768차원 video/audio/text named vectors로 저장한다. 초과/불명 count는 모달별 증거를 남기고 fail-closed한다.
+- collect/index의 명시 opt-in은 같은 pipeline을 호출한다. fresh corpus만 허용하고 joint/resume/legacy migration은 추가하지 않는다. workers1–8(기본8), 전체 worker 공유3000RPM/burst8, 일시429/503/network만 최대3재시도, 모든 실제 HTTP 시도 선차감, 중앙 DB writer를 사용한다. row당 명목6/worst24 요청이며 명시 max-calls cap은 금전 예산이 아니다.
+- A는 수정 전 credential-free image-only source snapshot이다. 동일 고정 합성 media/transport/정답·DeepEval exact contract·Ragas ExactMatch 사례를 수정 전 A와 수정 후 B에 실행한다. 기존 image/text/integrity 회귀와 실제 CI highlight-free command에도 새 파일을 포함한다. 실제10 로컬 원본 dry-run의 922 row·모달 길이/hard bounds를 확인하지만 paid token/provider 품질 통과로 주장하지 않는다.
+- 실제 exact15.0초 cue 범위가 frame quantization으로14.981648초 영상이 된 4개 원본 반례는 최소15 기준을 완화하지 않는다. 실제 길이가 부족할 때만 다음 실제 원본 cue end를 선택하여 다시 추출할 수 있다(합성 padding/고정 window/요약 금지). 다음 계획 row 끝보다 엄격히 작고 hard120 이내인 end만 허용하여 end 순방향·겹침5를 보존한다. 원 계획 id/end와 조정된 실제 id/end·원문 cue/text를 증거에 남기고, 가능한 end가 없으면 해당 row는 유료 호출 전 실패한다. 계획922 row 수는 변하지 않으며 원 계획 hash와 실제 조정 증거를 구분한다.
+- 2026-10-13 readback 좁은 보완(A 실행 전): 공용 validate_ingestion의 pending 검사·Specialist reopen·명시 readback 모두 실제 clip 길이를 재측정하여 video 15–120초/audio 15–180초 경계를 엄격히 검사한다(14.981648초 및 경계 밖 값에 tolerance 적용 금지). 기존 계획 span 동기화 오차 .25초는 경계 안에서만 유지한다. 각 row provenance의 caption_sha256/media_sha256는 해당 video의 동결 per_video hash와 정확히 일치해야 하며 누락·변조는 거절한다. 동일 합성 clip/transport/기대값으로 경계·hash 반례 A 실패를 보존한 뒤 B 통과, 기존 DeepEval/Ragas offline 및 highlight-deterministic → highlight-free 명령에서 추가 테스트 이름·개수를 확인한다. 기존 image named3 흐름·source cue 보정은 변경하지 않으며 유료 호출·runtime cleanup/deletion/mount·commit/push는 하지 않는다.
+- 합격은 모든 point/FTS/probe/vector/clip hash 및 길이 일치, 완료 marker와 계획 row 수 일치이다. 미완료/부분/mixed corpus는 mount 전 거절한다. image original query/named search/lexical RRF/max6/WebP/privacy는 불변이다. 유료 호출·cleanup·mount/runtime starts·commit/push/deploy는 이 구현 작업에서 하지 않는다. 실제 제공자 검증 및 최종 독립 max 리뷰는 coordinator가 별도 수행한다.
+
+## 철회된 실험 이력: 하이라이트 공동 임베딩·원본 이미지 계약 (2026-10-13)
+
+아래 joint/ingestion/min15/resume/RPM 계약과 기존 평가 결과는 역사적 기록이며 현재 구현/출시 범위가 아니다. 원본 이미지 정책과 privacy/integrity 경계만 위 최소 복원 계약에서 유지한다.
+
+- 목적/변경 변수: 기존 개별 video/audio/text named vectors + fusion(A)을 보존하고, 별도 disposable corpus의 joint collection(B)에 동일 구간 영상·동기화 오디오·원문 텍스트를 한 embedContent 요청의 parts로 넣은 단일 벡터를 색인한다. 평균 벡터는 허용하지 않는다. 운영 데이터 재색인/삭제와 전역 모델 설정 변경은 없다.
+- 기대/범위: 소유 세션·최근 첨부 창·가드 검증을 이미 통과한 서버 복원 image data blocks만 전문 위임 → 이미지+텍스트 공동 질의 → 실제 후보 영상/오디오 검증에 전달한다. 모델 tool 인자에 이미지 경로/URL을 추가하지 않는다. 텍스트 전용, 전문 위임, 서버 영상 카드, 실패/미완료 및 원본 공개 출력 경계를 유지한다. 이 독립 highlight 검색 평가는 일반 챗봇 정책 평가의 RAG 제외와 별개다.
+- 무료 A/B: 수정 전 파일 SHA-256와 동일 합성 transport/로컬 Qdrant/독립 기대값의 A 실행을 먼저 보존한다. 한 요청의 parts·한 벡터 readback, 원본 이미지 byte identity, 신뢰되지 않은 URL 거절, A corpus 불변, 텍스트 회귀 및 오답/무정답/오류를 검사한다. 기존 DeepEval CorpusMetric 및 Ragas CorpusRagasMetric을 동일 결과/독립 라벨로 실제 실행하며 합성 점수를 제공자 품질로 주장하지 않는다.
+- 합격/실패: 결정론적 계약은 전 사례 정확히 일치해야 한다. 개별 요청/평균 대체, 이미지 유실·원본 공개, 외부 이미지 URL 허용, A 덮어쓰기, 오류의 no_match 성공 처리는 실패다. 미실행/평가기 오류는 성공이 아니다. 변경 테스트는 기존 무료 CI runner에 명시 연결하고 실제 실행 수를 확인한다.
+- live 승인 대기: 검토된 immutable 동일 corpus 구간/정답/query/gemini-embedding-2/768/verifier/후보3/scorer를 동결하여 2x2(개별·joint 색인 × text·image+text 질의)를 opt-in 실행한다. 독립 사람이 원본 영상을 보고 segment/원본 시간 구간을 라벨링한 양성, 시각만으로 구분되는 오답, 무정답, 텍스트 회귀 표본을 제안하며 자동 생성 정답은 금지한다. 실제 호출 예산·표본·원본 이미지 사용 승인을 받은 뒤 실행하고 needs-review를 유지한다. 무료 결과는 실제 이미지 모델 지원·검색 품질·전체 코스 지연의 증거가 아니다.
+
+### 독립 검증 F1–F6/R1 수정 계약 (2026-10-13, 실행 전 기록)
+
+- F1: 복원 원본 image data URL과 bare base64 payload를 메인/위임 생성 출력의 SSE(청크 경계 포함) 및 저장 답변·도구·checkpoint에서 제거한다. 내부 모델 입력은 보존하며 정상 텍스트 청크의 즉시 전달과 외부 이미지 Markdown URL은 유지한다. 원본 노출 또는 정상 청크 전체 버퍼링은 실패다.
+- F2: 이미지 검색/검증 query는 authoritative 원 사용자 텍스트만 사용한다. 위임 metadata의 발명된 조건이나 접미사가 query/500자 bound에 들어가면 실패다.
+- F4 사용자 확정 정책: provider는 요청당 PNG/JPEG 최대 6개만 지원한다. 유효 WebP는 기존 Pillow로 lossless PNG 표현 변환하며 서버 정규화 원본은 검증 입력에 보존한다(embedding byte identity는 변환 전과 다름). 복원 7개/10개는 한국어 안내와 incomplete/no_match=None으로 provider 호출 전에 거절한다. contact sheet/암묵적 선택·삭제·truncate는 금지한다. 글로벌 업로드 10개·최근 4턴·중복 제거 정책은 변경하지 않는다. 유효 6개 수용/WebP 변환 성공 및 초과 입력 zero-call이 합격이다.
+- F5/R1: 기존 corpus reopen에서 mode/collection/vector 설정·point/segment/payload·FTS 일치와 필수 미디어 준비를 검증하며 불일치/부분 corpus는 실패 폐쇄한다. separate/joint 모두 전체 collection 이름 집합이 선택한 collection 하나와 정확히 같아야 하며, 임의의 제3 collection이 추가된 유효 합성 corpus도 생성자에서 거절해야 합격이다. 기존 corpus 자동 복구/덮어쓰기는 금지한다. 모든 생성자 예외에서 이미 연 Qdrant/SQLite를 닫는다.
+- F3/F6: 새 trusted evaluator의 text mode를 정확한 pinned old A API로 실행한다(image helper lazy import, legacy separate metadata 명시). dataset bytes를 parse/provider 전에 한 번 읽고 hash에 결속하며 경로 변경은 성공 summary 없이 실패한다. 이미지 provenance는 payload 없는 hash/MIME/크기로 기록한다.
+- 무료 회귀: 독립 기대값의 failing pre-fix A 로그를 먼저 보존한 뒤 동일 사례 B를 실행한다. 기존 free/highlight-free와 wiring에 실제 실행을 연결하고 test 이름/개수를 확인한다. 실제 DeepEval/Ragas applicable deterministic metric을 유지한다. 합성 계약 성공은 live 품질/비용/성능 개선이 아니며 paid budget·이미지·독립 정답과 최종 needs-review 승인은 계속 대기다.
+
+### 서버 transcript 공동 ingestion 계약 (2026-10-13, A 실행 전)
+
+- 변경 목적: 기존 collect/index/cron의 장면 설명 text 색인을 유지하고 명시 opt-in manifest 경로만 실제 원본 video/audio/VTT joint 색인으로 연결한다. 새 immutable corpus이며 기존 separate 및 joint-corpus-ten은 덮어쓰지 않는다.
+- 경계(2026-10-13 최소15초/겹침5초 수정, A 실행 전): 연속 실제 VTT cue 범위를 span>=15초까지 묶고 다음 시작은 직전 끝-5초 이하의 실제 cue 시작으로 선택한다. 시작/끝은 엄격히 증가하고 마지막 짧은 tail은 직전 범위에 병합한다. 고정24초/target20초/cap30초, 임의 pre-roll, 자막 밖 확장, 원문 cue 절단/생략은 금지한다. 각 범위와 교차하는 모든 원문 cue(raw/index/start/end/source_end)를 보존하며 범위 내 rolling suffix/prefix 중복 및 hold 근거를 유지한다. 자막 gap은 span에 포함할 수 있으나 원문 없는 text를 만들지 않는다. 전체 coverage<15초 또는 sparse gap/불가분 cue로 이 계약과 provider hard video120s/audio180s를 함께 만족할 수 없으면 유료 호출 전 명시 실패한다. shared8192 tokens countTokens 검사는 유지하며 추정 통과하지 않는다. silence는 자막 미포함 구간으로 별도 기록한다.
+- 2026-10-13 terminal-tail 좁은 보완(A 실행 전): cue (0,120),(110,114),(115,125), duration125는 (0,120),(110,125)로 수용해야 한다. 최신 시작115가 짧은 tail을 만들어 직전 범위를 hard120 밖으로 병합하게 되면, 최소15초를 확보하는 더 이른 실제 cue 시작110을 선택한다. 최소15/겹침5/hard120, 원문 cue provenance·dedup·전체 coverage는 완화하지 않는다. 동일 반례 A 실패/B 통과와 기존 highlight-free·실제10 서버 dry-run aggregation으로 회귀를 검증하며 유료 호출은 하지 않는다.
+- 이번 좁은 수정의 합격/실패: normal rolling15/5, 정확한 임계값, 짧은 tail 병합, 짧은 원본/sparse gap/큰 cue 명시 실패, forward progress/중복 없음/terminal coverage, 원본 VTT와 legacy 호환을 동일 사례 A/B로 실행한다. DeepEval/Ragas offline exact-range만 평가하고 품질 주장은 하지 않는다. 기존 highlight-deterministic → highlight-free 명령으로 변경 테스트 이름/개수를 확인한다. 실제10 source 서버 dry-run과 Python aggregation으로 count/duration/overlap을 확인하며 이번에는 유료 API 호출·reembed·mount·기존60 web/47 partial corpus 변경을 하지 않는다(429 quota 미해결).
+- 합격: 모든 선택10 source의 유효 cue coverage·중복 처리·실제 가변 start/end·동기화 media 길이·단일 Google.embed(gemini-embedding-2/768) 요청·Qdrant/FTS/clip reopen 일치. 서버 command의 dry-run/count/explicit max calls 및 완료 marker를 확인한다. missing source/caption, provider 오류/부분 index는 실패 폐쇄하고 web mount하지 않는다. 비용/모델 버전은 실제 응답에 있을 때만 기록한다.
+- 무료 A/B: 동일 독립 VTT fixture와 기대 범위를 변경 전 A에서 실패 확인 후 B 실행한다. 실제 DeepEval/Ragas deterministic exact-contract 점수만 사용하며 live 검색 품질 증거가 아니다. 기존 highlight-free 명시 목록/CI wiring에 테스트를 연결하고 실행 이름·개수를 기록한다. 기존6-image/query/output/verifier 정책 회귀도 유지한다.
+- 실제 실행: 선택10에 한해 media joint embedding와 필요한 countTokens 사전검증이 승인됨(생성/judge는 승인 안 됨). 결정된 segment/token-count/embed 상한을 호출 전에 보고하며 실패·시도수·caption gap을 보존한다. 제공자 token 계산 endpoint 미지원은 임의 추정으로 통과시키지 않는다.
+
+### bounded4 병렬 ingestion 및 검증된 resume (2026-10-13, A 실행 전)
+
+- 변경 변수: extraction/countTokens/embed만 stdlib ThreadPoolExecutor로 최대4 in-flight, Qdrant/SQLite/JSON 쓰기는 소유 main thread에 유지한다. CLI --joint-workers 기본1, 명시4로 전환하며 원래 최소15/겹침5 planner는 불변이다. Google metadata/attempts는 worker별 분리하고 실제 HTTP 시도는 공유 lock 및 호출 전 durable 예산 기록으로 상한을 강제한다.
+- resume는 명시 --joint-resume만 허용한다. pending plan_sha256/parser_policy/model/dimensions와 현재 원본 media/caption hash 및 전체 plan이 같아야 하며 저장 row는 정확한 planner row+provenance, 기존 실제 clip SHA, probe/token/duration, point/vector/payload/FTS 일치가 모두 확인된 경우만 재임베딩 없이 건너뛴다. torn/corrupt/mixed/source/model mismatch는 삭제·복구·덮어쓰기 없이 fail-closed한다. 과거 HTTP 횟수가 없는 legacy corpus는 실제 횟수로 꾸미지 않고 완료 row당 최대3 및 중단 in-flight 최대3을 보수적으로 예약한다.
+- 429 및 기타 worker 실패 시 새 작업 제출을 중지하고 이미 accepted in-flight 성공은 main thread에 보존한 뒤 실패 evidence를 기록한다. 무제한 queue/retry는 금지한다. 승인된 기존 순차 process는 worker가 중단하거나 runtime source를 바꾸지 않는다.
+- 무료 A/B: 동일 합성 transport/clip/로컬 Qdrant 사례에서 concurrency 최대4 및 실제 병렬, 저장 thread ownership, metadata isolation, 실제 HTTP attempt upper bound, failure in-flight salvage, exact-row skip, source/hash/probe/FTS/torn corruption 거절을 변경 전 A 실패→B 통과로 검증한다. 기존 DeepEval/Ragas exact deterministic metrics를 실제 실행하고 highlight-free CI 명령에 연결한다. 무료 통과는 제공자 품질·실제 처리속도 증거가 아니며 전환 후 실제 서버 실행은 coordinator 담당이다.
+
+### bounded8 / 3000 RPM ingestion v2 (2026-10-13, A 실행 전)
+
+- 사용자 최신 요청에 따라 CLI 동시 작업은 런타임 설정 1–8(기본1)을 허용한다. 최대8 future, central DB writer, metadata isolation, exact verified resume, 누적 durable 호출 예산 및 기존 planner/token8192 정책은 유지한다. bounded4 근거는 역사적 A로 보존한다.
+- ingestion 전용 공유 monotonic token bucket은 3000 **requests/minute**(50 requests/s), burst8이다(TPM 제한이 아님). countTokens/embedContent의 최초 HTTP 및 모든 retry를 동일 gate/누적 예산에 포함한다. 429/503/네트워크·timeout만 최초+최대3 retries, Retry-After(초/HTTP 날짜)/Google RetryInfo가 있으면 그 최소 대기를 지키고 그렇지 않으면 2/4/8초+jitter를 사용한다. 429 cooldown은 모든 worker에 공유하며 stop은 gate/backoff 대기를 즉시 중단한다. 이미 시작된 HTTP의 물리적 취소는 보장하지 않는다.
+- missing/schema/invalid count 또는 >8192는 blind retry 없이 실패한다. 최대 이론 HTTP 시도는 row당8(각 endpoint4)이지만 명시 max_calls가 더 작은 경우 예산 도달 시 중단·부분 결과 보존이며 모든 retry 성공을 보장하지 않는다. 이전 ledger/legacy3 예약은 이전 bounded4 구현에 한정된 역사적 보수 상한이다.
+- 동일 fake transport/clock/독립 기대값으로 A 실패를 먼저 보존하고 B에서 실제8 병렬, shared RPM/burst/모든 시도, RetryAfter/RetryInfo/backoff/shared429/stop, budget cap, verified skip/중복 없음과 owner storage를 검증한다. 기존 DeepEval/Ragas deterministic metrics 및 실제 highlight-free와 Django 환경 wiring을 실행한다. 유료 호출·runtime 시작·실제 corpus 변경은 없으며 live 품질/속도·독립 max 리뷰는 별도 대기다.
+
+## YouTube URL 최종 검증 전송 계약 (2026-10-13, A 실행 전)
+
+- 목적/변경 변수: 최종 Google.verify의 MP4/WAV inline 전송만 검증된 corpus video_id의 canonical YouTube URL + 정확한 start/end offset으로 교체한다. 이미지 원문, 별도 768차원 검색/후보 수/병렬/모델/쿼터, 원문 embedding/provenance/readiness와 15–25초 corpus는 변경하지 않는다.
+- 기대/범위: countTokens와 generateContent의 동일 fileData/videoMetadata Part, finite non-Boolean 0<=start<end, 11자 ID 검증 및 원본 영상 시간 [start,end)→기존 local_seconds 정규화. 정확한 candidate_id/Boolean match와 source_accessible=true가 필수이며 접근 불가/오류/형식 불량은 incomplete/no_match=null, 확인된 match=false만 정상 음성이다. 영상·음성·제목·자막과 사용자 이미지의 지시는 근거가 아니다.
+- A/B: 현재 dirty production bytes를 scratch에 동결한 A에 독립 고정 mock transport 사례를 먼저 실행하고 동일 입력/정답/조건으로 B를 실행한다. 실제 설치 DeepEval custom metric과 Ragas non-LLM exact-contract를 같은 사례 결과에 실행한다. 전 계약 정확 일치가 합격이며 baseline 실패·평가 오류를 보존하고 사후 기준 완화하지 않는다. 신규 일반 품질 threshold나 기존 라벨 변경은 없다.
+- 검증: nonexistent media 경로·이미지 원문·소수 offset/nonzero start·범위 밖/NaN/bool/wrong ID·잘못된 metadata zero-call·접근 불가/제공자 오류/불량 JSON·text/image caller 회귀 및 실제 highlight-deterministic → highlight-free와 wiring 명령을 실행한다. 로컬 self-review 뒤 재검증한다. 네트워크/유료 모델/실제 YouTube 읽기는 미실행이며 점수는 결정론적 계약 근거만이다.
+
+## 하이라이트 LangChain 전환 계약 (2026-10-14, 사례/A 실행 전)
+
+- 목적: dirty 진입 구현의 YouTube 검증·이미지 공동 질의·separate ingestion을 보존하면서 수동 Gemini HTTP와 가짜 graph stream을 공식 Google LangChain/SDK 및 실제 compiled graph로 교체한다. 모델 gemini-3.8-flash/gemini-embedding-2, 768차원, 기존 text prefix와 taskType 미지정, named vector/RRF/lexical/후보 순서·최대3 병렬은 불변이다.
+- 기대/범위: 실제 ChatGoogleGenerativeAI structured output 직렬화에서 canonical URL과 소수 start/end가 같은 Part에 남고 원본 이미지가 보존된다. output cap4000(서버 설정 우선), 상속 config/callback/metadata·Meter 실제 usage, graph model→tool→main 반환·privacy·오류 상태를 검증한다. text는 GoogleGenerativeAIEmbeddings, joint/media는 최소 Embeddings 호환 공식 SDK adapter를 사용하며 retrieval task defaults를 추가하지 않는다.
+- ingestion: SDK 숨은 retry를 끄고 기존 모든 시도 admission/4회 상한/RPM/shared cooldown/Retry-After·RetryInfo 우선/8192 count/부분 provenance를 보존한다. malformed/access/error는 incomplete/no_match=null, invalid ID/Boolean·비유한 시간/이미지7·10개는 zero provider call이다.
+- A/B: entry bytes/SHA와 동일 독립 합성 transport 사례를 먼저 동결하여 A를 실행한 후 production을 수정하고 같은 사례 B를 실행한다. migration 계약 A 실패는 정확도 개선이 아니다. 실제 설치 DeepEval custom deterministic 및 Ragas exact metric을 같은 observations에 실행하고 오류·미실행을 보존한다. 골든 라벨·일반 품질 threshold는 변경하지 않는다.
+- 합격/실패: 모든 결정론적 계약 정확 일치와 기존 회귀 통과가 필수다. 실제 SDK HTTP serialization/network-deny, dependencies 정상 resolution, highlight-free·wiring·MultimodalWebTests·graph/delegation의 정확한 CI 명령/이름/개수를 기록한다. 미실행/실패는 성공으로 보고하지 않는다. 유료 호출·corpus 읽기/변경·재색인·runtime/deploy·Git 이력 작업 없이 live Gemini/품질·운영 코스 지연은 미검증으로 남긴다.
+
+- SDK 예외(조정자 확인): Gemini Developer API의 countTokens는 generationConfig/response schema를 지원하지 않으므로 동일 모델·contents/Part만 센다. generation의 temperature0/schema/output cap은 실제 LangChain 호출에 남기고 count를 과금 usage로 합산하지 않는다. SDK wire key 정규화는 공식 Part 검증기로 양쪽 기대/관측에 동일 적용하며 원본 A 실패와 정규화 후 A/B를 함께 보존한다.
+- 후속 self-review 회귀(초기 5-case A/B와 별도): quota 대기 후 취소는 Stopped를 보존하고 generate zero-call이어야 한다. 미리 초기화한 provider를 ingestion처럼 copy해도 embedding adapter가 복제된 provider의 retry/admission에 귀속되어야 한다. 수정 전 후보에서 반례를 실행한 뒤 같은 사례로 수정 후 검증하며 초기 A/B 정확도에 합산하지 않는다.
+
+## 하이라이트 strict JSON 회귀 수정 (2026-10-14, 사례/A 실행 전)
+
+- 목적/변경 변수: LangChain JsonOutputParser의 partial JSON 복구를 신뢰하지 않고 공유 Google.verify의 raw 모델 text를 stdlib JSON으로 엄격 검증한다. 실제 structured invocation·callback/Meter·URL interval·이미지·output cap·호출 수와 기존 의미 검증은 유지한다.
+- 기대/합격: match=false/true 모두 마지막 `}`가 빠진 응답은 incomplete/no_match=null이며 완전한 JSON은 기존 양성/음성 결과를 유지한다. 합성 countTokens/generateContent 실제 도달과 각 1회, 오류 원문 비노출을 확인한다. malformed/access 계약은 재사용하며 일반 품질 threshold/정답을 변경하지 않는다.
+- A/B/범위: 현재 post-migration bytes를 수정 전 A로 동결하고 같은 corrected 5-case harness로 최종 B와 비교한다. 기존 malformed 시험의 legacy urllib 합성 transport와 도달 assertion도 수정해 원래 entry A를 재실행하되 역사적 로그/해시를 보존하고 harness 변경을 명시한다. 실제 설치 DeepEval custom exact/Ragas ExactMatch를 동일 사례·정답·환경에 실행하며 transport/interface 오류를 품질 개선으로 해석하지 않는다. highlight-free 및 기존 attachment offline web runner의 실행 이름/개수를 기록한다. 유료 호출·corpus·Docker·Git 변경·live 품질은 범위 밖이다.
 
 ## 챗봇 실대화 평가(chat_eval)로 확정한 기준 (2026-10-13)
 
@@ -685,3 +929,99 @@ fixture는 테스트 입력·응답을 고정하는 방식이며 그 자체가 �
 일반 품질 지표의 숫자 목표는 **기준을 확정하고 충분한 baseline을 측정한 뒤** 정한다. 지금 작은 표본으로 “95%면 성공”을 정하면 근거 없는 기준이 될 수 있다.
 
 **다음 단계는 허용된 기존 조회와 정해진 페이지 조회가 실제 어떤 capability·도구·역할에 대응하는지 기준 코드 스냅샷의 명세로 확인하는 것이다. 기존 근거로 검증 가능한 범위를 정한 뒤 데이터셋·채점기를 검토하며, 필요한 수정은 기존 기능의 소폭 조정·오류 수정에 한정한다.**
+
+## 재임베딩 없는 영상 단독 후보 검색 계약 (2026-10-14, A 실행 전)
+
+- 변경 변수: Specialist.ask 후보 조회만 video named-vector top8 한 번으로 제한하고 영상 순서를 보존한다. audio/text 검색과 FTS SELECT/bm25/RRF는 사용하지 않는다. 중복·unknown ID 제외, 동일 영상 시간겹침 제외(접한 구간 허용), 기본3/명시1–5 한도는 유지한다.
+- 보존/범위: 공동 text/image 질의, 원본 최대6 이미지·WebP embedding-only 변환·privacy·소유권, named video/audio/text 각768 및 FTS/원문 readiness, URL/원본시각·strict JSON·모든 개별 decision·병렬3/config/callback/usage/cancel 경계를 유지한다. 원본 corpus 접근/변경·재임베딩·provider·runtime·Git 이력 변경은 없다.
+- A/B: entry HEAD8549463의 source를 credential-free scratch에 동결한다. 독립 합성 ranking/요청/기대값과 기존 LangChain 계약 runner를 먼저 동결하고 actual ask의 영상순서 반례·중복/unknown/겹침/접함·한도·empty·1위거절2위일치·오류/정상 음성·원본 전달을 A부터 실행한다. 동일 관측에 설치된 DeepEval custom exact와 Ragas ExactMatch를 각각 실행하며 source만 B로 교체한다.
+- 합격/실패: 한 번의 using=video/limit8 조회, FTS zero-call, 실제 rankings={video}, 독립 기대 후보/decision/결과 정확 일치 및 기존 경계 회귀가 합격이다. A 정책 불일치·평가기 오류/미실행·분모를 그대로 보존하며 semantic accuracy/일반 품질 threshold로 해석하지 않는다. highlight-deterministic → highlight-free의 기존 contract 및 suite 자동 선택을 실제 CI 명령의 이름/개수로 검증한다. live 품질/전체 코스 지연은 미검증이며 독립 검토는 별도다.
+
+## 비디오 단독 live 정확도 재실험 준비 (2026-10-14, 후보 준비/실행 전)
+
+- 목적/변경 변수: scratch 동결 후보만 video named-vector top8의 직접 순서·중복/누락 제외·기존 시간 겹침 제외·최대3을 사용한다. text-only 질의, gemini-embedding-2/768/taskType 미지정/기존 prefix, gemini-3.8-flash/temperature0/strict JSON/output4000/YouTube 실제 구간 검증·병렬3·오류/decision 정책은 유지한다. 운영 코드·corpus·기존 dirty 변경·런타임은 수정하지 않는다.
+- 범위: SHA256 `85d7dd7eddc0745cfac98f856a5cb006ab72d5b76017fefae4d88f795130f3fa`의 기존10문항(양성8/4장면·쉬운 음성2), 원래10영상922구간15–25초/겹침5, canonical lock/hash snapshot과 기존 scores()/실제 설치 DeepEval·Ragas non-LLM 채점기를 동결한다. 불완전 약한 라벨·과거20%의 transport 차이를 명시하며 과거 결과/저장 후보 replay는 동일 조건 live A/B나 최종 정확도 개선 근거가 아니다.
+- 기대/준비 합격: 실제 설치 SDK의 합성 HTTP/network-deny로 video-only/순서/겹침/limit3·strict error 계약, 저장10행 A 후보10/10 재현, source/dataset 변조·입력 누락·출력 재사용 거절, sanitized ledger 및 숨은 retry 포함 wire80/embedding20/count30/generation30의 사전 durable/thread-safe 차감을 검증한다. scratch 시험은 CI/제공자 품질 통과가 아니며 준비 단계 paid 호출0이다.
+- 후속 실행/실패: 독립 max 검토 뒤 별도 실행자가 승인된10문항 단일 pass만 수행하며 첫 문항이 availability preflight이다. 401/402/403 및 반복429/503은 새 HTTP 차단·중단, 접근 불가/불량/오류는 null/incomplete로 보존한다. 상한/transport interception/동결 입력을 검증할 수 없으면 실행 차단한다. 미실행·오류·분모 누락을 성공으로 표시하거나 정답/threshold를 완화하지 않으며 일반 품질 threshold를 새로 만들지 않는다.
+
+## 텍스트 영상 평가셋 생성·검사 계약 (2026-10-14, 구현/사례 실행 전)
+
+- 목적: 기존 지정10 YouTube 원본을 Gemini가 영상·음성으로 확인하여 영상당 최대5개의 서로 다른 구체적 야구 사건에 대한 한국어 text-only 후보를 만든다. 기존 embedding/corpus/검색 알고리즘/8–10문항 live 평가 CLI는 변경하지 않으며 준비 작업은 유료 호출0이다.
+- 동결: 실제 영상 ID/원본 duration, segments.json/완료 marker/source metadata와 SHA256, prompt/schema/model gemini-3.8-flash/temperature0/output8192를 새 실행 디렉터리에 보존한다. 영상과 metadata는 비신뢰 근거이며 title/upload_date만으로 선수·경기 날짜를 확정하지 않는다. URL/시각/segment ID/이미지의 query 누출 및 intro/paraphrase padding·가공 음성 사례는 금지한다.
+- 생성/독립 문맥 검토: 영상당 generation countTokens+generation, review countTokens+review 최대4 HTTP 시도, 전체40 하드 cap, SDK attempts1/앱 retry0이다. 실제 wire 전 공유 lock 아래 fsync ledger를 남긴다. 첫 영상 실제 성공 후만 최대2 병렬을 허용하고 auth/billing 오류는 남은 전송을 중단한다. 자동 재개/로컬 upload fallback은 없다. 요청/응답 model_version·실제 usage·latency를 보존하며 가격은 미측정이다.
+- 채택: A 초안은 불변이며 별도 원본 영상 검토가 facts/specificity/uniqueness/query leakage 및 필수 근거가 candidate segment 안에 들어가는지를 명시 확인해야 한다. 좁은 original_interval은 유한 non-Boolean 원본 초이며 영상/구간 경계 안에 있어야 한다. 단순 overlap은 정답이 아니다. query/label correction은 before/after/reason을 보존한 dataset refinement 제안이며 system A/B 개선이 아니다. replay/대체 근거는 관측한 것만 기록하고 exhaustive claim을 하지 않는다.
+- 품질 검사: 실제 DeepEval BaseMetric+LLMTestCase+evaluate로 text/schema, source-access review, direct grounding/specificity, timestamp validity, verified corpus references, uniqueness를 별도 exact dimension으로 채점한다. 의미 판정은 Gemini-video review에서 온 것으로 추가 독립 LLM/human judge가 아니다. 합성 정상/거짓 출처/시각 대조를 실행하고 rejected/missing/error/null 및 분모를 보존한다. 50은 목표이지 합격률/정답 보충 기준이 아니다.
+- 합격/실패: HTTP40/41 차단, retry0/fatal halt, strict JSON/unknown ID/bool/NaN/범위 밖/empty source/images/leakage/중복/weak overlap 거절, 실제 SDK full canonical URL+0/duration/no-image 및 출력 재사용 거절의 무료 계약 정확 일치가 준비 합격이다. unavailable/error는 successful no-match가 아니다. 새 test_highlight_case_quality.py를 highlight-free→evaluation-regression.yml:highlight-deterministic에 연결하고 실제 명령/이름/개수를 확인한다.
+- 모든 채택 행은 model-reviewed/needs-human-review이고 positives-only이며 golden-approved가 아니다. 원본 시각 정밀도·비포괄 reference·같은 모델의 별도 문맥 review 한계를 명시한다. 실제 제공자40회 생성/검토와 독립 사람 승인·검색 정확도 검증은 별도 대기이며 기준을 결과에 맞춰 완화하지 않는다. telemetry/trace/dotenv 자동 발견을 끄고 run-owned cache만 사용하며 raw provider error/trace/secret은 저장하지 않는다.
+
+### 첫 영상 실패 후 최소 continuation 수정 (2026-10-14, 회귀 A 실행 전)
+
+- 목적/변경 변수: thinking+JSON 공유 출력 cap을16384로 올리고 finish_reason을 기록하며 원본 초 변환(04:31=271, NOT431)·duration 경계·같은 팀 경기 구별 지침을 명시한다. 기존 실패 원문/행/설정/해시는 보존하고 기준·정답은 완화하지 않는다.
+- 명시 continuation은 검증된 첫 영상4회 실패 기록에서만 아직 시도하지 않은9영상을 새 경로로 처리한다. 이전4회는 새 HTTP가 아닌 누적 예산으로 반영하여 새36회 포함40회/영상4회/retry0를 유지한다. 입력 snapshot/ledger/settings/관측 불일치·fatal halt·성공/소진 실행은 credential 읽기 전에 거절한다.
+- 회귀 A/B: 실제 SDK MockTransport로 cap/finish reason, prior4+new36, 첫 영상 재전송 차단, 실패행 불변, source 접근 성공이나 후보 전부 거절 시 다른 영상 진행, 변경 evidence/출력 재사용 거절을 확인한다. highlight-free 기존 CI 명령으로 실행하며 유료 호출0이고 실제 의미 품질·새 prompt/settings의 causal A/B 개선은 주장하지 않는다. 실패 첫 영상 때문에 전체 실행은 계속 incomplete/needs-human-review이다.
+
+## ask_highlight 실제 Gemini 모델 노드 계약 (2026-10-14, A 실행 전)
+
+- 목적/변경 변수: 웹 tools 단계는 기존 query embedding/video top8/중복·겹침 제거/최대3 후보 조회만 수행한다. 실제 ChatGoogleGenerativeAI Gemini model 단계는 원 사용자 질문·원본 이미지·모든 후보 YouTube 원본 구간을 한 generation 요청으로 검증하고 서버가 결정적으로 카드로 투영한다. corpus/index/legacy disabled 경로는 변경하지 않는다.
+- 범위/기대: 공용 retrieval/model/validation을 CLI·평가와 재사용한다. generation 전 local Qdrant/웹 lock을 해제하고 config/callback/usage/cancellation, countTokens/quota 선검사, strict JSON·정확한 candidate-ID 전체 coverage·중복 금지·유한 non-Boolean 원본 시간/범위·source_accessible을 유지한다. 부분/형식/접근불가/제공자 오류는 전체 fail-closed(no_match=null, 카드0)이며 검증된 음성과 구분한다.
+- 동결 A/B: dirty entry source/hash를 scratch에 보존하고 동일 합성 HTTP·독립 기대값·신규 retrieval zero-generation/3후보 one-generation/경계 사례를 먼저 동결한다. 기존 실제 설치 DeepEval custom exact/Ragas ExactMatch 오프라인 runner로 수정 전 A와 수정 후 B를 같은 테스트/정답/패키지/설정에서 채점한다. 변경 전 실패·평가기 오류·미실행과 각 분모를 그대로 보존한다.
+- 합격/실패: retrieval generation0, 실제 graph Gemini generation1(3후보/원질문/이미지 동일), 정확한 후보별 검증·카드, malformed/partial/unknown/duplicate/누락/NaN/bool/범위밖/inaccessible의 오류 보존, 취소 후 generation0, CI 실제 명령의 변경 테스트 실행이 모두 필요하다. framework 점수는 synthetic 계약이며 live 품질/운영 latency/코스 전체 시간은 미측정이다. 유료 제공자 A/B·배포·Git 이력 변경은 승인되지 않았으며 not-run으로 보고한다.
+
+## 수집/질의 분리·원본 영상 후보·저장 RAG 재시도 계약 (2026-10-14, 새 A 실행 전)
+
+- 사용자 승인 목표: 수집 완료 및 명시 readback/audit에서 전체 벡터·payload·FTS·media hash/ffprobe 검사를 유지하고 요청 질의는 완료/layout/model/dimensions 및 반환된 후보 신원·원문 범위만 확인한다. 빈/미완료 경로는 생성·수리하지 않는다. 기존 유효 corpus는 재임베딩·원본 변경 없이 사용한다.
+- 후보는 최대3개의 서로 다른 canonical 원본 video ID다. 동일 영상의 겹친/분리된 구간은 한 슬롯이며 검색 hint 밖의 장면도 ingestion_complete.per_video.duration 안이면 검증할 수 있다. 원문 duration/label/seconds를 바꾸지 않고 Duration 전송만 소수9자리 이하로 정규화하고 적용 여부를 기록한다. 원본 질문·최대6 이미지·3영상 단일 정상 generation, countTokens/quota/output cap/엄격 JSON·coverage·유한 non-Boolean 시각·접근성 검사는 유지한다. 이전 구간중복/1–5 후보 및 hint 내 시각 단언은 이 승인 영상 단위 계약으로 대체하며 역사적 결과를 보존한다.
+- 검증 오류에서만 실제 모델이 제한된 수정 query를 선택하는 저장 multimodal DB/RAG 도구를 한 번 실행하고 결과를 원본 질문·이미지로 다시 검증한다. 다른 비어 있는 legacy scene store·웹·keyword 검색·전문 재귀 위임은 금지한다. 실행 횟수는 코드로 제한하고 정상 음성은 재시도하지 않는다. 소진/빈/미검증은 status=block 및 카드0이며 검증된 없음(complete=true/no_match=true)과 오류(false/null)를 구분한다. 입력·권한·취소·사용량 한도는 우회하지 않는다. 공개 응답/history/SSE에 원시 JSON/이미지/파일경로/provider exception을 노출하지 않는다.
+- 동결 A/B: production 수정 전 checkpoint source와 신규 합성 입력·독립 oracle/테스트를 scratch에 동결한다. 동일 offline SDK transport/실제 compiled graph/설치된 DeepEval custom exact 및 Ragas ExactMatch를 A와 B에 실행한다. 검색에 gold ID를 주입하지 않으며 신규 점수는 video-level 실행 계약이지 live 의미 품질·비용·지연 개선이 아니다. 일반 품질 threshold는 추가하지 않는다.
+- 합격: 질의에서 full validators/scroll/ffprobe/media reads zero, 선택 payload/time 변조 fail-closed 및 audit corruption 검출; unique3/full Parts/정확한 source 범위·이미지·정상 generation1; compiled graph의 모델 선택→실제 tool boundary→1회 재조회→원문 검증·복구/빈/오류/block·중복 호출/반복 invocation·취소/예산 전파·privacy의 정확한 독립 기대값 전부 일치다. 기존 실제 highlight-free/free/wiring 명령과 변경 Django HTTP suite 실행을 기록한다. 실패/오류/미실행은 성공이 아니며 hosted CI·유료/live·재시작/배포·원본 수정은 하지 않는다.
+
+### 저장 재시도 구현·실행 기록 (2026-10-14)
+
+- 위 사전 정책을 적용해 수정 query 상한은 기존 Specialist.retrieve의 500자로 유지한다. 같은 응답에서 중복 tool call·없음·미허용 도구·추가 인자는 실행 없이 block이다. 단방향 graph에서 selector 한 번/실제 저장 조회 최대 한 번이며 같은 compiled graph의 다음 invocation은 독립 예산이다.
+- 401/402/403 인증·결제·권한 거부, quota/토큰 용량 및 server output cap 거부는 VerificationAdmissionError로 전파한다. 기존 합성 quota RuntimeError→incomplete 단언은 이 사전 예산 우회 금지 정책에 맞춰 typed admission 전파로 교체한다. billing/cancel 예외는 Gemini 래퍼와 highlight delegate에서도 보존한다.
+- LangChain ToolMessage에는 block enum이 없으므로 status=error 및 additional_kwargs.highlight_status=block, selection artifact.status=block, result.status=block을 보존한다. 첫 오류와 마지막 결과 이유를 분리하며 반환 메시지에는 selector/tool 원시 교환을 추가하지 않는다. 공개 진행 도구명은 한국어 label을 연결한다.
+- 동결 10개 retry 계약 A2/10→B10/10(DeepEval/Ragas 각각), 실제 SDK·delegate·Meter 복구/최종 block 및 비어 있지 않은 이미지/nostream callback 검증을 free에 포함한다. scratch writer의 phase3-A9-results/phase3-B6-results와 phase3-free4, phase3-highlight, phase3-http, phase3-wiring2는 로컬 실행 근거다. 부분 실패/fixture 오류/진단 overlay 기록은 삭제하지 않는다. 결과는 합성 실행 계약이며 유료/live·hosted CI 성공을 뜻하지 않는다.
+
+## 반환 검색 경계·명시 terminal block 보완 (2026-10-14, 수정 전)
+
+- 목적/변경 변수: bounded Qdrant 반환 group/hit 전체를 후보 선택 전에 saved row/payload/canonical video ID 및 trusted source 범위와 대조한다. unknown point나 group.id와 payload.video_id 불일치는 검증 오류이며 verified no-match로 승격하지 않는다. standalone legacy select_candidates의 unknown skip 호환은 유지하고 전체 corpus scan/scroll/media 읽기는 추가하지 않는다.
+- 공개 카드 정책: ask_highlight의 status=error라도 명시 highlight_status=block은 같은 턴의 이전 카드를 지운다. 일반 non-block error는 기존 카드를 보존하고 block 이후 새 성공은 자신의 카드만 복구한다. project_history/done_payload도 같은 projection을 사용한다.
+- 동결 A/B/합격: 독립 verifier의 기존 3실패 로그·script/oracle은 불변으로 보존한다. 기존 pipeline 및 compiled retry suite에 unknown actual point, mismatched group, 반환 malformed/bounds, terminal block/history/done 및 non-block/later-success 회귀를 추가하고 동일 테스트·정답·설치 DeepEval exact/Ragas ExactMatch를 A/B에 실행한다. 모든 경계 거절·카드 정확 일치와 실제 highlight-free/free/wiring 실행이 합격이며 오류/미실행은 검증 대기다. 기존 기준/정답은 완화하지 않고 새 일반 품질 threshold·유료/provider 호출·live 품질 주장은 추가하지 않는다.
+
+## Gemini 동적 단일 영상 순차 검증 (2026-10-14, A 실행 전)
+
+- 목적/변경 변수: 저장 검색의 고유 원본 영상 최대3개·순위를 유지하고 Gemini에 1위 영상만 먼저 전달한다. 동일 Gemini가 직접 관측한 판정과 다음 후보 ID를 도구 호출로 제출해 필요할 때만 2위·3위 원본을 요청한다. 별도 selector 모델, 3영상 일괄 입력, 오류 뒤 DB/RAG 재검색은 제거한다. 이 계약은 위 일괄 검증·저장 재조회 정책을 대체하며 과거 증거는 보존한다.
+- 기대/경계: 한 모델 요청에는 원본 영상 최대1개, 영상별 검증1회·최대3개이며 일치하면 즉시 종료한다. 코드는 bound ID/순서/중복·출처·유한 non-Boolean 원본 시작/종료 시각·이미지6개·취소·인증/결제·사용량 경계만 강제한다. 다음 후보 선택이 없으면 코드가 자동 대체하지 않는다. 후보별 접근/형식/기술 오류는 미완료로 기록하고 같은 Gemini가 다음 후보를 선택할 수 있으나 quota/인증/결제/취소는 우회하지 않는다. 모두 정상 불일치이면 complete=true/no_match=true, 하나라도 미검증이면 false/null 및 카드0이다. 뒤 후보에서 검증된 일치를 찾으면 앞 오류와 함께 성공을 반환한다.
+- 동결 A/B: HEAD778a48a의 영향 source를 scratch에 보존하고 동일 합성 SDK/compiled graph·독립 기대값으로 새 순차 계약을 A부터 실행한다. 실제 설치된 DeepEval exact·Ragas ExactMatch로 같은 관측을 채점한다. 1위 조기종료, 1→2 및 1→2→3, 도구 미선택/잘못된·중복·건너뛴 ID, 정상 음성/기술 미완료, 원문·이미지·callback/usage·시각 경계와 stale 카드 제거를 관련 기존 CI runner에 연결한다.
+- 합격/한계: 독립 기대값 전부 일치 및 변경 테스트의 실제 CI 하위 명령 실행이 오프라인 계약 합격이다. 실제 Gemini 의미 판단/정확도·HTTP 운영·유료 호출·성능 측정은 이번 범위 밖이다. 기존18만 요청 token capacity/TPM 보호는 해제하지 않으며 한 영상도 초과하면 명시 실패한다. 평가 실패/오류/미실행은 그대로 보존하고 새 일반 품질 threshold·정답 완화·원본 corpus 수정·재시작/배포는 하지 않는다.
+
+## Hosted CI 하이라이트 검증 fixture 계약 수정 (2026-10-15, A 실행 전)
+
+- 목적/변경 변수: `test_malformed_and_inaccessible_are_not_negative`의 정상 ask 응답 fixture만 현재 Gemini 순차 `review_highlight_candidate` tool 계약에 맞춘다. 운영 소스·기존 정답·단언·threshold는 변경하지 않으며 `HIGHLIGHT_CONTRACT_SOURCE`의 동결 구형 소스에는 기존 JSON 응답을 유지한다.
+- 기대/합격: match=false/true의 완전한 응답은 complete=true 및 no_match=not match, truncated 응답은 false/null과 원문 비노출을 그대로 유지한다. 현재 tool 경로에서 truncated text는 유효 tool 선택이 없어 거절되어야 하며 JSON 자동 복구나 가짜 정상 tool로 바꾸지 않는다. 접근불가·잘못된 ID/타입/시각의 기존 거절도 유지하고 영향 LangChainMigrationTests 11개가 모두 통과해야 한다.
+- 범위/A/B: 수정 전 fixture A 로그·해시를 먼저 보존한 뒤 동일 입력·기대 의미·설치 환경·DeepEval custom exact/Ragas ExactMatch로 수정 후 fixture B를 비교한다. 앱 소스는 A/B 동일하며 fixture 불일치 해소이지 live 품질 개선이 아니다. 기존 highlight-free의 LangChain 하위 실행과 evaluation-regression.yml/highlight-deterministic 연결을 재사용하고 실제 이름·개수를 기록한다. 제공자 호출·설치·빌드·다운로드·배포는 하지 않으며 미실행/오류는 검증 대기로 남긴다.
+
+## Hosted CI 검증 실패 timing·quota 계약 보존 (2026-10-15, A 실행 전)
+
+- 목적/변경 변수: 순차 `verify_retrieval`의 실패 decision에도 기존 invocation-local `quota_wait`·`provider_latency`를 보존하고, countTokens 429 테스트의 오래된 일반 오류 기대만 기존 `VerificationAdmissionError` 정책에 맞춘다. `_request`의 인증/결제/quota 정책·재시도·프롬프트·모델·정답·threshold·공개 결과 의미는 변경하지 않는다.
+- 기대/합격: count/generation 실패는 검증된 없음이 아닌 incomplete/no_match=null이며 실패 timing이 누락되지 않는다. countTokens 429는 정확한 typed admission 거부, secret 비노출·HTTP 1회·sleep/retry 0회이며 503/network는 기존 기술 오류를 유지한다. 기존 16개 회귀를 재사용하고 실패 단언을 완화하지 않는다.
+- A/B/범위: 수정 전 source/test를 scratch에 동결하고 기존 16개 suite 실패를 먼저 보존한 뒤 동일 설치 환경·입력·기대 계약으로 B를 실행한다. 기존 LangChain DeepEval exact/Ragas ExactMatch runner를 동일 사례·threshold=1·네트워크 차단으로 A/B 실행하며 timing 버그 자체나 live 의미 품질의 별도 점수로 주장하지 않는다. 새 환경·제공자·다운로드·corpus 변경은 없다.
+- CI: 기존 evaluation-regression.yml/highlight-deterministic → `python -I .github/evaluation_ci.py highlight-free --output ...`의 16개 suite 포함을 재사용하고 목적 커밋 후 bounded job을 한 번 실행한다. 실제 이름/count·실패/오류/미실행을 보존하며 추가 실패는 범위를 확대하지 않고 보고한다.
+
+## 순차 검증 종료 ID의 nullable 전송 계약 (2026-10-15, A 실행 전)
+
+- 목적/변경 변수: 설치된 LangChain Google·공식 SDK의 실제 HTTP 직렬화에서 `next_candidate_id`가 JSON null을 허용하는지 먼저 실패 회귀로 확인하고, 지원되는 도구 schema 및 JSON null 설명만 수정한다. 문자열 `"null"`을 변환하거나 자동 다음 후보·출력 보정·추가 재시도를 도입하지 않는다.
+- 기대/합격: 실제 wire schema가 STRING 및 nullable=true를 보존하고 JSON null 일치는 즉시 성공, 마지막 정상 음성의 JSON null은 complete=true/no_match=true여야 한다. 일치 뒤 실제 다음 ID, 문자열 null, unknown/중복/건너뛴 ID·출처/Boolean/시각 위반은 fail-closed를 유지한다. 단일 모델·영상당1회/최대3·순위·원문/이미지·quota/인증/취소 계약은 불변이다.
+- A/B/범위: entry d693262의 source와 신규 입력/정답을 scratch에 동결하고 production 수정 전에 실제 SDK transport 회귀 A 및 기존 --retry DeepEval custom exact/Ragas ExactMatch A를 실행한다. 동일 테스트·정답·설치 환경·threshold=1로 B를 비교하며 synthetic 실행 계약 외 의미 품질은 not_measured다. 기존 deterministic/free/run_attachment_offline.py의 retry 전체 자동 발견과 실제 CI 하위 명령의 이름/count를 확인한다. 제공자·새 환경·재시작·배포는 실행하지 않는다. 초기 환경 import 실패는 보존하며 coordinator의 별도 승인으로 기존 retry-venv의 langchain-community만 CI pin 0.4.1로 교체한 뒤 동일 환경에서 A/B를 실행한다.
+
+## DVC Docker 기동 준비 계약 (2026-10-15, 구현 전)
+
+- 목적/범위: 문서 dense 네이티브 snapshot과 highlight backup을 별도 init에서 pull→검증→새 runtime 복원하고 backend는 init 성공 이후에만 시작한다. 검색·모델·prompt·sparse·정답은 변경하지 않는 non-LLM 인프라 변경으로 DeepEval/Ragas 제공자 평가는 면제한다.
+- 합격: 첫 복원과 provenance 기반 재사용, 원본 불변, 손상/누락/비호환/외부 기존 대상의 비파괴 거절, secret-safe 실패, local/dev/prod dependency 및 CI 실행 연결을 오프라인 회귀로 확인한다. 저장 벡터 query는 disposable Qdrant collection에서만 확인하며 provider 호출은 없다.
+- 실패/경계: 인증·다운로드·검증·복원 실패는 backend 시작을 차단한다. 서버 인증 설치·실제 hosted 배포·유료 품질·새 전체 Drive pull을 실행한 것으로 주장하지 않는다. 갱신/기존 대상 채택은 자동 수행하지 않는다.
+
+## 현재 앱 소스 10문항 단일 live 재검증 준비 (2026-10-14, 실행 전)
+
+- 목적/범위: 현재 worktree production bytes와 실제 local dependency를 동결하고 기존10문항/10영상922구간/약한 라벨(4양성 장면의8변형+쉬운 음성2)/canonical DeepEval·Ragas 채점기를 그대로 재사용한다. video top8 한 번→기존 중복·누락·시간겹침 제외→최대3→병렬3 URL 검증, text prefix/taskType 미지정/768, gemini-embedding-2 및 gemini-3.8-flash/temperature0/strict JSON/output4000은 불변이다. 이전 결과는 설명용 반복 비교이며 causal RRF A/B·이미지 품질 근거가 아니다.
+- 준비 합격/실패: credential/provider 호출0의 실제 설치 SDK synthetic 검증으로 current import/hash 일치, scorer/oracle 불변, 입력 변조·출력 재사용 거절, complete=false/no_match=null 오류 보존, durable thread-safe 실제 transport admission80/reject81와 embedding20/count30/generation30 하위 상한, fatal401/402/403 및 반복429/503·safe logs를 확인한다. 원본 corpus는 locked hash snapshot만 허용하고 client는 disposable copy만 연다. scratch 시험은 hosted CI가 아니며 repo 회귀/워크플로는 변경하지 않는다.
+- 후속 단일 pass: 별도 max 검증 뒤 승인된 새80 HTTP 시도 예산(이전 실패+79와 별개)에서 기존 순서10문항만 실행하고 첫 문항이 availability 검사다. 동일 frozen rows/labels/query로 실제 DeepEval·Ragas deterministic 지표별 성공수·분모·null/오류를 기록한다. case threshold1.0 및 기존 scores 정의를 유지하며 새 일반 품질 threshold를 만들지 않는다. 부분/오류/미실행은 실패·검증 대기이지 품질 통과가 아니고 라벨 완화·padding·추가 pass는 금지한다.

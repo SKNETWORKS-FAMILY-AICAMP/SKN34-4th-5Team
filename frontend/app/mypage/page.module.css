@@ -36,8 +36,7 @@
 .hiddenInput { display: none; }
 @media(max-width: 480px) { .photoEditor { flex-direction: column; } }
 
-.memberName { display: flex; align-items: center; gap: 8px; }
-.levelBadge { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 1px solid #d5dce7; }
+.memberName { display: flex; align-items: center; }
 .nicknameRule { margin-top: -12px; font-size: 12px; line-height: 1.7; color: #657790; }
 .settings input[readonly] { background: #f1f3f6; color: #718097; }
 

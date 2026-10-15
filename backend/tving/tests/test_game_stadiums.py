@@ -9,7 +9,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from baseball.models import Game, Stadium, Team
-from llm.v1.rag.course import agent as course
+from llm.v2.course import agent as course
 from tving.relational import persist_daily, persist_month, stadium_for
 
 

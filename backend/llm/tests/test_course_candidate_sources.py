@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 from django.test import SimpleTestCase
 
 from llm.service.chat_runs import Stopped
-from llm.v1.rag.course import agent, place_quality
+from llm.v2.course import agent, place_quality
 
 
 class CandidateSourcesTests(SimpleTestCase):

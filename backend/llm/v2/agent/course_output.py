@@ -68,13 +68,13 @@ def public_course(value):
     if not places or (not value.get("edit") and not any(p["category"] != "STADIUM" for p in places)):
         return None
     result = {"places": places}
-    from llm.v1.rag.course.progress import clean
+    from llm.v2.course.progress import clean
     if state := clean(value.get("progress")):
         result["progress"] = state
     if value.get("edit") is True:
         result["edit"] = True
     if "legModes" in value:
-        from llm.v1.rag.course.edit_context import leg_modes
+        from llm.v2.course.edit_context import leg_modes
         if leg_modes(value["legModes"]):
             result["legModes"] = dict(value["legModes"])
     game = value.get("game")
@@ -108,7 +108,7 @@ def public_course(value):
         if isinstance(travel.get("lines"), list):
             cleaned["lines"] = [text for line in travel["lines"][:3] if (text := _text(line, 160))]
         result["travel"] = cleaned
-    from llm.v1.rag.course.writer_state import clean as clean_writer
+    from llm.v2.course.writer_state import clean as clean_writer
     if writer := clean_writer(value.get("writerState")):
         result["writerState"] = writer
     payload = value.get("coursePayload")

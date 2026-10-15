@@ -337,7 +337,7 @@ async def browse(url, goal, *, body=False):
             return {"status": "error", "source_url": url}
         if page.get("status") != "read":
             return {"status": page.get("status", "error"), "source_url": url}
-        from llm.v1.rag.nearby.lodging import source_url
+        from llm.v2.nearby.lodging import source_url
         if (source_url(page.get("url")) != source_url(url)
                 or not _validated(page, page)):
             return {"status": "error", "source_url": url}

@@ -39,6 +39,9 @@ main.page { max-width: 1280px; padding-top: 56px; padding-bottom: 80px; min-heig
 .categoryFilter a { display: inline-flex; align-items: center; min-height: 40px; color: #1455eb; text-decoration: underline; }
 .boardTable tbody tr:hover, .selectedRow { background: #f4f7fc; }
 .boardTable .emptyCell { height: 150px; }
+.postNotice { margin: 20px 0 28px; padding: 24px; border: 1px solid var(--border); border-radius: 12px; background: var(--soft); overflow-wrap: anywhere; }
+.noticeActions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 18px; }
+@media (max-width: 640px) { .postNotice { padding: 18px; } .noticeActions > a { flex: 1 1 140px; } }
 .postDetail { margin: 20px 0 28px; background: white; border: 1px solid #dce5f1; border-top: 2px solid #405575; }
 .postHeader { padding: 26px 24px 18px; border-bottom: 1px solid #dce5f1; }
 .postHeading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px 14px; margin: 0 0 20px; font-size: 24px; line-height: 1.6; color: #26354b; }

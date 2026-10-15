@@ -23,8 +23,8 @@ def _page_cache():
 
 
 def _validated(candidate, page):
-    from llm.v1.rag.nearby.lodging import same_property, source_url, _compact
-    from llm.v1.rag.course.grounding import address_in_body
+    from llm.v2.nearby.lodging import same_property, source_url, _compact
+    from llm.v2.course.grounding import address_in_body
     if not isinstance(page, dict) or page.get("status") != "read":
         return None
     url, body = source_url(page.get("url")), page.get("body_text")
@@ -46,7 +46,7 @@ async def _remote(name, seconds, *, background=False, url=None, region=""):
     from llm.v2.agent.browser_research import lodging_url
     direct = lodging_url(url) if not background else False
     if direct:
-        from llm.v1.rag.nearby.lodging import source_url
+        from llm.v2.nearby.lodging import source_url
         url = source_url(url)
     tools = await cancellable_call(discover_tools({"jev_read_lodging" if direct else "chrome_lodging"}))
     arguments = {"url": url} if direct else {"name": name, "timeout_seconds": seconds,

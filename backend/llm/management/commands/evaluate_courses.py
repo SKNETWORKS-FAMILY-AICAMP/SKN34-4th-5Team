@@ -143,7 +143,7 @@ class Capture:
                 capture.calls.append(item)
 
         stack.enter_context(patch.object(Responses, "create", responses))
-        from llm.v1.rag.course import evidence_memory
+        from llm.v2.course import evidence_memory
         search, enrich = evidence_memory.search, evidence_memory.enrich
 
         def observed_search(candidates, requirements):
@@ -168,8 +168,8 @@ class Capture:
 
         stack.enter_context(patch.object(evidence_memory, "search", observed_search))
         stack.enter_context(patch.object(evidence_memory, "enrich", observed_enrich))
-        from llm.v1.rag.nearby import lodging
-        from llm.v1.rag.course import editing
+        from llm.v2.nearby import lodging
+        from llm.v2.course import editing
         lodging_verify, lodging_search, interpret = lodging.verify, lodging.search, editing.interpret
 
         def observed_lodging_search(*args, **kwargs):
@@ -259,7 +259,7 @@ def checks(case, before, after, done, history):
     elif action == "swap":
         result["exact_swap"] = len(old) >= 2 and new == [old[1], old[0], *old[2:]]
     elif action == "transport":
-        from llm.v1.rag.course.editing import leg_key
+        from llm.v2.course.editing import leg_key
         cafe = next(p for p in before["places"] if p["category"] == "CAFE")
         stadium = next(p for p in before["places"] if p["category"] == "STADIUM")
         result["only_requested_leg"] = after.get("legModes") == {leg_key(cafe, stadium): "transit"}
@@ -298,7 +298,7 @@ def checks(case, before, after, done, history):
 def evidence_checks(case, course, traces):
     if not case.get("evidence_terms") or not course:
         return {}
-    from llm.v1.rag.course.evidence_memory import keyword_text
+    from llm.v2.course.evidence_memory import keyword_text
     relevant = [p for p in course["places"] if p["category"] == case.get("evidence_category", "FOOD")]
     required = {keyword_text(term) for term in case["evidence_terms"]}
     def verified(place):
@@ -393,7 +393,7 @@ class Command(BaseCommand):
         if not 1 <= options["limit"] <= 30:
             raise CommandError("--limit must be 1..30")
         if options["embedding_input_usd_per_million"] is not None:
-            from llm.v1.rag.club.retrieval import EMBED_MODEL
+            from llm.v2.club.retrieval import EMBED_MODEL
             PRICES[EMBED_MODEL] = {"input": options["embedding_input_usd_per_million"], "output": 0}
         report = {"started_at": datetime.now(timezone.utc).isoformat(), "model": os.getenv("LLM_MODEL"),
                   "method": "Public Django APIClient views + real providers, guest sessions; excludes proxy/browser time",

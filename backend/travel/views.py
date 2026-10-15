@@ -76,7 +76,7 @@ class CourseWriteThrottle(SimpleRateThrottle):
     ),
 )
 class CourseListCreateView(CourseWriteProtectionMixin, generics.ListCreateAPIView):
-    queryset = Course.objects.prefetch_related("stops")
+    queryset = Course.objects.select_related("owner__point_wallet").prefetch_related("stops")
     serializer_class = CourseSerializer
     permission_classes = (IsAuthenticated,)
 
@@ -90,7 +90,11 @@ class CourseListCreateView(CourseWriteProtectionMixin, generics.ListCreateAPIVie
         token = secrets.token_urlsafe(32)
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save(edit_token_hash=make_password(token), author=request.user.nickname or request.user.username)
+        serializer.save(
+            edit_token_hash=make_password(token),
+            author=request.user.nickname or request.user.username,
+            owner=request.user,
+        )
         data = dict(serializer.data)
         data["editToken"] = token
         return Response(data, status=status.HTTP_201_CREATED)
@@ -109,7 +113,7 @@ class CourseListCreateView(CourseWriteProtectionMixin, generics.ListCreateAPIVie
     ),
 )
 class CourseDetailView(CourseWriteProtectionMixin, generics.RetrieveUpdateDestroyAPIView):
-    queryset = Course.objects.prefetch_related("stops")
+    queryset = Course.objects.select_related("owner__point_wallet").prefetch_related("stops")
     serializer_class = CourseSerializer
     permission_classes = (IsAuthenticated,)
     http_method_names = ("get", "patch", "delete", "options")

@@ -11,6 +11,7 @@ const React = require("react");
 function load(path, mocks) {
   const source = readFileSync(new URL(path, import.meta.url), "utf8");
   const context = { exports: {}, require(id) {
+    if (id === "./member-name") return { MemberName: () => null };
     if (id in mocks) return mocks[id];
     if (id === "react" || id === "react/jsx-runtime") return require(id);
     if (id.endsWith(".css")) return {};

@@ -168,7 +168,7 @@ class QdrantIntegrationTests(unittest.TestCase):
         django.setup()
         from django.core.management import call_command
         from llm.models import Document, DocumentChunk
-        from llm.v1.rag.club import retrieval
+        from llm.v2.club import retrieval
         document = Document.objects.create(title=self.name, source=self.name)
         try:
             for index, metadata in enumerate(({}, {"doc_id": None}, {"doc_id": ""})):
@@ -197,7 +197,7 @@ class QdrantIntegrationTests(unittest.TestCase):
         django.setup()
         from django.core.management import call_command
         from llm.models import Document, DocumentChunk
-        from llm.v1.rag.club import retrieval
+        from llm.v2.club import retrieval
         document = Document.objects.create(title=self.name, source=self.name)
         try:
             for index, nested in enumerate(("source note", 7, True, ["note"], None,
@@ -220,8 +220,8 @@ class QdrantIntegrationTests(unittest.TestCase):
     def test_active_retrieval_callers(self):
         import django
         django.setup()
-        from llm.v1.rag.club import retrieval, structured
-        from llm.v1.rag.course import agent, transport
+        from llm.v2.club import retrieval, structured
+        from llm.v2.course import agent, transport
         from llm.tools import knowledge
         store.upsert_documents([self.document("transport", "JAMSIL", "TRANSPORT"),
                                 self.document("facility", "JAMSIL", "FACILITY")])

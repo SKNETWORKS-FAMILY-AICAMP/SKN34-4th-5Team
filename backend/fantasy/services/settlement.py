@@ -4,8 +4,8 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
-from accounts.models import PointTransaction, PointWallet
-from accounts.point_service import grant_points
+from accounts.models import PointTransaction
+from accounts.point_service import adjust_points, grant_points
 from fantasy.models import (
     FantasyBattingGameStat,
     FantasyPitchingGameStat,
@@ -139,19 +139,16 @@ def cancel_test_settlement(week_id):
         if original is None or original.amount != result.point_amount:
             raise RuntimeError("테스트 결산 포인트 원장을 확인할 수 없습니다.")
 
-        wallet = PointWallet.objects.select_for_update().get(user_id=result.user_id)
         reversal_key = f"{settlement.pk}:{result.user_id}"
-        PointTransaction.objects.create(
-            user_id=result.user_id,
-            wallet=wallet,
+        adjust_points(
+            user=result.user,
             amount=-result.point_amount,
+            rank_delta=-result.point_amount,
             transaction_type="FANTASY_SETTLEMENT_REVERSAL",
             source_type="fantasy.FantasyTestSettlementCancellation",
             source_key=reversal_key,
             description=f"환상야구 {week.week_start} 주차 테스트 결산 취소",
         )
-        wallet.balance -= result.point_amount
-        wallet.save(update_fields=("balance", "updated_at"))
         reversed_total += result.point_amount
 
     settlement.delete()

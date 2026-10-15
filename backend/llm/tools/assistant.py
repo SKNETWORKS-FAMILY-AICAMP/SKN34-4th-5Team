@@ -110,7 +110,7 @@ def to_stadium_code(value) -> str | None:
     v = str(value or "").strip().upper()
     if v in STADIUMS:
         return v
-    from llm.v1.rag.club.router import detect_stadium        # "잠실", "챔피언스 필드" 같은 한글도 받는다
+    from llm.v2.club.router import detect_stadium        # "잠실", "챔피언스 필드" 같은 한글도 받는다
     code = detect_stadium(str(value or ""))
     return code if code in STADIUMS else None
 
@@ -356,12 +356,12 @@ def search_nearby_places(kind, stadium_code=None, keyword=None, _nearby=None) ->
     code = to_stadium_code(stadium_code) if stadium_code else s.get("hint")
     if not code:
         return "어느 구장인지 모릅니다. 사용자에게 구장을 물어보세요."
-    from llm.v1.rag.nearby import agent as nearby_agent, kakao
+    from llm.v2.nearby import agent as nearby_agent, kakao
     if _nearby is None and not kakao.enabled():
         return "카카오 장소 조회가 설정되지 않았습니다. 옆 지도의 해당 카테고리에서 확인하라고 안내하세요."
     places = (_nearby or kakao.nearby)(code, kind)
     if kind == "stay":
-        from llm.v1.rag.nearby import lodging
+        from llm.v2.nearby import lodging
         # 모델이 축약한 keyword보다 실제 요청과 사용자 대화의 조건을 우선한다.
         result = lodging.verify(places, s.get("question") or keyword or "숙소", s.get("history"))
         for p in result["items"]:
@@ -386,14 +386,14 @@ def plan_course(request, _course=None) -> str:
     """직관 코스(경기 전 → 구장 → 경기 후, 요청 시 숙소)를 짠다. 결과는 옆 지도와 코스 카드에 그대로 표시된다."""
     s = state()
     s["tools"].append("course")
-    from llm.v1.rag.domain_tools import active_domain
+    from llm.v2.domain_tools import active_domain
     if active_domain() == "course":
         return "현재 코스 생성 중에는 plan_course를 다시 호출할 수 없습니다. 주어진 후보로 답하세요."
     if _course is None:
-        from llm.v1.rag.course import agent as _course
+        from llm.v2.course import agent as _course
     # 도구 인자는 모델의 요약일 뿐이다. 실제 사용자 원문이 있으면 길이와 관계없이 우선한다.
     question = s.get("question") or request
-    from llm.v1.rag.club.router import detect_stadium
+    from llm.v2.club.router import detect_stadium
     original = s.get("question") or ""
     explicit = detect_stadium(original)
     saved = s.get("course_memory") or {}
@@ -442,5 +442,5 @@ def build_specialized_tools():
 
 
 def build_tools():
-    from llm.v1.rag.domain_tools import tools_for
+    from llm.v2.domain_tools import tools_for
     return list(tools_for("assistant"))

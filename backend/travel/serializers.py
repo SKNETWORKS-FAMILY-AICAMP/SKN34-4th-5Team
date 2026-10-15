@@ -5,6 +5,7 @@ from django.db import transaction
 from drf_spectacular.utils import extend_schema_serializer
 from rest_framework import serializers
 
+from accounts.point_rank import member_rank
 from community.models import CommunityImage
 from community.serializers import validate_content_doc
 
@@ -64,12 +65,16 @@ class CourseSerializer(serializers.ModelSerializer):
     startLng = FiniteFloatField(source="start_lng", min_value=-180, max_value=180, required=False, allow_null=True)
     createdAt = serializers.DateTimeField(source="created_at", read_only=True)
     updatedAt = serializers.DateTimeField(source="updated_at", read_only=True)
+    authorRank = serializers.SerializerMethodField()
     stops = CourseStopSerializer(many=True, required=False)
 
     class Meta:
         model = Course
-        fields = ("id", "sampleId", "routeNumber", "title", "stadium", "description", "content", "contentDoc", "contentFormat", "duration", "cover", "tags", "startLat", "startLng", "travelMode", "legModes", "author", "likes", "views", "isSample", "createdAt", "updatedAt", "stops")
+        fields = ("id", "sampleId", "routeNumber", "title", "stadium", "description", "content", "contentDoc", "contentFormat", "duration", "cover", "tags", "startLat", "startLng", "travelMode", "legModes", "author", "authorRank", "likes", "views", "isSample", "createdAt", "updatedAt", "stops")
         read_only_fields = ("id", "sampleId", "routeNumber", "description", "cover", "author", "likes", "views", "isSample", "createdAt", "updatedAt")
+
+    def get_authorRank(self, course) -> int | None:
+        return member_rank(course.owner) if course.owner_id else None
 
     def validate_title(self, value):
         value = value.strip()
@@ -232,6 +237,7 @@ class CourseResponseSerializer(serializers.Serializer):
     startLat = serializers.FloatField(required=False)
     startLng = serializers.FloatField(required=False)
     author = serializers.CharField()
+    authorRank = serializers.IntegerField(allow_null=True, read_only=True)
     likes = serializers.IntegerField(min_value=0)
     views = serializers.IntegerField(min_value=0)
     isSample = serializers.BooleanField()

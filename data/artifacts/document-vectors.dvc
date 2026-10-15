@@ -1,0 +1,6 @@
+outs:
+- md5: c3c05cdcd3f15ab6d2b16397275844f2.dir
+  size: 45947635
+  nfiles: 2
+  hash: md5
+  path: document-vectors

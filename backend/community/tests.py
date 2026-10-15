@@ -5,6 +5,7 @@ from io import BytesIO
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Barrier
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -16,6 +17,7 @@ from PIL import Image
 from rest_framework.test import APIClient, APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from .moderation_worker import run_one
 from .models import CommunityImage, CommunityPost, CommunityReport, CommunityVote, TEAM_CODES
 
 
@@ -46,10 +48,10 @@ class CommunityPostApiTests(APITestCase):
         self.assertEqual(response.data[1]["author"], "진성칰갈")
         self.assertEqual(response.data[-1], {
             "id": "lg-sample-1", "sourceId": "lg-sample-1", "postNumber": "001001", "board": "teams",
-            "teamCode": "LG", "authorId": None, "author": "예시 작성자", "title": "잠실 외야에서 보면 타구 판단 좀 되나요?",
+            "teamCode": "LG", "authorId": None, "authorRank": None, "author": "예시 작성자", "title": "잠실 외야에서 보면 타구 판단 좀 되나요?",
             "content": "늘 내야에서만 보다가 이번엔 외야로 가볼까 합니다.\n\n공이 뜨면 홈런인지 평범한 플라이인지 구분이 잘 되는지 궁금해요. 중계로 볼 때랑 느낌이 많이 다를 것 같아서요. LG 응원하면서 수비 위치도 같이 보고 싶습니다.", "contentDoc": None,
             "category": "좌석·예매", "createdAt": None, "views": 0, "recommendations": 0, "downvotes": 0,
-            "commentCount": 0, "isSample": True, "images": [],
+            "commentCount": 0, "isSample": True, "images": [], "moderationStatus": "approved", "revision": 0, "isTrade": False, "isAdvertisement": False,
             "images": [],
         })
         numbers = [post["postNumber"] for post in response.data]
@@ -61,6 +63,8 @@ class CommunityPostApiTests(APITestCase):
         free = self.create_post(key="new-free", title="최신 자유 글")
         team = self.create_post(key="new-team", board="teams", teamCode="LG", title="최신 팀 글")
         self.assertEqual((free.status_code, team.status_code), (201, 201))
+        while run_one(lambda payload: ([], {})):
+            pass
         self.client.force_authenticate(user=None)
 
         for path, expected_id in (
@@ -92,6 +96,7 @@ class CommunityPostApiTests(APITestCase):
             HTTP_IDEMPOTENCY_KEY="jwt-create",
         )
         self.assertEqual((response.status_code, response.data["teamCode"], response.data["authorId"]), (201, "LG", self.owner.id))
+        self.assertEqual(response.data["authorRank"], 1)
 
     def test_create_is_server_owned_idempotent_and_uses_common_sequence(self):
         response = self.create_post(author="위조", postNumber="999999", views=999)
@@ -133,6 +138,7 @@ class CommunityPostApiTests(APITestCase):
         created = self.create_post()
         url = f"/api/v1/community/posts/{created.data['id']}/"
         self.client.force_authenticate(user=None)
+        run_one(lambda payload: ([], {}))
         first = self.client.get(url)
         second = self.client.get(url)
         self.assertEqual((first.status_code, first.data["views"], second.data["views"]), (200, 1, 2))
@@ -149,7 +155,7 @@ class CommunityPostApiTests(APITestCase):
     def test_legacy_post_is_readable_but_not_mutable_and_mine_is_scoped(self):
         created = self.create_post()
         self.client.force_authenticate(self.owner)
-        mine = self.client.get("/api/v1/community/posts/?mine=1")
+        mine = self.client.get("/api/v1/community/submissions/posts/")
         self.assertEqual([post["id"] for post in mine.data], [created.data["id"]])
         legacy_url = "/api/v1/community/posts/lg-sample-1/"
         self.assertEqual(self.client.get(legacy_url).status_code, 200)
@@ -165,6 +171,13 @@ class CommunityRichPostTests(APITestCase):
         self.settings.enable()
         self.addCleanup(self.settings.disable)
         self.addCleanup(self.media.cleanup)
+        self.objects = {}
+        put = patch('community.images.put_object', side_effect=lambda key, body, content_type: self.objects.update({key: body}))
+        get = patch('community.images.get_object', side_effect=lambda key: BytesIO(self.objects[key]))
+        delete = patch('community.images.delete_object', side_effect=lambda key: self.objects.pop(key, None))
+        for storage_patch in (put, get, delete):
+            storage_patch.start()
+            self.addCleanup(storage_patch.stop)
 
     @staticmethod
     def image_file():
@@ -193,14 +206,19 @@ class CommunityRichPostTests(APITestCase):
         self.assertEqual((retried.status_code, retried.data["id"]), (200, created.data["id"]))
         self.assertEqual(str(CommunityImage.objects.get(pk=image_id).post_id), created.data["id"])
         self.client.credentials()
+        run_one(lambda payload: ([], {}))
         fetched = self.client.get(f"/api/v1/community/posts/{created.data['id']}/")
-        image = self.client.get(uploaded.data["url"].removeprefix("/api"))
+        image = self.client.get(uploaded.data["url"])
         self.assertEqual((fetched.status_code, image.status_code, image["Content-Type"]), (200, 200, "image/jpeg"))
         self.assertEqual(fetched.data["contentDoc"], doc)
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {RefreshToken.for_user(self.owner).access_token}")
         edited = self.client.patch(f"/api/v1/community/posts/{created.data['id']}/", {"title": "수정된 서식 글", "content": "직관 사진\n[이미지]", "contentDoc": doc}, format="json")
         self.assertEqual((edited.status_code, edited.data["title"], edited.data["contentDoc"]), (200, "수정된 서식 글", doc))
         self.assertEqual(str(CommunityImage.objects.get(pk=image_id).post_id), created.data["id"])
+        self.client.patch(f"/api/v1/community/posts/{created.data['id']}/", {"content": "이미지 제거", "contentDoc": None}, format="json")
+        self.assertIsNone(CommunityImage.objects.get(pk=image_id).post_id)
+        retried = self.client.post("/api/v1/community/posts/", {"board": "free", "teamCode": "", "category": "잡담", "title": "서식 글", "content": "직관 사진\n[이미지]", "contentDoc": doc}, format="json", HTTP_IDEMPOTENCY_KEY="rich-1")
+        self.assertEqual((retried.status_code, retried.data["id"]), (200, created.data["id"]))
 
     def test_spoofed_files_and_foreign_images_are_rejected(self):
         self.assertEqual(self.client.post("/api/v1/community/images/", {"image": self.image_file()}, format="multipart").status_code, 401)

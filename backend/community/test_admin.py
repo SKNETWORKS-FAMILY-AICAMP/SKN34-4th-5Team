@@ -11,7 +11,7 @@ class CommunityAdminApiTests(APITestCase):
         cls.member = users.create_user(username="member", nickname="회원", password="pass-1234!")
         cls.reporter = users.create_user(username="reporter", nickname="신고자")
         cls.staff = users.create_user(username="staff", nickname="운영", is_staff=True)
-        cls.post = CommunityPost.objects.create(post_number="000001", board="free", author="회원", title="관리 대상 글", content="본문", category="잡담", owner=cls.member)
+        cls.post = CommunityPost.objects.create(moderation_status="approved", approved_revision=0, post_number="000001", board="free", author="회원", title="관리 대상 글", content="본문", category="잡담", owner=cls.member)
         cls.report = CommunityReport.objects.create(post=cls.post, reporter=cls.reporter, reason="spam", detail="광고")
 
     def act(self, **body):
@@ -47,6 +47,38 @@ class CommunityAdminApiTests(APITestCase):
         self.assertEqual(row["post"]["source_id"], self.post.source_id)
         self.assertEqual((row["post"]["owner"]["username"], row["post"]["owner"]["nickname"]), ("member", "회원"))
 
+    def test_review_state_persists_without_changing_visibility_or_moderation(self):
+        self.client.force_authenticate(self.staff)
+        url = f"/api/v1/community/admin/posts/{self.post.pk}/"
+        self.assertFalse(self.post.is_reviewed)
+        for hidden in (False, True):
+            self.post.is_hidden = hidden
+            self.post.moderation_status = "review"
+            self.post.save(update_fields=["is_hidden", "moderation_status"])
+            for action, expected in (("reviewed", True), ("reviewed", True), ("unreviewed", False)):
+                response = self.client.patch(url, {"action": action}, format="json")
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.data["is_reviewed"], expected)
+                self.post.refresh_from_db()
+                self.report.refresh_from_db()
+                self.assertEqual((self.post.is_reviewed, self.post.is_hidden, self.post.moderation_status), (expected, hidden, "review"))
+                self.assertEqual(self.report.status, "pending")
+                row = self.client.get("/api/v1/community/admin/posts/", {"q": self.post.title}).data["results"][0]
+                self.assertEqual(row["is_reviewed"], expected)
+
+    def test_review_requires_staff_and_valid_action(self):
+        url = f"/api/v1/community/admin/posts/{self.post.pk}/"
+        for action in ("reviewed", "unreviewed", "unhide"):
+            self.client.force_authenticate(None)
+            self.assertEqual(self.client.patch(url, {"action": action}, format="json").status_code, 401)
+            self.client.force_authenticate(self.member)
+            self.assertEqual(self.client.patch(url, {"action": action}, format="json").status_code, 403)
+        self.client.force_authenticate(self.staff)
+        self.assertEqual(self.client.patch(url, {"action": "reviewed", "is_hidden": False}, format="json").status_code, 400)
+        self.assertEqual(self.client.patch("/api/v1/community/admin/posts/missing/", {"action": "reviewed"}, format="json").status_code, 404)
+        self.post.refresh_from_db()
+        self.assertFalse(self.post.is_reviewed)
+
     def test_hold_keeps_post_visible(self):
         response = self.act(action="hold")
         self.assertEqual(response.status_code, 200)
@@ -56,7 +88,7 @@ class CommunityAdminApiTests(APITestCase):
         self.assertEqual(self.client.get(f"/api/v1/community/posts/{self.post.source_id}/").status_code, 200)
 
     def test_post_hide_matches_report_policy_and_preserves_records(self):
-        comment = CommunityComment.objects.create(post=self.post, author=self.member, content="댓글")
+        comment = CommunityComment.objects.create(moderation_status="approved", approved_revision=0, post=self.post, author=self.member, content="댓글")
         self.client.force_authenticate(self.staff)
         url = f"/api/v1/community/admin/posts/{self.post.pk}/"
         self.assertEqual(self.client.patch(url, {"action": "hide"}, format="json").status_code, 200)
@@ -70,10 +102,52 @@ class CommunityAdminApiTests(APITestCase):
         self.client.force_authenticate(None)
         self.assertEqual(self.client.get(f"/api/v1/community/posts/{self.post.pk}/").status_code, 404)
         self.client.force_authenticate(self.staff)
-        self.assertEqual(self.client.get(f"/api/v1/community/posts/{self.post.pk}/").status_code, 200)
+        self.assertEqual(self.client.get(f"/api/v1/community/posts/{self.post.pk}/").status_code, 404)
+
+    def test_unhide_restores_public_post_and_comments_without_resetting_reports(self):
+        from accounts.models import PointTransaction
+
+        comment = CommunityComment.objects.create(moderation_status="approved", approved_revision=0, post=self.post, author=self.member, content="댓글")
+        CommunityComment.objects.create(moderation_status="rejected", post=self.post, author=self.member, content="차단 댓글")
+        self.act(action="hide")
+        self.report.refresh_from_db()
+        history = (self.report.status, self.report.handled_at, self.report.handled_by_id)
+        url = f"/api/v1/community/admin/posts/{self.post.pk}/"
+        for _ in range(2):
+            self.client.force_authenticate(self.staff)
+            response = self.client.patch(url, {"action": "unhide"}, format="json")
+            self.assertEqual(response.status_code, 200)
+            self.assertFalse(response.data["is_hidden"])
+            self.assertEqual(response.data["comment_count"], 1)
+            self.report.refresh_from_db()
+            self.assertEqual((self.report.status, self.report.handled_at, self.report.handled_by_id), history)
+            self.client.force_authenticate(None)
+            self.assertEqual(self.client.get(f"/api/v1/community/posts/{self.post.pk}/").status_code, 200)
+            self.assertEqual(len(self.client.get(f"/api/v1/community/posts/{self.post.pk}/comments/").data), 1)
+        comment.refresh_from_db()
+        self.assertIsNotNone(comment.first_published_at)
+        self.assertEqual(PointTransaction.objects.filter(user=self.member, source_key=str(comment.pk), source_type="comment").count(), 1)
+
+    def test_unhide_does_not_override_moderation_block(self):
+        from accounts.models import PointTransaction
+
+        self.post.is_hidden = True
+        self.post.moderation_status = "rejected"
+        self.post.approved_revision = None
+        self.post.comment_count = 7
+        self.post.save(update_fields=["is_hidden", "moderation_status", "approved_revision", "comment_count"])
+        self.client.force_authenticate(self.staff)
+        response = self.client.patch(f"/api/v1/community/admin/posts/{self.post.pk}/", {"action": "unhide"}, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.post.refresh_from_db()
+        self.assertEqual((self.post.is_hidden, self.post.moderation_status, self.post.approved_revision, self.post.comment_count), (False, "rejected", None, 0))
+        self.assertIsNone(self.post.first_published_at)
+        self.assertFalse(PointTransaction.objects.filter(user=self.member).exists())
+        self.client.force_authenticate(None)
+        self.assertEqual(self.client.get(f"/api/v1/community/posts/{self.post.pk}/").status_code, 404)
 
     def test_post_without_reports_can_be_hidden(self):
-        post = CommunityPost.objects.create(board="free", author="회원", title="신고 없음", content="본문", category="잡담")
+        post = CommunityPost.objects.create(moderation_status="approved", approved_revision=0, board="free", author="회원", title="신고 없음", content="본문", category="잡담")
         self.client.force_authenticate(self.staff)
         response = self.client.patch(f"/api/v1/community/admin/posts/{post.pk}/", {"action": "hide"}, format="json")
         self.assertEqual(response.status_code, 200)
@@ -86,7 +160,7 @@ class CommunityAdminApiTests(APITestCase):
         self.client.force_authenticate(self.member)
         self.assertEqual(self.client.patch(url, {"action": "hide"}, format="json").status_code, 403)
         self.client.force_authenticate(self.staff)
-        for body in ({}, {"action": "unhide"}, {"action": "hide", "title": "변경"}):
+        for body in ({}, {"action": "invalid"}, {"action": "hide", "title": "변경"}):
             self.assertEqual(self.client.patch(url, body, format="json").status_code, 400)
         self.assertEqual(self.client.patch("/api/v1/community/admin/posts/missing/", {"action": "hide"}, format="json").status_code, 404)
         self.post.refresh_from_db()
@@ -104,7 +178,7 @@ class CommunityAdminApiTests(APITestCase):
         rows = listed["results"] if isinstance(listed, dict) else listed
         self.assertFalse(any(row["id"] == self.post.source_id for row in rows))
         self.client.force_authenticate(self.staff)
-        self.assertEqual(self.client.get(f"/api/v1/community/posts/{self.post.source_id}/").status_code, 200)
+        self.assertEqual(self.client.get(f"/api/v1/community/posts/{self.post.source_id}/").status_code, 404)
 
     def test_unhold_returns_report_to_pending_without_changing_post(self):
         self.assertEqual(self.act(action="hold").status_code, 200)
@@ -145,7 +219,7 @@ class CommunityAdminApiTests(APITestCase):
         self.assertEqual(self.act(action="hold", sanction="7d").status_code, 400)
 
     def test_delete_without_sanction_removes_post_comments_and_reports(self):
-        CommunityComment.objects.create(post=self.post, author=self.member, content="댓글")
+        CommunityComment.objects.create(moderation_status="approved", approved_revision=0, post=self.post, author=self.member, content="댓글")
         response = self.act(action="delete", sanction="none")
         self.assertEqual(response.status_code, 200)
         self.assertFalse(CommunityPost.objects.filter(pk=self.post.pk).exists())
@@ -154,7 +228,7 @@ class CommunityAdminApiTests(APITestCase):
 
     def test_delete_with_any_sanction_only_deletes_the_post(self):
         for sanction in ("7d", "30d", "permanent"):
-            post = CommunityPost.objects.create(board="free", author="회원", title=f"삭제 {sanction}", content="본문", category="잡담", owner=self.member)
+            post = CommunityPost.objects.create(moderation_status="approved", approved_revision=0, board="free", author="회원", title=f"삭제 {sanction}", content="본문", category="잡담", owner=self.member)
             report = CommunityReport.objects.create(post=post, reporter=self.reporter, reason="abuse")
             self.client.force_authenticate(self.staff)
             response = self.client.post(f"/api/v1/community/admin/reports/{report.id}/action/", {"action": "delete", "sanction": sanction}, format="json")

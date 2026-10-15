@@ -29,7 +29,7 @@ function routeFromApi(value: CourseDto, owned = Boolean(token(value.id)), saveWa
     ...(value.contentFormat ? { contentFormat: value.contentFormat } : {}), ...(value.contentDoc ? { contentDoc: value.contentDoc } : {}), tags: value.tags, duration: value.duration,
     cover: value.cover || "/images/stadium-night.jpg", stops, ...(value.startLat !== undefined && value.startLng !== undefined ? { start: { lat: value.startLat, lng: value.startLng } } : {}),
     travelMode: value.travelMode ?? "walk", legModes: isLegModes(value.legModes) ? value.legModes : {},
-    author: value.author, likes: value.likes ?? 0, views: value.views ?? 0, isSample: value.isSample ?? false, owned: value.isSample ? false : owned, createdAt: value.createdAt, ...(saveWarning ? { saveWarning } : {}),
+    author: value.author, authorRank: value.authorRank ?? null, likes: value.likes ?? 0, views: value.views ?? 0, isSample: value.isSample ?? false, owned: value.isSample ? false : owned, createdAt: value.createdAt, ...(saveWarning ? { saveWarning } : {}),
   };
 }
 

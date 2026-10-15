@@ -9,6 +9,7 @@ const read = path => readFileSync(new URL(`../${path}`, import.meta.url), "utf8"
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const noop = () => null;
 function load(path, dependencies) {
+  dependencies = { MemberName: noop, ...dependencies };
   const ast = ts.createSourceFile(path, read(path), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const body = ast.statements.filter(node => !ts.isImportDeclaration(node)).map(node => node.getText(ast)).join("\n");
   const testModule = { exports: {} };
@@ -58,7 +59,7 @@ const roles = [
   { status: "loading", user: null },
 ];
 
-test("account menu retains feedback for superusers but removes community administration", () => {
+test("account menu excludes feedback and community administration for every role", () => {
   for (const identity of roles) {
     const hooks = harness();
     const { MemberHeaderActions } = load("components/member-header-actions.tsx", {
@@ -69,45 +70,41 @@ test("account menu retains feedback for superusers but removes community adminis
     find(tree, node => node.props?.["aria-controls"] === "member-menu-panel")?.props.onClick();
     tree = hooks.render(MemberHeaderActions);
     const links = nodes(tree).filter(node => node.props?.href).map(node => node.props.href);
-    const allowed = identity.user?.is_superuser === true;
-    assert.equal(links.includes("/mypage?tab=feedback"), allowed);
-    if (allowed) {
-      const index = links.indexOf("/mypage?tab=feedback");
-      assert.equal(links.includes("/mypage?tab=reports"), false);
-      assert.equal(links[index + 1], "/mypage?tab=profile");
-      assert.equal(find(tree, node => node.props?.href === "/mypage?tab=feedback").props.children, "챗봇 답변 평가");
-    }
+    assert.equal(links.includes("/mypage?tab=feedback"), false);
+    assert.equal(links.includes("/mypage?tab=reports"), false);
+    assert.doesNotMatch(text(tree), /챗봇 답변 평가/);
+    if (identity.user) assert.ok(links.includes("/mypage?tab=profile"));
   }
 });
 
-test("mypage validates feedback deep links and mounts the shared panel only for superusers", () => {
+test("mypage excludes feedback and redirects old feedback links only for authenticated superusers", () => {
+  for (const query of ["", "tab=feedback"]) {
   for (const identity of roles) {
-    const hooks = harness(), pushes = [];
+    const hooks = harness(), replacements = [];
+    const feedbackPanel = () => null;
     const dependencies = {
       ...hooks, Link: noop, Image: noop, Suspense: noop, useMemberAuth: () => identity,
-      useRouter: () => ({ push: (...args) => pushes.push(args) }), useSearchParams: () => new URLSearchParams("tab=feedback"),
+      useRouter: () => ({ push: noop, replace: path => replacements.push(path) }), useSearchParams: () => new URLSearchParams(query),
       memberFetch: async () => Response.json({ balance: 0, transactions: [] }),
       useRoutesReady: () => true, useRoutes: () => [], useRoutesError: () => null, useLikedRoutes: () => [],
       teamBoards: [], memberRoleLabel: () => "회원", nextNicknameChangeAt: () => null, styles,
-      AdminFeedbackPanel: noop, AdminMembersPanel: noop, AdminPostsPanel: noop, AdminReportsPanel: noop,
+      AdminFeedbackPanel: feedbackPanel, AdminMembersPanel: noop, AdminPostsPanel: noop, AdminReportsPanel: noop,
       MemberPosts: noop, MemberAccountSettings: noop, NicknameChangeButton: noop, PasswordChangeButton: noop,
       ProfilePhotoEditor: noop, RouteCard: noop, logoutMember: noop, memberError: noop,
     };
     const { default: MyPage } = load("app/mypage/page.tsx", dependencies);
     const Content = MyPage().props.children.type;
     const tree = hooks.render(Content);
-    const allowed = identity.user?.is_superuser === true;
-    assert.equal(Boolean(find(tree, node => node.key === String(identity.user?.id))), allowed);
-    const tab = find(tree, node => node.type === "button" && node.props.children === "챗봇 답변 평가");
-    assert.equal(Boolean(tab), allowed);
-    if (allowed) {
-      assert.equal(tab.props["aria-pressed"], true);
-      tab.props.onClick();
-      assert.deepEqual(pushes, [["/mypage?tab=feedback", { scroll: false }]]);
-      const labels = nodes(tree).filter(node => node.type === "button").map(node => node.props.children);
-      assert.equal(labels.includes("신고 관리"), false);
-      assert.equal(labels[labels.indexOf("챗봇 답변 평가") + 1], "회원 정보");
-    } else assert.doesNotMatch(text(tree), /평가 상세|질문 스냅샷/);
+    assert.equal(find(tree, node => node.type === feedbackPanel), undefined);
+    assert.doesNotMatch(text(tree), /챗봇 답변 평가|평가 상세|질문 스냅샷/);
+    if (identity.status === "authenticated") {
+      assert.ok(find(tree, node => node.props?.["aria-label"] === "내 코스"));
+      assert.ok(find(tree, node => node.type === "button" && node.props.children === "회원 정보"));
+    }
+    hooks.flush();
+    assert.deepEqual(replacements, query && identity.status === "authenticated" && identity.user?.is_superuser === true ? ["/admin/feedback"] : []);
+    hooks.unmount();
+  }
   }
 });
 

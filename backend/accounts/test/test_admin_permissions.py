@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.contrib.admin.models import LogEntry
 from rest_framework.test import APITestCase
+from community.models import CommunityPost, CommunityReport
 
 
 class AdminPermissionTests(APITestCase):
@@ -27,6 +28,38 @@ class AdminPermissionTests(APITestCase):
         self.assertEqual(response.data["count"], 1)
         self.assertNotIn("password", response.data["results"][0])
         self.assertEqual(self.change(self.member, {"is_staff": True}).status_code, 403)
+
+    def test_received_reports_count_all_statuses_and_filter_before_pagination(self):
+        # Isolate this fixture from users/reports installed by data migrations.
+        for user in (self.member, self.staff, self.master, self.other_master):
+            user.username = f"report-fixture-{user.username}"
+            user.save(update_fields=["username"])
+        for number, owner, reporters in (
+            ("098801", self.member, [self.staff, self.master]),
+            ("098802", self.member, [self.staff]),
+            ("098803", self.staff, [self.member]),
+            ("098804", None, [self.master]),
+        ):
+            post = CommunityPost.objects.create(post_number=number, owner=owner, author="same-name",
+                board="free", title="test", content="test", category="잡담")
+            for index, reporter in enumerate(reporters):
+                CommunityReport.objects.create(post=post, reporter=reporter, reason="other", status="hidden" if index else "pending")
+        self.client.force_authenticate(self.staff)
+        url = "/api/v1/auth/admin/members/?q=report-fixture-"
+        result = self.client.get(url).data["results"]
+        self.assertEqual([(row["id"], row["report_count"]) for row in result],
+            [(self.member.pk, 3), (self.staff.pk, 1), (self.master.pk, 0), (self.other_master.pk, 0)])
+        self.assertEqual(self.client.get(url, {"filter": "reported", "q": "report-fixture-"}).data["count"], 2)
+        self.assertEqual(self.client.get(url, {"filter": "reported", "q": "master"}).data["count"], 0)
+        self.assertEqual(self.client.get(url, {"q": str(self.member.pk)}).data["results"][0]["report_count"], 3)
+        self.assertEqual(self.client.get(url, {"filter": "newest"}).data["results"][0]["id"], self.other_master.pk)
+        self.assertEqual(self.client.get(url, {"filter": "invalid"}).status_code, 400)
+        get_user_model().objects.bulk_create([get_user_model()(username=f"report-fixture-extra-{i}") for i in range(21)])
+        page = self.client.get(url).data
+        self.assertIsNotNone(page["next"])
+        self.assertEqual(page["results"][0]["report_count"], 3)
+        self.client.force_authenticate(self.master)
+        self.assertEqual(self.change(self.member, {"is_staff": True}).data["report_count"], 3)
 
     def test_master_grant_revoke_and_audit(self):
         self.client.force_authenticate(self.master)

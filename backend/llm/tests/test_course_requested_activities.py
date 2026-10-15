@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from django.test import SimpleTestCase
 
-from llm.v1.rag.course import agent, slots
+from llm.v2.course import agent, slots
 
 
 QUESTION = "경기 시작전에 든든한 거 좀 먹고 카페 가서 커피 좀 마시고 구장 갔다가 끝나고 산책 좀 하고 싶어. 루트 짜줘"

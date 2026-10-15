@@ -1,5 +1,7 @@
 # Multimodal preview chatbot
 
+For corpus preservation and deployment restore-before-start, see [DVC / Google Drive backup and restore](HIGHLIGHT_CORPUS_DVC.md). Drive authentication/upload remains an explicit operator step; never mount the DVC backup as the mutable runtime.
+
 ## Run / disable
 
 Production behavior is unchanged unless `HIGHLIGHT_MULTIMODAL_CORPUS` is a nonempty backend environment variable. Preview uses the existing v2 main agent → `ask_highlight` → multimodal Specialist; no second API, chatbot, UI, database scenes or reembedding. It verifies three fused candidates per delegation: direct Google `gemini-embedding-2` handles all embeddings, while direct Google `gemini-3.8-flash` verifies actual clip video plus separate WAV audio using `generateContent` and `responseJsonSchema`. The shared Google transport replaces the OpenRouter adapter; no verifier retry or provider fallback occurs. Successful decisions record actual response `modelVersion`; HTTP errors expose only sanitized status/reasons and are not automatically attributed to quota exhaustion. The existing card renderer consumes nested `select_highlight_scenes` artifacts; start is floor(original segment offset + verified clip-local seconds), with no guessed lead-in. Evidence and full retrieval/verification diagnostics remain in the checkpoint tool artifact. Errors produce failed tools, never semantic no-match or production fallback.

@@ -12,6 +12,17 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 EVAL = 'backend/llm/v2/evaluation/'
 FREE = [
+    ['backend/llm/v2/tests/run_attachment_offline.py', 'llm.tests.test_course_tonkatsu',
+     'llm.tests.test_course_catalog_conditions', 'llm.tests.test_course_profile_features',
+     'llm.tests.test_course_literal_edits', 'llm.tests.test_course_audit_repairs.CourseSelectionRepairTest',
+     'llm.tests.test_course_bar_ratings', 'llm.tests.test_course_quality_research',
+     'llm.tests.test_course_recommendation_policy', 'llm.tests.test_course_visit_requests',
+     'llm.tests.test_course_candidates',
+     'llm.tests.test_course_entry_timing', 'llm.tests.test_evidence_grade',
+     'llm.tests.test_llm_temperature.ResponsesPayloadTest.test_v2_agents_use_the_single_v2_model_factory',
+     'llm.tests.test_llm_temperature.ResponsesPayloadTest.test_luna_constructors_omit_temperature'],
+    [EVAL + 'tonkatsu_contract.py', 'export', '--output', 'tonkatsu.json'],
+    [EVAL + 'test_course_dataset.py', '-v'],
     [EVAL + 'run.py', 'offline', '--output', 'seed.json'],
     [EVAL + 'run.py', 'offline', '--dataset', EVAL + 'reviewed_boundary.json', '--output', 'boundary.json'],
     [EVAL + 'test_evaluation.py', '-v'],
@@ -19,6 +30,14 @@ FREE = [
     [EVAL + 'test_remaining.py', '-v'],
     [EVAL + 'remaining.py', 'validate'],
     ['backend/llm/v2/tests/run_attachment_offline.py'],
+    ['backend/llm/v2/tests/run_attachment_offline.py', 'llm.tests.test_highlight_multimodal_web.MultimodalWebTests.test_server_restored_images_only_reach_specialist_not_public_records',
+     'llm.tests.test_highlight_multimodal_web.MultimodalWebTests.test_main_and_delegate_stream_and_saved_outputs_hide_original_images',
+     'llm.tests.test_highlight_multimodal_web.MultimodalWebTests.test_over_six_images_are_incomplete_before_provider_calls',
+     'llm.tests.test_highlight_multimodal_web.MultimodalWebTests.test_opt_out_uses_original_agent',
+     'llm.tests.test_highlight_multimodal_web.MultimodalWebTests.test_opt_out_error_then_success_preserves_card',
+     'llm.tests.test_highlight_multimodal_web.MultimodalWebTests.test_cards_original_time_errors_and_no_match',
+     'llm.tests.test_highlight_multimodal_web.MultimodalWebTests.test_disposable_corpus_concurrent_requests_close_local_client',
+     'llm.tests.test_highlight_langchain_web', 'llm.tests.test_highlight_retry'],
     ['backend/llm/v2/tests/run_attachment_offline.py', 'llm.v2.evaluation.test_eval_ragas'],
     ['backend/llm/v2/tests/run_attachment_offline.py', 'llm.tests.test_domain_tools.ExternalDomainToolAdapterTest'],
     [EVAL + 'weather_contract.py', 'export', '--output', 'weather.json'],
@@ -158,9 +177,18 @@ def main():
                 execute(command, offline=True)
             summary.update(seed=jev_report(out / 'seed.json', True), boundary=jev_report(out / 'boundary.json', True))
         elif options.mode == 'highlight-free':
+            os.environ['DEEPEVAL_CACHE_FOLDER'] = str(out / 'deepeval-cache')
+            execute([EVAL + 'test_highlight_case_quality.py', '-v'], offline=True)
+            execute([EVAL + 'highlight_langchain_contract.py', '--output', str(out / 'langchain-contract')], offline=True)
+            execute([EVAL + 'highlight_langchain_contract.py', '--pipeline', '--output', str(out / 'pipeline-contract')], offline=True)
+            execute(['backend/llm/tests/test_highlight_separate_ingestion.py', '-v'], offline=True)
+            execute(['backend/llm/tests/test_highlight_images.py', '-v'], offline=True)
+            execute(['backend/llm/tests/test_highlight_multimodal.py', '-v'], offline=True)
+            execute(['backend/llm/tests/test_highlight_youtube_verifier.py', '-v'], offline=True)
             execute([EVAL + 'test_highlight_deepeval.py', '-v'], offline=True)
             execute([EVAL + 'test_relocation.py', '-v'], offline=True)
             execute([EVAL + 'weather_contract.py', 'scorer-check'], offline=True)
+            execute([EVAL + 'tonkatsu_contract.py', 'scorer-check'], offline=True)
         elif options.mode in ('jev', 'supervisor'):
             require('OPENROUTER_API_KEY')
             if options.mode == 'supervisor':

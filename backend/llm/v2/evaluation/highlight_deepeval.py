@@ -112,14 +112,37 @@ def main():
     parser.add_argument("--output", type=Path, required=True, help="New empty run directory")
     parser.add_argument("--env-file", type=Path)
     parser.add_argument("--run-provider", action="store_true", help="Authorize one sequential finite pass")
+    parser.add_argument("--query-mode", choices=("text", "image-text"), default="text", help="Use reviewed inline original image blocks from the frozen dataset")
     args = parser.parse_args()
     if not args.run_provider:
         parser.error("Provider evaluation requires explicit --run-provider")
     args.output.mkdir(parents=True, exist_ok=False)
-    dataset = json.loads(args.dataset.read_text())
+    dataset_bytes = args.dataset.read_bytes()
+    dataset_sha256 = hashlib.sha256(dataset_bytes).hexdigest()
+    dataset = json.loads(dataset_bytes)
+    def check_dataset():
+        if hashlib.sha256(args.dataset.read_bytes()).hexdigest() != dataset_sha256:
+            raise ValueError("Dataset changed during evaluation")
     if not 8 <= len(dataset["cases"]) <= 10:
         raise ValueError("Sample must contain 8–10 cases")
     from llm.highlight_multimodal import Google, Specialist
+    image_provenance = {}
+    if args.query_mode == "image-text":
+        from llm.highlight_multimodal import image_parts
+        import base64
+        for case in dataset["cases"]:
+            if not case.get("images"):
+                raise ValueError("Reviewed original images required for every image-text case")
+            parts = image_parts(case["images"])
+            image_provenance[case["id"]] = []
+            for block, part in zip(case["images"], parts):
+                url = block["image_url"]["url"]
+                mime, encoded = url[5:].split(";base64,", 1)
+                raw = base64.b64decode(encoded, validate=True)
+                embedded = base64.b64decode(part["inlineData"]["data"], validate=True)
+                image_provenance[case["id"]].append({"mime": mime, "bytes": len(raw),
+                    "sha256": hashlib.sha256(raw).hexdigest(), "embedding_mime": part["inlineData"]["mimeType"],
+                    "embedding_sha256": hashlib.sha256(embedded).hexdigest()})
     corpus_hashes = snapshot(args.corpus, args.output / "corpus-copy")
     (args.output / "corpus-hashes.json").write_text(json.dumps(corpus_hashes, indent=2))
     rows = json.loads((args.output / "corpus-copy" / "segments.json").read_text())
@@ -141,17 +164,20 @@ def main():
     records, pressure_errors, halted = [], 0, False
     try:
         for case in dataset["cases"]:
+            check_dataset()
             started = time.monotonic()
             try:
-                result = specialist.ask(case["query"], candidate_limit=3)
+                result = specialist.ask(case["query"], candidate_limit=3,
+                                        **({"images": case["images"]} if args.query_mode == "image-text" else {}))
                 result["candidate_rows"] = {sid: rows[sid] for sid in result["retrieval_only"]}
                 errors = [d["provider_error"] for d in result["decisions"] if "provider_error" in d]
             except RuntimeError as exc:
                 # Shared transport sanitizes provider errors; do not persist arbitrary exceptions.
                 errors = [str(exc)]
                 result = {"complete": False, "no_match": None, "api_errors": errors}
+            check_dataset()
             score = scores(case, result)
-            records.append({"id": case["id"], "query": case["query"], "label": case,
+            records.append({"id": case["id"], "query": case["query"], "label": {k: v for k, v in case.items() if k != "images"},
                             "result": result, "scores": score, "api_errors": errors,
                             "latency_seconds": time.monotonic() - started})
             (args.output / "raw-rows.json").write_text(json.dumps(records, ensure_ascii=False, indent=2))
@@ -182,7 +208,11 @@ def main():
     true_abstentions = sum(not r["label"]["references"] for r in abstentions)
     summary["no_match_precision"] = {"passed": true_abstentions, "denominator": len(abstentions),
                                      "rate": true_abstentions / len(abstentions) if abstentions else None}
-    summary.update({"attempted": len(records), "planned": len(dataset["cases"]), "halted_on_repeated_429_503": halted,
+    check_dataset()
+    summary.update({"query_mode": args.query_mode, "index_mode": getattr(specialist, "index_mode", "separate"),
+                    "dataset_sha256": dataset_sha256, "image_provenance": image_provenance,
+                    "embedding_model": "gemini-embedding-2", "dimensions": 768, "candidate_limit": 3,
+                    "attempted": len(records), "planned": len(dataset["cases"]), "halted_on_repeated_429_503": halted,
                     "api_error_cases": sum(bool(r["api_errors"]) for r in records),
                     "inconclusive_selection_cases": sum(r["scores"]["final_selection"] is None for r in records),
                     "model_versions": sorted({d["model_version"] for r in records for d in r["result"].get("decisions", []) if d.get("model_version")}),

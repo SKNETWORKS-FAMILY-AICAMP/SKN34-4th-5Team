@@ -1,0 +1,1642 @@
+{
+  "schema_version": 1,
+  "dataset_id": "course-presentation-20261013",
+  "title": "코스 생성과 수정 평가 문항",
+  "status": "draft-needs-independent-review",
+  "created_on": "2026-10-13",
+  "timezone": "Asia/Seoul",
+  "scope": "평가 데이터 작성. 실제 문항 실행·A/B 측정·전체 품질 채점은 미실행.",
+  "provenance": "사용자의 실제 요청과 개선 기록을 바탕으로 작성한 검토용 문항. 기대 조건은 실측 결과가 아니다.",
+  "source_refs": [
+    "docs/COURSE_PERFORMANCE_GUIDE.md",
+    "backend/llm/v2/evaluation/EVALUATION_CRITERIA.md",
+    "docs/test_results/evaluation-criteria-course-audit-20261012.md",
+    "docs/test_results/develop-merge-20261013.md"
+  ],
+  "code_context": {
+    "local_head": "0b112adeff5200151ed6000fa97d1fa265aee965",
+    "checked_upstream_develop": "35d0b794bfa6ffcd4d806e7c31106f0bbd8e09cd",
+    "upstream_integrated": false,
+    "working_tree": "기존 술집 평점·Chrome 복구 미커밋 변경 포함. 실측 때 파일 해시·설정도 동결할 것."
+  },
+  "measurement_plan": {
+    "core_repeats_per_version": 3,
+    "versions": [
+      "A",
+      "B"
+    ],
+    "core_cases": 6,
+    "planned_core_case_executions": 36,
+    "live_executions_performed": 0,
+    "api_boundary": "Django APIClient 요청 직전부터 SSE done 소비까지. 스트림 종료는 별도 기록. 프록시·브라우저 제외.",
+    "ui_boundary": "사용자 전송부터 지도 완료 반영까지 별도 측정. API 시간과 혼합 금지.",
+    "pair_policy": "ID·반복·경기·출발 좌표·원본 코스/이력/서버 기억·캐시·측정 경계를 맞춰 A/B 번갈아 실행.",
+    "cache_policy": "결과·장소 근거·숙박 원문·provider prompt cache 각각 기록. warm/cold 혼합 및 운영 캐시 삭제 금지.",
+    "score_policy": "필수 위반 실패, 근거 부족 미확인, 미실행 not_run, 사용자 답변 대기 incomplete, 환경/제공자 오류 error. 단계 성공과 전체 완료 분리.",
+    "timing_policy": "모든 시도·실패·느린 표본 보존. 양쪽 성공한 동일 쌍 시간과 제외 실패 수를 함께 보고. 병렬 단계 시간 합산·소표본 P90 일반화 금지.",
+    "cost_policy": "usage와 가격 기준일/근거 확보 후 계산. 누락을 0원으로 취급하지 않음.",
+    "review": "독립 검토 후 기준·자료·채점 항목 동결. 이미 본 요청 기반 회귀 세트이며 독립 held-out 평가가 아님.",
+    "execution_support": "현 evaluate_courses/chat_eval의 drop-in 입력이 아님. README의 연결 범위 참조."
+  },
+  "wire_category_note": "BAR는 의미 종류다. 공개 payload에서는 FOOD로 올 수 있어 실제 업종과 대조한다. origin은 방문 수에서 제외한다.",
+  "fixtures_file": "fixtures.json",
+  "rubric": {
+    "course_complete": {
+      "mode": "payload_and_manual",
+      "rule": "필수 방문·순서·종류·경기 전후가 일치해야 한다. 방문 누락이나 안내만 반환은 전체 완료가 아니다."
+    },
+    "schedule_demo": {
+      "mode": "payload_and_manual",
+      "rule": "서버에서 확인한 구장·날짜·시각·isDemo=true를 보존하고 최종 답변에 시연용 가상 경기임을 표시한다."
+    },
+    "origin": {
+      "mode": "payload",
+      "rule": "명시 출발 좌표를 보존한다. 출발지가 완전히 없는 새 요청에만 구장별 기본 역을 적용한다."
+    },
+    "radius": {
+      "mode": "payload",
+      "rule": "방문지는 구장 반경 2500m 이내인지 좌표로 검사한다. 출발지는 방문 개수와 방문지 반경 검사에서 분리한다."
+    },
+    "source_identity": {
+      "mode": "provider_evidence_and_manual",
+      "rule": "장소 ID·이름·좌표·URL의 지점 동일성을 대조한다. 검색 결과 존재만으로 메뉴·영업·시설 충족을 인정하지 않는다."
+    },
+    "menu": {
+      "mode": "provider_evidence_and_manual",
+      "rule": "명시 메뉴의 실제 제공 근거와 지점 동일성을 확인한다. 매장명/업종 단어만으로 메뉴 충족을 인정하지 않는다. 자장면/짜장면, 돈카츠/돈까스는 동의어다."
+    },
+    "brand": {
+      "mode": "payload_and_provider_evidence",
+      "rule": "지정 브랜드의 실제 지점을 확인한다. 다른 저가 브랜드로 대체하면 실패다."
+    },
+    "internal": {
+      "mode": "catalog_and_payload",
+      "rule": "해당 방문에 내부 요청이 있을 때만 자리어때 수집 매장을 쓴다. 사이트의 외부 표시 매장도 수집 목록이면 허용한다. 상세 위치 URL과 매장 ID를 대조하고 카카오 내부 후보로 대체하지 않는다."
+    },
+    "bar_rating": {
+      "mode": "provider_evidence_and_manual",
+      "rule": "외부 술집은 실제 술집 업종과 동일 지점의 유효 평점·평가 1건 이상 근거가 필요하다. 미확인·0건은 통과시키지 않는다. 내부 매장에는 적용하지 않는다."
+    },
+    "timeline": {
+      "mode": "payload",
+      "rule": "일반 구장 도착은 경기 20분 전, 직전 내부 먹거리는 30분 전부터 경기로 연결한다. 명시 시간 우선, 체류·이동·날짜 넘김을 반영한다. 경기 종료 예상값은 확정 사실이 아니다."
+    },
+    "availability": {
+      "mode": "provider_evidence_and_payload",
+      "rule": "방문 날짜·시각에 적용되는 확인된 휴무/브레이크타임을 반영한다. 휴무라는 단어만으로 전체 휴무로 판정하지 않는다. 정보 부족은 미확인이다."
+    },
+    "preserve": {
+      "mode": "before_after_payload",
+      "rule": "대상 외 장소 ID·이름·좌표·visitId·순서·종류·체류·고정/완료 상태, 경기 날짜·시각·가상 표식과 출발지를 보존한다. 이동 변화에 따른 time/until/legMin은 재계산할 수 있다."
+    },
+    "hotel": {
+      "mode": "provider_evidence_and_manual",
+      "rule": "NOL 상세 원문의 이름·주소·유형·명시 조건을 각각 대조한다. 미확인 조건을 성공 처리하거나 예약 가능·가격을 임의 생성하지 않는다."
+    },
+    "no_extra_model": {
+      "mode": "trace_review",
+      "rule": "모델 호출 수를 수집해 비교한다. 특정 횟수를 새 강제 합격 상한으로 정하지 않는다. 이동·일정 조건을 모든 매장 속성으로 반복 검증하면 원인을 기록한다.",
+      "affects_task_completion": false
+    },
+    "saved": {
+      "mode": "api_and_storage",
+      "rule": "최종 course payload와 시험 세션 저장 결과가 일치한다. API 성공은 지도 표시 성공과 별도이다."
+    },
+    "ui": {
+      "mode": "browser_manual",
+      "rule": "실제 화면에서 핀·동선을 확인한다. 생성 중 지도 변경이 요청 스냅샷을 바꾸지 않고 완료 코스를 반영한다. 나만의 이야기 수동 문구가 유지된다."
+    }
+  },
+  "cases": [
+    {
+      "id": "C01",
+      "title": "광주 자장면과 내부 간식 생성",
+      "tier": "core",
+      "method": "api",
+      "review_status": "draft-needs-independent-review",
+      "setup": {
+        "context": {
+          "intent": "route",
+          "stadium": "GWANGJU",
+          "origin": {
+            "lat": 35.1659,
+            "lng": 126.9096,
+            "name": "광주역 시험 출발점"
+          }
+        },
+        "base_fixture": null,
+        "session": "fresh-isolated-guest",
+        "requires_server_demo_game": true
+      },
+      "turns": [
+        {
+          "input": "10월 16일 광주 경기 자장면 먹고 구장에서 간식 먹은 다음에 술 먹고 산책하고 싶어. 코스짜줘.",
+          "role": "user",
+          "measure": true
+        }
+      ],
+      "expected": {
+        "game": {
+          "date": "2026-10-16",
+          "time": "14:00",
+          "isDemo": true
+        },
+        "visits": [
+          {
+            "kind": "FOOD",
+            "phase": "BEFORE",
+            "internal": false,
+            "menu": "자장면"
+          },
+          {
+            "kind": "FOOD",
+            "phase": "BEFORE",
+            "internal": true,
+            "source": "myseatcheck"
+          },
+          {
+            "kind": "STADIUM",
+            "phase": "GAME"
+          },
+          {
+            "kind": "BAR",
+            "phase": "AFTER",
+            "internal": false,
+            "rating_required": true
+          },
+          {
+            "kind": "WALK",
+            "phase": "AFTER"
+          }
+        ],
+        "checks": [
+          "course_complete",
+          "schedule_demo",
+          "origin",
+          "radius",
+          "source_identity",
+          "timeline",
+          "availability",
+          "saved",
+          "menu",
+          "internal",
+          "bar_rating"
+        ],
+        "manual_evidence": [],
+        "internal_arrival": "13:30"
+      }
+    },
+    {
+      "id": "C02",
+      "title": "잠실 카페와 내부 간식 생성",
+      "tier": "core",
+      "method": "api",
+      "review_status": "draft-needs-independent-review",
+      "setup": {
+        "context": {
+          "intent": "route",
+          "stadium": "JAMSIL",
+          "origin": {
+            "lat": 37.5088,
+            "lng": 127.0611,
+            "name": "삼성역 서쪽 시험 출발점"
+          }
+        },
+        "base_fixture": null,
+        "session": "fresh-isolated-guest",
+        "requires_server_demo_game": true
+      },
+      "turns": [
+        {
+          "input": "10월 16일 잠실 경기 카페 갔다가 구장에서 간식 먹고 술집 가고 산책하고 싶어. 코스 짜줘.",
+          "role": "user",
+          "measure": true
+        }
+      ],
+      "expected": {
+        "game": {
+          "date": "2026-10-16",
+          "time": "17:00",
+          "isDemo": true
+        },
+        "visits": [
+          {
+            "kind": "CAFE",
+            "phase": "BEFORE",
+            "internal": false
+          },
+          {
+            "kind": "FOOD",
+            "phase": "BEFORE",
+            "internal": true,
+            "source": "myseatcheck"
+          },
+          {
+            "kind": "STADIUM",
+            "phase": "GAME"
+          },
+          {
+            "kind": "BAR",
+            "phase": "AFTER",
+            "internal": false,
+            "rating_required": true
+          },
+          {
+            "kind": "WALK",
+            "phase": "AFTER"
+          }
+        ],
+        "checks": [
+          "course_complete",
+          "schedule_demo",
+          "origin",
+          "radius",
+          "source_identity",
+          "timeline",
+          "availability",
+          "saved",
+          "internal",
+          "bar_rating"
+        ],
+        "manual_evidence": [],
+        "internal_arrival": "16:30"
+      }
+    },
+    {
+      "id": "C03",
+      "title": "광주 식당만 돈카츠로 수정",
+      "tier": "core",
+      "method": "api",
+      "review_status": "draft-needs-independent-review",
+      "setup": {
+        "context": {
+          "intent": "route",
+          "stadium": "GWANGJU",
+          "origin": {
+            "lat": 35.1659,
+            "lng": 126.9096,
+            "name": "광주역 시험 출발점"
+          }
+        },
+        "base_fixture": "gwangju_base",
+        "session": "clone-same-course-history-and-server-memory",
+        "requires_server_demo_game": true
+      },
+      "turns": [
+        {
+          "input": "경기 전 자장면 식당만 돈카츠 가게로 수정해줘. 나머지 일정은 유지해줘.",
+          "role": "user",
+          "measure": true
+        }
+      ],
+      "expected": {
+        "game": {
+          "date": "2026-10-16",
+          "time": "14:00",
+          "isDemo": true
+        },
+        "visits": [
+          {
+            "kind": "FOOD",
+            "phase": "BEFORE",
+            "internal": false,
+            "menu": "돈카츠"
+          },
+          {
+            "kind": "FOOD",
+            "phase": "BEFORE",
+            "internal": true,
+            "source": "myseatcheck"
+          },
+          {
+            "kind": "STADIUM",
+            "phase": "GAME"
+          },
+          {
+            "kind": "BAR",
+            "phase": "AFTER",
+            "internal": false,
+            "rating_required": true
+          },
+          {
+            "kind": "WALK",
+            "phase": "AFTER"
+          }
+        ],
+        "checks": [
+          "course_complete",
+          "schedule_demo",
+          "origin",
+          "radius",
+          "source_identity",
+          "timeline",
+          "availability",
+          "saved",
+          "menu",
+          "internal",
+          "bar_rating",
+          "preserve"
+        ],
+        "manual_evidence": [],
+        "changed_visit_indices": [
+          0
+        ]
+      }
+    },
+    {
+      "id": "C04",
+      "title": "잠실 카페만 메가커피로 수정",
+      "tier": "core",
+      "method": "api",
+      "review_status": "draft-needs-independent-review",
+      "setup": {
+        "context": {
+          "intent": "route",
+          "stadium": "JAMSIL",
+          "origin": {
+            "lat": 37.5088,
+            "lng": 127.0611,
+            "name": "삼성역 서쪽 시험 출발점"
+          }
+        },
+        "base_fixture": "jamsil_base",
+        "session": "clone-same-course-history-and-server-memory",
+        "requires_server_demo_game": true
+      },
+      "turns": [
+        {
+          "input": "난 카페 무조건 메가커피 가야해. 카페만 메가커피로 바꿔줘. 나머지는 그대로 둬.",
+          "role": "user",
+          "measure": true
+        }
+      ],
+      "expected": {
+        "game": {
+          "date": "2026-10-16",
+          "time": "17:00",
+          "isDemo": true
+        },
+        "visits": [
+          {
+            "kind": "CAFE",
+            "phase": "BEFORE",
+            "internal": false,
+            "brand": "메가MGC커피"
+          },
+          {
+            "kind": "FOOD",
+            "phase": "BEFORE",
+            "internal": true,
+            "source": "myseatcheck"
+          },
+          {
+            "kind": "STADIUM",
+            "phase": "GAME"
+          },
+          {
+            "kind": "BAR",
+            "phase": "AFTER",
+            "internal": false,
+            "rating_required": true
+          },
+          {
+            "kind": "WALK",
+            "phase": "AFTER"
+          }
+        ],
+        "checks": [
+          "course_complete",
+          "schedule_demo",
+          "origin",
+          "radius",
+          "source_identity",
+          "timeline",
+          "availability",
+          "saved",
+          "brand",
+          "internal",
+          "bar_rating",
+          "preserve"
+        ],
+        "manual_evidence": [],
+        "changed_visit_indices": [
+          0
+        ]
+      }
+    },
+    {
+      "id": "C05",
+      "title": "메가커피와 호텔 숙박으로 복합 수정",
+      "tier": "core",
+      "method": "api",
+      "review_status": "draft-needs-independent-review",
+      "setup": {
+        "context": {
+          "intent": "route",
+          "stadium": "JAMSIL",
+          "origin": {
+            "lat": 37.5088,
+            "lng": 127.0611,
+            "name": "삼성역 서쪽 시험 출발점"
+          }
+        },
+        "base_fixture": "jamsil_base",
+        "session": "clone-same-course-history-and-server-memory",
+        "requires_server_demo_game": true
+      },
+      "turns": [
+        {
+          "input": "난 카페 무조건 메가커피 가야해. 메가커피로 바꿔줘. 그리고 산책 말고 호텔 숙박으로 일정 수정해줘.",
+          "role": "user",
+          "measure": true
+        }
+      ],
+      "expected": {
+        "game": {
+          "date": "2026-10-16",
+          "time": "17:00",
+          "isDemo": true
+        },
+        "visits": [
+          {
+            "kind": "CAFE",
+            "phase": "BEFORE",
+            "internal": false,
+            "brand": "메가MGC커피"
+          },
+          {
+            "kind": "FOOD",
+            "phase": "BEFORE",
+            "internal": true,
+            "source": "myseatcheck"
+          },
+          {
+            "kind": "STADIUM",
+            "phase": "GAME"
+          },
+          {
+            "kind": "BAR",
+            "phase": "AFTER",
+            "internal": false,
+            "rating_required": true
+          },
+          {
+            "kind": "STAY",
+            "phase": "AFTER",
+            "lodging_type": "hotel",
+            "source": "nol"
+          }
+        ],
+        "checks": [
+          "course_complete",
+          "schedule_demo",
+          "origin",
+          "radius",
+          "source_identity",
+          "timeline",
+          "availability",
+          "saved",
+          "brand",
+          "internal",
+          "bar_rating",
+          "hotel",
+          "preserve"
+        ],
+        "manual_evidence": [],
+        "changed_visit_indices": [
+          0,
+          4
+        ]
+      },
+      "latency_group": "lodging"
+    },
+    {
+      "id": "C06",
+      "title": "경기 후 산책만 삭제",
+      "tier": "core",
+      "method": "api",
+      "review_status": "draft-needs-independent-review",
+      "setup": {
+        "context": {
+          "intent": "route",
+          "stadium": "JAMSIL",
+          "origin": {
+            "lat": 37.5088,
+            "lng": 127.0611,
+            "name": "삼성역 서쪽 시험 출발점"
+          }
+        },
+        "base_fixture": "jamsil_base",
+        "session": "clone-same-course-history-and-server-memory",
+        "requires_server_demo_game": true
+      },
+      "turns": [
+        {
+          "input": "경기 후 산책 일정만 삭제해줘. 나머지 장소는 유지해줘.",
+          "role": "user",
+          "measure": true
+        }
+      ],
+      "expected": {
+        "game": {
+          "date": "2026-10-16",
+          "time": "17:00",
+          "isDemo": true
+        },
+        "visits": [
+          {
+            "kind": "CAFE",
+            "phase": "BEFORE",
+            "internal": false
+          },
+          {
+            "kind": "FOOD",
+            "phase": "BEFORE",
+            "internal": true,
+            "source": "myseatcheck"
+          },
+          {
+            "kind": "STADIUM",
+            "phase": "GAME"
+          },
+          {
+            "kind": "BAR",
+            "phase": "AFTER",
+            "internal": false,
+            "rating_required": true
+          }
+        ],
+        "checks": [
+          "course_complete",
+          "schedule_demo",
+          "origin",
+          "radius",
+          "source_identity",
+          "timeline",
+          "availability",
+          "saved",
+          "internal",
+          "bar_rating",
+          "preserve"
+        ],
+        "manual_evidence": [],
+        "changed_visit_indices": [
+          4
+        ],
+        "deleted_visit_indices": [
+          4
+        ]
+      }
+    },
+    {
+      "id": "R01",
+      "title": "짜장면 표기 변형",
+      "tier": "regression",
+      "method": "api",
+      "review_status": "draft-needs-independent-review",
+      "setup": {
+        "context": {
+          "intent": "route",
+          "stadium": "GWANGJU",
+          "origin": {
+            "lat": 35.1659,
+            "lng": 126.9096,
+            "name": "광주역 시험 출발점"
+          }
+        },
+        "base_fixture": null,
+        "session": "fresh-isolated-guest",
+        "requires_server_demo_game": true
+      },
+      "turns": [
+        {
+          "input": "10월 16일 광주 경기 전에 짜장면 먹고, 구장에서 간식 먹은 뒤 경기 보고 술집 갔다가 산책할래.",
+          "role": "user",
+          "measure": true
+        }
+      ],
+      "expected": {
+        "game": {
+          "date": "2026-10-16",
+          "time": "14:00",
+          "isDemo": true
+        },
+        "visits": [
+          {
+            "kind": "FOOD",
+            "phase": "BEFORE",
+            "internal": false,
+            "menu": "자장면"
+          },
+          {
+            "kind": "FOOD",
+            "phase": "BEFORE",
+            "internal": true,
+            "source": "myseatcheck"
+          },
+          {
+            "kind": "STADIUM",
+            "phase": "GAME"
+          },
+          {
+            "kind": "BAR",
+            "phase": "AFTER",
+            "internal": false,
+            "rating_required": true
+          },
+          {
+            "kind": "WALK",
+            "phase": "AFTER"
+          }
+        ],
+        "checks": [
+          "course_complete",
+          "schedule_demo",
+          "origin",
+          "radius",
+          "source_identity",
+          "timeline",
+          "availability",
+          "saved",
+          "menu",
+          "internal",
+          "bar_rating"
+        ],
+        "manual_evidence": []
+      }
+    },
+    {
+      "id": "R02",
+      "title": "스테이크를 식사로 해석",
+      "tier": "regression",
+      "method": "api",
+      "review_status": "draft-needs-independent-review",
+      "setup": {
+        "context": {
+          "intent": "route",
+          "stadium": "JAMSIL",
+          "origin": {
+            "lat": 37.5088,
+            "lng": 127.0611,
+            "name": "삼성역 서쪽 시험 출발점"
+          }
+        },
+        "base_fixture": null,
+        "session": "fresh-isolated-guest",
+        "requires_server_demo_game": true
+      },
+      "turns": [
+        {
+          "input": "10월 16일 잠실 경기 전에 스테이크 먹고 카페 갔다가 경기 보러 가는 코스 짜줘.",
+          "role": "user",
+          "measure": true
+        }
+      ],
+      "expected": {
+        "game": {
+          "date": "2026-10-16",
+          "time": "17:00",
+          "isDemo": true
+        },
+        "visits": [
+          {
+            "kind": "FOOD",
+            "phase": "BEFORE",
+            "internal": false,
+            "menu": "스테이크"
+          },
+          {
+            "kind": "CAFE",
+            "phase": "BEFORE",
+            "internal": false
+          },
+          {
+            "kind": "STADIUM",
+            "phase": "GAME"
+          }
+        ],
+        "checks": [
+          "course_complete",
+          "schedule_demo",
+          "origin",
+          "radius",
+          "source_identity",
+          "timeline",
+          "availability",
+          "saved",
+          "menu"
+        ],
+        "manual_evidence": [],
+        "stadium_arrival": "16:40"
+      }
+    },
+    {
+      "id": "R03",
+      "title": "경기 전 카페를 산책으로 수정",
+      "tier": "regression",
+      "method": "api",
+      "review_status": "draft-needs-independent-review",
+      "setup": {
+        "context": {
+          "intent": "route",
+          "stadium": "JAMSIL",
+          "origin": {
+            "lat": 37.5088,
+            "lng": 127.0611,
+            "name": "삼성역 서쪽 시험 출발점"
+          }
+        },
+        "base_fixture": "jamsil_base",
+        "session": "clone-same-course-history-and-server-memory",
+        "requires_server_demo_game": true
+      },
+      "turns": [
+        {
+          "input": "경기 전 카페를 산책으로 바꿔줘. 구장 간식과 경기 후 일정은 그대로 둬.",
+          "role": "user",
+          "measure": true
+        }
+      ],
+      "expected": {
+        "game": {
+          "date": "2026-10-16",
+          "time": "17:00",
+          "isDemo": true
+        },
+        "visits": [
+          {
+            "kind": "WALK",
+            "phase": "BEFORE"
+          },
+          {
+            "kind": "FOOD",
+            "phase": "BEFORE",
+            "internal": true,
+            "source": "myseatcheck"
+          },
+          {
+            "kind": "STADIUM",
+            "phase": "GAME"
+          },
+          {
+            "kind": "BAR",
+            "phase": "AFTER",
+            "internal": false,
+            "rating_required": true
+          },
+          {
+            "kind": "WALK",
+            "phase": "AFTER"
+          }
+        ],
+        "checks": [
+          "course_complete",
+          "schedule_demo",
+          "origin",
+          "radius",
+          "source_identity",
+          "timeline",
+          "availability",
+          "saved",
+          "internal",
+          "bar_rating",
+          "preserve"
+        ],
+        "manual_evidence": [],
+        "changed_visit_indices": [
+          0
+        ]
+      }
+    },
+    {
+      "id": "R04",
+      "title": "모든 이동은 도보 조건",
+      "tier": "regression",
+      "method": "api",
+      "review_status": "draft-needs-independent-review",
+      "setup": {
+        "context": {
+          "intent": "route",
+          "stadium": "GWANGJU",
+          "origin": {
+            "lat": 35.1659,
+            "lng": 126.9096,
+            "name": "광주역 시험 출발점"
+          }
+        },
+        "base_fixture": null,
+        "session": "fresh-isolated-guest",
+        "requires_server_demo_game": true
+      },
+      "turns": [
+        {
+          "input": "10월 16일 광주 경기 전에 자장면, 구장에서 간식, 경기 후 술집과 산책 코스 짜줘. 모든 이동은 도보로 할게.",
+          "role": "user",
+          "measure": true
+        }
+      ],
+      "expected": {
+        "game": {
+          "date": "2026-10-16",
+          "time": "14:00",
+          "isDemo": true
+        },
+        "visits": [
+          {
+            "kind": "FOOD",
+            "phase": "BEFORE",
+            "internal": false,
+            "menu": "자장면"
+          },
+          {
+            "kind": "FOOD",
+            "phase": "BEFORE",
+            "internal": true,
+            "source": "myseatcheck"
+          },
+          {
+            "kind": "STADIUM",
+            "phase": "GAME"
+          },
+          {
+            "kind": "BAR",
+            "phase": "AFTER",
+            "internal": false,
+            "rating_required": true
+          },
+          {
+            "kind": "WALK",
+            "phase": "AFTER"
+          }
+        ],
+        "checks": [
+          "course_complete",
+          "schedule_demo",
+          "origin",
+          "radius",
+          "source_identity",
+          "timeline",
+          "availability",
+          "saved",
+          "menu",
+          "internal",
+          "bar_rating",
+          "no_extra_model"
+        ],
+        "manual_evidence": [
+          "TRAVEL 조건이 모든 매장 속성으로 전파되지 않는지 해석 출력과 trace를 대조한다."
+        ],
+        "travel_mode": "walk"
+      }
+    },
+    {
+      "id": "R05",
+      "title": "각 방문은 한 곳씩 조건",
+      "tier": "regression",
+      "method": "api",
+      "review_status": "draft-needs-independent-review",
+      "setup": {
+        "context": {
+          "intent": "route",
+          "stadium": "JAMSIL",
+          "origin": {
+            "lat": 37.5088,
+            "lng": 127.0611,
+            "name": "삼성역 서쪽 시험 출발점"
+          }
+        },
+        "base_fixture": null,
+        "session": "fresh-isolated-guest",
+        "requires_server_demo_game": true
+      },
+      "turns": [
+        {
+          "input": "10월 16일 잠실 경기 전에 카페와 구장 내부 간식, 경기 후 술집과 산책을 넣어줘. 각 방문은 한 곳씩만 넣어줘.",
+          "role": "user",
+          "measure": true
+        }
+      ],
+      "expected": {
+        "game": {
+          "date": "2026-10-16",
+          "time": "17:00",
+          "isDemo": true
+        },
+        "visits": [
+          {
+            "kind": "CAFE",
+            "phase": "BEFORE",
+            "internal": false
+          },
+          {
+            "kind": "FOOD",
+            "phase": "BEFORE",
+            "internal": true,
+            "source": "myseatcheck"
+          },
+          {
+            "kind": "STADIUM",
+            "phase": "GAME"
+          },
+          {
+            "kind": "BAR",
+            "phase": "AFTER",
+            "internal": false,
+            "rating_required": true
+          },
+          {
+            "kind": "WALK",
+            "phase": "AFTER"
+          }
+        ],
+        "checks": [
+          "course_complete",
+          "schedule_demo",
+          "origin",
+          "radius",
+          "source_identity",
+          "timeline",
+          "availability",
+          "saved",
+          "internal",
+          "bar_rating",
+          "no_extra_model"
+        ],
+        "manual_evidence": [
+          "방문 수는 ITINERARY 조건으로 처리하고 매장 속성으로 반복 검증하지 않는다."
+        ]
+      }
+    },
+    {
+      "id": "R06",
+      "title": "광주 기본 출발역",
+      "tier": "regression",
+      "method": "api",
+      "review_status": "draft-needs-independent-review",
+      "setup": {
+        "context": {
+          "intent": "route",
+          "stadium": "GWANGJU"
+        },
+        "base_fixture": null,
+        "session": "fresh-isolated-guest",
+        "requires_server_demo_game": true,
+        "no_origin_anywhere": true
+      },
+      "turns": [
+        {
+          "input": "10월 16일 광주 경기 전에 카페 한 곳 들르고 경기 보고 산책할래.",
+          "role": "user",
+          "measure": true
+        }
+      ],
+      "expected": {
+        "game": {
+          "date": "2026-10-16",
+          "time": "14:00",
+          "isDemo": true
+        },
+        "visits": [
+          {
+            "kind": "CAFE",
+            "phase": "BEFORE",
+            "internal": false
+          },
+          {
+            "kind": "STADIUM",
+            "phase": "GAME"
+          },
+          {
+            "kind": "WALK",
+            "phase": "AFTER"
+          }
+        ],
+        "checks": [
+          "course_complete",
+          "schedule_demo",
+          "origin",
+          "radius",
+          "source_identity",
+          "timeline",
+          "availability",
+          "saved"
+        ],
+        "manual_evidence": [],
+        "default_origin": {
+          "name": "광주역",
+          "lat": 35.16530023524146,
+          "lng": 126.90933350743458
+        },
+        "stadium_arrival": "13:40"
+      }
+    },
+    {
+      "id": "R07",
+      "title": "잠실 기본 출발역",
+      "tier": "regression",
+      "method": "api",
+      "review_status": "draft-needs-independent-review",
+      "setup": {
+        "context": {
+          "intent": "route",
+          "stadium": "JAMSIL"
+        },
+        "base_fixture": null,
+        "session": "fresh-isolated-guest",
+        "requires_server_demo_game": true,
+        "no_origin_anywhere": true
+      },
+      "turns": [
+        {
+          "input": "10월 16일 잠실 경기 전에 카페 한 곳 들르고 경기 보고 산책할래.",
+          "role": "user",
+          "measure": true
+        }
+      ],
+      "expected": {
+        "game": {
+          "date": "2026-10-16",
+          "time": "17:00",
+          "isDemo": true
+        },
+        "visits": [
+          {
+            "kind": "CAFE",
+            "phase": "BEFORE",
+            "internal": false
+          },
+          {
+            "kind": "STADIUM",
+            "phase": "GAME"
+          },
+          {
+            "kind": "WALK",
+            "phase": "AFTER"
+          }
+        ],
+        "checks": [
+          "course_complete",
+          "schedule_demo",
+          "origin",
+          "radius",
+          "source_identity",
+          "timeline",
+          "availability",
+          "saved"
+        ],
+        "manual_evidence": [],
+        "default_origin": {
+          "name": "종합운동장역",
+          "lat": 37.5111446632705,
+          "lng": 127.073849447402
+        },
+        "stadium_arrival": "16:40"
+      }
+    },
+    {
+      "id": "R08",
+      "title": "새 요청에서 내부 조건 해제",
+      "tier": "regression",
+      "method": "api",
+      "review_status": "draft-needs-independent-review",
+      "setup": {
+        "context": {
+          "intent": "route",
+          "stadium": "GWANGJU",
+          "origin": {
+            "lat": 35.1659,
+            "lng": 126.9096,
+            "name": "광주역 시험 출발점"
+          }
+        },
+        "base_fixture": "gwangju_base",
+        "session": "clone-same-course-history-and-server-memory",
+        "requires_server_demo_game": true
+      },
+      "turns": [
+        {
+          "input": "같은 10월 16일 광주 경기 기준으로 코스를 새로 짜줘. 이번엔 카페 한 곳 갔다가 경기만 볼래.",
+          "role": "user",
+          "measure": true
+        }
+      ],
+      "expected": {
+        "game": {
+          "date": "2026-10-16",
+          "time": "14:00",
+          "isDemo": true
+        },
+        "visits": [
+          {
+            "kind": "CAFE",
+            "phase": "BEFORE",
+            "internal": false
+          },
+          {
+            "kind": "STADIUM",
+            "phase": "GAME"
+          }
+        ],
+        "checks": [
+          "course_complete",
+          "schedule_demo",
+          "origin",
+          "radius",
+          "source_identity",
+          "timeline",
+          "availability",
+          "saved",
+          "internal"
+        ],
+        "manual_evidence": [],
+        "internal_count": 0,
+        "stadium_arrival": "13:40"
+      }
+    },
+    {
+      "id": "R09",
+      "title": "내부 먹거리 외부 평점 필터 면제",
+      "tier": "regression",
+      "method": "api",
+      "review_status": "draft-needs-independent-review",
+      "setup": {
+        "context": {
+          "intent": "route",
+          "stadium": "GWANGJU",
+          "origin": {
+            "lat": 35.1659,
+            "lng": 126.9096,
+            "name": "광주역 시험 출발점"
+          }
+        },
+        "base_fixture": null,
+        "session": "fresh-isolated-guest",
+        "requires_server_demo_game": true
+      },
+      "turns": [
+        {
+          "input": "10월 16일 광주 구장 내부에서 간식 한 곳 먹고 경기 볼래. 다른 방문은 넣지 마.",
+          "role": "user",
+          "measure": true
+        }
+      ],
+      "expected": {
+        "game": {
+          "date": "2026-10-16",
+          "time": "14:00",
+          "isDemo": true
+        },
+        "visits": [
+          {
+            "kind": "FOOD",
+            "phase": "BEFORE",
+            "internal": true,
+            "source": "myseatcheck"
+          },
+          {
+            "kind": "STADIUM",
+            "phase": "GAME"
+          }
+        ],
+        "checks": [
+          "course_complete",
+          "schedule_demo",
+          "origin",
+          "radius",
+          "source_identity",
+          "timeline",
+          "availability",
+          "saved",
+          "internal"
+        ],
+        "manual_evidence": [
+          "외부 평점 미확인만으로 내부 매장을 제외하지 않는지 후보 제외 이유/trace로 확인한다. 가짜 무평점 매장 fixture를 실제 매장처럼 만들지 않는다."
+        ],
+        "internal_arrival": "13:30"
+      }
+    },
+    {
+      "id": "R10",
+      "title": "선택한 카페 앞뒤 방문 추가",
+      "tier": "regression",
+      "method": "browser",
+      "review_status": "draft-needs-independent-review",
+      "setup": {
+        "context": {
+          "intent": "route",
+          "stadium": "JAMSIL",
+          "origin": {
+            "lat": 37.5088,
+            "lng": 127.0611,
+            "name": "삼성역 서쪽 시험 출발점"
+          }
+        },
+        "base_fixture": "jamsil_selected_cafe",
+        "session": "fresh-manual-selected-place",
+        "requires_server_demo_game": true
+      },
+      "turns": [
+        {
+          "input": "10월 16일 잠실 경기 볼 거야. 선택한 카페 가기 전에 돈카츠 식당, 카페 다녀온 다음에는 구장 내부 간식을 넣고 경기까지 이어줘.",
+          "role": "user",
+          "measure": true
+        }
+      ],
+      "expected": {
+        "game": {
+          "date": "2026-10-16",
+          "time": "17:00",
+          "isDemo": true
+        },
+        "visits": [
+          {
+            "kind": "FOOD",
+            "phase": "BEFORE",
+            "internal": false,
+            "menu": "돈카츠"
+          },
+          {
+            "kind": "CAFE",
+            "phase": "BEFORE",
+            "internal": false
+          },
+          {
+            "kind": "FOOD",
+            "phase": "BEFORE",
+            "internal": true,
+            "source": "myseatcheck"
+          },
+          {
+            "kind": "STADIUM",
+            "phase": "GAME"
+          }
+        ],
+        "checks": [
+          "course_complete",
+          "schedule_demo",
+          "origin",
+          "radius",
+          "source_identity",
+          "timeline",
+          "availability",
+          "saved",
+          "menu",
+          "internal",
+          "ui"
+        ],
+        "manual_evidence": [],
+        "selected_place_preserved": true,
+        "internal_arrival": "16:30"
+      }
+    },
+    {
+      "id": "R11",
+      "title": "기존 코스 구장과 날짜 보존",
+      "tier": "regression",
+      "method": "api",
+      "review_status": "draft-needs-independent-review",
+      "setup": {
+        "context": {
+          "intent": "route",
+          "stadium": "GWANGJU",
+          "origin": {
+            "lat": 37.5088,
+            "lng": 127.0611,
+            "name": "삼성역 서쪽 시험 출발점"
+          }
+        },
+        "base_fixture": "jamsil_base",
+        "session": "clone-same-course-history-and-server-memory",
+        "requires_server_demo_game": true
+      },
+      "turns": [
+        {
+          "input": "카페만 메가커피로 바꿔줘. 나머지는 그대로 둬.",
+          "role": "user",
+          "measure": true
+        }
+      ],
+      "expected": {
+        "game": {
+          "date": "2026-10-16",
+          "time": "17:00",
+          "isDemo": true
+        },
+        "visits": [
+          {
+            "kind": "CAFE",
+            "phase": "BEFORE",
+            "internal": false,
+            "brand": "메가MGC커피"
+          },
+          {
+            "kind": "FOOD",
+            "phase": "BEFORE",
+            "internal": true,
+            "source": "myseatcheck"
+          },
+          {
+            "kind": "STADIUM",
+            "phase": "GAME"
+          },
+          {
+            "kind": "BAR",
+            "phase": "AFTER",
+            "internal": false,
+            "rating_required": true
+          },
+          {
+            "kind": "WALK",
+            "phase": "AFTER"
+          }
+        ],
+        "checks": [
+          "course_complete",
+          "schedule_demo",
+          "origin",
+          "radius",
+          "source_identity",
+          "timeline",
+          "availability",
+          "saved",
+          "brand",
+          "internal",
+          "bar_rating",
+          "preserve"
+        ],
+        "manual_evidence": [
+          "화면 기본 구장은 광주지만 원 코스는 잠실이다. 잠실 10월 16일 17시를 유지한다."
+        ],
+        "changed_visit_indices": [
+          0
+        ]
+      }
+    },
+    {
+      "id": "R12",
+      "title": "카페 체류시간만 수정",
+      "tier": "regression",
+      "method": "api",
+      "review_status": "draft-needs-independent-review",
+      "setup": {
+        "context": {
+          "intent": "route",
+          "stadium": "JAMSIL",
+          "origin": {
+            "lat": 37.5088,
+            "lng": 127.0611,
+            "name": "삼성역 서쪽 시험 출발점"
+          }
+        },
+        "base_fixture": "jamsil_base",
+        "session": "clone-same-course-history-and-server-memory",
+        "requires_server_demo_game": true
+      },
+      "turns": [
+        {
+          "input": "카페에서 머무는 시간만 20분으로 줄여줘. 장소는 전부 그대로 둬.",
+          "role": "user",
+          "measure": true
+        }
+      ],
+      "expected": {
+        "game": {
+          "date": "2026-10-16",
+          "time": "17:00",
+          "isDemo": true
+        },
+        "visits": [
+          {
+            "kind": "CAFE",
+            "phase": "BEFORE",
+            "internal": false
+          },
+          {
+            "kind": "FOOD",
+            "phase": "BEFORE",
+            "internal": true,
+            "source": "myseatcheck"
+          },
+          {
+            "kind": "STADIUM",
+            "phase": "GAME"
+          },
+          {
+            "kind": "BAR",
+            "phase": "AFTER",
+            "internal": false,
+            "rating_required": true
+          },
+          {
+            "kind": "WALK",
+            "phase": "AFTER"
+          }
+        ],
+        "checks": [
+          "course_complete",
+          "schedule_demo",
+          "origin",
+          "radius",
+          "source_identity",
+          "timeline",
+          "availability",
+          "saved",
+          "internal",
+          "bar_rating",
+          "no_extra_model",
+          "preserve"
+        ],
+        "manual_evidence": [],
+        "changed_visit_indices": [],
+        "duration_override": {
+          "visit_index": 0,
+          "minutes": 20
+        },
+        "preserve_exceptions": [
+          "카페 stayMin",
+          "재계산된 time/until/legMin"
+        ]
+      }
+    },
+    {
+      "id": "R13",
+      "title": "주차와 금연 호텔 조건 보존",
+      "tier": "regression",
+      "method": "api",
+      "review_status": "draft-needs-independent-review",
+      "setup": {
+        "context": {
+          "intent": "route",
+          "stadium": "JAMSIL",
+          "origin": {
+            "lat": 37.5088,
+            "lng": 127.0611,
+            "name": "삼성역 서쪽 시험 출발점"
+          }
+        },
+        "base_fixture": "jamsil_base",
+        "session": "clone-same-course-history-and-server-memory",
+        "requires_server_demo_game": true
+      },
+      "turns": [
+        {
+          "input": "경기 후 산책 대신 주차 가능하고 금연 객실이 있는 호텔로 바꿔줘. 나머지는 그대로 둬.",
+          "role": "user",
+          "measure": true
+        }
+      ],
+      "expected": {
+        "game": {
+          "date": "2026-10-16",
+          "time": "17:00",
+          "isDemo": true
+        },
+        "visits": [
+          {
+            "kind": "CAFE",
+            "phase": "BEFORE",
+            "internal": false
+          },
+          {
+            "kind": "FOOD",
+            "phase": "BEFORE",
+            "internal": true,
+            "source": "myseatcheck"
+          },
+          {
+            "kind": "STADIUM",
+            "phase": "GAME"
+          },
+          {
+            "kind": "BAR",
+            "phase": "AFTER",
+            "internal": false,
+            "rating_required": true
+          },
+          {
+            "kind": "STAY",
+            "phase": "AFTER",
+            "lodging_type": "hotel",
+            "source": "nol",
+            "requirements": [
+              "주차 가능",
+              "금연 객실"
+            ]
+          }
+        ],
+        "checks": [
+          "course_complete",
+          "schedule_demo",
+          "origin",
+          "radius",
+          "source_identity",
+          "timeline",
+          "availability",
+          "saved",
+          "internal",
+          "bar_rating",
+          "hotel",
+          "preserve"
+        ],
+        "manual_evidence": [
+          "정직한 미확인 안내는 근거 정직성 통과가 가능하지만 호텔 변경 완료와 구분한다."
+        ],
+        "changed_visit_indices": [
+          4
+        ]
+      },
+      "latency_group": "lodging"
+    },
+    {
+      "id": "R14",
+      "title": "생성 중 지도 변경과 이야기 보존",
+      "tier": "regression",
+      "method": "browser",
+      "review_status": "draft-needs-independent-review",
+      "setup": {
+        "context": {
+          "intent": "route",
+          "stadium": "JAMSIL",
+          "origin": {
+            "lat": 37.5088,
+            "lng": 127.0611,
+            "name": "삼성역 서쪽 시험 출발점"
+          }
+        },
+        "base_fixture": null,
+        "session": "fresh-isolated-guest",
+        "requires_server_demo_game": true,
+        "ui_actions": [
+          {
+            "when": "before_send",
+            "action": "이야기 입력란에 '평가용 수동 이야기'를 직접 입력한다."
+          },
+          {
+            "when": "after_send_before_done",
+            "action": "출발 핀을 옮기거나 우클릭 삭제하고 지도 중심을 이동한다."
+          },
+          {
+            "when": "after_done",
+            "action": "원 요청 출발지 기준 코스가 지도에 반영되고 수동 이야기 문구가 유지되는지 확인한다."
+          }
+        ]
+      },
+      "turns": [
+        {
+          "input": "10월 16일 잠실 경기 전에 카페, 구장에서 간식, 경기 후 술집과 산책 코스 짜줘.",
+          "role": "user",
+          "measure": true
+        }
+      ],
+      "expected": {
+        "game": {
+          "date": "2026-10-16",
+          "time": "17:00",
+          "isDemo": true
+        },
+        "visits": [
+          {
+            "kind": "CAFE",
+            "phase": "BEFORE",
+            "internal": false
+          },
+          {
+            "kind": "FOOD",
+            "phase": "BEFORE",
+            "internal": true,
+            "source": "myseatcheck"
+          },
+          {
+            "kind": "STADIUM",
+            "phase": "GAME"
+          },
+          {
+            "kind": "BAR",
+            "phase": "AFTER",
+            "internal": false,
+            "rating_required": true
+          },
+          {
+            "kind": "WALK",
+            "phase": "AFTER"
+          }
+        ],
+        "checks": [
+          "course_complete",
+          "schedule_demo",
+          "origin",
+          "radius",
+          "source_identity",
+          "timeline",
+          "availability",
+          "saved",
+          "internal",
+          "bar_rating",
+          "ui"
+        ],
+        "manual_evidence": [],
+        "internal_arrival": "16:30"
+      }
+    }
+  ]
+}

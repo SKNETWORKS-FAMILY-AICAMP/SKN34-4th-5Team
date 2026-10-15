@@ -10,6 +10,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from accounts.models import PointTransaction, PointWallet
 from .models import CommunityDraft, CommunityImage, CommunityPost
+from .moderation_worker import run_one
 
 
 class CommunityDraftPublishTests(APITestCase):
@@ -80,6 +81,8 @@ class CommunityDraftPublishTests(APITestCase):
         self.assertEqual((draft.published_post_id, image.post_id, image.draft_id), (created.data["id"], created.data["id"], None))
         self.assertEqual((draft.title, draft.content), ("게시할 글", "게시할 본문"))
         self.assertEqual(CommunityPost.objects.filter(owner=self.owner).count(), 1)
+        self.assertEqual(PointWallet.objects.get(user=self.owner).balance, 1)
+        run_one(lambda payload: ([], {}))  # Approved fixture; provider quality is evaluated separately.
         self.assertEqual(PointWallet.objects.get(user=self.owner).balance, 1)
         self.assertEqual(
             PointTransaction.objects.filter(user=self.owner, source_type="post").count(),

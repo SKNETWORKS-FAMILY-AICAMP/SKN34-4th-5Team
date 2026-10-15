@@ -11,13 +11,13 @@ hint_stadium 은 프론트 context.stadium 을 구장 코드(JAMSIL 등)로 바�
 import logging
 import re
 
-from . import persona
+from llm.v2 import persona
 from .assistant import pipeline as assistant
-from .club import agent as club
-from .course import agent as course
-from .nearby import agent as nearby
-from .venue import agent as venue
-from ..progress import ProgressCancelled, ProgressStorageError, operation
+from llm.v2.club import agent as club
+from llm.v2.course import agent as course
+from llm.v2.nearby import agent as nearby
+from llm.v2.venue import agent as venue
+from llm.v2.progress import ProgressCancelled, ProgressStorageError, operation
 
 log = logging.getLogger(__name__)
 

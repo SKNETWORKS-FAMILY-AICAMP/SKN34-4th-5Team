@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 from django.core.cache.backends.locmem import LocMemCache
 from django.test import SimpleTestCase
 
-from llm.v1.rag.course import agent, availability, editing, evidence_memory, place_quality as quality, quality_research as research, slots, venue_policy
+from llm.v2.course import agent, availability, editing, evidence_memory, place_quality as quality, quality_research as research, slots, venue_policy
 
 
 class QualityProximityTests(SimpleTestCase):

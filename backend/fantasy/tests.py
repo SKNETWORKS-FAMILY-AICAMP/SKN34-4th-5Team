@@ -1036,7 +1036,13 @@ class FantasyAdminTestSettlementTests(APITestCase):
         self.assertFalse(FantasySettlement.objects.filter(week=self.week).exists())
         self.assertFalse(FantasyUserResult.objects.filter(user=self.member).exists())
         self.assertFalse(FantasyPlayerScore.objects.filter(user_result__user=self.member).exists())
-        self.assertEqual(PointWallet.objects.get(user=self.member).balance, 0)
+        wallet = PointWallet.objects.get(user=self.member)
+        self.assertEqual((wallet.balance, wallet.total_earned), (0, 0))
+        reversal = PointTransaction.objects.get(
+            user=self.member,
+            source_type="fantasy.FantasyTestSettlementCancellation",
+        )
+        self.assertEqual(reversal.rank_delta, -10)
         self.assertCountEqual(
             PointTransaction.objects.filter(user=self.member).values_list("amount", flat=True),
             [10, -10],

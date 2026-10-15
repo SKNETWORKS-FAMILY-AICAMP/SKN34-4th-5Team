@@ -1,0 +1,346 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "KBO 직관 챗봇 · 4차 시스템 아키텍처",
+    "quality_profile": "showcase",
+    "animation": "trace",
+    "views": [
+      {
+        "id": "serve",
+        "label": "질문 처리",
+        "focus": [
+          "user",
+          "nginx",
+          "django",
+          "agent",
+          "llm",
+          "qdrant",
+          "pg",
+          "extapi"
+        ],
+        "note": "가드 → 분류 → 필요한 도구만 → 하위 에이전트 → 스트리밍"
+      },
+      {
+        "id": "restore",
+        "label": "벡터 복원",
+        "focus": [
+          "dvc",
+          "vinit",
+          "qdrant",
+          "django"
+        ],
+        "note": "기동 때 DVC 스냅샷을 받아 Qdrant를 복원한 뒤 backend 시작"
+      },
+      {
+        "id": "background",
+        "label": "백그라운드 작업",
+        "focus": [
+          "worker",
+          "pg",
+          "next"
+        ],
+        "note": "게시 검사 · 숙소 예열은 요청과 분리된 워커가 처리"
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "user",
+      "type": "external",
+      "label": "사용자",
+      "sublabel": "웹 · PWA",
+      "pos": [
+        40,
+        200
+      ],
+      "size": [
+        140,
+        64
+      ]
+    },
+    {
+      "id": "nginx",
+      "type": "cloud",
+      "label": "Nginx",
+      "sublabel": "HTTPS 리버스 프록시",
+      "pos": [
+        240,
+        200
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "next",
+      "type": "frontend",
+      "label": "Next.js 16",
+      "sublabel": "채팅 · 코스 · 커뮤니티",
+      "pos": [
+        470,
+        40
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "django",
+      "type": "backend",
+      "label": "Django REST",
+      "sublabel": "/api/v1 · /api/v2 SSE",
+      "pos": [
+        470,
+        200
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "agent",
+      "type": "backend",
+      "label": "LangGraph 에이전트",
+      "sublabel": "JEV 가드 → 분류 → ask_*",
+      "pos": [
+        720,
+        200
+      ],
+      "size": [
+        190,
+        64
+      ],
+      "tag": "v2"
+    },
+    {
+      "id": "llm",
+      "type": "external",
+      "label": "LLM · 리랭크 API",
+      "sublabel": "OpenAI · Gemini · Voyage",
+      "pos": [
+        990,
+        200
+      ],
+      "size": [
+        190,
+        64
+      ]
+    },
+    {
+      "id": "worker",
+      "type": "backend",
+      "label": "백그라운드 워커",
+      "sublabel": "게시 검사 · 숙소 예열",
+      "pos": [
+        240,
+        390
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "pg",
+      "type": "database",
+      "label": "PostgreSQL 18",
+      "sublabel": "야구 · 회원 · 체크포인트",
+      "pos": [
+        470,
+        390
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "tag": "읽기 전용 계정"
+    },
+    {
+      "id": "qdrant",
+      "type": "database",
+      "label": "Qdrant",
+      "sublabel": "문서 · 장소 · 하이라이트",
+      "pos": [
+        720,
+        390
+      ],
+      "size": [
+        190,
+        64
+      ],
+      "tag": "BM25 + 벡터"
+    },
+    {
+      "id": "extapi",
+      "type": "external",
+      "label": "외부 데이터 API",
+      "sublabel": "TVING · Kakao · YouTube",
+      "pos": [
+        990,
+        390
+      ],
+      "size": [
+        190,
+        64
+      ]
+    },
+    {
+      "id": "vinit",
+      "type": "backend",
+      "label": "vector-init",
+      "sublabel": "기동 시 스냅샷 복원",
+      "pos": [
+        720,
+        570
+      ],
+      "size": [
+        190,
+        64
+      ]
+    },
+    {
+      "id": "dvc",
+      "type": "cloud",
+      "label": "DVC 백업",
+      "sublabel": "Google Drive (인증)",
+      "pos": [
+        990,
+        570
+      ],
+      "size": [
+        190,
+        64
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Docker Compose — 개발 EC2 / 운영 EC2",
+      "wraps": [
+        "nginx",
+        "next",
+        "django",
+        "agent",
+        "worker",
+        "pg",
+        "qdrant",
+        "vinit"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "user-nginx",
+      "from": "user",
+      "to": "nginx",
+      "label": "HTTPS",
+      "variant": "emphasis"
+    },
+    {
+      "id": "nginx-next",
+      "from": "nginx",
+      "to": "next",
+      "label": "/",
+      "fromSide": "top",
+      "toSide": "left"
+    },
+    {
+      "id": "nginx-django",
+      "from": "nginx",
+      "to": "django",
+      "label": "/api",
+      "variant": "emphasis"
+    },
+    {
+      "id": "django-agent",
+      "from": "django",
+      "to": "agent",
+      "label": "채팅 실행",
+      "variant": "emphasis"
+    },
+    {
+      "id": "agent-llm",
+      "from": "agent",
+      "to": "llm",
+      "label": "생성 · 검증",
+      "variant": "emphasis"
+    },
+    {
+      "id": "agent-qdrant",
+      "from": "agent",
+      "to": "qdrant",
+      "label": "하이브리드 검색",
+      "labelDy": 24
+    },
+    {
+      "id": "agent-pg",
+      "from": "agent",
+      "to": "pg",
+      "label": "SELECT"
+    },
+    {
+      "id": "agent-extapi",
+      "from": "agent",
+      "to": "extapi",
+      "label": "도구 호출",
+      "variant": "dashed"
+    },
+    {
+      "id": "django-pg",
+      "from": "django",
+      "to": "pg",
+      "label": "ORM",
+      "labelDy": 24
+    },
+    {
+      "id": "worker-pg",
+      "from": "worker",
+      "to": "pg",
+      "label": "검사 대기열"
+    },
+    {
+      "id": "dvc-vinit",
+      "from": "dvc",
+      "to": "vinit",
+      "label": "dvc pull",
+      "variant": "dashed"
+    },
+    {
+      "id": "vinit-qdrant",
+      "from": "vinit",
+      "to": "qdrant",
+      "label": "복원"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "질문 처리",
+      "items": [
+        "가드 → 분류 → 필요한 도구만 → 하위 에이전트",
+        "SSE 스트리밍 · Postgres 체크포인트"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "데이터 · 색인",
+      "items": [
+        "일정 · 순위는 DB, 문서는 하이브리드 + 리랭크",
+        "증분 upsert · 기동 시 스냅샷 복원"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "배포 · 품질",
+      "items": [
+        "develop → 개발 EC2, main → 운영 EC2",
+        "LLM 평가 회귀 통과해야 배포"
+      ]
+    }
+  ]
+}

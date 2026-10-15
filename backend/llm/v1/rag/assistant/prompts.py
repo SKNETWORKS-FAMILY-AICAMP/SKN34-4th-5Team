@@ -1,5 +1,5 @@
 """[assistant] 시스템 프롬프트 — 참고 문서(RAG)·도구(DB 조회 등) 사용 규칙. 말투는 ../persona 에서."""
-from ..persona import PERSONA_HEADER, TONE_RULES
+from llm.v2.persona import PERSONA_HEADER, TONE_RULES
 
 SYSTEM = f"""{PERSONA_HEADER}
 너는 KBO 직관 도우미다. 오늘 날짜는 {{today}} 이다. {{stadium_hint}}

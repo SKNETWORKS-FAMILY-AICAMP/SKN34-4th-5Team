@@ -12,8 +12,7 @@ from .drafts import validated
 from .models import CommunityDraft, CommunityImage, CommunityPost
 from .serializers import CommunityPostSerializer
 from .views import post_queryset, same_submission
-from accounts.point_policy import POST, grant_definition
-from accounts.point_service import grant_points
+from .moderation_service import enqueue_locked, submission_hash
 
 
 def draft_post_data(draft):
@@ -23,6 +22,8 @@ def draft_post_data(draft):
         "category": draft.category,
         "title": draft.title,
         "content": draft.content,
+        "isTrade": draft.is_trade,
+        "isAdvertisement": draft.is_advertisement,
     }
 
 
@@ -102,12 +103,13 @@ class CommunityDraftPublishView(APIView):
                     author=request.user.nickname or request.user.username,
                     idempotency_key=key,
                     is_sample=False,
+                    submission_hash=submission_hash(values),
                 )
-                grant_points(user=request.user, **grant_definition(POST, f"{post.source_id}"))
                 if images:
                     CommunityImage.objects.filter(pk__in=(image.pk for image in images)).update(draft=None, post=post)
                 draft.published_post = post
                 draft.save(update_fields=("published_post", "updated_at"))
+                enqueue_locked(post)
         except IntegrityError:
             return Response(
                 {"idempotencyKey": "다른 게시 작업에서 이미 사용한 키입니다."},

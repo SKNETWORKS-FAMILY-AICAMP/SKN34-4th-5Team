@@ -6,8 +6,8 @@ from unittest.mock import Mock, patch
 
 from django.test import SimpleTestCase
 
-from llm.v1 import progress
-from llm.v1.rag.course import agent, parallel, place_quality, route_ranking, venue_policy
+from llm.v2 import progress
+from llm.v2.course import agent, parallel, place_quality, route_ranking, venue_policy
 from llm.tests.test_course_route_ranking import ANCHOR, ORIGIN, NEAR, FAR, CAFE, GAME, PARK, provider, step
 
 

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 
-const source = await readFile(new URL('./chrome-lodging.mjs', import.meta.url), 'utf8');
+const source = (await readFile(new URL('./chrome-lodging.mjs', import.meta.url), 'utf8')).replace(/\r\n/g, '\n');
 const declarations = source.replace(/^import .*;\n/gm, '').replace(/^export /gm, '').split('\nif (process.argv[1]')[0];
 const url = 'https://nol.yanolja.com/stay/domestic/3012752';
 const context = vm.createContext({ process: { argv: ['node', 'collector', '/tmp/test', '', '45', url], env: { LODGING_CHROME_PATH: '/chrome' }, once() {} }, URL, Date, AbortController, AbortSignal, setTimeout });

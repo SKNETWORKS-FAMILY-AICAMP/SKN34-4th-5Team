@@ -8,7 +8,7 @@ import sys
 import unittest
 
 from ..tools import assistant, knowledge
-from ..v1.rag import domain_tools
+from llm.v2 import domain_tools
 from ..v1.rag.assistant import pipeline
 
 SPECIALIZED = ["get_games", "get_standings", "get_ticket_prices", "get_ticket_policy",

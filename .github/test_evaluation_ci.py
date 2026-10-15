@@ -13,6 +13,27 @@ spec.loader.exec_module(ci)
 
 
 class WiringTest(unittest.TestCase):
+    def test_image_contracts_in_highlight_free(self):
+        with tempfile.TemporaryDirectory() as root, patch.object(ci, 'execute') as run, \
+             patch.object(ci.sys, 'argv', ['ci', 'highlight-free', '--output', str(Path(root) / 'out')]):
+            ci.main()
+        self.assertIn(unittest.mock.call(['backend/llm/tests/test_highlight_images.py', '-v'], offline=True), run.call_args_list)
+        self.assertIn(unittest.mock.call(['backend/llm/tests/test_highlight_youtube_verifier.py', '-v'], offline=True), run.call_args_list)
+        self.assertIn(unittest.mock.call(['backend/llm/tests/test_highlight_separate_ingestion.py', '-v'], offline=True), run.call_args_list)
+        self.assertIn(unittest.mock.call([ci.EVAL + 'highlight_langchain_contract.py', '--output',
+            str((Path(root) / 'out/langchain-contract').resolve())], offline=True), run.call_args_list)
+        self.assertIn(unittest.mock.call([ci.EVAL + 'highlight_langchain_contract.py', '--pipeline', '--output',
+            str((Path(root) / 'out/pipeline-contract').resolve())], offline=True), run.call_args_list)
+        selected = [call.args[0][0] for call in run.call_args_list]
+        for obsolete in ('test_highlight_joint.py', 'test_highlight_transcript_ingestion.py', 'test_highlight_ingestion_resume.py'):
+            self.assertFalse(any(path.endswith(obsolete) for path in selected))
+
+    def test_stored_retry_in_actual_free_graph_command(self):
+        commands = [command for command in ci.FREE if 'llm.tests.test_highlight_retry' in command]
+        self.assertEqual(len(commands), 1)
+        self.assertEqual(commands[0][0], 'backend/llm/v2/tests/run_attachment_offline.py')
+        self.assertIn('llm.tests.test_highlight_langchain_web', commands[0])
+
     def test_bounded_ids_and_no_shell(self):
         self.assertEqual(ci.ids('greeting,new-course'), ['greeting', 'new-course'])
         for bad in ('', 'a,a', 'a,b,c,d,e,f', '$(touch /tmp/ci)', 'a;env', '../seed'):
@@ -134,6 +155,13 @@ class WiringTest(unittest.TestCase):
         import yaml
 
         workflow = yaml.safe_load((HERE / 'workflows/evaluation-regression.yml').read_text())
+        highlight = workflow['jobs']['highlight-deterministic']
+        checkouts = [step for step in highlight['steps'] if step.get('uses') == 'actions/checkout@v4']
+        self.assertEqual(len(checkouts), 1)
+        self.assertEqual(checkouts[0]['with'].get('fetch-depth'), 0)
+        self.assertIs(checkouts[0]['with']['persist-credentials'], False)
+        self.assertIn('python -I .github/evaluation_ci.py highlight-free --output "$RUNNER_TEMP/highlight-free"',
+                      [step.get('run') for step in highlight['steps']])
         job = workflow['jobs']['deterministic']
         self.assertNotIn('if', job)
         self.assertNotIn('continue-on-error', job)
@@ -142,9 +170,11 @@ class WiringTest(unittest.TestCase):
         self.assertEqual(service['env'], dict.fromkeys(
             ('POSTGRES_DB', 'POSTGRES_USER', 'POSTGRES_PASSWORD'), 'highlight_ci'))
         self.assertIn('5432:5432', service['ports'])
-        backend = 'python -I .github/evaluation_ci.py offline-exec backend/manage.py test llm.tests.test_highlights --settings=llm.tests.highlight_settings --noinput --verbosity=2'
-        frontend = 'node --test tests/youtube-highlight.test.mjs'
-        for command in (backend, frontend, 'python -I .github/test_evaluation_ci.py'):
+        backend = 'python -I .github/evaluation_ci.py offline-exec backend/manage.py test llm.tests.test_highlights llm.tests.test_highlight_multimodal_web.MultimodalHTTPTests --settings=llm.tests.highlight_settings --noinput --verbosity=2'
+        frontend = 'node --test tests/youtube-highlight.test.mjs tests/auth-bridge.test.mjs'
+        for command in (backend, frontend, 'node docker/jev-browser/test-direct-lodging.mjs',
+                        'python -I .github/evaluation_ci.py offline-exec scripts/tests/test_highlight_corpus.py',
+                        'python -I .github/test_evaluation_ci.py'):
             steps = [step for step in job['steps'] if step.get('run') == command]
             self.assertEqual(len(steps), 1, command)
             self.assertNotIn('if', steps[0])
@@ -167,13 +197,42 @@ class WiringTest(unittest.TestCase):
         for name in ('dev', 'prod'):
             workflow = (HERE / f'workflows/deploy-{name}.yml').read_text()
             self.assertIn('needs: [ci-test, evaluation-regression]', workflow)
-        self.assertEqual(len(ci.FREE), 11)
+        self.assertEqual(len(ci.FREE), 15)
+        self.assertIn(['backend/llm/v2/tests/run_attachment_offline.py', 'llm.tests.test_course_tonkatsu',
+                       'llm.tests.test_course_catalog_conditions', 'llm.tests.test_course_profile_features',
+                       'llm.tests.test_course_literal_edits', 'llm.tests.test_course_audit_repairs.CourseSelectionRepairTest',
+                       'llm.tests.test_course_bar_ratings', 'llm.tests.test_course_quality_research',
+                       'llm.tests.test_course_recommendation_policy', 'llm.tests.test_course_visit_requests',
+                       'llm.tests.test_course_candidates',
+                       'llm.tests.test_course_entry_timing', 'llm.tests.test_evidence_grade',
+                       'llm.tests.test_llm_temperature.ResponsesPayloadTest.test_v2_agents_use_the_single_v2_model_factory',
+                       'llm.tests.test_llm_temperature.ResponsesPayloadTest.test_luna_constructors_omit_temperature'], ci.FREE)
+        self.assertIn([ci.EVAL + 'tonkatsu_contract.py', 'export', '--output', 'tonkatsu.json'], ci.FREE)
+        self.assertIn("execute([EVAL + 'tonkatsu_contract.py', 'scorer-check'], offline=True)",
+                      (HERE / 'evaluation_ci.py').read_text())
+        regression = (HERE / 'workflows/evaluation-regression.yml').read_text()
+        self.assertIn('name: course-contract-export', regression)
+        self.assertIn('tonkatsu_contract.py score --input', regression)
+        self.assertIn('backend/manage.py test llm.tests.test_course_evidence --settings=llm.tests.highlight_settings --noinput --verbosity=2', regression)
+        self.assertIn(['backend/llm/v2/tests/run_attachment_offline.py',
+                       'llm.tests.test_highlight_multimodal_web.MultimodalWebTests.test_server_restored_images_only_reach_specialist_not_public_records',
+                       'llm.tests.test_highlight_multimodal_web.MultimodalWebTests.test_main_and_delegate_stream_and_saved_outputs_hide_original_images',
+                       'llm.tests.test_highlight_multimodal_web.MultimodalWebTests.test_over_six_images_are_incomplete_before_provider_calls',
+                       'llm.tests.test_highlight_multimodal_web.MultimodalWebTests.test_opt_out_uses_original_agent',
+                       'llm.tests.test_highlight_multimodal_web.MultimodalWebTests.test_opt_out_error_then_success_preserves_card',
+                       'llm.tests.test_highlight_multimodal_web.MultimodalWebTests.test_cards_original_time_errors_and_no_match',
+                       'llm.tests.test_highlight_multimodal_web.MultimodalWebTests.test_disposable_corpus_concurrent_requests_close_local_client',
+                       'llm.tests.test_highlight_langchain_web', 'llm.tests.test_highlight_retry'], ci.FREE)
+        for test in ('test_highlight_images.py', 'test_highlight_multimodal.py'):
+            self.assertIn(f"execute(['backend/llm/tests/{test}', '-v'], offline=True)",
+                          (HERE / 'evaluation_ci.py').read_text())
         self.assertEqual(ci.FREE[-3:], [
             ['backend/llm/v2/tests/run_attachment_offline.py', 'llm.tests.test_domain_tools.ExternalDomainToolAdapterTest'],
             [ci.EVAL + 'weather_contract.py', 'export', '--output', 'weather.json'],
             ['backend/llm/v2/tests/run_attachment_offline.py', 'llm.tests.test_chat_eval']])
         self.assertIn("execute([EVAL + 'weather_contract.py', 'scorer-check'], offline=True)",
                       (HERE / 'evaluation_ci.py').read_text())
+        self.assertIn([ci.EVAL + 'test_course_dataset.py', '-v'], ci.FREE)
         self.assertTrue(all((ci.ROOT / command[0]).is_file() for command in ci.FREE))
 
 
