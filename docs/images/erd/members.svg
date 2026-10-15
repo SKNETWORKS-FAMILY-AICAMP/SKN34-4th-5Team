@@ -1,0 +1,443 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1486.06" height="970.8000000000001" viewBox="0 0 1486.06 970.8000000000001">
+<g id="graph0" class="graph" transform="translate(20 20)">
+<title>ERD</title>
+<g id="edge_0" class="edge"><title>CustomUser → EmailChangeChallenge.user_id</title><path d="M596.44,430.40 L596.44,446.40 L594.00,444.00 L594.00,480.00 L600.00,480.00 L598.58,479.60 L598.58,495.60" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M592.4433333333334,434.4 L600.4433333333334,434.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M598.575,486.6 L594.575,495.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M598.575,486.6 L598.575,495.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M598.575,486.6 L602.575,495.6" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="598.575" cy="483.6" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_1" class="edge"><title>CustomUser → PointTransaction.user_id</title><path d="M490.17,302.90 L474.17,302.90 L474.00,300.00 L396.00,300.00 L396.00,252.00 L198.00,252.00 L198.00,144.00 L198.11,146.93 L182.11,146.93" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M486.17,298.9 L486.17,306.9" stroke="#607c99" stroke-width="1" fill="none" /><path d="M191.11,146.93333333333334 L182.11,142.93333333333334" stroke="#607c99" stroke-width="1" fill="none" /><path d="M191.11,146.93333333333334 L182.11,146.93333333333334" stroke="#607c99" stroke-width="1" fill="none" /><path d="M191.11,146.93333333333334 L182.11,150.93333333333334" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="194.11" cy="146.93333333333334" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_3" class="edge"><title>CustomUser → PointWallet.user_id</title><path d="M543.31,260.40 L543.31,244.40 L546.00,246.00 L336.00,246.00 L336.00,192.00 L334.48,190.80 L334.48,174.80" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M547.3066666666667,256.4 L539.3066666666667,256.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M330.475,178.8 L338.475,178.8" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="334.475" cy="186.8" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_4" class="edge"><title>CustomUser → CommunityComment.author_id</title><path d="M649.58,402.07 L665.58,402.07 L666.00,402.00 L666.00,486.00 L732.00,486.00 L732.00,798.00 L1182.00,798.00 L1182.00,552.00 L1218.00,552.00 L1215.33,550.70 L1231.33,550.70" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M653.58,406.06666666666666 L653.58,398.06666666666666" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1222.33,550.7 L1231.33,554.7" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1222.33,550.7 L1231.33,550.7" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1222.33,550.7 L1231.33,546.7" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="1219.33" cy="550.7" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_6" class="edge"><title>CustomUser → CommunityDraft.owner_id</title><path d="M649.58,288.73 L665.58,288.73 L666.00,288.00 L666.00,162.00 L726.00,162.00 L726.00,108.00 L726.98,110.20 L742.98,110.20" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M653.58,292.7333333333333 L653.58,284.7333333333333" stroke="#607c99" stroke-width="1" fill="none" /><path d="M733.98,110.2 L742.98,114.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M733.98,110.2 L742.98,110.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M733.98,110.2 L742.98,106.2" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="730.98" cy="110.2" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_9" class="edge"><title>CustomUser → CommunityImage.owner_id</title><path d="M623.01,430.40 L623.01,446.40 L624.00,444.00 L624.00,480.00 L792.00,480.00 L792.50,479.60 L792.50,495.60" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M619.0116666666668,434.4 L627.0116666666668,434.4" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="623.0116666666668" cy="442.4" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /><path d="M792.4975,486.6 L788.4975,495.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M792.4975,486.6 L792.4975,495.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M792.4975,486.6 L796.4975,495.6" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="792.4975" cy="483.6" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_12" class="edge"><title>CustomUser → CommunityPost.owner_id</title><path d="M649.58,345.40 L665.58,345.40 L666.00,348.00 L666.00,324.00 L726.00,324.00 L726.98,325.47 L742.98,325.47" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M653.58,349.4 L653.58,341.4" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="661.58" cy="345.4" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /><path d="M733.98,325.46666666666664 L742.98,329.46666666666664" stroke="#607c99" stroke-width="1" fill="none" /><path d="M733.98,325.46666666666664 L742.98,325.46666666666664" stroke="#607c99" stroke-width="1" fill="none" /><path d="M733.98,325.46666666666664 L742.98,321.46666666666664" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="730.98" cy="325.46666666666664" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_13" class="edge"><title>CustomUser → CommunityReport.handled_by_id</title><path d="M543.31,430.40 L543.31,446.40 L546.00,444.00 L546.00,486.00 L324.00,486.00 L324.00,480.00 L323.01,479.60 L323.01,495.60" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M539.3066666666667,434.4 L547.3066666666667,434.4" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="543.3066666666667" cy="442.4" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /><path d="M323.01,486.6 L319.01,495.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M323.01,486.6 L323.01,495.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M323.01,486.6 L327.01,495.6" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="323.01" cy="483.6" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_15" class="edge"><title>CustomUser → CommunityReport.reporter_id</title><path d="M569.88,430.40 L569.88,446.40 L570.00,444.00 L396.00,444.00 L396.00,480.00 L390.00,480.00 L388.59,479.60 L388.59,495.60" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M565.875,434.4 L573.875,434.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M388.59000000000003,486.6 L384.59000000000003,495.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M388.59000000000003,486.6 L388.59000000000003,495.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M388.59000000000003,486.6 L392.59000000000003,495.6" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="388.59000000000003" cy="483.6" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_17" class="edge"><title>CustomUser → CommunityVote.user_id</title><path d="M596.44,260.40 L596.44,244.40 L594.00,246.00 L552.00,246.00 L552.00,168.00 L552.86,165.60 L552.86,149.60" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M600.4433333333334,256.4 L592.4433333333334,256.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M552.86,158.6 L556.86,149.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M552.86,158.6 L552.86,149.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M552.86,158.6 L548.86,149.6" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="552.86" cy="161.6" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_18" class="edge"><title>CustomUser → ModerationAdmission.account_id</title><path d="M516.74,430.40 L516.74,446.40 L516.00,444.00 L516.00,480.00 L474.00,480.00 L474.00,792.00 L108.00,792.00 L110.72,790.40 L110.72,806.40" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M512.7383333333333,434.4 L520.7383333333333,434.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M110.715,797.4 L106.715,806.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M110.715,797.4 L110.715,806.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M110.715,797.4 L114.715,806.4" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="110.715" cy="794.4" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_21" class="edge"><title>CustomUser → ModerationReview.actor_id</title><path d="M649.58,317.07 L665.58,317.07 L666.00,318.00 L666.00,294.00 L732.00,294.00 L732.00,252.00 L972.00,252.00 L972.00,108.00 L972.98,110.20 L988.98,110.20" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M653.58,321.06666666666666 L653.58,313.06666666666666" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="661.58" cy="317.06666666666666" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /><path d="M979.98,110.2 L988.98,114.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M979.98,110.2 L988.98,110.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M979.98,110.2 L988.98,106.2" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="976.98" cy="110.2" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_23" class="edge"><title>CustomUser → ModerationSettings.updated_by_id</title><path d="M490.17,387.90 L474.17,387.90 L474.00,390.00 L402.00,390.00 L402.00,474.00 L222.00,474.00 L222.00,570.00 L224.77,570.40 L208.77,570.40" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M486.17,383.9 L486.17,391.9" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="478.17" cy="387.9" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /><path d="M217.77,570.4000000000001 L208.77,566.4000000000001" stroke="#607c99" stroke-width="1" fill="none" /><path d="M217.77,570.4000000000001 L208.77,570.4000000000001" stroke="#607c99" stroke-width="1" fill="none" /><path d="M217.77,570.4000000000001 L208.77,574.4000000000001" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="220.77" cy="570.4000000000001" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_26" class="edge"><title>CustomUser → ChatSession.user_id</title><path d="M649.58,373.73 L665.58,373.73 L666.00,372.00 L732.00,372.00 L732.00,468.00 L858.00,468.00 L858.00,486.00 L1098.00,486.00 L1098.00,474.00 L1218.00,474.00 L1218.00,324.00 L1215.33,325.47 L1231.33,325.47" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M653.58,377.7333333333333 L653.58,369.7333333333333" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="661.58" cy="373.7333333333333" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /><path d="M1222.33,325.46666666666664 L1231.33,329.46666666666664" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1222.33,325.46666666666664 L1231.33,325.46666666666664" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1222.33,325.46666666666664 L1231.33,321.46666666666664" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="1219.33" cy="325.46666666666664" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_28" class="edge"><title>CustomUser → UsageWallet.user_id</title><path d="M490.17,345.40 L474.17,345.40 L474.00,348.00 L402.00,348.00 L402.00,360.00 L401.49,358.00 L385.49,358.00" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M486.17,341.4 L486.17,349.4" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="478.17" cy="345.4" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /><path d="M389.49,362.0 L389.49,354.0" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="397.49" cy="358.0" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_2" class="edge"><title>PointWallet → PointTransaction.wallet_id</title><path d="M257.43,87.40 L241.43,87.40 L240.00,90.00 L198.00,90.00 L198.00,72.00 L198.11,73.47 L182.11,73.47" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M253.43,83.4 L253.43,91.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M191.11,73.46666666666667 L182.11,69.46666666666667" stroke="#607c99" stroke-width="1" fill="none" /><path d="M191.11,73.46666666666667 L182.11,73.46666666666667" stroke="#607c99" stroke-width="1" fill="none" /><path d="M191.11,73.46666666666667 L182.11,77.46666666666667" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="194.11" cy="73.46666666666667" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_19" class="edge"><title>CommunityComment → ModerationJob.comment_id</title><path d="M1231.33,660.90 L1215.33,660.90 L1218.00,660.00 L1188.00,660.00 L1188.00,606.00 L1188.40,605.80 L1172.40,605.80" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M1227.33,656.9 L1227.33,664.9" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="1219.33" cy="660.9" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /><path d="M1181.4,605.8 L1172.4,601.8" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1181.4,605.8 L1172.4,605.8" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1181.4,605.8 L1172.4,609.8" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="1184.4" cy="605.8" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_8" class="edge"><title>CommunityDraft → CommunityImage.draft_id</title><path d="M869.25,220.40 L869.25,236.40 L870.00,234.00 L942.00,234.00 L942.00,468.00 L864.00,468.00 L864.00,480.00 L894.00,480.00 L891.53,479.60 L891.53,495.60" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M865.2466666666667,224.4 L873.2466666666667,224.4" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="869.2466666666667" cy="232.4" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /><path d="M891.5325,486.6 L887.5325,495.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M891.5325,486.6 L891.5325,495.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M891.5325,486.6 L895.5325,495.6" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="891.5325" cy="483.6" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_5" class="edge"><title>CommunityPost → CommunityComment.post_id</title><path d="M931.06,358.00 L947.06,358.00 L948.00,360.00 L948.00,468.00 L1104.00,468.00 L1104.00,486.00 L1218.00,486.00 L1218.00,606.00 L1215.33,605.80 L1231.33,605.80" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M935.06,362.0 L935.06,354.0" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1222.33,605.8 L1231.33,609.8" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1222.33,605.8 L1231.33,605.8" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1222.33,605.8 L1231.33,601.8" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="1219.33" cy="605.8" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_7" class="edge"><title>CommunityPost → CommunityDraft.published_post_id</title><path d="M868.37,260.40 L868.37,244.40 L870.00,246.00 L804.00,246.00 L804.00,234.00 L806.11,236.40 L806.11,220.40" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M872.3666666666667,256.4 L864.3666666666667,256.4" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="868.3666666666667" cy="248.39999999999998" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /><path d="M806.1133333333333,229.4 L810.1133333333333,220.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M806.1133333333333,229.4 L806.1133333333333,220.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M806.1133333333333,229.4 L802.1133333333333,220.4" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="806.1133333333333" cy="232.4" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_10" class="edge"><title>CommunityPost → CommunityImage.post_id</title><path d="M805.67,455.60 L805.67,471.60 L804.00,474.00 L840.00,474.00 L840.00,480.00 L842.01,479.60 L842.01,495.60" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M801.6733333333333,459.6 L809.6733333333333,459.6" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="805.6733333333333" cy="467.6" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /><path d="M842.015,486.6 L838.015,495.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M842.015,486.6 L842.015,495.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M842.015,486.6 L846.015,495.6" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="842.015" cy="483.6" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_14" class="edge"><title>CommunityPost → CommunityReport.post_id</title><path d="M742.98,390.53 L726.98,390.53 L726.00,390.00 L726.00,702.00 L468.00,702.00 L468.00,618.00 L470.17,618.40 L454.17,618.40" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M738.98,386.5333333333333 L738.98,394.5333333333333" stroke="#607c99" stroke-width="1" fill="none" /><path d="M463.17,618.4000000000001 L454.17,614.4000000000001" stroke="#607c99" stroke-width="1" fill="none" /><path d="M463.17,618.4000000000001 L454.17,618.4000000000001" stroke="#607c99" stroke-width="1" fill="none" /><path d="M463.17,618.4000000000001 L454.17,622.4000000000001" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="466.17" cy="618.4000000000001" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_16" class="edge"><title>CommunityPost → CommunityVote.post_id</title><path d="M805.67,260.40 L805.67,244.40 L804.00,246.00 L618.00,246.00 L618.00,168.00 L615.55,165.60 L615.55,149.60" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M809.6733333333333,256.4 L801.6733333333333,256.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M615.55,158.6 L619.55,149.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M615.55,158.6 L615.55,149.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M615.55,158.6 L611.55,149.6" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="615.55" cy="161.6" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_20" class="edge"><title>CommunityPost → ModerationJob.post_id</title><path d="M868.37,455.60 L868.37,471.60 L870.00,474.00 L1050.00,474.00 L1050.00,480.00 L1050.12,479.60 L1050.12,495.60" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M864.3666666666667,459.6 L872.3666666666667,459.6" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="868.3666666666667" cy="467.6" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /><path d="M1050.1200000000001,486.6 L1046.1200000000001,495.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1050.1200000000001,486.6 L1050.1200000000001,495.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1050.1200000000001,486.6 L1054.1200000000001,495.6" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="1050.1200000000001" cy="483.6" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_22" class="edge"><title>ModerationJob → ModerationReview.job_id</title><path d="M1111.26,495.60 L1111.26,479.60 L1110.00,480.00 L1110.00,468.00 L1146.00,468.00 L1146.00,234.00 L1092.00,234.00 L1090.02,236.40 L1090.02,220.40" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M1115.26,491.6 L1107.26,491.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1090.02,229.4 L1094.02,220.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1090.02,229.4 L1090.02,220.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1090.02,229.4 L1086.02,220.4" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="1090.02" cy="232.4" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_24" class="edge"><title>ChatSession → AnswerFeedback.session_id</title><path d="M1295.36,260.40 L1295.36,244.40 L1296.00,246.00 L1296.00,210.00 L1308.00,210.00 L1307.37,211.20 L1307.37,195.20" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M1299.3600000000001,256.4 L1291.3600000000001,256.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1307.37,204.2 L1311.37,195.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1307.37,204.2 L1307.37,195.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1307.37,204.2 L1303.37,195.2" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="1307.37" cy="207.2" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_25" class="edge"><title>ChatSession → ChatAttachment.session_id</title><path d="M1231.33,390.53 L1215.33,390.53 L1218.00,390.00 L1152.00,390.00 L1152.00,360.00 L1151.72,358.00 L1135.72,358.00" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M1227.33,386.5333333333333 L1227.33,394.5333333333333" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1144.72,358.0 L1135.72,354.0" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1144.72,358.0 L1135.72,358.0" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1144.72,358.0 L1135.72,362.0" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="1147.72" cy="358.0" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_27" class="edge"><title>UsageWallet → UsageCharge.wallet_id</title><path d="M257.43,358.00 L241.43,358.00 L240.00,360.00 L150.00,360.00 L150.08,358.00 L134.08,358.00" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M253.43,354.0 L253.43,362.0" stroke="#607c99" stroke-width="1" fill="none" /><path d="M143.08,358.0 L134.08,354.0" stroke="#607c99" stroke-width="1" fill="none" /><path d="M143.08,358.0 L134.08,358.0" stroke="#607c99" stroke-width="1" fill="none" /><path d="M143.08,358.0 L134.08,362.0" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="146.08" cy="358.0" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_11" class="edge"><title>Course → CommunityImage.course_id</title><path d="M847.98,806.40 L847.98,790.40 L846.00,792.00 L846.00,780.00 L840.00,780.00 L842.01,782.40 L842.01,766.40" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M851.98,802.4 L843.98,802.4" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="847.98" cy="794.4" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /><path d="M842.015,775.4 L846.015,766.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M842.015,775.4 L842.015,766.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M842.015,775.4 L838.015,766.4" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="842.015" cy="778.4" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="node_CustomUser" class="node">
+<title>CustomUser</title>
+<polygon fill="white" stroke="none" points="490.17,430.40 490.17,260.40 649.58,260.40 649.58,430.40 490.17,430.40" />
+<polygon fill="#e4effb" stroke="none" points="491.17,287.80 491.17,261.40 648.58,261.40 648.58,287.80 491.17,287.80" />
+<text xml:space="preserve" text-anchor="start" x="494.16999999999996" y="278.70000000000005" font-family="Arial" font-weight="bold" font-size="17.00">CustomUser</text>
+<text xml:space="preserve" text-anchor="start" x="494.16999999999996" y="302.80000000000007" font-family="Arial" font-size="12.00" fill="#64748b">public.accounts_customuser</text>
+<text xml:space="preserve" text-anchor="start" x="494.16999999999996" y="327.20000000000005" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="548.41" y="327.20000000000005" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="494.16999999999996" y="352.4000000000001" font-family="Arial" font-size="16.00" fill="#334155">UK</text>
+<text xml:space="preserve" text-anchor="start" x="548.41" y="352.4000000000001" font-family="Arial" font-size="16.00">username</text>
+<text xml:space="preserve" text-anchor="start" x="494.16999999999996" y="377.6" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="548.41" y="377.6" font-family="Arial" font-size="16.00">nickname</text>
+<text xml:space="preserve" text-anchor="start" x="494.16999999999996" y="402.80000000000007" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="548.41" y="402.80000000000007" font-family="Arial" font-size="16.00">email</text>
+<text xml:space="preserve" text-anchor="start" x="494.16999999999996" y="424.0" font-family="Arial" font-size="12.00" fill="#64748b">+ 15 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="490.17,430.40 490.17,260.40 649.58,260.40 649.58,430.40 490.17,430.40" />
+</g>
+
+<g id="node_EmailChangeChallenge" class="node">
+<title>EmailChangeChallenge</title>
+<polygon fill="white" stroke="none" points="490.17,690.80 490.17,495.60 706.98,495.60 706.98,690.80 490.17,690.80" />
+<polygon fill="#e4effb" stroke="none" points="491.17,523.00 491.17,496.60 705.98,496.60 705.98,523.00 491.17,523.00" />
+<text xml:space="preserve" text-anchor="start" x="494.16999999999996" y="513.9000000000001" font-family="Arial" font-weight="bold" font-size="17.00">EmailChangeChallenge</text>
+<text xml:space="preserve" text-anchor="start" x="494.16999999999996" y="538.0000000000001" font-family="Arial" font-size="12.00" fill="#64748b">public.accounts_emailchangechallenge</text>
+<text xml:space="preserve" text-anchor="start" x="494.16999999999996" y="562.4000000000001" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="574.4399999999999" y="562.4000000000001" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="494.16999999999996" y="587.6000000000001" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="574.4399999999999" y="587.6000000000001" font-family="Arial" font-size="16.00">user_id</text>
+<text xml:space="preserve" text-anchor="start" x="494.16999999999996" y="612.8000000000002" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="574.4399999999999" y="612.8000000000002" font-family="Arial" font-size="16.00">email</text>
+<text xml:space="preserve" text-anchor="start" x="494.16999999999996" y="638.0000000000002" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="574.4399999999999" y="638.0000000000002" font-family="Arial" font-size="16.00">created_at</text>
+<text xml:space="preserve" text-anchor="start" x="494.16999999999996" y="663.2000000000002" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="574.4399999999999" y="663.2000000000002" font-family="Arial" font-size="16.00">expires_at</text>
+<text xml:space="preserve" text-anchor="start" x="494.16999999999996" y="684.4000000000001" font-family="Arial" font-size="12.00" fill="#64748b">+ 3 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="490.17,690.80 490.17,495.60 706.98,495.60 706.98,690.80 490.17,690.80" />
+</g>
+
+<g id="node_PointTransaction" class="node">
+<title>PointTransaction</title>
+<polygon fill="white" stroke="none" points="0.00,220.40 0.00,0.00 182.11,0.00 182.11,220.40 0.00,220.40" />
+<polygon fill="#e4effb" stroke="none" points="1.00,27.40 1.00,1.00 181.11,1.00 181.11,27.40 1.00,27.40" />
+<text xml:space="preserve" text-anchor="start" x="4.0" y="18.299999999999955" font-family="Arial" font-weight="bold" font-size="17.00">PointTransaction</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="42.399999999999864" font-family="Arial" font-size="12.00" fill="#64748b">public.accounts_pointtransaction</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="66.79999999999995" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="46.02000000000004" y="66.79999999999995" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="92.0" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="46.02000000000004" y="92.0" font-family="Arial" font-size="16.00">user_id</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="117.20000000000005" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="46.02000000000004" y="117.20000000000005" font-family="Arial" font-size="16.00">wallet_id</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="142.39999999999986" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="46.02000000000004" y="142.39999999999986" font-family="Arial" font-size="16.00">amount</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="167.5999999999999" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="46.02000000000004" y="167.5999999999999" font-family="Arial" font-size="16.00">transaction_type</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="192.79999999999995" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="46.02000000000004" y="192.79999999999995" font-family="Arial" font-size="16.00">source_type</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="214.0" font-family="Arial" font-size="12.00" fill="#64748b">+ 4 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="0.00,220.40 0.00,0.00 182.11,0.00 182.11,220.40 0.00,220.40" />
+</g>
+
+<g id="node_PointWallet" class="node">
+<title>PointWallet</title>
+<polygon fill="white" stroke="none" points="257.43,174.80 257.43,0.00 411.52,0.00 411.52,174.80 257.43,174.80" />
+<polygon fill="#e4effb" stroke="none" points="258.43,27.40 258.43,1.00 410.52,1.00 410.52,27.40 258.43,27.40" />
+<text xml:space="preserve" text-anchor="start" x="261.42999999999995" y="18.299999999999955" font-family="Arial" font-weight="bold" font-size="17.00">PointWallet</text>
+<text xml:space="preserve" text-anchor="start" x="261.42999999999995" y="42.39999999999998" font-family="Arial" font-size="12.00" fill="#64748b">public.accounts_pointwallet</text>
+<text xml:space="preserve" text-anchor="start" x="261.42999999999995" y="66.79999999999995" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="303.6699999999999" y="66.79999999999995" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="261.42999999999995" y="92.0" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="303.6699999999999" y="92.0" font-family="Arial" font-size="16.00">user_id</text>
+<text xml:space="preserve" text-anchor="start" x="261.42999999999995" y="117.19999999999993" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="303.6699999999999" y="117.19999999999993" font-family="Arial" font-size="16.00">balance</text>
+<text xml:space="preserve" text-anchor="start" x="261.42999999999995" y="142.39999999999998" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="303.6699999999999" y="142.39999999999998" font-family="Arial" font-size="16.00">updated_at</text>
+<text xml:space="preserve" text-anchor="start" x="261.42999999999995" y="167.60000000000002" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="303.6699999999999" y="167.60000000000002" font-family="Arial" font-size="16.00">total_earned</text>
+<polygon fill="none" stroke="#b8c6d6" points="257.43,174.80 257.43,0.00 411.52,0.00 411.52,174.80 257.43,174.80" />
+</g>
+
+<g id="node_CommunityComment" class="node">
+<title>CommunityComment</title>
+<polygon fill="white" stroke="none" points="1231.33,716.00 1231.33,495.60 1446.06,495.60 1446.06,716.00 1231.33,716.00" />
+<polygon fill="#e4effb" stroke="none" points="1232.33,523.00 1232.33,496.60 1445.06,496.60 1445.06,523.00 1232.33,523.00" />
+<text xml:space="preserve" text-anchor="start" x="1235.33" y="513.9000000000003" font-family="Arial" font-weight="bold" font-size="17.00">CommunityComment</text>
+<text xml:space="preserve" text-anchor="start" x="1235.33" y="538.0000000000002" font-family="Arial" font-size="12.00" fill="#64748b">public.community_communitycomment</text>
+<text xml:space="preserve" text-anchor="start" x="1235.33" y="562.4000000000003" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="1286.55" y="562.4000000000003" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="1235.33" y="587.6000000000001" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="1286.55" y="587.6000000000001" font-family="Arial" font-size="16.00">author_id</text>
+<text xml:space="preserve" text-anchor="start" x="1235.33" y="612.8000000000002" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="1286.55" y="612.8000000000002" font-family="Arial" font-size="16.00">post_id</text>
+<text xml:space="preserve" text-anchor="start" x="1235.33" y="638.0000000000002" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1286.55" y="638.0000000000002" font-family="Arial" font-size="16.00">updated_at</text>
+<text xml:space="preserve" text-anchor="start" x="1235.33" y="663.2000000000003" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1286.55" y="663.2000000000003" font-family="Arial" font-size="16.00">moderation_status</text>
+<text xml:space="preserve" text-anchor="start" x="1235.33" y="688.4000000000002" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1286.55" y="688.4000000000002" font-family="Arial" font-size="16.00">content</text>
+<text xml:space="preserve" text-anchor="start" x="1235.33" y="709.6000000000003" font-family="Arial" font-size="12.00" fill="#64748b">+ 4 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="1231.33,716.00 1231.33,495.60 1446.06,495.60 1446.06,716.00 1231.33,716.00" />
+</g>
+
+<g id="node_CommunityDraft" class="node">
+<title>CommunityDraft</title>
+<polygon fill="white" stroke="none" points="742.98,220.40 742.98,0.00 932.38,0.00 932.38,220.40 742.98,220.40" />
+<polygon fill="#e4effb" stroke="none" points="743.98,27.40 743.98,1.00 931.38,1.00 931.38,27.40 743.98,27.40" />
+<text xml:space="preserve" text-anchor="start" x="746.98" y="18.299999999999955" font-family="Arial" font-weight="bold" font-size="17.00">CommunityDraft</text>
+<text xml:space="preserve" text-anchor="start" x="746.98" y="42.39999999999998" font-family="Arial" font-size="12.00" fill="#64748b">public.community_communitydraft</text>
+<text xml:space="preserve" text-anchor="start" x="746.98" y="66.79999999999995" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="780.1800000000001" y="66.79999999999995" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="746.98" y="92.0" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="780.1800000000001" y="92.0" font-family="Arial" font-size="16.00">owner_id</text>
+<text xml:space="preserve" text-anchor="start" x="746.98" y="117.19999999999993" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="780.1800000000001" y="117.19999999999993" font-family="Arial" font-size="16.00">published_post_id ?</text>
+<text xml:space="preserve" text-anchor="start" x="746.98" y="142.39999999999998" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="780.1800000000001" y="142.39999999999998" font-family="Arial" font-size="16.00">team_code</text>
+<text xml:space="preserve" text-anchor="start" x="746.98" y="167.5999999999999" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="780.1800000000001" y="167.5999999999999" font-family="Arial" font-size="16.00">title</text>
+<text xml:space="preserve" text-anchor="start" x="746.98" y="192.79999999999995" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="780.1800000000001" y="192.79999999999995" font-family="Arial" font-size="16.00">updated_at</text>
+<text xml:space="preserve" text-anchor="start" x="746.98" y="214.0" font-family="Arial" font-size="12.00" fill="#64748b">+ 7 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="742.98,220.40 742.98,0.00 932.38,0.00 932.38,220.40 742.98,220.40" />
+</g>
+
+<g id="node_CommunityImage" class="node">
+<title>CommunityImage</title>
+<polygon fill="white" stroke="none" points="742.98,766.40 742.98,495.60 941.05,495.60 941.05,766.40 742.98,766.40" />
+<polygon fill="#e4effb" stroke="none" points="743.98,523.00 743.98,496.60 940.05,496.60 940.05,523.00 743.98,523.00" />
+<text xml:space="preserve" text-anchor="start" x="746.98" y="513.9" font-family="Arial" font-weight="bold" font-size="17.00">CommunityImage</text>
+<text xml:space="preserve" text-anchor="start" x="746.98" y="538.0" font-family="Arial" font-size="12.00" fill="#64748b">public.community_communityimage</text>
+<text xml:space="preserve" text-anchor="start" x="746.98" y="562.4" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="810.3100000000001" y="562.4" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="746.98" y="587.6" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="810.3100000000001" y="587.6" font-family="Arial" font-size="16.00">draft_id ?</text>
+<text xml:space="preserve" text-anchor="start" x="746.98" y="612.8" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="810.3100000000001" y="612.8" font-family="Arial" font-size="16.00">owner_id ?</text>
+<text xml:space="preserve" text-anchor="start" x="746.98" y="638.0" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="810.3100000000001" y="638.0" font-family="Arial" font-size="16.00">post_id ?</text>
+<text xml:space="preserve" text-anchor="start" x="746.98" y="663.1999999999999" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="810.3100000000001" y="663.1999999999999" font-family="Arial" font-size="16.00">course_id ?</text>
+<text xml:space="preserve" text-anchor="start" x="746.98" y="688.4" font-family="Arial" font-size="16.00" fill="#334155">UK</text>
+<text xml:space="preserve" text-anchor="start" x="810.3100000000001" y="688.4" font-family="Arial" font-size="16.00">object_key</text>
+<text xml:space="preserve" text-anchor="start" x="746.98" y="713.6" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="810.3100000000001" y="713.6" font-family="Arial" font-size="16.00">content_type</text>
+<text xml:space="preserve" text-anchor="start" x="746.98" y="738.8" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="810.3100000000001" y="738.8" font-family="Arial" font-size="16.00">size</text>
+<text xml:space="preserve" text-anchor="start" x="746.98" y="760.0" font-family="Arial" font-size="12.00" fill="#64748b">+ 3 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="742.98,766.40 742.98,495.60 941.05,495.60 941.05,766.40 742.98,766.40" />
+</g>
+
+<g id="node_CommunityPost" class="node">
+<title>CommunityPost</title>
+<polygon fill="white" stroke="none" points="742.98,455.60 742.98,260.40 931.06,260.40 931.06,455.60 742.98,455.60" />
+<polygon fill="#e4effb" stroke="none" points="743.98,287.80 743.98,261.40 930.06,261.40 930.06,287.80 743.98,287.80" />
+<text xml:space="preserve" text-anchor="start" x="746.98" y="278.7000000000003" font-family="Arial" font-weight="bold" font-size="17.00">CommunityPost</text>
+<text xml:space="preserve" text-anchor="start" x="746.98" y="302.8000000000002" font-family="Arial" font-size="12.00" fill="#64748b">public.community_communitypost</text>
+<text xml:space="preserve" text-anchor="start" x="746.98" y="327.2000000000003" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="784.88" y="327.2000000000003" font-family="Arial" font-size="16.00">source_id</text>
+<text xml:space="preserve" text-anchor="start" x="746.98" y="352.4000000000002" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="784.88" y="352.4000000000002" font-family="Arial" font-size="16.00">owner_id ?</text>
+<text xml:space="preserve" text-anchor="start" x="746.98" y="377.60000000000025" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="784.88" y="377.60000000000025" font-family="Arial" font-size="16.00">title</text>
+<text xml:space="preserve" text-anchor="start" x="746.98" y="402.8000000000002" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="784.88" y="402.8000000000002" font-family="Arial" font-size="16.00">moderation_status</text>
+<text xml:space="preserve" text-anchor="start" x="746.98" y="428.0000000000002" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="784.88" y="428.0000000000002" font-family="Arial" font-size="16.00">board</text>
+<text xml:space="preserve" text-anchor="start" x="746.98" y="449.2000000000003" font-family="Arial" font-size="12.00" fill="#64748b">+ 20 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="742.98,455.60 742.98,260.40 931.06,260.40 931.06,455.60 742.98,455.60" />
+</g>
+
+<g id="node_CommunityReport" class="node">
+<title>CommunityReport</title>
+<polygon fill="white" stroke="none" points="257.43,741.20 257.43,495.60 454.17,495.60 454.17,741.20 257.43,741.20" />
+<polygon fill="#e4effb" stroke="none" points="258.43,523.00 258.43,496.60 453.17,496.60 453.17,523.00 258.43,523.00" />
+<text xml:space="preserve" text-anchor="start" x="261.42999999999995" y="513.9000000000001" font-family="Arial" font-weight="bold" font-size="17.00">CommunityReport</text>
+<text xml:space="preserve" text-anchor="start" x="261.42999999999995" y="538.0" font-family="Arial" font-size="12.00" fill="#64748b">public.community_communityreport</text>
+<text xml:space="preserve" text-anchor="start" x="261.42999999999995" y="562.4000000000001" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="310.75" y="562.4000000000001" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="261.42999999999995" y="587.6" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="310.75" y="587.6" font-family="Arial" font-size="16.00">post_id</text>
+<text xml:space="preserve" text-anchor="start" x="261.42999999999995" y="612.8" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="310.75" y="612.8" font-family="Arial" font-size="16.00">reporter_id</text>
+<text xml:space="preserve" text-anchor="start" x="261.42999999999995" y="638.0" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="310.75" y="638.0" font-family="Arial" font-size="16.00">handled_by_id ?</text>
+<text xml:space="preserve" text-anchor="start" x="261.42999999999995" y="663.2" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="310.75" y="663.2" font-family="Arial" font-size="16.00">status</text>
+<text xml:space="preserve" text-anchor="start" x="261.42999999999995" y="688.4000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="310.75" y="688.4000000000001" font-family="Arial" font-size="16.00">reason</text>
+<text xml:space="preserve" text-anchor="start" x="261.42999999999995" y="713.6" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="310.75" y="713.6" font-family="Arial" font-size="16.00">detail</text>
+<text xml:space="preserve" text-anchor="start" x="261.42999999999995" y="734.8" font-family="Arial" font-size="12.00" fill="#64748b">+ 2 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="257.43,741.20 257.43,495.60 454.17,495.60 454.17,741.20 257.43,741.20" />
+</g>
+
+<g id="node_CommunityVote" class="node">
+<title>CommunityVote</title>
+<polygon fill="white" stroke="none" points="490.17,149.60 490.17,0.00 678.24,0.00 678.24,149.60 490.17,149.60" />
+<polygon fill="#e4effb" stroke="none" points="491.17,27.40 491.17,1.00 677.24,1.00 677.24,27.40 491.17,27.40" />
+<text xml:space="preserve" text-anchor="start" x="494.16999999999996" y="18.299999999999955" font-family="Arial" font-weight="bold" font-size="17.00">CommunityVote</text>
+<text xml:space="preserve" text-anchor="start" x="494.16999999999996" y="42.39999999999998" font-family="Arial" font-size="12.00" fill="#64748b">public.community_communityvote</text>
+<text xml:space="preserve" text-anchor="start" x="494.16999999999996" y="66.79999999999995" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="571.63" y="66.79999999999995" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="494.16999999999996" y="92.0" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="571.63" y="92.0" font-family="Arial" font-size="16.00">post_id</text>
+<text xml:space="preserve" text-anchor="start" x="494.16999999999996" y="117.19999999999993" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="571.63" y="117.19999999999993" font-family="Arial" font-size="16.00">user_id</text>
+<text xml:space="preserve" text-anchor="start" x="494.16999999999996" y="142.39999999999998" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="571.63" y="142.39999999999998" font-family="Arial" font-size="16.00">value</text>
+<polygon fill="none" stroke="#b8c6d6" points="490.17,149.60 490.17,0.00 678.24,0.00 678.24,149.60 490.17,149.60" />
+</g>
+
+<g id="node_ModerationAdmission" class="node">
+<title>ModerationAdmission</title>
+<polygon fill="white" stroke="none" points="0.00,930.80 0.00,806.40 221.43,806.40 221.43,930.80 0.00,930.80" />
+<polygon fill="#e4effb" stroke="none" points="1.00,833.80 1.00,807.40 220.43,807.40 220.43,833.80 1.00,833.80" />
+<text xml:space="preserve" text-anchor="start" x="4.0" y="824.7" font-family="Arial" font-weight="bold" font-size="17.00">ModerationAdmission</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="848.8" font-family="Arial" font-size="12.00" fill="#64748b">public.community_moderationadmission</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="873.2" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="85.68999999999994" y="873.2" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="898.4000000000001" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="85.68999999999994" y="898.4000000000001" font-family="Arial" font-size="16.00">account_id</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="923.6" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="85.68999999999994" y="923.6" font-family="Arial" font-size="16.00">created_at</text>
+<polygon fill="none" stroke="#b8c6d6" points="0.00,930.80 0.00,806.40 221.43,806.40 221.43,930.80 0.00,930.80" />
+</g>
+
+<g id="node_ModerationJob" class="node">
+<title>ModerationJob</title>
+<polygon fill="white" stroke="none" points="988.98,716.00 988.98,495.60 1172.40,495.60 1172.40,716.00 988.98,716.00" />
+<polygon fill="#e4effb" stroke="none" points="989.98,523.00 989.98,496.60 1171.40,496.60 1171.40,523.00 989.98,523.00" />
+<text xml:space="preserve" text-anchor="start" x="992.98" y="513.9000000000001" font-family="Arial" font-weight="bold" font-size="17.00">ModerationJob</text>
+<text xml:space="preserve" text-anchor="start" x="992.98" y="538.0000000000002" font-family="Arial" font-size="12.00" fill="#64748b">public.community_moderationjob</text>
+<text xml:space="preserve" text-anchor="start" x="992.98" y="562.4000000000001" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="1044.1100000000001" y="562.4000000000001" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="992.98" y="587.6000000000001" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="1044.1100000000001" y="587.6000000000001" font-family="Arial" font-size="16.00">comment_id ?</text>
+<text xml:space="preserve" text-anchor="start" x="992.98" y="612.8000000000002" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="1044.1100000000001" y="612.8000000000002" font-family="Arial" font-size="16.00">post_id ?</text>
+<text xml:space="preserve" text-anchor="start" x="992.98" y="638.0000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1044.1100000000001" y="638.0000000000001" font-family="Arial" font-size="16.00">error_code</text>
+<text xml:space="preserve" text-anchor="start" x="992.98" y="663.2000000000002" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1044.1100000000001" y="663.2000000000002" font-family="Arial" font-size="16.00">updated_at</text>
+<text xml:space="preserve" text-anchor="start" x="992.98" y="688.4000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1044.1100000000001" y="688.4000000000001" font-family="Arial" font-size="16.00">revision</text>
+<text xml:space="preserve" text-anchor="start" x="992.98" y="709.6000000000001" font-family="Arial" font-size="12.00" fill="#64748b">+ 10 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="988.98,716.00 988.98,495.60 1172.40,495.60 1172.40,716.00 988.98,716.00" />
+</g>
+
+<g id="node_ModerationReview" class="node">
+<title>ModerationReview</title>
+<polygon fill="white" stroke="none" points="988.98,220.40 988.98,0.00 1191.06,0.00 1191.06,220.40 988.98,220.40" />
+<polygon fill="#e4effb" stroke="none" points="989.98,27.40 989.98,1.00 1190.06,1.00 1190.06,27.40 989.98,27.40" />
+<text xml:space="preserve" text-anchor="start" x="992.98" y="18.300000000000182" font-family="Arial" font-weight="bold" font-size="17.00">ModerationReview</text>
+<text xml:space="preserve" text-anchor="start" x="992.98" y="42.40000000000009" font-family="Arial" font-size="12.00" fill="#64748b">public.community_moderationreview</text>
+<text xml:space="preserve" text-anchor="start" x="992.98" y="66.80000000000018" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="1065.44" y="66.80000000000018" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="992.98" y="92.0" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="1065.44" y="92.0" font-family="Arial" font-size="16.00">actor_id ?</text>
+<text xml:space="preserve" text-anchor="start" x="992.98" y="117.20000000000005" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="1065.44" y="117.20000000000005" font-family="Arial" font-size="16.00">job_id</text>
+<text xml:space="preserve" text-anchor="start" x="992.98" y="142.4000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1065.44" y="142.4000000000001" font-family="Arial" font-size="16.00">action</text>
+<text xml:space="preserve" text-anchor="start" x="992.98" y="167.60000000000014" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1065.44" y="167.60000000000014" font-family="Arial" font-size="16.00">finding_ids</text>
+<text xml:space="preserve" text-anchor="start" x="992.98" y="192.80000000000007" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1065.44" y="192.80000000000007" font-family="Arial" font-size="16.00">note</text>
+<text xml:space="preserve" text-anchor="start" x="992.98" y="214.0000000000001" font-family="Arial" font-size="12.00" fill="#64748b">+ 1 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="988.98,220.40 988.98,0.00 1191.06,0.00 1191.06,220.40 988.98,220.40" />
+</g>
+
+<g id="node_ModerationSettings" class="node">
+<title>ModerationSettings</title>
+<polygon fill="white" stroke="none" points="0.00,645.20 0.00,495.60 208.77,495.60 208.77,645.20 0.00,645.20" />
+<polygon fill="#e4effb" stroke="none" points="1.00,523.00 1.00,496.60 207.77,496.60 207.77,523.00 1.00,523.00" />
+<text xml:space="preserve" text-anchor="start" x="4.0" y="513.9000000000001" font-family="Arial" font-weight="bold" font-size="17.00">ModerationSettings</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="538.0000000000001" font-family="Arial" font-size="12.00" fill="#64748b">public.community_moderationsettings</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="562.4000000000001" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="58.89999999999998" y="562.4000000000001" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="587.6000000000001" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="58.89999999999998" y="587.6000000000001" font-family="Arial" font-size="16.00">updated_by_id ?</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="612.8000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="58.89999999999998" y="612.8000000000001" font-family="Arial" font-size="16.00">updated_at</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="638.0000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="58.89999999999998" y="638.0000000000001" font-family="Arial" font-size="16.00">mode</text>
+<polygon fill="none" stroke="#b8c6d6" points="0.00,645.20 0.00,495.60 208.77,495.60 208.77,645.20 0.00,645.20" />
+</g>
+
+<g id="node_AnswerFeedback" class="node">
+<title>AnswerFeedback</title>
+<polygon fill="white" stroke="none" points="1231.33,195.20 1231.33,0.00 1383.41,0.00 1383.41,195.20 1231.33,195.20" />
+<polygon fill="#e4effb" stroke="none" points="1232.33,27.40 1232.33,1.00 1382.41,1.00 1382.41,27.40 1232.33,27.40" />
+<text xml:space="preserve" text-anchor="start" x="1235.33" y="18.30000000000001" font-family="Arial" font-weight="bold" font-size="17.00">AnswerFeedback</text>
+<text xml:space="preserve" text-anchor="start" x="1235.33" y="42.39999999999998" font-family="Arial" font-size="12.00" fill="#64748b">public.llm_answerfeedback</text>
+<text xml:space="preserve" text-anchor="start" x="1235.33" y="66.79999999999998" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="1277.9" y="66.79999999999998" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="1235.33" y="91.99999999999997" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="1277.9" y="91.99999999999997" font-family="Arial" font-size="16.00">session_id</text>
+<text xml:space="preserve" text-anchor="start" x="1235.33" y="117.19999999999999" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1277.9" y="117.19999999999999" font-family="Arial" font-size="16.00">updated_at</text>
+<text xml:space="preserve" text-anchor="start" x="1235.33" y="142.39999999999998" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1277.9" y="142.39999999999998" font-family="Arial" font-size="16.00">answer_id</text>
+<text xml:space="preserve" text-anchor="start" x="1235.33" y="167.59999999999997" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1277.9" y="167.59999999999997" font-family="Arial" font-size="16.00">message_id</text>
+<text xml:space="preserve" text-anchor="start" x="1235.33" y="188.79999999999998" font-family="Arial" font-size="12.00" fill="#64748b">+ 7 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="1231.33,195.20 1231.33,0.00 1383.41,0.00 1383.41,195.20 1231.33,195.20" />
+</g>
+
+<g id="node_ChatAttachment" class="node">
+<title>ChatAttachment</title>
+<polygon fill="white" stroke="none" points="988.98,455.60 988.98,260.40 1135.72,260.40 1135.72,455.60 988.98,455.60" />
+<polygon fill="#e4effb" stroke="none" points="989.98,287.80 989.98,261.40 1134.72,261.40 1134.72,287.80 989.98,287.80" />
+<text xml:space="preserve" text-anchor="start" x="992.98" y="278.70000000000005" font-family="Arial" font-weight="bold" font-size="17.00">ChatAttachment</text>
+<text xml:space="preserve" text-anchor="start" x="992.98" y="302.8000000000002" font-family="Arial" font-size="12.00" fill="#64748b">public.llm_chatattachment</text>
+<text xml:space="preserve" text-anchor="start" x="992.98" y="327.20000000000005" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="1037.78" y="327.20000000000005" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="992.98" y="352.4000000000001" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="1037.78" y="352.4000000000001" font-family="Arial" font-size="16.00">session_id</text>
+<text xml:space="preserve" text-anchor="start" x="992.98" y="377.60000000000014" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1037.78" y="377.60000000000014" font-family="Arial" font-size="16.00">name</text>
+<text xml:space="preserve" text-anchor="start" x="992.98" y="402.80000000000007" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1037.78" y="402.80000000000007" font-family="Arial" font-size="16.00">kind</text>
+<text xml:space="preserve" text-anchor="start" x="992.98" y="428.0000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1037.78" y="428.0000000000001" font-family="Arial" font-size="16.00">object_key</text>
+<text xml:space="preserve" text-anchor="start" x="992.98" y="449.20000000000016" font-family="Arial" font-size="12.00" fill="#64748b">+ 8 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="988.98,455.60 988.98,260.40 1135.72,260.40 1135.72,455.60 988.98,455.60" />
+</g>
+
+<g id="node_ChatAttachmentDeletion" class="node">
+<title>ChatAttachmentDeletion</title>
+<polygon fill="white" stroke="none" points="988.98,905.60 988.98,806.40 1195.33,806.40 1195.33,905.60 988.98,905.60" />
+<polygon fill="#e4effb" stroke="none" points="989.98,833.80 989.98,807.40 1194.33,807.40 1194.33,833.80 989.98,833.80" />
+<text xml:space="preserve" text-anchor="start" x="992.98" y="824.7000000000002" font-family="Arial" font-weight="bold" font-size="17.00">ChatAttachmentDeletion</text>
+<text xml:space="preserve" text-anchor="start" x="992.98" y="848.8000000000002" font-family="Arial" font-size="12.00" fill="#64748b">public.llm_chatattachmentdeletion</text>
+<text xml:space="preserve" text-anchor="start" x="992.98" y="873.2000000000002" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="1067.58" y="873.2000000000002" font-family="Arial" font-size="16.00">object_key</text>
+<text xml:space="preserve" text-anchor="start" x="992.98" y="898.4000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1067.58" y="898.4000000000001" font-family="Arial" font-size="16.00">created_at</text>
+<polygon fill="none" stroke="#b8c6d6" points="988.98,905.60 988.98,806.40 1195.33,806.40 1195.33,905.60 988.98,905.60" />
+</g>
+
+<g id="node_ChatSession" class="node">
+<title>ChatSession</title>
+<polygon fill="white" stroke="none" points="1231.33,455.60 1231.33,260.40 1359.39,260.40 1359.39,455.60 1231.33,455.60" />
+<polygon fill="#e4effb" stroke="none" points="1232.33,287.80 1232.33,261.40 1358.39,261.40 1358.39,287.80 1232.33,287.80" />
+<text xml:space="preserve" text-anchor="start" x="1235.33" y="278.70000000000005" font-family="Arial" font-weight="bold" font-size="17.00">ChatSession</text>
+<text xml:space="preserve" text-anchor="start" x="1235.33" y="302.80000000000007" font-family="Arial" font-size="12.00" fill="#64748b">public.llm_chatsession</text>
+<text xml:space="preserve" text-anchor="start" x="1235.33" y="327.20000000000005" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="1271.2299999999998" y="327.20000000000005" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="1235.33" y="352.4000000000001" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="1271.2299999999998" y="352.4000000000001" font-family="Arial" font-size="16.00">user_id ?</text>
+<text xml:space="preserve" text-anchor="start" x="1235.33" y="377.6" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1271.2299999999998" y="377.6" font-family="Arial" font-size="16.00">title</text>
+<text xml:space="preserve" text-anchor="start" x="1235.33" y="402.80000000000007" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1271.2299999999998" y="402.80000000000007" font-family="Arial" font-size="16.00">created_at</text>
+<text xml:space="preserve" text-anchor="start" x="1235.33" y="428.0" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1271.2299999999998" y="428.0" font-family="Arial" font-size="16.00">guest ?</text>
+<text xml:space="preserve" text-anchor="start" x="1235.33" y="449.20000000000005" font-family="Arial" font-size="12.00" fill="#64748b">+ 1 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="1231.33,455.60 1231.33,260.40 1359.39,260.40 1359.39,455.60 1231.33,455.60" />
+</g>
+
+<g id="node_ChatThreadDeletion" class="node">
+<title>ChatThreadDeletion</title>
+<polygon fill="white" stroke="none" points="490.17,926.00 490.17,806.40 659.69,806.40 659.69,926.00 490.17,926.00" />
+<polygon fill="#e4effb" stroke="none" points="491.17,833.80 491.17,807.40 658.69,807.40 658.69,833.80 491.17,833.80" />
+<text xml:space="preserve" text-anchor="start" x="494.16999999999996" y="824.7" font-family="Arial" font-weight="bold" font-size="17.00">ChatThreadDeletion</text>
+<text xml:space="preserve" text-anchor="start" x="494.16999999999996" y="848.8" font-family="Arial" font-size="12.00" fill="#64748b">public.llm_chatthreaddeletion</text>
+<text xml:space="preserve" text-anchor="start" x="494.16999999999996" y="873.2" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="550.8000000000001" y="873.2" font-family="Arial" font-size="16.00">thread_id</text>
+<text xml:space="preserve" text-anchor="start" x="494.16999999999996" y="898.4000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="550.8000000000001" y="898.4000000000001" font-family="Arial" font-size="16.00">created_at</text>
+<text xml:space="preserve" text-anchor="start" x="494.16999999999996" y="919.5999999999999" font-family="Arial" font-size="12.00" fill="#64748b">+ 1 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="490.17,926.00 490.17,806.40 659.69,806.40 659.69,926.00 490.17,926.00" />
+</g>
+
+<g id="node_GuestChatUsage" class="node">
+<title>GuestChatUsage</title>
+<polygon fill="white" stroke="none" points="257.43,905.60 257.43,806.40 406.85,806.40 406.85,905.60 257.43,905.60" />
+<polygon fill="#e4effb" stroke="none" points="258.43,833.80 258.43,807.40 405.85,807.40 405.85,833.80 258.43,833.80" />
+<text xml:space="preserve" text-anchor="start" x="261.42999999999995" y="824.7000000000003" font-family="Arial" font-weight="bold" font-size="17.00">GuestChatUsage</text>
+<text xml:space="preserve" text-anchor="start" x="261.42999999999995" y="848.8000000000004" font-family="Arial" font-size="12.00" fill="#64748b">public.llm_guestchatusage</text>
+<text xml:space="preserve" text-anchor="start" x="261.42999999999995" y="873.2000000000003" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="320.4699999999999" y="873.2000000000003" font-family="Arial" font-size="16.00">identity</text>
+<text xml:space="preserve" text-anchor="start" x="261.42999999999995" y="898.4000000000003" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="320.4699999999999" y="898.4000000000003" font-family="Arial" font-size="16.00">used</text>
+<polygon fill="none" stroke="#b8c6d6" points="257.43,905.60 257.43,806.40 406.85,806.40 406.85,905.60 257.43,905.60" />
+</g>
+
+<g id="node_UsageCharge" class="node">
+<title>UsageCharge</title>
+<polygon fill="white" stroke="none" points="0.00,455.60 0.00,260.40 134.08,260.40 134.08,455.60 0.00,455.60" />
+<polygon fill="#e4effb" stroke="none" points="1.00,287.80 1.00,261.40 133.08,261.40 133.08,287.80 1.00,287.80" />
+<text xml:space="preserve" text-anchor="start" x="4.0" y="278.70000000000016" font-family="Arial" font-weight="bold" font-size="17.00">UsageCharge</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="302.8000000000001" font-family="Arial" font-size="12.00" fill="#64748b">public.llm_usagecharge</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="327.20000000000016" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="36.24000000000001" y="327.20000000000016" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="352.40000000000015" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="36.24000000000001" y="352.40000000000015" font-family="Arial" font-size="16.00">wallet_id</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="377.60000000000014" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="36.24000000000001" y="377.60000000000014" font-family="Arial" font-size="16.00">status</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="402.8000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="36.24000000000001" y="402.8000000000001" font-family="Arial" font-size="16.00">session_id ?</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="428.0000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="36.24000000000001" y="428.0000000000001" font-family="Arial" font-size="16.00">period</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="449.20000000000016" font-family="Arial" font-size="12.00" fill="#64748b">+ 8 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="0.00,455.60 0.00,260.40 134.08,260.40 134.08,455.60 0.00,455.60" />
+</g>
+
+<g id="node_UsageWallet" class="node">
+<title>UsageWallet</title>
+<polygon fill="white" stroke="none" points="257.43,455.60 257.43,260.40 385.49,260.40 385.49,455.60 257.43,455.60" />
+<polygon fill="#e4effb" stroke="none" points="258.43,287.80 258.43,261.40 384.49,261.40 384.49,287.80 258.43,287.80" />
+<text xml:space="preserve" text-anchor="start" x="261.42999999999995" y="278.7000000000001" font-family="Arial" font-weight="bold" font-size="17.00">UsageWallet</text>
+<text xml:space="preserve" text-anchor="start" x="261.42999999999995" y="302.8000000000001" font-family="Arial" font-size="12.00" fill="#64748b">public.llm_usagewallet</text>
+<text xml:space="preserve" text-anchor="start" x="261.42999999999995" y="327.2000000000001" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="295.5399999999999" y="327.2000000000001" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="261.42999999999995" y="352.4000000000001" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="295.5399999999999" y="352.4000000000001" font-family="Arial" font-size="16.00">user_id ?</text>
+<text xml:space="preserve" text-anchor="start" x="261.42999999999995" y="377.6000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="295.5399999999999" y="377.6000000000001" font-family="Arial" font-size="16.00">updated_at</text>
+<text xml:space="preserve" text-anchor="start" x="261.42999999999995" y="402.8000000000001" font-family="Arial" font-size="16.00" fill="#334155">UK</text>
+<text xml:space="preserve" text-anchor="start" x="295.5399999999999" y="402.8000000000001" font-family="Arial" font-size="16.00">guest ?</text>
+<text xml:space="preserve" text-anchor="start" x="261.42999999999995" y="428.0000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="295.5399999999999" y="428.0000000000001" font-family="Arial" font-size="16.00">period</text>
+<text xml:space="preserve" text-anchor="start" x="261.42999999999995" y="449.2000000000001" font-family="Arial" font-size="12.00" fill="#64748b">+ 1 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="257.43,455.60 257.43,260.40 385.49,260.40 385.49,455.60 257.43,455.60" />
+</g>
+
+<g id="node_Course" class="node">
+<title>Course</title>
+<polygon fill="white" stroke="none" points="742.98,900.80 742.98,806.40 952.98,806.40 952.98,900.80 742.98,900.80" />
+<polygon fill="#edf0f4" stroke="none" points="743.98,833.80 743.98,807.40 856.70,807.40 856.70,833.80 743.98,833.80" />
+<text xml:space="preserve" text-anchor="start" x="746.98" y="824.7000000000003" font-family="Arial" font-weight="bold" font-size="17.00">Course</text>
+<text xml:space="preserve" text-anchor="start" x="746.98" y="848.8000000000002" font-family="Arial" font-size="12.00" fill="#64748b">public.travel_course</text>
+<text xml:space="preserve" text-anchor="start" x="746.98" y="869.2000000000003" font-family="Arial" font-size="12.00" fill="#52677e">참조 · 코스·광고</text>
+<text xml:space="preserve" text-anchor="start" x="746.98" y="893.6000000000003" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="807.79" y="893.6000000000003" font-family="Arial" font-size="16.00">id</text>
+<polygon fill="none" stroke="#b8c6d6" points="742.98,900.80 742.98,806.40 952.98,806.40 952.98,900.80 742.98,900.80" />
+</g>
+</g>
+</svg>
