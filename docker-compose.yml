@@ -179,6 +179,7 @@ services:
       DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-}
       DEMO_USERS_ENABLED: ${DEMO_USERS_ENABLED:-false}
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,[::1]}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
 
       # 로컬에서는 db 컨테이너, 서버에서는 RDS (.env의 DB_HOST) 사용
       DB_HOST: ${DB_HOST:-db}
