@@ -1,8 +1,6 @@
 <!--
-  SKN34 4차 프로젝트 README 초안 (2026-10-14 작성, develop 434443b 기준)
+  SKN34 4차 프로젝트 README (2026-10-15 갱신, develop b81f3f4 기준)
   - 노션 "4차 프로젝트" README 가이드 순서(팀 소개 → 개요 → 기술 스택 → WBS → 요구사항 → ERD → 주요 프로시저 → 수행결과 → 회고)에 맞춤
-  - 🔴 = 가이드 필수 항목
-  - [캡처 필요] / [팀원 확인] 표시는 올리기 전에 채우거나 지울 것
 -->
 
 <div align="center">
@@ -27,35 +25,35 @@ SKN34 4차 프로젝트 · 5팀 [야구는 질병이야]
 
 ## 목차
 
-1. [팀 소개](#1-팀-소개) 🔴
-2. [프로젝트 개요](#2-프로젝트-개요) 🔴
-3. [기술 스택](#3-기술-스택) 🔴
-4. [WBS](#4-wbs)
-5. [요구사항 명세서](#5-요구사항-명세서)
-6. [시스템 아키텍처](#6-시스템-아키텍처)
-7. [LLM · RAG 파이프라인](#7-llm--rag-파이프라인)
-8. [RAG 성능 개선 — 인덱싱 · 검색 · 캐싱](#8-rag-성능-개선--인덱싱--검색--캐싱)
-9. [신규 기능](#9-신규-기능)
-10. [화면 설계 · UX Flow](#10-화면-설계--ux-flow)
-11. [ERD](#11-erd)
-12. [주요 프로시저 (배치 · 관리 명령)](#12-주요-프로시저-배치--관리-명령)
-13. [수행결과 — 테스트 및 시연](#13-수행결과--테스트-및-시연) 🔴
-14. [트러블 슈팅](#14-트러블-슈팅)
-15. [실행 방법](#15-실행-방법)
-16. [디렉토리 구조](#16-디렉토리-구조)
-17. [향후 개선 계획](#17-향후-개선-계획)
-18. [협업 방식](#18-협업-방식)
-19. [한 줄 회고](#19-한-줄-회고) 🔴
+- [1. 팀 소개](#1-팀-소개)
+- [2. 프로젝트 개요](#2-프로젝트-개요)
+- [3. 기술 스택](#3-기술-스택)
+- [4. WBS](#4-wbs)
+- [5. 요구사항 명세서](#5-요구사항-명세서)
+- [6. 시스템 아키텍처](#6-시스템-아키텍처)
+- [7. LLM · RAG 파이프라인](#7-llm--rag-파이프라인)
+- [8. RAG 성능 개선 — 인덱싱 · 검색 · 캐싱](#8-rag-성능-개선--인덱싱--검색--캐싱)
+- [9. 신규 기능](#9-신규-기능)
+- [10. 화면 설계 · UX Flow](#10-화면-설계--ux-flow)
+- [11. ERD](#11-erd)
+- [12. 주요 프로시저 (배치 · 관리 명령)](#12-주요-프로시저-배치--관리-명령)
+- [13. 수행결과 — 테스트 및 시연](#13-수행결과--테스트-및-시연)
+- [14. 트러블 슈팅](#14-트러블-슈팅)
+- [15. 실행 방법](#15-실행-방법)
+- [16. 디렉토리 구조](#16-디렉토리-구조)
+- [17. 향후 개선 계획](#17-향후-개선-계획)
+- [18. 협업 방식](#18-협업-방식)
+- [19. 한 줄 회고](#19-한-줄-회고)
 
 ### 📦 필수 산출물
 
 | 산출물 | 위치 |
 | --- | --- |
-| 요구사항 정의서 | [`docs/deliverables/`](./docs/deliverables/) · 요약은 [5. 요구사항 명세서](#5-요구사항-명세서) <!-- [팀원 확인] 파일명으로 링크 교체 --> |
-| 화면설계서 | [`docs/deliverables/`](./docs/deliverables/) · 요약은 [UX Flow](#10-화면-설계--ux-flow) <!-- [팀원 확인] 파일명으로 링크 교체 --> |
+| 요구사항 정의서 | [`05_요구사항정의서.md`](./docs/deliverables/05_요구사항정의서.md) · [엑셀](./docs/deliverables/05_요구사항정의서.xlsx) · 요약은 [5. 요구사항 명세서](#5-요구사항-명세서) |
+| 화면설계서 | [10. 화면 설계 · UX Flow](#10-화면-설계--ux-flow) (화면 흐름 · 화면별 기능) |
 | 개발된 LLM 연동 웹 애플리케이션 | 이 저장소 (`backend/` · `frontend/`) |
-| 시스템 구성도 | [6. 시스템 아키텍처](#6-시스템-아키텍처) · [`docs/deliverables/02_시스템아키텍처.md`](./docs/deliverables/02_시스템아키텍처.md) |
-| 테스트 계획 및 결과 보고서 | [12. 수행결과](#13-수행결과--테스트-및-시연) · [`docs/deliverables/04_테스트계획_결과보고서.md`](./docs/deliverables/04_테스트계획_결과보고서.md) |
+| 시스템 구성도 | [6. 시스템 아키텍처](#6-시스템-아키텍처) · [인터랙티브 HTML](./docs/architecture/system_architecture_4th.html) · [원본 JSON](./docs/architecture/system_architecture_4th.archify.json) |
+| 테스트 계획 및 결과 보고서 | [13. 수행결과](#13-수행결과--테스트-및-시연) · [`07_테스트계획_결과보고서_4차.md`](./docs/deliverables/07_테스트계획_결과보고서_4차.md) |
 
 ---
 
@@ -66,10 +64,10 @@ SKN34 4차 프로젝트 · 5팀 [야구는 질병이야]
 <table>
   <tr>
     <td align="center"><img src="./docs/images/두산_마스코트.png" width="120"/><br/><b>윤성호</b><br/>LLM 구조 · 백엔드</td>
-    <td align="center"><img src="./docs/images/team/member-hyeongjun.png" width="120" height="120"/><br/><b>임형준</b><br/>팀장 · LLM 인프라 보조 · QA</td>
+    <td align="center"><img src="./docs/images/team/member-hyeongjun.png" width="120" height="120"/><br/><b>임형준</b><br/>팀장 · LLM · QA</td>
     <td align="center"><img src="https://img-cdn.theqoo.net/cujCms.jpg" width="120"/><br/><b>이현준</b><br/>인프라 · 배포 · 데이터</td>
     <td align="center"><img src="./docs/images/team/member-inyoung.png" width="120" height="120"/><br/><b>최인영</b><br/>코스 추천 · 프론트엔드</td>
-    <td align="center"><img src="https://github.com/masquerade0425-hash.png?size=240" width="120"/><br/><b>김진화</b><br/>커뮤니티 · DB</td>
+    <td align="center"><img src="https://github.com/masquerade0425-hash.png?size=240" width="120"/><br/><b>김진화</b><br/>커뮤니티 · 프론트엔드</td>
   </tr>
   <tr>
     <td align="center"><a href="https://github.com/Seongho-haru"><img src="https://img.shields.io/badge/GitHub-Seongho--haru-181717?logo=github"/></a></td>
@@ -80,15 +78,14 @@ SKN34 4차 프로젝트 · 5팀 [야구는 질병이야]
   </tr>
 </table>
 
-<!-- [팀원 확인] 아래 표는 4차 PR 기록으로 정리한 초안입니다. -->
 
-| 이름 | 4차 담당 | 주요 작업 (PR) |
+| 이름 | 4차 담당 | 주요 작업 |
 | --- | --- | --- |
-| 윤성호 | LLM 구조 · 백엔드 | v1/v2 분리 · LangGraph 실행 구조(#27 · #32), JEV 가드 + capability 분류(#37 · #40), 동적 도구 할당 · 하위 에이전트(#38), API 버저닝(#22 · #23), 채팅 크레딧 · 후불 정산(#42 · #51), 답변 피드백(#45), Qdrant 이전(#63), 단계별 평가셋(#79), 평가 CI(#82), JEV 브라우저 통합(#90) |
-| 임형준 | 팀장 · LLM 인프라 보조 · QA | 피드백 분석 · 우선순위, 규정집 청킹(#24), 일정 · 순위 DB 분리(#30), 하이라이트 영상(#67 · #86), 하이브리드 검색 + 리랭크(#78), chat_eval 실대화 평가(#81), QA 수정 사이클(#84 ~ #95), v1 → v2 이전, PR 리뷰 · 머지, README · 산출물 |
-| 이현준 | 인프라 · 배포 · 데이터 | 개발/운영 서버 분리 · CI/CD 배포 게이트, 크롤링 v3 증분 upsert(#29), 환상게임 + 포인트(#66), 회원 등급제(#98), PWA(#99) |
-| 최인영 | 코스 추천 · 프론트엔드 | 경기 기준 코스 추천 · 장소 RAG(#49), 구장 안/밖 구분 · 식당 교체 · 술집 평점 게이트(#92), 코스 메뉴 · 후기 근거(#96), 화면 |
-| 김진화 | 커뮤니티 · DB | 커뮤니티 게시 검사 · 워커 · 관리자 화면(#91), 자동/수동 검사 전환(#97), 회원가입 응원팀 선택(#34) |
+| 윤성호 | LLM 구조 · 백엔드 | v1/v2 분리 · LangGraph 실행 구조, JEV 가드 + capability 분류, 동적 도구 할당 · 하위 에이전트, API 버저닝, 채팅 크레딧 · 후불 정산, 답변 피드백, pgvector → Qdrant 이전, 단계별 평가셋, 평가 CI, JEV 브라우저 통합, 하이라이트 멀티모달(이미지 질문 · Gemini 영상 검증), 커뮤니티 선공개 · 사후 검사 · 관리자 숨김 해제, 벡터 DVC 백업 · 기동 시 자동 복원 |
+| 임형준 | 팀장 · LLM · QA | 3차 피드백 분석 · 우선순위, 규정집 청킹, 일정 · 순위 DB 분리, 하이라이트 영상(장면표 · 가을야구), 하이브리드 검색 + 리랭크, chat_eval 실대화 평가, QA 수정 사이클(날씨 · 길찾기 · 가드 · 되묻기 · 근거 등급 · 코스 구장 안 매장 배치), v1 → v2 코드 이전, 운영 하이라이트 키 전달, PR 리뷰 · 머지, README · 산출물 |
+| 이현준 | 인프라 · 배포 · 데이터 | 개발/운영 서버 분리, CI/CD 배포 게이트 · Discord 알림, Docker · Nginx 설정, 크롤링 v3 증분 upsert, 환상게임 + 포인트, 회원 등급제, PWA |
+| 최인영 | 코스 추천 · 프론트엔드 | 경기 기준 코스 추천 · 장소 RAG, 구장 안/밖 구분 · 식당 교체 · 술집 평점 게이트, 코스 메뉴 · 후기 근거, 화면 |
+| 김진화 | 커뮤니티 · 프론트엔드 | 커뮤니티 게시 검사 · 워커 · 관리자 화면, 자동/수동 검사 전환, 신고 자동 재검사 · 누적 신고 관리, 검사 워커 개발 · 운영 배포 설정, 직관 루트 가이드 이전/다음 버튼, 회원가입 응원팀 선택 |
 
 ---
 
@@ -166,11 +163,11 @@ SKN34 4차 프로젝트 · 5팀 [야구는 질병이야]
   <tr><th>구분</th><th>기술</th></tr>
   <tr><td align="center"><b>Frontend</b></td><td><img src="https://img.shields.io/badge/Next.js-16.3-000000?logo=nextdotjs&logoColor=white"/> <img src="https://img.shields.io/badge/React-19.2-61DAFB?logo=react&logoColor=white"/> <img src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white"/> <img src="https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white"/> <img src="https://img.shields.io/badge/Kakao_Map-JS_SDK-FFCD00?logo=kakao&logoColor=black"/> <img src="https://img.shields.io/badge/PWA-5A0FC8?logo=pwa&logoColor=white"/></td></tr>
   <tr><td align="center"><b>Backend</b></td><td><img src="https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white"/> <img src="https://img.shields.io/badge/Django-6.1-092E20?logo=django&logoColor=white"/> <img src="https://img.shields.io/badge/DRF-3.18-A30000?logo=django&logoColor=white"/> <img src="https://img.shields.io/badge/SimpleJWT-000000?logo=jsonwebtokens&logoColor=white"/> <img src="https://img.shields.io/badge/drf--spectacular-85EA2D?logo=swagger&logoColor=black"/> <img src="https://img.shields.io/badge/gunicorn-499848?logo=gunicorn&logoColor=white"/></td></tr>
-  <tr><td align="center"><b>LLM · Agent</b></td><td><img src="https://img.shields.io/badge/LangGraph-1.2-1C3C3C?logo=langchain&logoColor=white"/> <img src="https://img.shields.io/badge/LangChain-1.x-1C3C3C?logo=langchain&logoColor=white"/> <img src="https://img.shields.io/badge/OpenAI-gpt--6--luna-412991"/> <img src="https://img.shields.io/badge/OpenRouter-JEV_가드·분류-6467F2"/> <img src="https://img.shields.io/badge/Gemini-하이라이트_장면_분석-8E75B2"/> <img src="https://img.shields.io/badge/MCP-JEV_브라우저-555555"/> <img src="https://img.shields.io/badge/LangSmith-1C3C3C?logo=langchain&logoColor=white"/></td></tr>
+  <tr><td align="center"><b>LLM · Agent</b></td><td><img src="https://img.shields.io/badge/LangGraph-1.2-1C3C3C?logo=langchain&logoColor=white"/> <img src="https://img.shields.io/badge/LangChain-1.x-1C3C3C?logo=langchain&logoColor=white"/> <img src="https://img.shields.io/badge/OpenAI-gpt--6--luna-412991"/> <img src="https://img.shields.io/badge/OpenRouter-JEV_가드·분류-6467F2"/> <img src="https://img.shields.io/badge/Gemini-장면_분석·영상_검증-8E75B2"/> <img src="https://img.shields.io/badge/MCP-JEV_브라우저-555555"/> <img src="https://img.shields.io/badge/LangSmith-1C3C3C?logo=langchain&logoColor=white"/></td></tr>
   <tr><td align="center"><b>RAG · Search</b></td><td><img src="https://img.shields.io/badge/Qdrant-DC244C"/> <img src="https://img.shields.io/badge/BM25-sparse-555555"/> <img src="https://img.shields.io/badge/RRF-k%3D60-555555"/> <img src="https://img.shields.io/badge/Voyage-rerank--2.5-111111"/> <img src="https://img.shields.io/badge/Embedding-text--embedding--3--small-412991"/></td></tr>
   <tr><td align="center"><b>Evaluation</b></td><td><img src="https://img.shields.io/badge/chat__eval-실대화_59문항-2E7D32"/> <img src="https://img.shields.io/badge/DeepEval-5A2D82"/> <img src="https://img.shields.io/badge/Ragas-F2A900"/> <img src="https://img.shields.io/badge/eval__retrieval-Hit@k·MRR-555555"/></td></tr>
   <tr><td align="center"><b>Database</b></td><td><img src="https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white"/> <img src="https://img.shields.io/badge/sqlglot-SQL_검증-5A5A5A"/> <img src="https://img.shields.io/badge/MinIO-C72E49?logo=minio&logoColor=white"/></td></tr>
-  <tr><td align="center"><b>Infra</b></td><td><img src="https://img.shields.io/badge/Docker_Compose-2496ED?logo=docker&logoColor=white"/> <img src="https://img.shields.io/badge/Nginx-009639?logo=nginx&logoColor=white"/> <img src="https://img.shields.io/badge/AWS_EC2-개발·운영-FF9900"/> <img src="https://img.shields.io/badge/GitHub_Actions-2088FF?logo=githubactions&logoColor=white"/> <img src="https://img.shields.io/badge/Discord-알림-5865F2?logo=discord&logoColor=white"/></td></tr>
+  <tr><td align="center"><b>Infra</b></td><td><img src="https://img.shields.io/badge/Docker_Compose-2496ED?logo=docker&logoColor=white"/> <img src="https://img.shields.io/badge/Nginx-009639?logo=nginx&logoColor=white"/> <img src="https://img.shields.io/badge/AWS_EC2-개발·운영-FF9900"/> <img src="https://img.shields.io/badge/GitHub_Actions-2088FF?logo=githubactions&logoColor=white"/> <img src="https://img.shields.io/badge/Discord-알림-5865F2?logo=discord&logoColor=white"/> <img src="https://img.shields.io/badge/DVC-벡터_백업-945DD6"/></td></tr>
   <tr><td align="center"><b>External API</b></td><td><img src="https://img.shields.io/badge/TVING-FF153C"/> <img src="https://img.shields.io/badge/Kakao_Local-FFCD00?logo=kakao&logoColor=black"/> <img src="https://img.shields.io/badge/YouTube_Data_API-FF0000?logo=youtube&logoColor=white"/> <img src="https://img.shields.io/badge/OpenAI_Moderation-412991"/> <img src="https://img.shields.io/badge/TourAPI-0054A6"/> <img src="https://img.shields.io/badge/기상청-API-0072BC"/></td></tr>
   <tr><td align="center"><b>협업</b></td><td><img src="https://img.shields.io/badge/Git-F03C2E?logo=git&logoColor=white"/> <img src="https://img.shields.io/badge/GitHub-Fork_%26_PR-181717?logo=github&logoColor=white"/> <img src="https://img.shields.io/badge/Notion-000000?logo=notion&logoColor=white"/> <img src="https://img.shields.io/badge/Discord-5865F2?logo=discord&logoColor=white"/> <img src="https://img.shields.io/badge/OpenAPI-6BA539?logo=openapiinitiative&logoColor=white"/></td></tr>
 </table>
@@ -179,22 +176,22 @@ SKN34 4차 프로젝트 · 5팀 [야구는 질병이야]
 
 ## 4. WBS
 
-**2026.09.21 ~ 2026.10.15** (약 3.5주) <!-- [팀원 확인] 시작일 -->
+**2026.09.21 ~ 2026.10.15** (약 3.5주)
 
 | 기간 | 단계 | 주요 작업 |
 | --- | --- | --- |
 | 09.21 ~ 09.23 | 분석 · 계획 | 3차 피드백 분석, 우선순위(P0 ~ P3), 3차 기준선 측정, API 버저닝(`/api/v1` · `/api/v2`) |
 | 09.24 ~ 10.03 | LLM 구조 재설계 | LangGraph v2, JEV 가드 + capability 분류, 하위 에이전트, 규정집 398청크, 크롤링 v3 · 일정 · 순위 DB 분리, 크레딧 → 후불 정산, 모델 통일 |
 | 10.06 ~ 10.09 | 검색 · 신규 기능 | pgvector → Qdrant 이전, 하이라이트 영상, 경기 기준 코스 추천, 환상게임 + 포인트 |
-| 10.10 ~ 10.13 | 평가 · QA 사이클 | 하이브리드 검색 + 리랭크, 단계별 평가셋, chat_eval, 평가 CI, QA 수정 PR 7건(#84 ~ #90 · #95), 게시 검사, 코스 안정화 · 메뉴 · 후기, v1 → v2 이전 |
-| 10.14 | 마무리 · 배포 검증 | 회원 등급제, PWA, 개발 서버 색인 · 실측, 산출물 · 발표 |
-| 10.15 | 발표 · 시연 | |
+| 10.10 ~ 10.13 | 평가 · QA 사이클 | 하이브리드 검색 + 리랭크, 단계별 평가셋, chat_eval, 평가 CI, QA 수정 7건, 게시 검사, 코스 안정화 · 메뉴 · 후기, v1 → v2 이전 |
+| 10.14 | 마무리 · 배포 검증 | 회원 등급제, PWA, 코스 구장 안 매장 · 근거 등급 수정, 신고 자동 재검사, 커뮤니티 선공개 · 사후 검사, 개발 서버 실측, 산출물 · 발표 준비 |
+| 10.15 | 발표 · 시연 | 하이라이트 멀티모달 검증, 벡터 DVC 백업 · 자동 복원 반영 후 발표 |
 
 ---
 
 ## 5. 요구사항 명세서
 
-> 📄 요구사항 정의서: [`docs/deliverables/`](./docs/deliverables/) <!-- [팀원 확인] 4차 요구사항 정의서 · 화면설계서 파일명으로 링크 교체 -->
+> 📄 요구사항 정의서 (기능 59건 · 비기능 17건 전체): [`docs/deliverables/05_요구사항정의서.md`](./docs/deliverables/05_요구사항정의서.md) · [엑셀](./docs/deliverables/05_요구사항정의서.xlsx)
 > 3차 요구사항(FR-01 ~ FR-20 · NFR-01 ~ NFR-10)은 유지하고, 4차에서 추가 · 변경한 항목만 적었습니다. 상태: ✅ 구현 · 🟡 일부
 
 ### 5.1 기능 요구사항 (4차 추가 · 변경)
@@ -205,12 +202,12 @@ SKN34 4차 프로젝트 · 5팀 [야구는 질병이야]
 | FR-22 | 챗봇 | 질문 유형에 맞는 도구만 사용 | capability 분류 → 동적 도구 할당, 전문 하위 에이전트 위임 | ✅ |
 | FR-23 | 챗봇 | 의도가 모호하면 되묻기 | 도구 0개로 텍스트 되묻기, 직관 계획 구조화 질문(`present_planning_questions`) | ✅ |
 | FR-24 | 챗봇 | 공식 야구규칙 · KBO 리그 규정 질의 | 398청크 하이브리드 검색 + 리랭크 | ✅ |
-| FR-25 | 챗봇 | 하이라이트 장면 검색 · 재생 | "김도영 홈런 영상" → 영상 카드, 장면 시각부터 재생 (공식 임베드만) | ✅ |
+| FR-25 | 챗봇 | 하이라이트 장면 검색 · 재생 | "김도영 홈런 영상" → 영상 카드, 장면 시각부터 재생 (공식 임베드만), 이미지로도 질문 가능, 후보 영상을 Gemini가 실제 영상으로 검증 | ✅ |
 | FR-26 | 챗봇 | 숙소 · 웹 정보 조사 | JEV 브라우저(MCP)로 원문 수집, 웹 검증 기본 off | ✅ |
 | FR-27 | 챗봇 | 비회원 체험 · 사용량 관리 | 비회원 50만 토큰, 회원 월 한도, 실사용 후불 정산, 동시 요청 409 | ✅ |
 | FR-28 | 챗봇 | 답변 피드백 | 좋아요 / 아쉬워요 + 사유, 관리자 피드백 화면 | ✅ |
 | FR-29 | 코스 | 경기 기준 개인화 코스 | 경기 시각 · 동행 조건, 구장 안/밖 구분, 메뉴 동의어 · 후기 근거, 외부 술집 평점 게이트 | ✅ |
-| FR-30 | 커뮤니티 | 게시 전 자동 검사 + 관리자 확정 | OpenAI 자동 검사 / 수동 선택, 이미지 글은 운영진 확인, 삭제 없이 공개 여부만 변경 | ✅ |
+| FR-30 | 커뮤니티 | 작성 즉시 공개 + 사후 자동 검사 + 관리자 확정 | 글 · 댓글은 바로 공개, 워커가 OpenAI로 사후 검사해 유해 판정이면 비공개, 신고 접수 시 즉시 재검사, 이미지 글은 운영진 확인, 회원별 누적 신고 · 신고 우선 정렬, 관리자 숨김 해제 · 공개 복구, 삭제 없이 공개 여부만 변경 | ✅ |
 | FR-31 | 회원 | 포인트 · 등급 | 포인트 원장, 5단계 등급(1,000 / 2,500 / 5,000 / 7,500), 가입 보상 100P(등급 점수 제외) | ✅ |
 | FR-32 | 회원 | 응원팀 | 회원가입 시 응원팀 선택(`team_code`) | ✅ |
 | FR-33 | 재방문 | 환상게임 | 주간 타자 1 · 투수 1 선택 → 기록 × 배율 점수 → 포인트 정산 | ✅ |
@@ -233,10 +230,10 @@ SKN34 4차 프로젝트 · 5팀 [야구는 질병이야]
 
 ## 6. 시스템 아키텍처
 
-> 📄 시스템 구성도: [`docs/deliverables/02_시스템아키텍처.md`](./docs/deliverables/02_시스템아키텍처.md) <!-- [팀원 확인] 4차 구성도 이미지로 교체 -->
+> 📄 시스템 구성도: [인터랙티브 HTML](./docs/architecture/system_architecture_4th.html) (내려받아 브라우저로 열면 질문 처리 · 벡터 복원 · 백그라운드 작업 단계별 보기) · 원본: [`system_architecture_4th.archify.json`](./docs/architecture/system_architecture_4th.archify.json)
 
-<!-- [캡처 필요] 4차 시스템 구성도 이미지 (Qdrant · 하위 에이전트 · 워커 · 개발/운영 EC2 포함) -->
-<p align="center"><img src="./docs/images/system_architecture_4th.png" width="100%" alt="4차 시스템 아키텍처"/></p>
+<p align="center"><a href="./docs/images/system_architecture_4th.png"><img src="./docs/images/system_architecture_4th.png" width="100%" alt="4차 시스템 아키텍처"/></a></p>
+<p align="center"><sub>🔍 그림을 누르면 크게 볼 수 있어요 · <a href="https://github.com/tt-a1i/archify">archify</a>로 레포 코드(compose · 배포 workflow · llm/v2) 기준 작성</sub></p>
 
 | 계층 | 구성 | 역할 |
 | --- | --- | --- |
@@ -267,7 +264,6 @@ SKN34 4차 프로젝트 · 5팀 [야구는 질병이야]
 
 ### 7.1 전체 흐름
 
-<!-- [캡처 필요] 4차 채팅 파이프라인 그림 -->
 
 ```
 질문
@@ -298,12 +294,13 @@ SKN34 4차 프로젝트 · 5팀 [야구는 질병이야]
 | `ask_place_data` | 구장 주변 식당 · 카페 · 메뉴 · 후기 | 장소 RAG(`search_place_knowledge`), 메뉴 동의어 |
 | `ask_travel_research` | 숙소 · 관광 | JEV 브라우저 원문, TourAPI |
 | `ask_web_research` | 내부 데이터에 없는 최신 정보 · 링크 요약 | JEV 브라우저 (기본 off, 허용 범위 제한) |
-| `ask_highlight` | 하이라이트 장면 | 조건 검색(선수 · 이닝 · 결과) + 묘사 검색("슈퍼캐치") → 서버가 영상 카드 생성 |
+| `ask_highlight` | 하이라이트 장면 | 조건 검색(선수 · 이닝 · 결과) + 묘사 검색("슈퍼캐치") → 서버가 영상 카드 생성. 멀티모달 모드에서는 이미지 질문을 받고, 후보 영상 3개를 Gemini(gemini-3.8-flash)가 실제 영상 · 음성으로 검증한 뒤 카드 생성(검색 임베딩 gemini-embedding-2) |
 
 ### 7.3 안전장치 (3차에서 유지 · 강화)
 
 - **DB 조회**: 읽기 전용 계정, sqlglot으로 SELECT 1문장만 허용, 최대 200행 · 3초 · 락 대기 1초
-- **근거 등급**: OFFICIAL / UNCERTAIN / UNOFFICIAL / THIRD_PARTY별 말투, 확정 안 된 행은 인덱싱 단계에서 본문에도 문구 삽입
+- **근거 등급**: OFFICIAL / UNCERTAIN / UNOFFICIAL / THIRD_PARTY별 말투, 확정 안 된 행은 인덱싱 단계에서 본문에도 문구 삽입. 순위 · 일정(TVING) · 주차 안내도 결과에도 등급과 출처 링크를 넣어 모델이 등급을 추측하지 않게 하고, 섞이면 가장 약한 등급 하나만 표시
+- **조회 실패 시**: 일반 상식으로 허용 · 금지 · 수치를 단정하지 않고, 불러오지 못한 사실 + 확인처(구단 공식 홈페이지 등)를 안내. 일부만 실패하면 성공한 결과로 답하고 실패 항목만 밝힘
 - **내부 용어 숨김**: SQL · 테이블명 · 도구 이름은 답변에 쓰지 않음, 진행 기록 상세는 관리자만
 - **사용량**: 요청 단위 실사용 토큰 정산, 같은 사용자 동시 요청은 409
 
@@ -320,7 +317,7 @@ SKN34 4차 프로젝트 · 5팀 [야구는 질병이야]
 | 질문할 때 전체 문서를 다시 인덱싱하는가? | 아니오 | 인덱싱은 관리 명령(`build_index` · `build_sparse_index` · `index_highlights`), 요청 때는 검색 + 생성만 |
 | 일부 변경 때문에 전체를 재인덱싱하는가? | **3차는 예** (delete → bulk_create 전체 교체) | **증분 인덱싱** — `doc_id` + `content_hash`로 바뀐 행만 upsert (크롤링 v3) |
 | 문서 처리 시간이 너무 긴가? | 사용자 문서 업로드 기능은 없음. 다만 게시 검사 · 하이라이트 분석 · 숙소 수집은 수 초 ~ 수 분 | **비동기 처리** — Celery 대신 DB 대기열 + 전용 워커(임대 · 재시도 횟수 제한), 숙소 · 장소 예열 워커, EC2 cron 수집. 사용자에게는 먼저 응답 |
-| 처리 상태를 관리하는가? | 게시 글이 검사 중인지 알 수 없으면 혼란 | **상태 관리** — 게시 검사 `검사 대기 → 승인 / 운영진 검토 → 보류 확정`, 하이라이트 영상 `ANALYZED` 상태, 회원 화면 "내 게시 검사 상태" |
+| 처리 상태를 관리하는가? | 글이 검사 중인지 · 왜 숨겨졌는지 알 수 없으면 혼란 | **상태 관리** — 게시 글 `공개 → 사후 검사 → (유해 시) 비공개 · 운영진 검토 → 해제 / 보류 확정`, 회원 화면 "내 게시 검사 상태", 하이라이트 영상 `ANALYZED` 상태 |
 | 동일 질문이 자주 반복되는가? | 순위 · 일정 · 날씨처럼 **실시간 값이 대부분** | Answer Cache는 **적용하지 않음** — 캐시하면 오래된 순위를 답할 위험이 더 큼. 대신 DB 직접 조회로 정확도 우선 ([17장](#17-향후-개선-계획)에 코퍼스 버전 키 캐시 계획) |
 | 검색 범위를 줄일 필요가 있는가? | 구장 · 카테고리가 명확 | **Metadata Filter** (구장 코드 · 카테고리 · 근거 등급) |
 | 사용자마다 볼 수 있는 문서가 다른가? | 공개 데이터라 해당 없음 | 권한은 기능 단위로 — 진행 기록 상세 · 게시 검사 화면은 관리자만, 비회원 / 회원 사용량 분리 |
@@ -361,9 +358,9 @@ SKN34 4차 프로젝트 · 5팀 [야구는 질병이야]
 
 | 기능 | 내용 |
 | --- | --- |
-| 🎬 **하이라이트 영상** | KBO 공식 YouTube 재생목록 → Gemini로 장면표(시각 · 이닝 · 타자 · 결과 · 타점 · 설명) 생성 → Qdrant 색인. "김도영 최근 홈런" → 영상 카드, 해당 장면부터 재생. 가을야구(와일드카드 ~ 한국시리즈) 제목 인식. 다운로드 없이 공식 임베드만 |
+| 🎬 **하이라이트 영상** | KBO 공식 YouTube 재생목록 → Gemini로 장면표(시각 · 이닝 · 타자 · 결과 · 타점 · 설명) 생성 → Qdrant 색인. "김도영 최근 홈런" → 영상 카드, 해당 장면부터 재생. 가을야구(와일드카드 ~ 한국시리즈) 제목 인식. 다운로드 없이 공식 임베드만. 후반에는 **멀티모달 검증**을 더해 이미지로도 질문할 수 있고, 후보 영상 3개를 Gemini가 실제 영상 · 음성으로 확인한 뒤 카드를 만듦 |
 | 🗺️ **개인화 코스** | 경기 시각 기준 도착 시간 조정, 구장 안/밖 방문 구분(`visit_roles`), 메뉴 동의어(돈카츠/돈가스), 공개 페이지 메뉴 · 후기 인용 대조, 외부 술집 평점 게이트 |
-| 🛡️ **커뮤니티 게시 검사** | 글 · 댓글을 공개 전에 검사 → 문제없으면 수 초 안에 공개, 유해 판정이면 비공개 + 운영진 확인. 관리자가 자동(OpenAI omni-moderation) / 수동 선택, 이미지 글은 항상 운영진 확인, 삭제 없이 공개 여부만 변경 |
+| 🛡️ **커뮤니티 게시 검사** | 글 · 댓글은 **작성 즉시 공개**되고, 검사 워커가 뒤에서 OpenAI(omni-moderation)로 검사해 유해 판정이면 비공개 + 운영진 확인. 신고가 들어오면 즉시 재검사(기존 검토 사유 · 이력 보존), 관리자 화면에서 신고 게시글 · 누적 신고 회원 우선 조회, 숨김 해제 · 공개 복구. 이미지 글은 항상 운영진 확인, 삭제 없이 공개 여부만 변경 |
 | 🏅 **포인트 · 등급제** | 포인트 원장(멱등 지급), 5단계 등급(1,000 / 2,500 / 5,000 / 7,500점), 가입 보상 100P는 잔액에만, 게시판 작성자 등급 표시 |
 | ⚾ **환상게임** | 매주 다음 주 타자 1 · 투수 1 선택 → 월요일 배율(1 ~ 9) 확정 → 관리자 기록 입력 → 결산 시 점수 × 지급률로 포인트. 결산 전 기록 · 선택 검증, 취소 시 포인트 · 등급 점수 회수 |
 | 💬 **답변 피드백** | 좋아요 / 아쉬워요 + 사유, 관리자 피드백 화면 |
@@ -375,10 +372,7 @@ SKN34 4차 프로젝트 · 5팀 [야구는 질병이야]
 
 ## 10. 화면 설계 · UX Flow
 
-> 📄 화면설계서: [`docs/deliverables/`](./docs/deliverables/) <!-- [팀원 확인] 화면설계서 파일 링크 -->
 
-<!-- [캡처 필요] 4차 화면 흐름도 (와이어프레임 또는 화면 흐름 이미지) -->
-<p align="center"><img src="./docs/images/ux_flow_4th.png" width="95%" alt="4차 화면 흐름"/></p>
 
 ```
 메인(/) ─┬─ 챗봇(/chat) ── 코스 답변 → 지도 카드 → 코스 저장(/routes/new)
@@ -386,28 +380,27 @@ SKN34 4차 프로젝트 · 5팀 [야구는 질병이야]
          ├─ 직관 코스(/routes · /routes/[id] · /routes/new)
          ├─ 일정 · 순위(/schedule · /standings · 팀 · 선수 상세)
          ├─ 구장(/stadiums · /stadiums/[code]) · 야구 가이드(/guide)
-         ├─ 커뮤니티(/community · /community/write → 게시 검사 상태 /community/submissions)
+         ├─ 커뮤니티(/community · /community/write → 작성 후 글 상세로 이동, 내 검사 상태 /community/submissions)
          │            └─ 승부 예측(/community/predictions)
          ├─ 환상게임(/fantasy)
          └─ 마이페이지(/mypage: 등급 · 포인트 · 응원팀 · 내 글 · 내 코스)
 관리자(/admin) ─ 게시 검사 · 신고 · 야구 데이터(/admin/baseball) · 답변 피드백(/admin/feedback) · 환상게임 기록(/fantasy/admin)
 ```
 
-| 화면 | 4차 변경 | 캡처 |
-| --- | --- | --- |
-| 챗봇 (`/chat`) | 비회원 체험, 하위 에이전트 진행 표시, 영상 카드, 답변 피드백, 되묻기 질문 UI | [캡처 필요] |
-| 직관 코스 (`/routes/new`) | 경기 기준 코스, 구장 안/밖 구분, 메뉴 · 후기 근거 | [캡처 필요] |
-| 하이라이트 (`/highlights`) | 장면 시각부터 재생 | [캡처 필요] |
-| 커뮤니티 (`/community/write` → `/community/submissions`) | 게시 검사 상태, 작성자 등급 표시 | [캡처 필요] |
-| 환상게임 (`/fantasy`) | 주간 타자 · 투수 선택, 결과 · 포인트 | [캡처 필요] |
-| 마이페이지 (`/mypage`) | 등급 · 포인트 · 응원팀 | [캡처 필요] |
-| 관리자 (`/admin`) | 게시 검사 탭(자동 / 수동, 해제 · 확정), 답변 피드백 | [캡처 필요] |
+| 화면 | 4차 변경 |
+| --- | --- |
+| 챗봇 (`/chat`) | 비회원 체험, 하위 에이전트 진행 표시, 영상 카드, 답변 피드백, 되묻기 질문 UI |
+| 직관 코스 (`/routes/new`) | 경기 기준 코스, 구장 안/밖 구분, 메뉴 · 후기 근거, 루트 가이드 이전/다음 버튼 · 단계 배너 |
+| 하이라이트 (`/highlights`) | 장면 시각부터 재생, 챗봇에서 이미지 첨부 질문 |
+| 커뮤니티 (`/community/write` → 글 상세) | 작성 즉시 공개 · 사후 검사, 작성자 등급 표시, 내 게시 검사 상태 |
+| 환상게임 (`/fantasy`) | 주간 타자 · 투수 선택, 결과 · 포인트 |
+| 마이페이지 (`/mypage`) | 등급 · 포인트 · 응원팀 |
+| 관리자 (`/admin`) | 게시 검사 탭(자동 / 수동, 해제 · 확정), 신고 게시글 · 누적 신고 회원 우선 조회, 숨김 해제 · 공개 복구, 답변 피드백 |
 
 ---
 
 ## 11. ERD
 
-<!-- [캡처 필요] 4차 ERD 이미지 (3차 erd.svg는 신규 테이블 없음) -->
 <p align="center"><img src="./docs/images/erd.svg" width="90%" alt="데이터베이스 ERD"/></p>
 
 | 앱 | 주요 모델 | 4차 변경 |
@@ -426,12 +419,13 @@ SKN34 4차 프로젝트 · 5팀 [야구는 질병이야]
 
 | 분류 | 명령 / 스크립트 | 하는 일 | 실행 |
 | --- | --- | --- | --- |
-| 색인 | `build_index` | 문서 → 청크 → 임베딩 → Qdrant (doc_id + content_hash) | 최초 · 데이터 변경 시 |
+| 색인 | `vector-init` (`docker-compose.override.yml`) | 인증 기반 DVC(Google Drive)로 Qdrant 문서 스냅샷 · 하이라이트 코퍼스를 받아 복원, 끝나면 backend 기동 | 컨테이너 시작 시 자동 (DVC 인증 파일 필요) |
+| 색인 | `build_index` | 문서 → 청크 → 임베딩 → Qdrant (doc_id + content_hash) | 스냅샷 없이 처음부터 만들 때 · 데이터 변경 시 |
 | 색인 | `build_sparse_index` | BM25 sparse 색인 | `build_index` 후 |
 | 색인 | `build_place_rag` | 구장 주변 장소 RAG | 장소 데이터 변경 시 |
 | 수집 | `crawling/run_crawlers.sh` | TVING 일정 · 순위 · 선수 → DB upsert, 티켓 정책 → 벡터 증분 | EC2 cron |
 | 하이라이트 | `collect_highlights` → `index_highlights` | YouTube 목록 → Gemini 장면 분석(예산 상한) → Qdrant | `crawling/run_highlights.sh` cron |
-| 커뮤니티 | `run_moderation_worker` | 대기 글 게시 검사 (몇 초 간격, 임대 · 재시도) | 워커 컨테이너 상시 |
+| 커뮤니티 | `run_moderation_worker` | 공개된 글 · 댓글 사후 검사, 신고 글 재검사 (몇 초 간격, 임대 · 재시도) | 워커 컨테이너 상시 (개발 · 운영 배포 포함) |
 | 환상게임 | `confirm_fantasy_selections` → `finalize_fantasy_week_stats --confirm-loaded` → `settle_fantasy_week` | 배율 확정 → 기록 확정 → 포인트 정산 | 월 / 관리자 / 화 (`fantasy-jobs.sh`) |
 | 캐시 예열 | `warm_lodging_cache` · `warm_course_places` | 숙소 · 코스 장소 미리 수집 | 워커 컨테이너 |
 | 평가 | `chat_eval` · `eval_retrieval` · `evaluate_courses` · `export_ragas` | 실대화 · 검색 · 코스 평가 | 수동 · CI |
@@ -442,7 +436,7 @@ SKN34 4차 프로젝트 · 5팀 [야구는 질병이야]
 
 ## 13. 수행결과 — 테스트 및 시연
 
-> 📄 테스트 계획 및 결과 보고서: [`docs/deliverables/04_테스트계획_결과보고서.md`](./docs/deliverables/04_테스트계획_결과보고서.md) <!-- [팀원 확인] 4차 보고서로 교체 -->
+> 📄 테스트 계획 및 결과 보고서: [`docs/deliverables/07_테스트계획_결과보고서_4차.md`](./docs/deliverables/07_테스트계획_결과보고서_4차.md) (3차 보고서는 [`04_테스트계획_결과보고서.md`](./docs/deliverables/04_테스트계획_결과보고서.md))
 
 ### 13.1 테스트 계획
 
@@ -466,22 +460,25 @@ SKN34 4차 프로젝트 · 5팀 [야구는 질병이야]
 | --- | ---: | --- |
 | base-1 | 55/59 | 평가셋 오류 7건 수정 후 재채점 (원래 50/59) |
 | base-2 | 53/59 | 수정 전 기준선 |
-| wx-full | 56/59 | 날씨 수정(#84)만 반영 |
-| **merge-1** | **58/59** | #84 ~ #90 머지 후 |
+| wx-full | 56/59 | 날씨 수정만 반영 |
+| **merge-1** | **58/59** | 날씨 · 길찾기 · 가드 · 되묻기 · 숙소 수정 머지 후 |
 | **merge-2** | **58/59** | 재측정 — 두 번 모두 실패한 문항 0, 남은 1건은 OpenAI 시간 초과 (제품 실패 0) |
 
 ### 13.3 QA 수정 사이클 (측정 → 원인 → 수정 → 같은 문항 재측정)
 
-| # | 문제 | 원인 | 수정 | 전 → 후 | PR |
-| --- | --- | --- | --- | --- | --- |
-| 1 | 경기 없는 날 날씨를 못 답함 | `game_time` 필수 입력 | 선택 입력 + 기준 시각, 강수 여부 명시 | ❌ → ✅ | #84 |
-| 2 | 잠실역 → 잠실야구장 "2,946초" | 한글 구장명 미변환, 좌표 키 불일치, 초 단위 | 구장명 변환 · 좌표 정규화 · 분 · km 표기 | "도보 약 49분, 3.1km", 44.7s → 22.5s | #87 |
-| 3 | 유모차 · 수유실 질문 거절 | 가드 기준에 편의시설 없음 | `GUARD_CRITERIA`에 편의시설 PASS 명시 | PASS 3/10 → **10/10** | #89 |
-| 4 | URL + "요약해줘" 거절 | 본문을 보기 전에 글자만으로 판단 | 링크 요약 요청 PASS, 무관 본문은 메인이 안내 | 0/10 → **10/10**, 무관 작업 차단 유지 | #95 |
-| 5 | 모호한 질문에 불필요한 조회 · UI | MAIN_RULES 충돌 | 의도 불명확 시 도구 0개로 되묻기, 공동 홈구장 두 팀 가격 동시 안내 | 0/3 → 2/2 (3.9s) | #88 |
-| 6 | 숙소 응답 58초 | 로컬 Chrome 경로 · 수명주기 | JEV 브라우저(MCP) 통합 | 58s → 23.8 ~ 32.8s | #90 |
-| 7 | 7개 팀 조회 0건 | 팀 코드 약어(OB) ↔ 표준(DOOSAN) 불일치 | 양쪽 형식 허용 | 0건 → 정상 | #36 |
-| 8 | 티켓 정책 ID 불일치 | 두산 · SSG 매핑 오류 | 매핑 수정, metadata 병합 | 105 → 244/244 | #35 |
+| # | 문제 | 원인 | 수정 | 전 → 후 |
+| --- | --- | --- | --- | --- |
+| 1 | 경기 없는 날 날씨를 못 답함 | `game_time` 필수 입력 | 선택 입력 + 기준 시각, 강수 여부 명시 | ❌ → ✅ |
+| 2 | 잠실역 → 잠실야구장 "2,946초" | 한글 구장명 미변환, 좌표 키 불일치, 초 단위 | 구장명 변환 · 좌표 정규화 · 분 · km 표기 | "도보 약 49분, 3.1km", 44.7s → 22.5s |
+| 3 | 유모차 · 수유실 질문 거절 | 가드 기준에 편의시설 없음 | `GUARD_CRITERIA`에 편의시설 PASS 명시 | PASS 3/10 → **10/10** |
+| 4 | URL + "요약해줘" 거절 | 본문을 보기 전에 글자만으로 판단 | 링크 요약 요청 PASS, 무관 본문은 메인이 안내 | 0/10 → **10/10**, 무관 작업 차단 유지 |
+| 5 | 모호한 질문에 불필요한 조회 · UI | MAIN_RULES 충돌 | 의도 불명확 시 도구 0개로 되묻기, 공동 홈구장 두 팀 가격 동시 안내 | 0/3 → 2/2 (3.9s) |
+| 6 | 숙소 응답 58초 | 로컬 Chrome 경로 · 수명주기 | JEV 브라우저(MCP) 통합 | 58s → 23.8 ~ 32.8s |
+| 7 | 7개 팀 조회 0건 | 팀 코드 약어(OB) ↔ 표준(DOOSAN) 불일치 | 양쪽 형식 허용 | 0건 → 정상 |
+| 8 | 티켓 정책 ID 불일치 | 두산 · SSG 매핑 오류 | 매핑 수정, metadata 병합 | 105 → 244/244 |
+| 9 | 코스가 구장 안 매장을 입장 전 첫 방문지로 배치, 출발지 거리 "0.0km" | 순서 결정에 "구장 안 매장은 입장 후" 제약 없음 | 구장 안 매장을 외부 방문지 뒤 · 경기 직전으로 이동(나갔다 오는 요청은 유지), 거리 안내는 첫 외부 방문지 기준 | 구장 안 매장 → 카페 순서가 카페 → 18:00 구장 안 매장으로 |
+| 10 | 순위에 비공식 문구, 주차에 엉뚱한 등급 문구, 조회 실패 시 포기하거나 단정 | 도구 결과에 등급 · 출처가 없어 모델이 추측, 실패 후 행동 규칙 없음 | 순위 · 일정 · 주차 결과에 등급 · 출처 링크, 조회 실패 답변 규칙 추가 | 테스트 4건 추가 |
+| 11 | 운영 서버 하이라이트 수집 실패 | 운영 compose가 `YOUTUBE_API_KEY`를 frontend에만 전달 | backend · 숙소 예열 워커에도 전달 | 수집 가능 |
 
 ### 13.4 테스트 시나리오 (Test Case) — 개발 서버 실측 (2026-10-14)
 
@@ -495,12 +492,12 @@ SKN34 4차 프로젝트 · 5팀 [야구는 질병이야]
 | TC-06 | 구장 먹거리 | 잠실 3루 보영만두 어디야? | 구역 · 층 | ✅ 3루 2층 |
 | TC-07 | 순위 (DB) | 현재 KBO 팀 순위 | DB 도구로 1 ~ 10위 | ✅ |
 | TC-08 | 범위 밖 | 김밥 레시피 알려줘 | 가드 차단 | ✅ |
-| TC-09 | 편의시설 (가드 개선) | 유모차 끌고 가도 돼? | 차단하지 않고 안내 | ✅ (#89) |
-| TC-10 | 링크 요약 | (URL) 요약해줘 | 차단하지 않고 요약 | ✅ (#95) |
-| TC-11 | 길찾기 | 잠실역에서 잠실야구장 가는 길 | 분 · km 표기 | ✅ 도보 약 49분, 3.1km (#87) |
-| TC-12 | 코스 추천 | 잠실 경기 전후 코스 짜줘 | 식사 → 구장 → 경기 후, 지도 표시 | 🟡 코스 생성 O, 구장 안 매장을 입장 전 식사로 배치하는 경우 있음 (향후 과제) |
+| TC-09 | 편의시설 (가드 개선) | 유모차 끌고 가도 돼? | 차단하지 않고 안내 | ✅ |
+| TC-10 | 링크 요약 | (URL) 요약해줘 | 차단하지 않고 요약 | ✅ |
+| TC-11 | 길찾기 | 잠실역에서 잠실야구장 가는 길 | 분 · km 표기 | ✅ 도보 약 49분, 3.1km |
+| TC-12 | 코스 추천 | 잠실 경기 전후 코스 짜줘 | 식사 → 구장 → 경기 후, 지도 표시 | 🟡 코스 생성 O. 구장 안 매장 배치 문제는 수정 완료, 개발 서버 재측정 예정 |
 | TC-13 | 하이라이트 | 김도영 최근 홈런 영상 | 영상 카드 | 🟡 로컬 ✅, 개발 서버는 장면 수집 전이라 0건 → 수집 후 재확인 |
-| TC-14 | 게시 검사 | 평범한 글 / 유해 글 작성 | 즉시 공개 / 비공개 + 관리자 사유 | ✅ |
+| TC-14 | 게시 검사 | 평범한 글 / 유해 글 작성 | 즉시 공개 / 사후 검사 후 비공개 + 관리자 사유 | ✅ |
 
 ### 13.5 단위 · 통합 테스트
 
@@ -514,18 +511,14 @@ cd ../frontend && node --test                             # 69건 통과
 
 ### 13.6 시연 화면
 
-<!-- [캡처 필요] 아래 GIF · 캡처를 docs/images/demo4th/ 에 넣고 경로 확인 -->
+기본 흐름(챗봇 Q&A · 코스 추천 · 커뮤니티 · 루트 가이드)은 3차와 같아 3차 시연 화면을 함께 둡니다. 4차 신규 기능(하이라이트 · 게시 검사 · 등급 · 환상게임)은 발표 시연으로 보여드립니다.
 
 | 기능 | 시연 |
 | --- | --- |
-| 챗봇 — 순위(DB) · 규정 검색 · 범위 밖 거절 | <img src="./docs/images/demo4th/chat.gif" width="600" alt="챗봇 시연"/> |
-| 하이라이트 영상 카드 | <img src="./docs/images/demo4th/highlight.gif" width="600" alt="하이라이트 시연"/> |
-| 개인화 코스 → 지도 | <img src="./docs/images/demo4th/course.gif" width="600" alt="코스 시연"/> |
-| 게시 검사 → 관리자 확정 | <img src="./docs/images/demo4th/moderation.gif" width="600" alt="게시 검사 시연"/> |
-| 마이페이지 등급 · 포인트 · 응원팀 | <img src="./docs/images/demo4th/mypage.png" width="600" alt="마이페이지"/> |
-| 환상게임 | <img src="./docs/images/demo4th/fantasy.png" width="600" alt="환상게임"/> |
-| PWA 설치 | <img src="./docs/images/demo4th/pwa.png" width="600" alt="PWA"/> |
-
+| 챗봇 Q&A (주차 · 반입) | <img src="./docs/images/demo/demo1.gif" width="600" alt="챗봇 Q&A 시연"/> |
+| 코스 추천 → 지도 자동 표시 | <img src="./docs/images/demo/demo2.gif" width="600" alt="코스 추천 시연"/> |
+| 커뮤니티 · 코스 공유 | <img src="./docs/images/demo/demo3.gif" width="600" alt="커뮤니티 코스 공유 시연"/> |
+| 루트 만들기 가이드 | <img src="./docs/images/demo/demo4.gif" width="600" alt="루트 만들기 가이드 시연"/> |
 ---
 
 ## 14. 트러블 슈팅
@@ -536,7 +529,7 @@ cd ../frontend && node --test                             # 69건 통과
 - **문제**: 회원이 첫 질문을 보내자마자 사용량 초과로 차단됨
 - **원인**: 새 모델(gpt-6-luna)이 tiktoken 목록에 없어 한글 바이트 수로 토큰을 추정 → 한 턴 예약량(2만)을 넘김. "미리 예약하고 차감"하는 방식 자체가 추정 오류에 약했음
 - **해결**: 턴 예약을 없애고 **응답이 끝난 뒤 실사용 토큰으로 후불 정산**, 같은 사용자의 동시 요청은 409로 거절
-- **결과**: 차단 → 정상, 사용량은 실제 소비 기준으로 기록 (#51)
+- **결과**: 차단 → 정상, 사용량은 실제 소비 기준으로 기록
 
 </details>
 
@@ -546,7 +539,7 @@ cd ../frontend && node --test                             # 69건 통과
 - **문제**: 조항 번호 · 용어 검색을 위해 BM25를 붙이고 RRF로 합쳤는데 규정 Hit@1이 0.710 → **0.613**으로 하락
 - **원인**: BM25는 "제5.09조" 같은 단어가 겹치는 문서를 위로 올리지만, 질문 의도와 맞는 조항이 아닌 경우가 많음. RRF는 두 순위를 섞을 뿐 어느 쪽이 맞는지 판단하지 못함
 - **해결**: BM25는 **후보를 넓히는 데만** 쓰고(벡터 50 + BM25 50 → 후보 30), 최종 순서는 **리랭커**(voyage rerank-2.5)가 결정. 리랭커 실패 시 RRF 순서로 대체
-- **결과**: Hit@1 **0.903**, Hit@5 **1.000**, MRR **0.952**, 구장 문서 경로 회귀 없음 (#78)
+- **결과**: Hit@1 **0.903**, Hit@5 **1.000**, MRR **0.952**, 구장 문서 경로 회귀 없음
 
 </details>
 
@@ -556,7 +549,7 @@ cd ../frontend && node --test                             # 69건 통과
 - **문제**: "유모차 끌고 가도 돼?", "(링크) 요약해줘"가 범위 밖으로 차단됨
 - **원인**: 가드 기준에 편의시설이 없었고, 링크 질문은 본문을 보기 전에 글자만으로 판단함
 - **해결**: `GUARD_CRITERIA`에 편의시설 PASS 명시, 링크 요약 요청은 통과시키고 본문이 무관하면 메인 에이전트가 안내
-- **결과**: 같은 질문 10회 반복 측정 PASS 3/10 → **10/10**, 0/10 → **10/10**. 코딩 · 레시피 차단은 그대로 유지 (#89 · #95)
+- **결과**: 같은 질문 10회 반복 측정 PASS 3/10 → **10/10**, 0/10 → **10/10**. 코딩 · 레시피 차단은 그대로 유지
 
 </details>
 
@@ -566,7 +559,7 @@ cd ../frontend && node --test                             # 69건 통과
 - **문제**: "잠실역에서 잠실야구장" 길찾기가 초 단위 숫자를 그대로 말하거나 형식 오류
 - **원인**: 한글 구장명을 좌표로 바꾸지 못함, 도구 간 좌표 키 이름 불일치, 소요 시간이 초 단위
 - **해결**: 구장명 → 좌표 변환, 좌표 키 정규화, 분 · km 단위로 변환해서 반환
-- **결과**: "도보 약 49분, 3.1km", 응답 44.7s → 22.5s (#87)
+- **결과**: "도보 약 49분, 3.1km", 응답 44.7s → 22.5s
 
 </details>
 
@@ -576,7 +569,7 @@ cd ../frontend && node --test                             # 69건 통과
 - **문제**: 로컬에서는 되던 "피치클락 몇 초?"가 개발 · 운영 서버에서 조회 실패, "유리병 반입"은 조회 실패인데 "안 돼요"로 단정
 - **원인**: **Qdrant 색인은 배포가 만들지 않음** — 배포는 `migrate`와 서버 기동만 하고, Qdrant는 서버 도커 볼륨이라 로컬 색인이 따라가지 않음
 - **해결**: 서버에서 `build_index` · `build_sparse_index` 실행 후 재측정. 문서 계열(규정 · 반입)과 DB 계열(순위 · 일정)을 나눠 확인해서 색인 문제인지 전체 장애인지 구분
-- **결과**: 2차 실측 11문항 중 9개 정상. 색인 · 하이라이트 수집을 배포 절차에 넣는 것과 "조회 실패 시 단정 금지" 정책을 향후 과제로 정리
+- **결과**: 2차 실측 11문항 중 9개 정상. 이후 "조회 실패 시 단정 금지"를 답변 규칙으로 추가하고, 기동 때 Qdrant 스냅샷을 자동 복원하는 `vector-init`을 넣어 서버마다 색인을 따로 만들지 않아도 되게 함
 
 </details>
 
@@ -586,11 +579,10 @@ cd ../frontend && node --test                             # 69건 통과
 - **문제**: 코드 변경 없이도 chat_eval 점수가 달라짐 (1012 측정 50/59)
 - **원인**: 평가셋 기대값 오류 7건, "어제 경기 하이라이트"처럼 **상대 날짜 문항**이 실행일마다 정답이 바뀜
 - **해결**: 기대값 정비, 날짜 고정, 각 측정을 2회씩 돌려 두 번 다 실패한 문항만 실제 실패로 판정
-- **결과**: 재채점 55/59, 이후 수정 효과를 같은 기준으로 비교 가능 (#85 · #94)
+- **결과**: 재채점 55/59, 이후 수정 효과를 같은 기준으로 비교 가능
 
 </details>
 
-<!-- [팀원 확인] 성호(가드 · 분류 · 스트리밍) 2건, 인영(구장 안/밖 · 메뉴 · 후기 근거) 2건 추가 -->
 
 ---
 
@@ -600,15 +592,17 @@ cd ../frontend && node --test                             # 69건 통과
 # 1. 환경변수 (docker compose 는 루트 .env 만 읽습니다)
 cp .env.example .env
 #    필수: OPENAI_API_KEY, OPENROUTER_API_KEY, EMBEDDING_MODEL, DB_*, BASEBALL_DB_USER/PASSWORD,
-#          QDRANT_URL, CHAT_CHECKPOINT_SIGNING_KEY, MINIO_ROOT_PASSWORD
+#          QDRANT_URL, QDRANT_API_KEY(없으면 compose가 안 뜸), CHAT_CHECKPOINT_SIGNING_KEY, MINIO_ROOT_PASSWORD
 #    지도 · 장소: NEXT_PUBLIC_KAKAO_MAP_KEY, KAKAO_REST_API_KEY (+ 선택 TOUR_API_KEY, KMA_API_KEY)
-#    하이라이트: YOUTUBE_API_KEY   ·   웹 조사(선택): JEV_MCP_URL, JEV_MCP_TOKEN, WEB_RESEARCH_ENABLED
+#    하이라이트: YOUTUBE_API_KEY, GOOGLE_API_KEY(멀티모달 검증)   ·   웹 조사(선택): JEV_MCP_URL, JEV_MCP_TOKEN, WEB_RESEARCH_ENABLED
 #    사용량: USAGE_GUEST_TOKENS, USAGE_MEMBER_MONTHLY_TOKENS   ·   추적(선택): LANGSMITH_*
+#    벡터 복원: DVC 인증 파일 .dvc/config.local, .secrets/drive-user.json (팀에서 받아 배치, Git 제외)
+#              경로를 바꿀 때만 VECTOR_DVC_CONFIG, VECTOR_DRIVE_USER
 
-# 2. 컨테이너 실행 (로컬 DB 포함)
-docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
+# 2. 컨테이너 실행 (로컬 DB 포함, vector-init이 Qdrant 스냅샷을 복원한 뒤 backend가 뜸)
+docker compose -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.override.yml up -d --build
 
-# 3. 색인 (최초 1회 · 데이터 변경 시)
+# 3. (선택) 스냅샷 없이 색인을 처음부터 만들 때 · 데이터 변경 시
 docker compose exec backend python manage.py build_index
 docker compose exec backend python manage.py build_sparse_index
 docker compose exec backend python manage.py build_place_rag
@@ -676,13 +670,11 @@ SKN34-4th-5Team/
 
 | 지금 남은 문제 | 고도화 방향 |
 | --- | --- |
-| 코스가 구장 안 매장을 입장 전 식사로 배치하는 경우가 있음, "조용한 카페"처럼 데이터 없는 조건은 반영 못 함 | 구장 안/밖 판정을 코스 단계 규칙으로 강제, 분위기 조건은 후기 근거가 있을 때만 쓰고 없으면 안내 |
-| 근거 등급 문구가 가끔 맞지 않음 (순위에 비공식 문구 등) | 도구 결과에 근거 등급을 명시해 모델이 임의로 고르지 않게 |
-| 조회가 실패했는데 단정해서 답하는 경우 | 조회 실패 시 "확인 불가 + 확인처" 고정 정책 |
+| "조용한 카페"처럼 데이터 없는 조건은 반영 못 함, 코스 수정 단계에는 구장 안 매장 순서 보정이 아직 없음 | 분위기 조건은 후기 근거가 있을 때만 쓰고 없으면 안내, 수정 경로에도 구장 안 매장 순서 규칙 적용 |
 | 반복 질문도 매번 LLM 호출 | **응답 캐시** — 코퍼스 버전 키(`rag:v{n}:hash`)로 데이터 갱신 시 자동 무효화. 순위 · 일정은 갱신 주기 안에서만 캐시 |
 | 규정 · 기록 질문이 `ask_baseball` 하나에 몰림 | 전문 에이전트 분리(`ask_rules` · `ask_stats`), 환상게임 라인업 추천(`ask_fantasy`) |
-| 게시 검사가 유해성만 판정, 검사 실패 시 공개(fail-open) | 링크 · 거래 · 정치글 정책 추가, 실패 시 비공개로 전환 검토 |
-| 운영 배포 시 색인 · 하이라이트 · 워커가 따로 움직임 | 색인 · 수집 cron · 게시 검사 워커를 배포 절차에 고정, 운영 `YOUTUBE_API_KEY` 전달 |
+| 게시 검사가 유해성만 판정 (링크 · 거래 · 정치글 미검출), 선공개라 사후 검사 전까지는 유해 글도 잠깐 보임 | 링크 · 거래 · 정치글 정책 추가, 신고가 많은 회원 글은 검사 후 공개 등 단계별 적용 |
+| `vector-init`이 서버마다 DVC 인증 파일(Google Drive)을 요구하고, 받지 못하면 backend가 뜨지 않음 | 스냅샷 저장소를 S3 등 서버 권한으로 받는 곳으로 이전, 복원 실패 시 기존 볼륨으로 기동하는 대체 경로 (검사 워커 배포 · 운영 YouTube · Google 키 · 서버 색인 문제는 해결) |
 
 ### 17.2 실제 서비스에 적용한다면 추가할 기능
 - 🕒 **마지막 갱신 시각 표시** — 답변 끝과 일정 · 순위 화면에 "10/14 09:00 기준" (선도기업 피드백)
@@ -718,15 +710,13 @@ SKN34-4th-5Team/
 
 ## 19. 한 줄 회고
 
-<!-- [팀원 확인] 4차 회고를 각자 받아서 채우기 -->
-
 | 이름 | 회고 |
 | --- | --- |
-| 윤성호 | |
-| 임형준 | |
-| 이현준 | |
-| 최인영 | |
-| 김진화 | |
+| 윤성호 |이번 프로젝트에서 LLM과 RAG를 담당하며 LangChain으로 직접 파이프라인을 구축했습니다. 특히 개발 도중 새롭게 접한 JEV 모델을 미들웨어에 적용해 가드와 동적 도구 할당을 구현하면서, 요청에 따라 필요한 도구를 유연하게 구성하는 경험을 했습니다. 또한 영상·음성·텍스트를 멀티모달 임베딩으로 적재하고, RRF를 비롯한 다양한 검색 전략을 탐구하며 RAG에 대한 이해를 넓혔습니다. 이 과정에서 각 기술을 연결하는 파이프라인 설계의 중요성을 배웠으며, 고도화가 실제 성능 개선으로 이어졌는지 확인하려면 체계적인 평가 데이터셋과 반복 검증을 위한 LLMOps가 반드시 필요하다는 점을 느꼈습니다. |
+| 임형준 | 3차 피드백을 4차 이슈로 옮기는 것부터 시작해, 규정집 청킹과 하이브리드 검색 · 리랭크, 하이라이트 영상 검색으로 LLM의 검색 쪽을 고도화하고, 각자 만든 기능이 한 서비스로 맞물리도록 리뷰하고 검증하는 역할을 맡았습니다. 기능을 늘리는 것보다 이미 있는 것을 제대로 동작하게 만드는 일이 훨씬 손이 많이 간다는 걸 느꼈고, 다음에는 처음부터 평가 기준을 먼저 세우고 개발을 시작하고 싶습니다. |
+| 이현준 | 3, 4차 모두 인프라를 담당했는데 이전에는 다른 VPS 서비스를 사용하다가 AWS를 사용해 봤는데 쉽지 않았습니다. 현업에 있을 때는 제가 할 필요가 없었고 대부분 서버 담당자나 업체에 부탁해서 처리했었는데, 이제 그분들의 마음을 어느 정도 알 것 같습니다. 무언가를 요청했을 때 그 작업이 오래 걸리는지 어느 정도 파악할 수 있고, 이제는 따질 수 있을 것 같습니다. |
+| 최인영 | 기능과 연결된 챗봇을 직접 구성해 보니 이것도 만만치 않은 작업이라는 것을 알게 되었습니다. 내가 LLM에 더 능숙했다면 실 서비스와 견줄 수 있는 코스를 생성할 수 있었을까 하는 아쉬움이 남습니다. |
+| 김진화 | 프론트 작업을 주로 맡게 되었는데, 협업 방식과 실제 작업 시 어떤 방식으로 진행되는지, 그리고 어떻게 구성하고 기능을 추가하는지를 배우게 된 소중한 시간이었습니다. 다음에는 프론트나 마무리 작업에 한정되지 않는 역할을 맡을 수 있도록 미리 더 준비해 왔으면 어땠을까 하는 마음이 있습니다. |
 
 ---
 
