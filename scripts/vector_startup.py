@@ -2,9 +2,6 @@
 from contextlib import closing
 import fcntl
 import importlib.util
-import hashlib
-import stat
-import zipfile
 import json
 import os
 from pathlib import Path
@@ -176,70 +173,42 @@ def prepare(artifacts, runtime, db, name, model):
     return {'documents': documents, 'highlights': highlights}
 
 
-DRIVE_URL = 'https://drive.google.com/file/d/1YfN4Jg1uBuVm0SXqN2q1cLc6YKgkQkYi/view'
-DRIVE_SHA256 = '1bb4e8c483934abe60559ddbc474fac5e1a928ed7420a8f04b74e3c789ea1175'
-
-
-def drive_file(value):
-    match = re.fullmatch(r'(?:https://drive\.google\.com/file/d/)?([a-zA-Z0-9_-]+)(?:/view)?', value)
-    if not match or ('/' in value and not value.startswith('https://drive.google.com/file/d/')):
-        raise ValueError('Only a Google Drive file URL or ID is supported; migrate old folder overrides')
-    return match[1]
-
-
-def extract_archive(archive, destination, expected):
-    if not re.fullmatch('[0-9a-f]{64}', expected) or corpus.digest(archive) != expected:
-        raise ValueError('Archive SHA256 mismatch')
-    with zipfile.ZipFile(archive) as bundle:
-        members = bundle.infolist()
-        names = set()
-        for member in members:
-            mode = member.external_attr >> 16
-            if (not re.fullmatch(r'files/md5/[0-9a-f]{2}/[0-9a-f]{30}(?:\.dir)?', member.filename)
-                    or member.filename in names or member.flag_bits & 1 or member.external_attr & 0x10
-                    or stat.S_IFMT(mode) not in (0, stat.S_IFREG)):
-                raise ValueError('Unsafe DVC archive member')
-            names.add(member.filename)
-        for member in members:
-            target = destination / member.filename
-            target.parent.mkdir(parents=True, exist_ok=True)
-            checksum = hashlib.md5()
-            with bundle.open(member) as source, target.open('xb') as output:
-                for chunk in iter(lambda: source.read(1024 * 1024), b''):
-                    checksum.update(chunk)
-                    output.write(chunk)
-            object_id = target.parent.name + target.name.removesuffix('.dir')
-            if checksum.hexdigest() != object_id:
-                raise ValueError('DVC archive object checksum mismatch')
+DVC_CONFIG = '/run/secrets/dvc_config'
+DRIVE_USER = '/run/secrets/drive_user'
 
 
 def pull(work):
-    """Child process, bounded by parent; DVC owns cache checking and restoration."""
+    """Child process, bounded by parent; never initiate first-time OAuth."""
+    from dvc.config import Config
     from dvc.repo import Repo
-    from dvc.exceptions import CheckoutError, DownloadError
-    import gdown
+    from oauth2client.client import OAuth2Credentials
 
-    file_id = drive_file(os.environ.get('VECTOR_GDRIVE_URL', DRIVE_URL))
-    expected = os.environ.get('VECTOR_GDRIVE_SHA256', DRIVE_SHA256)
+    remote = Config.load_file(DVC_CONFIG).get('remote', {}).get('highlight-drive', {})
+    url = urllib.parse.urlsplit(remote.get('url', ''))
+    if url.scheme != 'gdrive' or not url.netloc or url.query or url.fragment or url.username:
+        raise ValueError('Selected gdrive remote required')
+    # Only transport settings cross from the host config, never its cache or token path.
+    selected = {key: remote[key] for key in ('url', 'gdrive_client_id', 'gdrive_client_secret') if key in remote}
+    token_text = Path(DRIVE_USER).read_text()
+    token = json.loads(token_text)
+    if (token.get('_class') != 'OAuth2Credentials' or token.get('_module') != 'oauth2client.client'
+            or token.get('invalid') is not False or not token.get('refresh_token')
+            or token.get('token_uri') not in ('https://oauth2.googleapis.com/token', 'https://accounts.google.com/o/oauth2/token')):
+        raise ValueError('Existing refreshable user OAuth token required')
+    credentials = OAuth2Credentials.from_json(token_text)
+    if not credentials.client_id or not credentials.client_secret:
+        raise ValueError('Invalid user OAuth token')
     work = work.resolve()
     targets = [str(work / 'data/artifacts' / (name + '.dvc')) for name in ARTIFACTS]
-    with tempfile.TemporaryDirectory(prefix='vector-download-') as temp:
-        remote = Path(temp) / 'remote'
-        remote.mkdir()
+    with tempfile.TemporaryDirectory(prefix='vector-auth-') as temp:
+        # PyDrive refresh writes only this private disposable copy, not the mounted token.
+        token_copy = Path(temp) / 'drive-user.json'
+        token_copy.touch(mode=0o600)
+        token_copy.write_text(token_text)
+        selected['gdrive_user_credentials_file'] = str(token_copy)
         with Repo(str(work), config={'core': {'no_scm': True, 'analytics': False}, 'cache': {'type': 'copy'},
-                                      'remote': {'highlight-public': {'url': str(remote)}}}) as repo:
-            try:
-                # Empty local remote: a complete persistent cache needs no Drive access.
-                repo.pull(targets=targets, remote='highlight-public')
-            except (DownloadError, CheckoutError):
-                if not re.fullmatch('[0-9a-f]{64}', expected):
-                    raise ValueError('A trusted archive SHA256 is required')
-                archive = Path(temp) / 'objects.zip'
-                if gdown.download(id=file_id, output=str(archive), quiet=True,
-                                  use_cookies=False, timeout=(30, 120)) is None:
-                    raise ValueError('Archive download failed')
-                extract_archive(archive, remote, expected)
-                repo.pull(targets=targets, remote='highlight-public')
+                                      'remote': {'highlight-drive': selected}}) as repo:
+            repo.pull(targets=targets, remote='highlight-drive')
 
 
 def run():
@@ -280,9 +249,7 @@ def run():
                 subprocess.run([sys.executable, '-I', __file__, '--pull', str(work)], check=True,
                                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                timeout=3600, env={'PATH': os.environ['PATH'], 'HOME': '/tmp', 'DVC_NO_ANALYTICS': '1',
-                                                 'TMPDIR': transport,
-                                                 'VECTOR_GDRIVE_URL': os.environ.get('VECTOR_GDRIVE_URL', DRIVE_URL),
-                                                 'VECTOR_GDRIVE_SHA256': os.environ.get('VECTOR_GDRIVE_SHA256', DRIVE_SHA256)})
+                                                 'TMPDIR': transport})
             print(json.dumps(prepare(pointers, runtime, Qdrant(os.environ['QDRANT_URL'], os.environ['QDRANT_API_KEY']),
                                      os.environ['QDRANT_DOCUMENT_COLLECTION'], os.environ['EMBEDDING_MODEL'])))
 
