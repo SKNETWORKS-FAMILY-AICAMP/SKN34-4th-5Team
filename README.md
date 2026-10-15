@@ -414,7 +414,52 @@ SKN34 4차 프로젝트 · 5팀 [야구는 질병이야]
 
 ## 11. ERD
 
-<p align="center"><img src="./docs/images/erd.svg" width="90%" alt="데이터베이스 ERD"/></p>
+### 백엔드·인증·보관 ERD
+
+이미지를 누르면 원본 SVG를 볼 수 있습니다. 나머지 기능은 아래 항목을 펼쳐 확인하세요.
+
+<p align="center"><a href="./docs/images/erd/backend.svg?raw=true"><img src="./docs/images/erd/backend.svg" width="100%" alt="백엔드·인증·보관 ERD"/></a></p>
+<p align="center"><a href="./docs/images/erd/backend.svg?raw=true">백엔드·인증·보관 ERD 원본 SVG 보기</a></p>
+
+<details>
+<summary>구장·장소 기능 ERD 확인</summary>
+
+<p align="center"><a href="./docs/images/erd/stadium.svg?raw=true"><img src="./docs/images/erd/stadium.svg" width="100%" alt="구장·장소 ERD"/></a></p>
+<p align="center"><a href="./docs/images/erd/stadium.svg?raw=true">구장·장소 ERD 원본 SVG 보기</a></p>
+
+</details>
+
+<details>
+<summary>회원·커뮤니티·채팅 기능 ERD 확인</summary>
+
+<p align="center"><a href="./docs/images/erd/members.svg?raw=true"><img src="./docs/images/erd/members.svg" width="100%" alt="회원·커뮤니티·채팅 ERD"/></a></p>
+<p align="center"><a href="./docs/images/erd/members.svg?raw=true">회원·커뮤니티·채팅 ERD 원본 SVG 보기</a></p>
+
+</details>
+
+<details>
+<summary>코스·광고 기능 ERD 확인</summary>
+
+<p align="center"><a href="./docs/images/erd/courses.svg?raw=true"><img src="./docs/images/erd/courses.svg" width="100%" alt="코스·광고 ERD"/></a></p>
+<p align="center"><a href="./docs/images/erd/courses.svg?raw=true">코스·광고 ERD 원본 SVG 보기</a></p>
+
+</details>
+
+<details>
+<summary>야구·하이라이트 기능 ERD 확인</summary>
+
+<p align="center"><a href="./docs/images/erd/baseball.svg?raw=true"><img src="./docs/images/erd/baseball.svg" width="100%" alt="야구·하이라이트 ERD"/></a></p>
+<p align="center"><a href="./docs/images/erd/baseball.svg?raw=true">야구·하이라이트 ERD 원본 SVG 보기</a></p>
+
+</details>
+
+<details>
+<summary>승부예측·판타지 기능 ERD 확인</summary>
+
+<p align="center"><a href="./docs/images/erd/fantasy.svg?raw=true"><img src="./docs/images/erd/fantasy.svg" width="100%" alt="승부예측·판타지 ERD"/></a></p>
+<p align="center"><a href="./docs/images/erd/fantasy.svg?raw=true">승부예측·판타지 ERD 원본 SVG 보기</a></p>
+
+</details>
 
 | 앱 | 주요 모델 | 4차 변경 |
 | --- | --- | --- |
