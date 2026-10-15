@@ -1,10 +1,7 @@
 import copy
 import importlib.util
 import json
-import hashlib
-import stat
 import re
-import zipfile
 from pathlib import Path
 import subprocess
 import sys
@@ -184,119 +181,93 @@ class StartupTests(unittest.TestCase):
             self.assertIsNone(db.request('GET', '/collections/test', missing=True))
         self.assertIsNone(startup.NoRedirect().redirect_request(None, None, None, None, None, None))
 
-    def test_drive_file_destination_boundary(self):
-        self.assertEqual(startup.drive_file(startup.DRIVE_URL), startup.DRIVE_URL.split('/')[5])
-        self.assertEqual(startup.drive_file('file_id-123'), 'file_id-123')
-        self.assertEqual(startup.drive_file('https://drive.google.com/file/d/id'), 'id')
-        for value in ('', 'gdrive://file', 'https://untrusted.invalid/file',
-                      'http://drive.google.com/file/d/id',
-                      'https://user@drive.google.com/file/d/id',
-                      startup.DRIVE_URL + '?token=secret', startup.DRIVE_URL + '/child',
-                      'https://drive.google.com/drive/folders/id', '../escape', 'id/view'):
-            with self.subTest(value=value), self.assertRaises(ValueError):
-                startup.drive_file(value)
+    def auth_fixture(self):
+        config, token = self.root / 'config.local', self.root / 'drive-user.json'
+        config.write_text('private config fixture')
+        token.write_text(json.dumps({'_class': 'OAuth2Credentials', '_module': 'oauth2client.client',
+                                    'invalid': False, 'refresh_token': 'fixture-refresh',
+                                    'token_uri': 'https://oauth2.googleapis.com/token'}))
+        return config, token
 
-    def archive(self, path, entries=None):
-        data = b'explicit transport fixture'
-        object_id = hashlib.md5(data).hexdigest()
-        name = 'files/md5/' + object_id[:2] + '/' + object_id[2:]
-        with zipfile.ZipFile(path, 'w') as bundle:
-            for entry, content in (entries if entries is not None else [(name, data)]):
-                bundle.writestr(entry, content)
-        return name, startup.corpus.digest(path)
+    def test_authenticated_pull_selected_remote_token_override_and_cleanup(self):
+        config, token = self.auth_fixture()
+        before = (config.read_bytes(), token.read_bytes())
+        selected = {'url': 'gdrive://approved-folder', 'gdrive_client_id': 'fixture-id',
+                    'gdrive_client_secret': 'fixture-secret', 'gdrive_user_credentials_file': '/host/only',
+                    'gdrive_use_service_account': True}
+        for failure in (False, True):
+            with self.subTest(failure=failure):
+                repo, loader, credentials = MagicMock(), MagicMock(), MagicMock()
+                loader.load_file.return_value = {'remote': {'highlight-drive': selected, 'other': {'url': 'bad'}},
+                                                 'cache': {'dir': '/host/cache'}}
+                copies = []
 
-    def test_archive_layout_sha_objects_and_unsafe_members(self):
-        archive = self.root / 'fixture.zip'
-        destination = self.root / 'remote'
-        destination.mkdir()
-        name, expected = self.archive(archive)
-        startup.extract_archive(archive, destination, expected)
-        self.assertEqual((destination / name).read_bytes(), b'explicit transport fixture')
-        with self.assertRaisesRegex(ValueError, 'SHA256'):
-            startup.extract_archive(archive, self.root / 'bad-sha', '0' * 64)
-        self.assertFalse((self.root / 'bad-sha').exists())
-        link = zipfile.ZipInfo('files/md5/ab/' + 'c' * 30)
-        link.external_attr = (stat.S_IFLNK | 0o777) << 16
-        special = zipfile.ZipInfo('files/md5/ab/' + 'd' * 30)
-        special.external_attr = (stat.S_IFIFO | 0o600) << 16
-        cases = [[(bad, b'bad')] for bad in ('../escape', '/absolute', 'files/md5/ab/../../escape',
-                                             'files/md5/ab/', 'config', link, special)]
-        cases += [[(name, b'bad')], [(name, b'explicit transport fixture'), (name, b'duplicate')]]
-        for i, entries in enumerate(cases):
-            target = self.root / ('rejected-' + str(i))
-            _, expected = self.archive(archive, entries)
-            with self.subTest(entries=entries), self.assertRaises(ValueError):
-                startup.extract_archive(archive, target, expected)
-            if i != len(cases) - 2:  # Wrong object bytes are rejected during streaming.
-                self.assertFalse(target.exists())
-        self.assertIsNone(self.db.info)
-        self.assertEqual(list(self.runtime.iterdir()), [])
+                def pull(**kwargs):
+                    cfg = repo.call_args.kwargs['config']
+                    self.assertEqual(cfg['cache'], {'type': 'copy'})
+                    self.assertEqual(set(cfg['remote']), {'highlight-drive'})
+                    actual = cfg['remote']['highlight-drive']
+                    self.assertEqual(set(actual), {'url', 'gdrive_client_id', 'gdrive_client_secret',
+                                                  'gdrive_user_credentials_file'})
+                    copied = Path(actual['gdrive_user_credentials_file'])
+                    copies.append(copied)
+                    self.assertEqual(copied.read_bytes(), before[1])
+                    self.assertEqual(copied.stat().st_mode & 0o777, 0o600)
+                    copied.write_text('refreshed token')
+                    self.assertEqual(kwargs, {'targets': [str(self.root.resolve() / 'work/data/artifacts' / (name + '.dvc'))
+                                                         for name in startup.ARTIFACTS], 'remote': 'highlight-drive'})
+                    if failure:
+                        raise OSError('private remote failure')
 
-    def test_public_pull_wiring_cleanup_failures_and_cache_reuse(self):
-        class DownloadError(Exception):
-            pass
-
-        class CheckoutError(Exception):
-            pass
-
-        source = self.root / 'fixture.zip'
-        name, checksum = self.archive(source)
-        for outcome in ('download', 'checkout', 'reuse', 'inaccessible', 'none', 'missing', 'corrupt', 'bad-sha', 'untrusted-sha'):
-            with self.subTest(outcome=outcome):
-                repo, download = MagicMock(), MagicMock()
-                client = repo.return_value.__enter__.return_value
-                client.pull.side_effect = ([None] if outcome == 'reuse' else
-                                           [DownloadError(), ValueError('invalid cache')] if outcome == 'corrupt' else
-                                           [DownloadError(), DownloadError()] if outcome == 'missing' else
-                                           [CheckoutError() if outcome == 'checkout' else DownloadError(), None])
-
-                def fetch(**kwargs):
-                    target = Path(kwargs['output'])
-                    self.assertTrue(target.parent.is_dir())
-                    if outcome == 'inaccessible':
-                        raise OSError('private source')
-                    if outcome == 'none':
-                        return None
-                    target.write_bytes(source.read_bytes())
-                    return str(target)
-
-                def restore(**kwargs):
-                    if client.pull.call_count == 1:
-                        raise CheckoutError() if outcome == 'checkout' else DownloadError()
-                    remote = Path(repo.call_args.kwargs['config']['remote']['highlight-public']['url'])
-                    self.assertEqual((remote / name).read_bytes(), b'explicit transport fixture')
-
-                if outcome in ('download', 'checkout'):
-                    client.pull.side_effect = restore
-                download.side_effect = fetch
-                modules = {'dvc.repo': SimpleNamespace(Repo=repo),
-                           'dvc.exceptions': SimpleNamespace(DownloadError=DownloadError, CheckoutError=CheckoutError),
-                           'gdown': SimpleNamespace(download=download)}
-                with patch.dict(sys.modules, modules), \
-                        patch.dict(startup.os.environ, {'VECTOR_GDRIVE_URL': 'approved_file',
-                                   'VECTOR_GDRIVE_SHA256': '' if outcome == 'untrusted-sha' else '0' * 64 if outcome == 'bad-sha' else checksum}), \
-                        patch.object(Path, 'read_text', side_effect=AssertionError('No auth file reads')):
-                    if outcome in ('inaccessible', 'none', 'missing', 'corrupt', 'bad-sha', 'untrusted-sha'):
-                        with self.assertRaises((OSError, DownloadError, ValueError)):
+                repo.return_value.__enter__.return_value.pull.side_effect = pull
+                modules = {'dvc.repo': SimpleNamespace(Repo=repo), 'dvc.config': SimpleNamespace(Config=loader),
+                           'oauth2client.client': SimpleNamespace(OAuth2Credentials=credentials)}
+                with patch.dict(sys.modules, modules), patch.object(startup, 'DVC_CONFIG', str(config)), \
+                        patch.object(startup, 'DRIVE_USER', str(token)):
+                    if failure:
+                        with self.assertRaises(OSError):
                             startup.pull(self.root / 'work')
                     else:
                         startup.pull(self.root / 'work')
-                config = repo.call_args.kwargs['config']
-                remote = Path(config['remote']['highlight-public']['url'])
-                self.assertFalse(remote.parent.exists())
-                self.assertEqual(config['cache'], {'type': 'copy'})
-                expected = {'targets': [str(self.root.resolve() / 'work/data/artifacts' / (name + '.dvc'))
-                                        for name in startup.ARTIFACTS], 'remote': 'highlight-public'}
-                for call in client.pull.call_args_list:
-                    self.assertEqual(call.kwargs, expected)
-                if outcome in ('reuse', 'untrusted-sha'):
-                    download.assert_not_called()
-                    self.assertEqual(client.pull.call_count, 1)
-                else:
-                    download.assert_called_once_with(id='approved_file', output=str(remote.parent / 'objects.zip'),
-                                                     quiet=True, use_cookies=False, timeout=(30, 120))
-                    self.assertEqual(client.pull.call_count, 1 if outcome in ('inaccessible', 'none', 'bad-sha') else 2)
-                self.assertIsNone(self.db.info)
+                loader.load_file.assert_called_once_with(str(config))
+                credentials.from_json.assert_called_once()
+                self.assertFalse(copies[0].parent.exists())
+                self.assertEqual((config.read_bytes(), token.read_bytes()), before)
+                self.assertEqual(list(self.runtime.iterdir()), [])
+
+    def test_missing_invalid_auth_fails_before_network(self):
+        config, token = self.auth_fixture()
+        valid = token.read_text()
+        for problem in ('missing-config', 'invalid-config', 'missing-remote', 'local-remote', 'empty-drive',
+                        'missing-token', 'malformed-token', 'client-json', 'invalid-token', 'no-refresh', 'bad-token-parser'):
+            with self.subTest(problem=problem):
+                token.write_text(valid)
+                repo, loader, credentials = MagicMock(), MagicMock(), MagicMock()
+                loader.load_file.return_value = {'remote': {'highlight-drive': {'url': 'gdrive://folder'}}}
+                if problem in ('missing-config', 'invalid-config'):
+                    loader.load_file.side_effect = OSError('bad config')
+                elif problem == 'missing-remote':
+                    loader.load_file.return_value = {}
+                elif problem in ('local-remote', 'empty-drive'):
+                    loader.load_file.return_value = {'remote': {'highlight-drive': {'url': '/local' if problem == 'local-remote' else 'gdrive://'}}}
+                elif problem == 'missing-token':
+                    token.unlink()
+                elif problem == 'malformed-token':
+                    token.write_text('{')
+                elif problem == 'client-json':
+                    token.write_text('{"installed": {}}')
+                elif problem in ('invalid-token', 'no-refresh'):
+                    value = json.loads(valid)
+                    value['invalid' if problem == 'invalid-token' else 'refresh_token'] = True if problem == 'invalid-token' else ''
+                    token.write_text(json.dumps(value))
+                elif problem == 'bad-token-parser':
+                    credentials.from_json.side_effect = ValueError('bad token')
+                modules = {'dvc.repo': SimpleNamespace(Repo=repo), 'dvc.config': SimpleNamespace(Config=loader),
+                           'oauth2client.client': SimpleNamespace(OAuth2Credentials=credentials)}
+                with patch.dict(sys.modules, modules), patch.object(startup, 'DVC_CONFIG', str(config)), \
+                        patch.object(startup, 'DRIVE_USER', str(token)), self.assertRaises((ValueError, OSError)):
+                    startup.pull(self.root / 'work')
+                repo.assert_not_called()
                 self.assertEqual(list(self.runtime.iterdir()), [])
 
     def test_child_timeout_cleans_transport_and_preserves_cache(self):
@@ -311,24 +282,29 @@ class StartupTests(unittest.TestCase):
             (transport / 'partial').write_bytes(b'partial download')
             transports.append(transport)
             self.assertEqual(kwargs['timeout'], 3600)
-            self.assertEqual(kwargs['env']['VECTOR_GDRIVE_URL'], 'approved_file')
-            self.assertEqual(kwargs['env']['VECTOR_GDRIVE_SHA256'], startup.DRIVE_SHA256)
+            self.assertEqual(set(kwargs['env']), {'PATH', 'HOME', 'DVC_NO_ANALYTICS', 'TMPDIR'})
             self.assertNotIn('QDRANT_API_KEY', kwargs['env'])
-            raise subprocess.TimeoutExpired(command, kwargs['timeout'])
+            if failure == 'timeout':
+                raise subprocess.TimeoutExpired(command, kwargs['timeout'])
+            raise subprocess.CalledProcessError(1, command)
 
-        with patch.object(startup.corpus, 'safe_root', side_effect=[cache, self.runtime]), \
-                patch.object(startup.shutil, 'copyfile'), \
-                patch.object(startup.subprocess, 'run', side_effect=timeout), \
-                patch.object(startup, 'prepare') as prepare, \
-                patch.object(startup.sys, 'argv', ['vector_startup.py']), \
-                patch.dict(startup.os.environ, {'VECTOR_GDRIVE_URL': 'approved_file'}):
-            with self.assertRaises(subprocess.TimeoutExpired):
-                startup.run()
-        self.assertEqual(len(transports), 1)
-        self.assertFalse(transports[0].exists())
-        self.assertTrue((cache / 'work/.dvc').is_dir())
-        self.assertTrue(self.runtime.is_dir())
-        prepare.assert_not_called()
+        sentinel = self.runtime / 'existing-data'
+        sentinel.write_bytes(b'keep runtime')
+        for failure in ('timeout', 'dvc-error'):
+            with self.subTest(failure=failure), \
+                    patch.object(startup.corpus, 'safe_root', side_effect=[cache, self.runtime]), \
+                    patch.object(startup.shutil, 'copyfile'), \
+                    patch.object(startup.subprocess, 'run', side_effect=timeout), \
+                    patch.object(startup, 'prepare') as prepare, \
+                    patch.object(startup.sys, 'argv', ['vector_startup.py']), \
+                    patch.dict(startup.os.environ, {'QDRANT_API_KEY': 'never-forward'}):
+                with self.assertRaises((subprocess.TimeoutExpired, subprocess.CalledProcessError)):
+                    startup.run()
+                self.assertFalse(transports[-1].exists())
+                self.assertTrue((cache / 'work/.dvc').is_dir())
+                self.assertEqual(sentinel.read_bytes(), b'keep runtime')
+                prepare.assert_not_called()
+        self.assertEqual(len(transports), 2)
 
     def test_cli_failure_secret_safe(self):
         result = subprocess.run([sys.executable, '-I', str(ROOT / 'scripts/vector_startup.py'), '--pull', '/missing'],
@@ -399,17 +375,15 @@ class StartupTests(unittest.TestCase):
         overlay = (ROOT / 'docker-compose.override.yml').read_text()
         self.assertIn('condition: service_completed_successfully', overlay)
         self.assertIn('HIGHLIGHT_MULTIMODAL_CORPUS: /vector-runtime/highlight-corpus', overlay)
-        self.assertNotIn('dvc_config', overlay)
-        self.assertNotIn('drive_user', overlay)
-        self.assertIn('VECTOR_GDRIVE_URL: ${VECTOR_GDRIVE_URL:-' + startup.DRIVE_URL + '}', overlay)
-        example = (ROOT / '.env.example').read_text()
-        for name in ('VECTOR_DVC_CONFIG', 'VECTOR_DRIVE_USER'):
-            self.assertNotIn(name, overlay)
-            self.assertNotIn(name, example)
-        self.assertIn('VECTOR_GDRIVE_URL=' + startup.DRIVE_URL, example)
-        self.assertIn('VECTOR_GDRIVE_SHA256=' + startup.DRIVE_SHA256, example)
-        self.assertIn('VECTOR_GDRIVE_SHA256: ${VECTOR_GDRIVE_SHA256:-' + startup.DRIVE_SHA256 + '}', overlay)
-        self.assertNotIn('secrets:', overlay)
+        for name, default, target in (('VECTOR_DVC_CONFIG', './.dvc/config.local', 'dvc_config'),
+                                      ('VECTOR_DRIVE_USER', './.secrets/drive-user.json', 'drive_user')):
+            self.assertIn('source: ${' + name + ':-' + default + '}', overlay)
+            self.assertIn('target: /run/secrets/' + target, overlay)
+            self.assertIn(name + '=' + default, (ROOT / '.env.example').read_text())
+        self.assertEqual(overlay.count('read_only: true'), 2)
+        self.assertEqual(overlay.count('create_host_path: false'), 2)
+        self.assertNotIn('VECTOR_GDRIVE_', overlay)
+        self.assertNotIn('VECTOR_GDRIVE_', (ROOT / '.env.example').read_text())
         self.assertIn('.secrets/', (ROOT / '.gitignore').read_text().splitlines())
         dockerignore = (ROOT / '.dockerignore').read_text().splitlines()
         for path in ('.secrets/', '.dvc/config.local', '.env'):
@@ -429,8 +403,10 @@ class StartupTests(unittest.TestCase):
         dockerfile = (ROOT / 'docker/vector-startup.Dockerfile').read_text()
         self.assertNotIn('ARG ', dockerfile)
         self.assertNotIn('COPY . ', dockerfile)
-        self.assertIn('dvc==3.67.1 gdown==6.4.2', dockerfile)
-        self.assertNotIn('dvc[gdrive]', dockerfile)
+        self.assertIn('dvc[gdrive]==3.67.1', dockerfile)
+        self.assertIn('pyOpenSSL==24.2.1', dockerfile)
+        self.assertIn('import OpenSSL; import pydrive2.fs', dockerfile)
+        self.assertNotIn('gdown', dockerfile)
         self.assertNotIn('requirements-data.txt', dockerfile)
         self.assertIn('!data/artifacts/document-vectors.dvc', (ROOT / 'docker/vector-startup.Dockerfile.dockerignore').read_text())
 
