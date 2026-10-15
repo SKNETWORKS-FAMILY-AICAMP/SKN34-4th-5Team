@@ -381,6 +381,7 @@ SKN34 4차 프로젝트 · 5팀 [야구는 질병이야]
 | 📱 **PWA** | 홈 화면에 설치하는 웹앱 |
 | 🎟️ **비회원 체험 · 정산** | 비회원도 일정 토큰까지 질문 가능, 회원 월 한도, 실사용 후불 정산 |
 
+
 ---
 
 ## 10. 화면 설계 · UX Flow
@@ -442,7 +443,6 @@ SKN34 4차 프로젝트 · 5팀 [야구는 질병이야]
 
 <p align="center"><a href="./docs/images/erd/courses.svg?raw=true"><img src="./docs/images/erd/courses.svg" width="100%" alt="코스·광고 ERD"/></a></p>
 <p align="center"><a href="./docs/images/erd/courses.svg?raw=true">코스·광고 ERD 원본 SVG 보기</a></p>
-
 </details>
 
 <details>
