@@ -1,0 +1,327 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1281.5600000000002" height="806.4000000000001" viewBox="0 0 1281.5600000000002 806.4000000000001">
+<g id="graph0" class="graph" transform="translate(20 20)">
+<title>ERD</title>
+<g id="edge_18" class="edge"><title>Game → HighlightVideo.game_id</title><path d="M421.30,135.40 L405.30,135.40 L408.00,138.00 L408.00,162.00 L402.00,162.00 L401.30,163.73 L385.30,163.73" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M417.3,131.4 L417.3,139.4" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="409.3" cy="135.4" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /><path d="M394.3,163.73333333333332 L385.3,159.73333333333332" stroke="#607c99" stroke-width="1" fill="none" /><path d="M394.3,163.73333333333332 L385.3,163.73333333333332" stroke="#607c99" stroke-width="1" fill="none" /><path d="M394.3,163.73333333333332 L385.3,167.73333333333332" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="397.3" cy="163.73333333333332" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_2" class="edge"><title>PostseasonStage → Game.postseason_stage_id</title><path d="M870.29,85.00 L854.29,85.00 L852.00,84.00 L846.00,84.00 L846.00,-12.00 L636.00,-12.00 L636.00,138.00 L637.22,135.40 L621.22,135.40" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M866.29,81.0 L866.29,89.0" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="858.29" cy="85.0" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /><path d="M630.22,135.4 L621.22,131.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M630.22,135.4 L621.22,135.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M630.22,135.4 L621.22,139.4" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="633.22" cy="135.4" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_3" class="edge"><title>Stadium → Game.stadium_id</title><path d="M526.30,571.20 L526.30,555.20 L528.00,558.00 L528.00,522.00 L642.00,522.00 L642.00,288.00 L570.00,288.00 L571.24,286.80 L571.24,270.80" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M530.3,567.2 L522.3,567.2" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="526.3" cy="559.2" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /><path d="M571.24,279.8 L575.24,270.8" stroke="#607c99" stroke-width="1" fill="none" /><path d="M571.24,279.8 L571.24,270.8" stroke="#607c99" stroke-width="1" fill="none" /><path d="M571.24,279.8 L567.24,270.8" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="571.24" cy="282.8" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_0" class="edge"><title>Team → Game.away_team_id</title><path d="M318.68,310.80 L318.68,294.80 L318.00,294.00 L474.00,294.00 L474.00,288.00 L471.28,286.80 L471.28,270.80" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M322.676,306.8 L314.676,306.8" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="318.676" cy="298.8" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /><path d="M471.28000000000003,279.8 L475.28000000000003,270.8" stroke="#607c99" stroke-width="1" fill="none" /><path d="M471.28000000000003,279.8 L471.28000000000003,270.8" stroke="#607c99" stroke-width="1" fill="none" /><path d="M471.28000000000003,279.8 L467.28000000000003,270.8" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="471.28000000000003" cy="282.8" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_1" class="edge"><title>Team → Game.home_team_id</title><path d="M347.98,310.80 L347.98,294.80 L348.00,294.00 L348.00,300.00 L522.00,300.00 L522.00,288.00 L521.26,286.80 L521.26,270.80" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M351.97799999999995,306.8 L343.97799999999995,306.8" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="347.97799999999995" cy="298.8" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /><path d="M521.26,279.8 L525.26,270.8" stroke="#607c99" stroke-width="1" fill="none" /><path d="M521.26,279.8 L521.26,270.8" stroke="#607c99" stroke-width="1" fill="none" /><path d="M521.26,279.8 L517.26,270.8" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="521.26" cy="282.8" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_4" class="edge"><title>Team → StandingHistory.team_id</title><path d="M377.28,452.47 L393.28,452.47 L396.00,450.00 L396.00,678.00 L654.00,678.00 L654.00,666.00 L651.30,668.80 L667.30,668.80" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M381.28,456.4666666666667 L381.28,448.4666666666667" stroke="#607c99" stroke-width="1" fill="none" /><path d="M658.3,668.8 L667.3,672.8" stroke="#607c99" stroke-width="1" fill="none" /><path d="M658.3,668.8 L667.3,668.8" stroke="#607c99" stroke-width="1" fill="none" /><path d="M658.3,668.8 L667.3,664.8" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="655.3" cy="668.8" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_5" class="edge"><title>Team → Player.team_id</title><path d="M377.28,395.80 L393.28,395.80 L396.00,396.00 L408.00,396.00 L408.00,516.00 L630.00,516.00 L630.00,360.00 L654.00,360.00 L651.30,359.60 L667.30,359.60" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M381.28,399.8 L381.28,391.8" stroke="#607c99" stroke-width="1" fill="none" /><path d="M658.3,359.6 L667.3,363.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M658.3,359.6 L667.3,359.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M658.3,359.6 L667.3,355.6" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="655.3" cy="359.6" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_8" class="edge"><title>Team → TeamProfile.team_id</title><path d="M328.44,480.80 L328.44,496.80 L330.00,498.00 L306.00,498.00 L306.00,558.00 L307.48,555.20 L307.48,571.20" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M324.4433333333333,484.8 L332.4433333333333,484.8" stroke="#607c99" stroke-width="1" fill="none" /><path d="M311.48,567.2 L303.48,567.2" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="307.48" cy="559.2" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_10" class="edge"><title>Team → TeamRoster.team_id</title><path d="M377.28,339.13 L393.28,339.13 L396.00,342.00 L396.00,282.00 L654.00,282.00 L654.00,108.00 L651.30,110.20 L667.30,110.20" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M381.28,343.1333333333333 L381.28,335.1333333333333" stroke="#607c99" stroke-width="1" fill="none" /><path d="M658.3,110.2 L667.3,114.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M658.3,110.2 L667.3,110.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M658.3,110.2 L667.3,106.2" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="655.3" cy="110.2" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_11" class="edge"><title>Team → TeamSeasonRecord.team_id</title><path d="M279.61,480.80 L279.61,496.80 L282.00,498.00 L204.00,498.00 L204.00,558.00 L96.00,558.00 L96.72,555.20 L96.72,571.20" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M275.6066666666667,484.8 L283.6066666666667,484.8" stroke="#607c99" stroke-width="1" fill="none" /><path d="M96.725,562.2 L92.725,571.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M96.725,562.2 L96.725,571.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M96.725,562.2 L100.725,571.2" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="96.725" cy="559.2" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_13" class="edge"><title>Team → TeamTopPlayer.team_id</title><path d="M377.28,424.13 L393.28,424.13 L396.00,426.00 L402.00,426.00 L402.00,534.00 L816.00,534.00 L816.00,384.00 L852.00,384.00 L854.29,384.27 L870.29,384.27" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M381.28,428.1333333333333 L381.28,420.1333333333333" stroke="#607c99" stroke-width="1" fill="none" /><path d="M861.29,384.26666666666665 L870.29,388.26666666666665" stroke="#607c99" stroke-width="1" fill="none" /><path d="M861.29,384.26666666666665 L870.29,384.26666666666665" stroke="#607c99" stroke-width="1" fill="none" /><path d="M861.29,384.26666666666665 L870.29,380.26666666666665" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="858.29" cy="384.26666666666665" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_15" class="edge"><title>Team → HighlightScene.batting_team_id</title><path d="M377.28,367.47 L393.28,367.47 L396.00,366.00 L396.00,348.00 L390.00,348.00 L390.00,258.00 L396.00,258.00 L396.00,-24.00 L1068.00,-24.00 L1068.00,120.00 L1062.00,120.00 L1063.01,122.80 L1079.01,122.80" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M381.28,371.4666666666667 L381.28,363.4666666666667" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="389.28" cy="367.4666666666667" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /><path d="M1070.01,122.8 L1079.01,126.8" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1070.01,122.8 L1079.01,122.8" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1070.01,122.8 L1079.01,118.8" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="1067.01" cy="122.8" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_17" class="edge"><title>Team → HighlightVideo.away_team_id</title><path d="M260.07,310.80 L260.07,294.80 L258.00,294.00 L258.00,264.00 L282.00,264.00 L282.28,261.60 L282.28,245.60" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M264.072,306.8 L256.072,306.8" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="260.072" cy="298.8" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /><path d="M282.28000000000003,254.6 L286.28000000000003,245.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M282.28000000000003,254.6 L282.28000000000003,245.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M282.28000000000003,254.6 L278.28000000000003,245.6" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="282.28000000000003" cy="257.6" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_19" class="edge"><title>Team → HighlightVideo.home_team_id</title><path d="M289.37,310.80 L289.37,294.80 L288.00,294.00 L288.00,264.00 L336.00,264.00 L333.79,261.60 L333.79,245.60" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M293.374,306.8 L285.374,306.8" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="289.374" cy="298.8" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /><path d="M333.79,254.6 L337.79,245.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M333.79,254.6 L333.79,245.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M333.79,254.6 L329.79,245.6" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="333.79" cy="257.6" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_6" class="edge"><title>Player → PlayerCareerRecord.player_id</title><path d="M667.30,408.40 L651.30,408.40 L654.00,408.00 L648.00,408.00 L648.00,528.00 L336.00,528.00 L336.00,492.00 L210.00,492.00 L210.00,408.00 L210.77,408.40 L194.77,408.40" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M663.3,404.4 L663.3,412.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M203.77,408.4 L194.77,404.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M203.77,408.4 L194.77,408.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M203.77,408.4 L194.77,412.4" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="206.77" cy="408.4" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_7" class="edge"><title>Player → PlayerSeasonRecord.player_id</title><path d="M667.30,457.20 L651.30,457.20 L654.00,456.00 L636.00,456.00 L636.00,408.00 L636.76,408.40 L620.76,408.40" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M663.3,453.2 L663.3,461.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M629.76,408.4 L620.76,404.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M629.76,408.4 L620.76,408.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M629.76,408.4 L620.76,412.4" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="632.76" cy="408.4" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_9" class="edge"><title>Player → TeamRoster.player_id</title><path d="M735.23,310.80 L735.23,294.80 L738.00,294.00 L738.00,234.00 L750.00,234.00 L750.79,236.40 L750.79,220.40" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M739.23,306.8 L731.23,306.8" stroke="#607c99" stroke-width="1" fill="none" /><path d="M750.795,229.4 L754.795,220.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M750.795,229.4 L750.795,220.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M750.795,229.4 L746.795,220.4" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="750.795" cy="232.4" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_12" class="edge"><title>Player → TeamTopPlayer.player_id</title><path d="M803.16,440.93 L819.16,440.93 L822.00,438.00 L822.00,456.00 L852.00,456.00 L854.29,457.73 L870.29,457.73" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M807.16,444.93333333333334 L807.16,436.93333333333334" stroke="#607c99" stroke-width="1" fill="none" /><path d="M861.29,457.73333333333335 L870.29,461.73333333333335" stroke="#607c99" stroke-width="1" fill="none" /><path d="M861.29,457.73333333333335 L870.29,457.73333333333335" stroke="#607c99" stroke-width="1" fill="none" /><path d="M861.29,457.73333333333335 L870.29,453.73333333333335" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="858.29" cy="457.73333333333335" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_14" class="edge"><title>Player → HighlightScene.batter_id</title><path d="M803.16,375.87 L819.16,375.87 L822.00,378.00 L822.00,234.00 L1062.00,234.00 L1062.00,186.00 L1063.01,184.20 L1079.01,184.20" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M807.16,379.8666666666667 L807.16,371.8666666666667" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="815.16" cy="375.8666666666667" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /><path d="M1070.01,184.2 L1079.01,188.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1070.01,184.2 L1079.01,184.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1070.01,184.2 L1079.01,180.2" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="1067.01" cy="184.2" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_16" class="edge"><title>HighlightVideo → HighlightScene.video_id</title><path d="M385.30,81.87 L401.30,81.87 L402.00,84.00 L402.00,-18.00 L1062.00,-18.00 L1062.00,60.00 L1063.01,61.40 L1079.01,61.40" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M389.3,85.86666666666666 L389.3,77.86666666666666" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1070.01,61.4 L1079.01,65.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1070.01,61.4 L1079.01,61.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1070.01,61.4 L1079.01,57.4" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="1067.01" cy="61.4" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="node_Game" class="node">
+<title>Game</title>
+<polygon fill="white" stroke="none" points="421.30,270.80 421.30,0.00 621.22,0.00 621.22,270.80 421.30,270.80" />
+<polygon fill="#e4effb" stroke="none" points="422.30,27.40 422.30,1.00 620.22,1.00 620.22,27.40 422.30,27.40" />
+<text xml:space="preserve" text-anchor="start" x="425.30000000000007" y="18.299999999999955" font-family="Arial" font-weight="bold" font-size="17.00">Game</text>
+<text xml:space="preserve" text-anchor="start" x="425.30000000000007" y="42.39999999999998" font-family="Arial" font-size="12.00" fill="#64748b">public.GAME</text>
+<text xml:space="preserve" text-anchor="start" x="425.30000000000007" y="66.79999999999995" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="452.6500000000001" y="66.79999999999995" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="425.30000000000007" y="92.0" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="452.6500000000001" y="92.0" font-family="Arial" font-size="16.00">postseason_stage_id ?</text>
+<text xml:space="preserve" text-anchor="start" x="425.30000000000007" y="117.19999999999999" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="452.6500000000001" y="117.19999999999999" font-family="Arial" font-size="16.00">stadium_id ?</text>
+<text xml:space="preserve" text-anchor="start" x="425.30000000000007" y="142.39999999999998" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="452.6500000000001" y="142.39999999999998" font-family="Arial" font-size="16.00">away_team_id ?</text>
+<text xml:space="preserve" text-anchor="start" x="425.30000000000007" y="167.60000000000002" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="452.6500000000001" y="167.60000000000002" font-family="Arial" font-size="16.00">home_team_id ?</text>
+<text xml:space="preserve" text-anchor="start" x="425.30000000000007" y="192.8" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="452.6500000000001" y="192.8" font-family="Arial" font-size="16.00">game_date</text>
+<text xml:space="preserve" text-anchor="start" x="425.30000000000007" y="218.0" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="452.6500000000001" y="218.0" font-family="Arial" font-size="16.00">status_code</text>
+<text xml:space="preserve" text-anchor="start" x="425.30000000000007" y="243.2" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="452.6500000000001" y="243.2" font-family="Arial" font-size="16.00">game_time</text>
+<text xml:space="preserve" text-anchor="start" x="425.30000000000007" y="264.4" font-family="Arial" font-size="12.00" fill="#64748b">+ 18 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="421.30,270.80 421.30,0.00 621.22,0.00 621.22,270.80 421.30,270.80" />
+</g>
+
+<g id="node_PostseasonStage" class="node">
+<title>PostseasonStage</title>
+<polygon fill="white" stroke="none" points="870.29,170.00 870.29,0.00 1043.01,0.00 1043.01,170.00 870.29,170.00" />
+<polygon fill="#e4effb" stroke="none" points="871.29,27.40 871.29,1.00 1042.01,1.00 1042.01,27.40 871.29,27.40" />
+<text xml:space="preserve" text-anchor="start" x="874.29" y="18.30000000000001" font-family="Arial" font-weight="bold" font-size="17.00">PostseasonStage</text>
+<text xml:space="preserve" text-anchor="start" x="874.29" y="42.400000000000006" font-family="Arial" font-size="12.00" fill="#64748b">public.POSTSEASON_STAGE</text>
+<text xml:space="preserve" text-anchor="start" x="874.29" y="66.80000000000001" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="926.73" y="66.80000000000001" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="874.29" y="92.0" font-family="Arial" font-size="16.00" fill="#334155">UK</text>
+<text xml:space="preserve" text-anchor="start" x="926.73" y="92.0" font-family="Arial" font-size="16.00">stage_code</text>
+<text xml:space="preserve" text-anchor="start" x="874.29" y="117.20000000000002" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="926.73" y="117.20000000000002" font-family="Arial" font-size="16.00">stage_name</text>
+<text xml:space="preserve" text-anchor="start" x="874.29" y="142.4" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="926.73" y="142.4" font-family="Arial" font-size="16.00">start_date</text>
+<text xml:space="preserve" text-anchor="start" x="874.29" y="163.60000000000002" font-family="Arial" font-size="12.00" fill="#64748b">+ 4 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="870.29,170.00 870.29,0.00 1043.01,0.00 1043.01,170.00 870.29,170.00" />
+</g>
+
+<g id="node_Stadium" class="node">
+<title>Stadium</title>
+<polygon fill="white" stroke="none" points="421.30,665.60 421.30,571.20 631.30,571.20 631.30,665.60 421.30,665.60" />
+<polygon fill="#edf0f4" stroke="none" points="422.30,598.60 422.30,572.20 516.99,572.20 516.99,598.60 422.30,598.60" />
+<text xml:space="preserve" text-anchor="start" x="425.30000000000007" y="589.5000000000001" font-family="Arial" font-weight="bold" font-size="17.00">Stadium</text>
+<text xml:space="preserve" text-anchor="start" x="425.30000000000007" y="613.6000000000001" font-family="Arial" font-size="12.00" fill="#64748b">public.STADIUM</text>
+<text xml:space="preserve" text-anchor="start" x="425.30000000000007" y="634.0000000000001" font-family="Arial" font-size="12.00" fill="#52677e">참조 · 구장·장소</text>
+<text xml:space="preserve" text-anchor="start" x="425.30000000000007" y="658.4000000000001" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="477.0900000000001" y="658.4000000000001" font-family="Arial" font-size="16.00">id</text>
+<polygon fill="none" stroke="#b8c6d6" points="421.30,665.60 421.30,571.20 631.30,571.20 631.30,665.60 421.30,665.60" />
+</g>
+
+<g id="node_StandingHistory" class="node">
+<title>StandingHistory</title>
+<polygon fill="white" stroke="none" points="667.30,766.40 667.30,571.20 832.00,571.20 832.00,766.40 667.30,766.40" />
+<polygon fill="#e4effb" stroke="none" points="668.30,598.60 668.30,572.20 831.00,572.20 831.00,598.60 668.30,598.60" />
+<text xml:space="preserve" text-anchor="start" x="671.3000000000001" y="589.5000000000001" font-family="Arial" font-weight="bold" font-size="17.00">StandingHistory</text>
+<text xml:space="preserve" text-anchor="start" x="671.3000000000001" y="613.6" font-family="Arial" font-size="12.00" fill="#64748b">public.STANDING_HISTORY</text>
+<text xml:space="preserve" text-anchor="start" x="671.3000000000001" y="638.0000000000001" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="710.83" y="638.0000000000001" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="671.3000000000001" y="663.2" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="710.83" y="663.2" font-family="Arial" font-size="16.00">team_id</text>
+<text xml:space="preserve" text-anchor="start" x="671.3000000000001" y="688.4000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="710.83" y="688.4000000000001" font-family="Arial" font-size="16.00">snapshot_date</text>
+<text xml:space="preserve" text-anchor="start" x="671.3000000000001" y="713.6" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="710.83" y="713.6" font-family="Arial" font-size="16.00">updated_at</text>
+<text xml:space="preserve" text-anchor="start" x="671.3000000000001" y="738.8000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="710.83" y="738.8000000000001" font-family="Arial" font-size="16.00">rank</text>
+<text xml:space="preserve" text-anchor="start" x="671.3000000000001" y="760.0000000000001" font-family="Arial" font-size="12.00" fill="#64748b">+ 14 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="667.30,766.40 667.30,571.20 832.00,571.20 832.00,766.40 667.30,766.40" />
+</g>
+
+<g id="node_Team" class="node">
+<title>Team</title>
+<polygon fill="white" stroke="none" points="230.77,480.80 230.77,310.80 377.28,310.80 377.28,480.80 230.77,480.80" />
+<polygon fill="#e4effb" stroke="none" points="231.77,338.20 231.77,311.80 376.28,311.80 376.28,338.20 231.77,338.20" />
+<text xml:space="preserve" text-anchor="start" x="234.7700000000001" y="329.1" font-family="Arial" font-weight="bold" font-size="17.00">Team</text>
+<text xml:space="preserve" text-anchor="start" x="234.7700000000001" y="353.20000000000005" font-family="Arial" font-size="12.00" fill="#64748b">public.TEAM</text>
+<text xml:space="preserve" text-anchor="start" x="234.7700000000001" y="377.6" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="262.9900000000001" y="377.6" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="234.7700000000001" y="402.8" font-family="Arial" font-size="16.00" fill="#334155">UK</text>
+<text xml:space="preserve" text-anchor="start" x="262.9900000000001" y="402.8" font-family="Arial" font-size="16.00">team_code</text>
+<text xml:space="preserve" text-anchor="start" x="234.7700000000001" y="428.0" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="262.9900000000001" y="428.0" font-family="Arial" font-size="16.00">team_name_ko</text>
+<text xml:space="preserve" text-anchor="start" x="234.7700000000001" y="453.20000000000005" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="262.9900000000001" y="453.20000000000005" font-family="Arial" font-size="16.00">updated_at</text>
+<text xml:space="preserve" text-anchor="start" x="234.7700000000001" y="474.40000000000003" font-family="Arial" font-size="12.00" fill="#64748b">+ 3 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="230.77,480.80 230.77,310.80 377.28,310.80 377.28,480.80 230.77,480.80" />
+</g>
+
+<g id="node_Player" class="node">
+<title>Player</title>
+<polygon fill="white" stroke="none" points="667.30,506.00 667.30,310.80 803.16,310.80 803.16,506.00 667.30,506.00" />
+<polygon fill="#e4effb" stroke="none" points="668.30,338.20 668.30,311.80 802.16,311.80 802.16,338.20 668.30,338.20" />
+<text xml:space="preserve" text-anchor="start" x="671.3000000000001" y="329.1000000000001" font-family="Arial" font-weight="bold" font-size="17.00">Player</text>
+<text xml:space="preserve" text-anchor="start" x="671.3000000000001" y="353.20000000000005" font-family="Arial" font-size="12.00" fill="#64748b">public.baseball_player</text>
+<text xml:space="preserve" text-anchor="start" x="671.3000000000001" y="377.6000000000001" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="698.6400000000001" y="377.6000000000001" font-family="Arial" font-size="16.00">external_code</text>
+<text xml:space="preserve" text-anchor="start" x="671.3000000000001" y="402.80000000000007" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="698.6400000000001" y="402.80000000000007" font-family="Arial" font-size="16.00">team_id</text>
+<text xml:space="preserve" text-anchor="start" x="671.3000000000001" y="428.00000000000006" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="698.6400000000001" y="428.00000000000006" font-family="Arial" font-size="16.00">name</text>
+<text xml:space="preserve" text-anchor="start" x="671.3000000000001" y="453.20000000000005" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="698.6400000000001" y="453.20000000000005" font-family="Arial" font-size="16.00">positions</text>
+<text xml:space="preserve" text-anchor="start" x="671.3000000000001" y="478.4000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="698.6400000000001" y="478.4000000000001" font-family="Arial" font-size="16.00">join_date</text>
+<text xml:space="preserve" text-anchor="start" x="671.3000000000001" y="499.6000000000001" font-family="Arial" font-size="12.00" fill="#64748b">+ 19 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="667.30,506.00 667.30,310.80 803.16,310.80 803.16,506.00 667.30,506.00" />
+</g>
+
+<g id="node_PlayerCareerRecord" class="node">
+<title>PlayerCareerRecord</title>
+<polygon fill="white" stroke="none" points="0.00,506.00 0.00,310.80 194.77,310.80 194.77,506.00 0.00,506.00" />
+<polygon fill="#e4effb" stroke="none" points="1.00,338.20 1.00,311.80 193.77,311.80 193.77,338.20 1.00,338.20" />
+<text xml:space="preserve" text-anchor="start" x="4.0" y="329.1000000000001" font-family="Arial" font-weight="bold" font-size="17.00">PlayerCareerRecord</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="353.20000000000005" font-family="Arial" font-size="12.00" fill="#64748b">public.baseball_playercareerrecord</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="377.6000000000001" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="71.0200000000001" y="377.6000000000001" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="402.80000000000007" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="71.0200000000001" y="402.80000000000007" font-family="Arial" font-size="16.00">player_id</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="428.0000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="71.0200000000001" y="428.0000000000001" font-family="Arial" font-size="16.00">updated_at</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="453.20000000000005" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="71.0200000000001" y="453.20000000000005" font-family="Arial" font-size="16.00">position</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="478.4000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="71.0200000000001" y="478.4000000000001" font-family="Arial" font-size="16.00">title</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="499.6000000000001" font-family="Arial" font-size="12.00" fill="#64748b">+ 5 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="0.00,506.00 0.00,310.80 194.77,310.80 194.77,506.00 0.00,506.00" />
+</g>
+
+<g id="node_PlayerSeasonRecord" class="node">
+<title>PlayerSeasonRecord</title>
+<polygon fill="white" stroke="none" points="421.30,506.00 421.30,310.80 620.76,310.80 620.76,506.00 421.30,506.00" />
+<polygon fill="#e4effb" stroke="none" points="422.30,338.20 422.30,311.80 619.76,311.80 619.76,338.20 422.30,338.20" />
+<text xml:space="preserve" text-anchor="start" x="425.30000000000007" y="329.10000000000014" font-family="Arial" font-weight="bold" font-size="17.00">PlayerSeasonRecord</text>
+<text xml:space="preserve" text-anchor="start" x="425.30000000000007" y="353.20000000000016" font-family="Arial" font-size="12.00" fill="#64748b">public.baseball_playerseasonrecord</text>
+<text xml:space="preserve" text-anchor="start" x="425.30000000000007" y="377.60000000000014" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="468.8800000000001" y="377.60000000000014" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="425.30000000000007" y="402.80000000000007" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="468.8800000000001" y="402.80000000000007" font-family="Arial" font-size="16.00">player_id</text>
+<text xml:space="preserve" text-anchor="start" x="425.30000000000007" y="428.0000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="468.8800000000001" y="428.0000000000001" font-family="Arial" font-size="16.00">updated_at</text>
+<text xml:space="preserve" text-anchor="start" x="425.30000000000007" y="453.2000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="468.8800000000001" y="453.2000000000001" font-family="Arial" font-size="16.00">title</text>
+<text xml:space="preserve" text-anchor="start" x="425.30000000000007" y="478.4000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="468.8800000000001" y="478.4000000000001" font-family="Arial" font-size="16.00">source_fetched_at</text>
+<text xml:space="preserve" text-anchor="start" x="425.30000000000007" y="499.60000000000014" font-family="Arial" font-size="12.00" fill="#64748b">+ 10 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="421.30,506.00 421.30,310.80 620.76,310.80 620.76,506.00 421.30,506.00" />
+</g>
+
+<g id="node_ProviderSnapshot" class="node">
+<title>ProviderSnapshot</title>
+<polygon fill="white" stroke="none" points="0.00,170.00 0.00,0.00 186.12,0.00 186.12,170.00 0.00,170.00" />
+<polygon fill="#e4effb" stroke="none" points="1.00,27.40 1.00,1.00 185.12,1.00 185.12,27.40 1.00,27.40" />
+<text xml:space="preserve" text-anchor="start" x="4.0" y="18.299999999999955" font-family="Arial" font-weight="bold" font-size="17.00">ProviderSnapshot</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="42.40000000000009" font-family="Arial" font-size="12.00" fill="#64748b">public.baseball_providersnapshot</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="66.79999999999995" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="56.48000000000002" y="66.79999999999995" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="92.0" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="56.48000000000002" y="92.0" font-family="Arial" font-size="16.00">updated_at</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="117.20000000000005" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="56.48000000000002" y="117.20000000000005" font-family="Arial" font-size="16.00">resource_kind</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="142.4000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="56.48000000000002" y="142.4000000000001" font-family="Arial" font-size="16.00">resource_key</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="163.5999999999999" font-family="Arial" font-size="12.00" fill="#64748b">+ 4 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="0.00,170.00 0.00,0.00 186.12,0.00 186.12,170.00 0.00,170.00" />
+</g>
+
+<g id="node_ScheduleDay" class="node">
+<title>ScheduleDay</title>
+<polygon fill="white" stroke="none" points="1079.01,480.80 1079.01,310.80 1240.46,310.80 1240.46,480.80 1079.01,480.80" />
+<polygon fill="#e4effb" stroke="none" points="1080.01,338.20 1080.01,311.80 1239.46,311.80 1239.46,338.20 1080.01,338.20" />
+<text xml:space="preserve" text-anchor="start" x="1083.01" y="329.0999999999999" font-family="Arial" font-weight="bold" font-size="17.00">ScheduleDay</text>
+<text xml:space="preserve" text-anchor="start" x="1083.01" y="353.19999999999993" font-family="Arial" font-size="12.00" fill="#64748b">public.baseball_scheduleday</text>
+<text xml:space="preserve" text-anchor="start" x="1083.01" y="377.5999999999999" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="1133.81" y="377.5999999999999" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="1083.01" y="402.79999999999995" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1133.81" y="402.79999999999995" font-family="Arial" font-size="16.00">updated_at</text>
+<text xml:space="preserve" text-anchor="start" x="1083.01" y="428.0" font-family="Arial" font-size="16.00" fill="#334155">UK</text>
+<text xml:space="preserve" text-anchor="start" x="1133.81" y="428.0" font-family="Arial" font-size="16.00">date</text>
+<text xml:space="preserve" text-anchor="start" x="1083.01" y="453.19999999999993" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1133.81" y="453.19999999999993" font-family="Arial" font-size="16.00">status</text>
+<text xml:space="preserve" text-anchor="start" x="1083.01" y="474.4" font-family="Arial" font-size="12.00" fill="#64748b">+ 4 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="1079.01,480.80 1079.01,310.80 1240.46,310.80 1240.46,480.80 1079.01,480.80" />
+</g>
+
+<g id="node_TeamProfile" class="node">
+<title>TeamProfile</title>
+<polygon fill="white" stroke="none" points="230.77,766.40 230.77,571.20 384.19,571.20 384.19,766.40 230.77,766.40" />
+<polygon fill="#e4effb" stroke="none" points="231.77,598.60 231.77,572.20 383.19,572.20 383.19,598.60 231.77,598.60" />
+<text xml:space="preserve" text-anchor="start" x="234.7700000000001" y="589.5000000000001" font-family="Arial" font-weight="bold" font-size="17.00">TeamProfile</text>
+<text xml:space="preserve" text-anchor="start" x="234.7700000000001" y="613.6000000000001" font-family="Arial" font-size="12.00" fill="#64748b">public.baseball_teamprofile</text>
+<text xml:space="preserve" text-anchor="start" x="234.7700000000001" y="638.0000000000001" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="271.34000000000015" y="638.0000000000001" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="234.7700000000001" y="663.2" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="271.34000000000015" y="663.2" font-family="Arial" font-size="16.00">team_id</text>
+<text xml:space="preserve" text-anchor="start" x="234.7700000000001" y="688.4000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="271.34000000000015" y="688.4000000000001" font-family="Arial" font-size="16.00">updated_at</text>
+<text xml:space="preserve" text-anchor="start" x="234.7700000000001" y="713.6000000000001" font-family="Arial" font-size="16.00" fill="#334155">UK</text>
+<text xml:space="preserve" text-anchor="start" x="271.34000000000015" y="713.6000000000001" font-family="Arial" font-size="16.00">external_code</text>
+<text xml:space="preserve" text-anchor="start" x="234.7700000000001" y="738.8000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="271.34000000000015" y="738.8000000000001" font-family="Arial" font-size="16.00">short_name</text>
+<text xml:space="preserve" text-anchor="start" x="234.7700000000001" y="760.0000000000001" font-family="Arial" font-size="12.00" fill="#64748b">+ 7 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="230.77,766.40 230.77,571.20 384.19,571.20 384.19,766.40 230.77,766.40" />
+</g>
+
+<g id="node_TeamRoster" class="node">
+<title>TeamRoster</title>
+<polygon fill="white" stroke="none" points="667.30,220.40 667.30,0.00 834.29,0.00 834.29,220.40 667.30,220.40" />
+<polygon fill="#e4effb" stroke="none" points="668.30,27.40 668.30,1.00 833.29,1.00 833.29,27.40 668.30,27.40" />
+<text xml:space="preserve" text-anchor="start" x="671.3000000000001" y="18.30000000000001" font-family="Arial" font-weight="bold" font-size="17.00">TeamRoster</text>
+<text xml:space="preserve" text-anchor="start" x="671.3000000000001" y="42.400000000000006" font-family="Arial" font-size="12.00" fill="#64748b">public.baseball_teamroster</text>
+<text xml:space="preserve" text-anchor="start" x="671.3000000000001" y="66.80000000000001" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="698.6400000000001" y="66.80000000000001" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="671.3000000000001" y="92.0" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="698.6400000000001" y="92.0" font-family="Arial" font-size="16.00">player_id</text>
+<text xml:space="preserve" text-anchor="start" x="671.3000000000001" y="117.2" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="698.6400000000001" y="117.2" font-family="Arial" font-size="16.00">team_id</text>
+<text xml:space="preserve" text-anchor="start" x="671.3000000000001" y="142.39999999999998" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="698.6400000000001" y="142.39999999999998" font-family="Arial" font-size="16.00">updated_at</text>
+<text xml:space="preserve" text-anchor="start" x="671.3000000000001" y="167.6" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="698.6400000000001" y="167.6" font-family="Arial" font-size="16.00">position</text>
+<text xml:space="preserve" text-anchor="start" x="671.3000000000001" y="192.8" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="698.6400000000001" y="192.8" font-family="Arial" font-size="16.00">source_fetched_at</text>
+<text xml:space="preserve" text-anchor="start" x="671.3000000000001" y="214.0" font-family="Arial" font-size="12.00" fill="#64748b">+ 2 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="667.30,220.40 667.30,0.00 834.29,0.00 834.29,220.40 667.30,220.40" />
+</g>
+
+<g id="node_TeamSeasonRecord" class="node">
+<title>TeamSeasonRecord</title>
+<polygon fill="white" stroke="none" points="0.00,766.40 0.00,571.20 193.45,571.20 193.45,766.40 0.00,766.40" />
+<polygon fill="#e4effb" stroke="none" points="1.00,598.60 1.00,572.20 192.45,572.20 192.45,598.60 1.00,598.60" />
+<text xml:space="preserve" text-anchor="start" x="4.0" y="589.5" font-family="Arial" font-weight="bold" font-size="17.00">TeamSeasonRecord</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="613.6" font-family="Arial" font-size="12.00" fill="#64748b">public.baseball_teamseasonrecord</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="638.0" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="44.579999999999984" y="638.0" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="663.2" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="44.579999999999984" y="663.2" font-family="Arial" font-size="16.00">team_id</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="688.4000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="44.579999999999984" y="688.4000000000001" font-family="Arial" font-size="16.00">updated_at</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="713.6" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="44.579999999999984" y="713.6" font-family="Arial" font-size="16.00">title</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="738.8000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="44.579999999999984" y="738.8000000000001" font-family="Arial" font-size="16.00">source_fetched_at</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="760.0" font-family="Arial" font-size="12.00" fill="#64748b">+ 4 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="0.00,766.40 0.00,571.20 193.45,571.20 193.45,766.40 0.00,766.40" />
+</g>
+
+<g id="node_TeamTopPlayer" class="node">
+<title>TeamTopPlayer</title>
+<polygon fill="white" stroke="none" points="870.29,531.20 870.29,310.80 1040.39,310.80 1040.39,531.20 870.29,531.20" />
+<polygon fill="#e4effb" stroke="none" points="871.29,338.20 871.29,311.80 1039.39,311.80 1039.39,338.20 871.29,338.20" />
+<text xml:space="preserve" text-anchor="start" x="874.29" y="329.1" font-family="Arial" font-weight="bold" font-size="17.00">TeamTopPlayer</text>
+<text xml:space="preserve" text-anchor="start" x="874.29" y="353.20000000000005" font-family="Arial" font-size="12.00" fill="#64748b">public.baseball_teamtopplayer</text>
+<text xml:space="preserve" text-anchor="start" x="874.29" y="377.6" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="903.1899999999999" y="377.6" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="874.29" y="402.80000000000007" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="903.1899999999999" y="402.80000000000007" font-family="Arial" font-size="16.00">player_id</text>
+<text xml:space="preserve" text-anchor="start" x="874.29" y="428.00000000000006" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="903.1899999999999" y="428.00000000000006" font-family="Arial" font-size="16.00">team_id</text>
+<text xml:space="preserve" text-anchor="start" x="874.29" y="453.20000000000005" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="903.1899999999999" y="453.20000000000005" font-family="Arial" font-size="16.00">updated_at</text>
+<text xml:space="preserve" text-anchor="start" x="874.29" y="478.40000000000003" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="903.1899999999999" y="478.40000000000003" font-family="Arial" font-size="16.00">source_fetched_at</text>
+<text xml:space="preserve" text-anchor="start" x="874.29" y="503.6" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="903.1899999999999" y="503.6" font-family="Arial" font-size="16.00">last_synced_at ?</text>
+<text xml:space="preserve" text-anchor="start" x="874.29" y="524.8000000000001" font-family="Arial" font-size="12.00" fill="#64748b">+ 5 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="870.29,531.20 870.29,310.80 1040.39,310.80 1040.39,531.20 870.29,531.20" />
+</g>
+
+<g id="node_HighlightScene" class="node">
+<title>HighlightScene</title>
+<polygon fill="white" stroke="none" points="1079.01,245.60 1079.01,0.00 1241.56,0.00 1241.56,245.60 1079.01,245.60" />
+<polygon fill="#e4effb" stroke="none" points="1080.01,27.40 1080.01,1.00 1240.56,1.00 1240.56,27.40 1080.01,27.40" />
+<text xml:space="preserve" text-anchor="start" x="1083.01" y="18.299999999999955" font-family="Arial" font-weight="bold" font-size="17.00">HighlightScene</text>
+<text xml:space="preserve" text-anchor="start" x="1083.01" y="42.39999999999998" font-family="Arial" font-size="12.00" fill="#64748b">public.llm_highlightscene</text>
+<text xml:space="preserve" text-anchor="start" x="1083.01" y="66.79999999999995" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="1110.35" y="66.79999999999995" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="1083.01" y="92.0" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="1110.35" y="92.0" font-family="Arial" font-size="16.00">batter_id ?</text>
+<text xml:space="preserve" text-anchor="start" x="1083.01" y="117.19999999999993" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="1110.35" y="117.19999999999993" font-family="Arial" font-size="16.00">batting_team_id ?</text>
+<text xml:space="preserve" text-anchor="start" x="1083.01" y="142.39999999999998" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="1110.35" y="142.39999999999998" font-family="Arial" font-size="16.00">video_id</text>
+<text xml:space="preserve" text-anchor="start" x="1083.01" y="167.5999999999999" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1110.35" y="167.5999999999999" font-family="Arial" font-size="16.00">batter_name</text>
+<text xml:space="preserve" text-anchor="start" x="1083.01" y="192.79999999999995" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1110.35" y="192.79999999999995" font-family="Arial" font-size="16.00">pitcher_name</text>
+<text xml:space="preserve" text-anchor="start" x="1083.01" y="218.0" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1110.35" y="218.0" font-family="Arial" font-size="16.00">start_sec</text>
+<text xml:space="preserve" text-anchor="start" x="1083.01" y="239.19999999999993" font-family="Arial" font-size="12.00" fill="#64748b">+ 6 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="1079.01,245.60 1079.01,0.00 1241.56,0.00 1241.56,245.60 1079.01,245.60" />
+</g>
+
+<g id="node_HighlightVideo" class="node">
+<title>HighlightVideo</title>
+<polygon fill="white" stroke="none" points="230.77,245.60 230.77,0.00 385.30,0.00 385.30,245.60 230.77,245.60" />
+<polygon fill="#e4effb" stroke="none" points="231.77,27.40 231.77,1.00 384.30,1.00 384.30,27.40 231.77,27.40" />
+<text xml:space="preserve" text-anchor="start" x="234.7700000000001" y="18.300000000000068" font-family="Arial" font-weight="bold" font-size="17.00">HighlightVideo</text>
+<text xml:space="preserve" text-anchor="start" x="234.7700000000001" y="42.39999999999998" font-family="Arial" font-size="12.00" fill="#64748b">public.llm_highlightvideo</text>
+<text xml:space="preserve" text-anchor="start" x="234.7700000000001" y="66.80000000000007" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="262.11000000000007" y="66.80000000000007" font-family="Arial" font-size="16.00">video_id</text>
+<text xml:space="preserve" text-anchor="start" x="234.7700000000001" y="92.0" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="262.11000000000007" y="92.0" font-family="Arial" font-size="16.00">away_team_id ?</text>
+<text xml:space="preserve" text-anchor="start" x="234.7700000000001" y="117.20000000000005" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="262.11000000000007" y="117.20000000000005" font-family="Arial" font-size="16.00">game_id ?</text>
+<text xml:space="preserve" text-anchor="start" x="234.7700000000001" y="142.39999999999998" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="262.11000000000007" y="142.39999999999998" font-family="Arial" font-size="16.00">home_team_id ?</text>
+<text xml:space="preserve" text-anchor="start" x="234.7700000000001" y="167.60000000000002" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="262.11000000000007" y="167.60000000000002" font-family="Arial" font-size="16.00">title</text>
+<text xml:space="preserve" text-anchor="start" x="234.7700000000001" y="192.80000000000007" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="262.11000000000007" y="192.80000000000007" font-family="Arial" font-size="16.00">game_date ?</text>
+<text xml:space="preserve" text-anchor="start" x="234.7700000000001" y="218.0" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="262.11000000000007" y="218.0" font-family="Arial" font-size="16.00">status</text>
+<text xml:space="preserve" text-anchor="start" x="234.7700000000001" y="239.20000000000005" font-family="Arial" font-size="12.00" fill="#64748b">+ 7 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="230.77,245.60 230.77,0.00 385.30,0.00 385.30,245.60 230.77,245.60" />
+</g>
+</g>
+</svg>

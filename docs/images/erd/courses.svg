@@ -1,0 +1,154 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg xmlns="http://www.w3.org/2000/svg" width="826.9100000000001" height="534.0" viewBox="0 0 826.9100000000001 534.0">
+<g id="graph0" class="graph" transform="translate(20 20)">
+<title>ERD</title>
+<g id="edge_4" class="edge"><title>CustomUser → Course.owner_id</title><path d="M210.00,62.93 L226.00,62.93 L228.00,60.00 L228.00,156.00 L426.00,156.00 L426.00,264.00 L423.41,262.00 L439.41,262.00" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M214.0,66.93333333333334 L214.0,58.93333333333334" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="222.0" cy="62.93333333333334" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /><path d="M430.41,262.0 L439.41,266.0" stroke="#607c99" stroke-width="1" fill="none" /><path d="M430.41,262.0 L439.41,262.0" stroke="#607c99" stroke-width="1" fill="none" /><path d="M430.41,262.0 L439.41,258.0" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="427.41" cy="262.0" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_5" class="edge"><title>CustomUser → CourseReaction.user_id</title><path d="M210.00,31.47 L226.00,31.47 L228.00,30.00 L228.00,60.00 L230.00,62.20 L246.00,62.20" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M214.0,35.46666666666667 L214.0,27.46666666666667" stroke="#607c99" stroke-width="1" fill="none" /><path d="M237.0,62.2 L246.0,66.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M237.0,62.2 L246.0,62.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M237.0,62.2 L246.0,58.2" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="234.0" cy="62.2" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_1" class="edge"><title>AdCreative → AdCreative_courses.adcreative_id</title><path d="M124.07,229.47 L140.07,229.47 L138.00,228.00 L138.00,108.00 L222.00,108.00 L222.00,-12.00 L426.00,-12.00 L426.00,60.00 L423.41,62.20 L439.41,62.20" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M128.07,233.46666666666667 L128.07,225.46666666666667" stroke="#607c99" stroke-width="1" fill="none" /><path d="M430.41,62.2 L439.41,66.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M430.41,62.2 L439.41,62.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M430.41,62.2 L439.41,58.2" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="427.41" cy="62.2" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_3" class="edge"><title>AdCreative → AdEvent.ad_id</title><path d="M124.07,294.53 L140.07,294.53 L138.00,294.00 L138.00,264.00 L228.00,264.00 L230.00,262.00 L246.00,262.00" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M128.07,298.5333333333333 L128.07,290.5333333333333" stroke="#607c99" stroke-width="1" fill="none" /><path d="M237.0,262.0 L246.0,266.0" stroke="#607c99" stroke-width="1" fill="none" /><path d="M237.0,262.0 L246.0,262.0" stroke="#607c99" stroke-width="1" fill="none" /><path d="M237.0,262.0 L246.0,258.0" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="234.0" cy="262.0" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_2" class="edge"><title>Course → AdCreative_courses.course_id</title><path d="M521.67,164.40 L521.67,148.40 L522.00,150.00 L522.00,138.00 L528.00,138.00 L525.79,140.40 L525.79,124.40" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M525.67,160.4 L517.67,160.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M525.795,133.4 L529.795,124.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M525.795,133.4 L525.795,124.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M525.795,133.4 L521.795,124.4" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="525.795" cy="136.4" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_6" class="edge"><title>Course → CourseReaction.course_id</title><path d="M480.54,164.40 L480.54,148.40 L480.00,150.00 L324.00,150.00 L324.00,138.00 L324.71,140.40 L324.71,124.40" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M484.54,160.4 L476.54,160.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M324.70500000000004,133.4 L328.70500000000004,124.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M324.70500000000004,133.4 L324.70500000000004,124.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M324.70500000000004,133.4 L320.70500000000004,124.4" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="324.70500000000004" cy="136.4" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_7" class="edge"><title>Course → CourseStop.course_id</title><path d="M562.80,294.53 L578.80,294.53 L576.00,294.00 L576.00,264.00 L630.00,264.00 L632.18,262.00 L648.18,262.00" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M566.8,298.5333333333333 L566.8,290.5333333333333" stroke="#607c99" stroke-width="1" fill="none" /><path d="M639.18,262.0 L648.18,266.0" stroke="#607c99" stroke-width="1" fill="none" /><path d="M639.18,262.0 L648.18,262.0" stroke="#607c99" stroke-width="1" fill="none" /><path d="M639.18,262.0 L648.18,258.0" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="636.18" cy="262.0" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_8" class="edge"><title>Course → CourseView.course_id</title><path d="M562.80,229.47 L578.80,229.47 L576.00,228.00 L576.00,138.00 L630.00,138.00 L630.00,60.00 L632.18,62.20 L648.18,62.20" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M566.8,233.46666666666667 L566.8,225.46666666666667" stroke="#607c99" stroke-width="1" fill="none" /><path d="M639.18,62.2 L648.18,66.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M639.18,62.2 L648.18,62.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M639.18,62.2 L648.18,58.2" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="636.18" cy="62.2" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_0" class="edge"><title>Place → AdCreative.place_id</title><path d="M105.00,399.60 L105.00,383.60 L102.00,384.00 L60.00,384.00 L60.00,378.00 L62.03,375.60 L62.03,359.60" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M109.0,395.6 L101.0,395.6" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="105.0" cy="387.6" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /><path d="M62.035,368.6 L66.035,359.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M62.035,368.6 L62.035,359.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M62.035,368.6 L58.035,359.6" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="62.035" cy="371.6" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="node_CustomUser" class="node">
+<title>CustomUser</title>
+<polygon fill="white" stroke="none" points="0.00,94.40 0.00,0.00 210.00,0.00 210.00,94.40 0.00,94.40" />
+<polygon fill="#edf0f4" stroke="none" points="1.00,27.40 1.00,1.00 158.41,1.00 158.41,27.40 1.00,27.40" />
+<text xml:space="preserve" text-anchor="start" x="4.0" y="18.299999999999955" font-family="Arial" font-weight="bold" font-size="17.00">CustomUser</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="42.39999999999998" font-family="Arial" font-size="12.00" fill="#64748b">public.accounts_customuser</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="62.799999999999955" font-family="Arial" font-size="12.00" fill="#52677e">참조 · 회원·커뮤니티·채팅</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="87.19999999999993" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="87.15000000000002" y="87.19999999999993" font-family="Arial" font-size="16.00">id</text>
+<polygon fill="none" stroke="#b8c6d6" points="0.00,94.40 0.00,0.00 210.00,0.00 210.00,94.40 0.00,94.40" />
+</g>
+
+<g id="node_AdCreative" class="node">
+<title>AdCreative</title>
+<polygon fill="white" stroke="none" points="0.00,359.60 0.00,164.40 124.07,164.40 124.07,359.60 0.00,359.60" />
+<polygon fill="#e4effb" stroke="none" points="1.00,191.80 1.00,165.40 123.07,165.40 123.07,191.80 1.00,191.80" />
+<text xml:space="preserve" text-anchor="start" x="4.0" y="182.69999999999993" font-family="Arial" font-weight="bold" font-size="17.00">AdCreative</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="206.79999999999995" font-family="Arial" font-size="12.00" fill="#64748b">public.ads_adcreative</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="231.19999999999993" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="35.67000000000007" y="231.19999999999993" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="256.4" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="35.67000000000007" y="256.4" font-family="Arial" font-size="16.00">place_id ?</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="281.59999999999997" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="35.67000000000007" y="281.59999999999997" font-family="Arial" font-size="16.00">title</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="306.79999999999995" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="35.67000000000007" y="306.79999999999995" font-family="Arial" font-size="16.00">team_code</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="331.99999999999994" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="35.67000000000007" y="331.99999999999994" font-family="Arial" font-size="16.00">updated_at</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="353.19999999999993" font-family="Arial" font-size="12.00" fill="#64748b">+ 14 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="0.00,359.60 0.00,164.40 124.07,164.40 124.07,359.60 0.00,359.60" />
+</g>
+
+<g id="node_AdCreative_courses" class="node">
+<title>AdCreative_courses</title>
+<polygon fill="white" stroke="none" points="439.41,124.40 439.41,0.00 612.18,0.00 612.18,124.40 439.41,124.40" />
+<polygon fill="#e4effb" stroke="none" points="440.41,27.40 440.41,1.00 611.18,1.00 611.18,27.40 440.41,27.40" />
+<text xml:space="preserve" text-anchor="start" x="443.40999999999997" y="18.30000000000001" font-family="Arial" font-weight="bold" font-size="17.00">AdCreative_courses</text>
+<text xml:space="preserve" text-anchor="start" x="443.40999999999997" y="42.400000000000006" font-family="Arial" font-size="12.00" fill="#64748b">public.ads_adcreative_courses</text>
+<text xml:space="preserve" text-anchor="start" x="443.40999999999997" y="66.80000000000001" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="491.87999999999994" y="66.80000000000001" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="443.40999999999997" y="92.00000000000001" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="491.87999999999994" y="92.00000000000001" font-family="Arial" font-size="16.00">adcreative_id</text>
+<text xml:space="preserve" text-anchor="start" x="443.40999999999997" y="117.20000000000002" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="491.87999999999994" y="117.20000000000002" font-family="Arial" font-size="16.00">course_id</text>
+<polygon fill="none" stroke="#b8c6d6" points="439.41,124.40 439.41,0.00 612.18,0.00 612.18,124.40 439.41,124.40" />
+</g>
+
+<g id="node_AdEvent" class="node">
+<title>AdEvent</title>
+<polygon fill="white" stroke="none" points="246.00,359.60 246.00,164.40 369.40,164.40 369.40,359.60 246.00,359.60" />
+<polygon fill="#e4effb" stroke="none" points="247.00,191.80 247.00,165.40 368.40,165.40 368.40,191.80 247.00,191.80" />
+<text xml:space="preserve" text-anchor="start" x="250.0" y="182.70000000000002" font-family="Arial" font-weight="bold" font-size="17.00">AdEvent</text>
+<text xml:space="preserve" text-anchor="start" x="250.0" y="206.8" font-family="Arial" font-size="12.00" fill="#64748b">public.ads_adevent</text>
+<text xml:space="preserve" text-anchor="start" x="250.0" y="231.20000000000002" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="278.22" y="231.20000000000002" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="250.0" y="256.40000000000003" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="278.22" y="256.40000000000003" font-family="Arial" font-size="16.00">ad_id</text>
+<text xml:space="preserve" text-anchor="start" x="250.0" y="281.6" font-family="Arial" font-size="16.00" fill="#334155">UK</text>
+<text xml:space="preserve" text-anchor="start" x="278.22" y="281.6" font-family="Arial" font-size="16.00">event_id</text>
+<text xml:space="preserve" text-anchor="start" x="250.0" y="306.8" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="278.22" y="306.8" font-family="Arial" font-size="16.00">exposure_id</text>
+<text xml:space="preserve" text-anchor="start" x="250.0" y="332.0" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="278.22" y="332.0" font-family="Arial" font-size="16.00">kind</text>
+<text xml:space="preserve" text-anchor="start" x="250.0" y="353.20000000000005" font-family="Arial" font-size="12.00" fill="#64748b">+ 2 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="246.00,359.60 246.00,164.40 369.40,164.40 369.40,359.60 246.00,359.60" />
+</g>
+
+<g id="node_Course" class="node">
+<title>Course</title>
+<polygon fill="white" stroke="none" points="439.41,359.60 439.41,164.40 562.80,164.40 562.80,359.60 439.41,359.60" />
+<polygon fill="#e4effb" stroke="none" points="440.41,191.80 440.41,165.40 561.80,165.40 561.80,191.80 440.41,191.80" />
+<text xml:space="preserve" text-anchor="start" x="443.40999999999997" y="182.69999999999993" font-family="Arial" font-weight="bold" font-size="17.00">Course</text>
+<text xml:space="preserve" text-anchor="start" x="443.40999999999997" y="206.79999999999995" font-family="Arial" font-size="12.00" fill="#64748b">public.travel_course</text>
+<text xml:space="preserve" text-anchor="start" x="443.40999999999997" y="231.19999999999993" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="470.76" y="231.19999999999993" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="443.40999999999997" y="256.4" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="470.76" y="256.4" font-family="Arial" font-size="16.00">owner_id ?</text>
+<text xml:space="preserve" text-anchor="start" x="443.40999999999997" y="281.59999999999997" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="470.76" y="281.59999999999997" font-family="Arial" font-size="16.00">title</text>
+<text xml:space="preserve" text-anchor="start" x="443.40999999999997" y="306.79999999999995" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="470.76" y="306.79999999999995" font-family="Arial" font-size="16.00">stadium</text>
+<text xml:space="preserve" text-anchor="start" x="443.40999999999997" y="331.99999999999994" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="470.76" y="331.99999999999994" font-family="Arial" font-size="16.00">travel_mode</text>
+<text xml:space="preserve" text-anchor="start" x="443.40999999999997" y="353.19999999999993" font-family="Arial" font-size="12.00" fill="#64748b">+ 19 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="439.41,359.60 439.41,164.40 562.80,164.40 562.80,359.60 439.41,359.60" />
+</g>
+
+<g id="node_CourseReaction" class="node">
+<title>CourseReaction</title>
+<polygon fill="white" stroke="none" points="246.00,124.40 246.00,0.00 403.41,0.00 403.41,124.40 246.00,124.40" />
+<polygon fill="#e4effb" stroke="none" points="247.00,27.40 247.00,1.00 402.41,1.00 402.41,27.40 247.00,27.40" />
+<text xml:space="preserve" text-anchor="start" x="250.0" y="18.30000000000001" font-family="Arial" font-weight="bold" font-size="17.00">CourseReaction</text>
+<text xml:space="preserve" text-anchor="start" x="250.0" y="42.400000000000006" font-family="Arial" font-size="12.00" fill="#64748b">public.travel_coursereaction</text>
+<text xml:space="preserve" text-anchor="start" x="250.0" y="66.80000000000001" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="303.69" y="66.80000000000001" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="250.0" y="92.00000000000001" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="303.69" y="92.00000000000001" font-family="Arial" font-size="16.00">course_id</text>
+<text xml:space="preserve" text-anchor="start" x="250.0" y="117.20000000000002" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="303.69" y="117.20000000000002" font-family="Arial" font-size="16.00">user_id</text>
+<polygon fill="none" stroke="#b8c6d6" points="246.00,124.40 246.00,0.00 403.41,0.00 403.41,124.40 246.00,124.40" />
+</g>
+
+<g id="node_CourseStop" class="node">
+<title>CourseStop</title>
+<polygon fill="white" stroke="none" points="648.18,359.60 648.18,164.40 785.59,164.40 785.59,359.60 648.18,359.60" />
+<polygon fill="#e4effb" stroke="none" points="649.18,191.80 649.18,165.40 784.59,165.40 784.59,191.80 649.18,191.80" />
+<text xml:space="preserve" text-anchor="start" x="652.1800000000001" y="182.70000000000002" font-family="Arial" font-weight="bold" font-size="17.00">CourseStop</text>
+<text xml:space="preserve" text-anchor="start" x="652.1800000000001" y="206.8" font-family="Arial" font-size="12.00" fill="#64748b">public.travel_coursestop</text>
+<text xml:space="preserve" text-anchor="start" x="652.1800000000001" y="231.20000000000002" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="695.8700000000001" y="231.20000000000002" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="652.1800000000001" y="256.40000000000003" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="695.8700000000001" y="256.40000000000003" font-family="Arial" font-size="16.00">course_id</text>
+<text xml:space="preserve" text-anchor="start" x="652.1800000000001" y="281.6" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="695.8700000000001" y="281.6" font-family="Arial" font-size="16.00">position</text>
+<text xml:space="preserve" text-anchor="start" x="652.1800000000001" y="306.8" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="695.8700000000001" y="306.8" font-family="Arial" font-size="16.00">name</text>
+<text xml:space="preserve" text-anchor="start" x="652.1800000000001" y="332.0" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="695.8700000000001" y="332.0" font-family="Arial" font-size="16.00">lat ?</text>
+<text xml:space="preserve" text-anchor="start" x="652.1800000000001" y="353.20000000000005" font-family="Arial" font-size="12.00" fill="#64748b">+ 8 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="648.18,359.60 648.18,164.40 785.59,164.40 785.59,359.60 648.18,359.60" />
+</g>
+
+<g id="node_CourseView" class="node">
+<title>CourseView</title>
+<polygon fill="white" stroke="none" points="648.18,124.40 648.18,0.00 786.91,0.00 786.91,124.40 648.18,124.40" />
+<polygon fill="#e4effb" stroke="none" points="649.18,27.40 649.18,1.00 785.91,1.00 785.91,27.40 649.18,27.40" />
+<text xml:space="preserve" text-anchor="start" x="652.1800000000001" y="18.30000000000001" font-family="Arial" font-weight="bold" font-size="17.00">CourseView</text>
+<text xml:space="preserve" text-anchor="start" x="652.1800000000001" y="42.400000000000006" font-family="Arial" font-size="12.00" fill="#64748b">public.travel_courseview</text>
+<text xml:space="preserve" text-anchor="start" x="652.1800000000001" y="66.80000000000001" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="687.6400000000001" y="66.80000000000001" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="652.1800000000001" y="92.00000000000001" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="687.6400000000001" y="92.00000000000001" font-family="Arial" font-size="16.00">course_id</text>
+<text xml:space="preserve" text-anchor="start" x="652.1800000000001" y="117.20000000000002" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="687.6400000000001" y="117.20000000000002" font-family="Arial" font-size="16.00">actor_digest</text>
+<polygon fill="none" stroke="#b8c6d6" points="648.18,124.40 648.18,0.00 786.91,0.00 786.91,124.40 648.18,124.40" />
+</g>
+
+<g id="node_Place" class="node">
+<title>Place</title>
+<polygon fill="white" stroke="none" points="0.00,494.00 0.00,399.60 210.00,399.60 210.00,494.00 0.00,494.00" />
+<polygon fill="#edf0f4" stroke="none" points="1.00,427.00 1.00,400.60 106.39,400.60 106.39,427.00 1.00,427.00" />
+<text xml:space="preserve" text-anchor="start" x="4.0" y="417.9" font-family="Arial" font-weight="bold" font-size="17.00">Place</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="442.0" font-family="Arial" font-size="12.00" fill="#64748b">public.travel_place</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="462.4" font-family="Arial" font-size="12.00" fill="#52677e">참조 · 구장·장소</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="486.79999999999995" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="61.139999999999986" y="486.79999999999995" font-family="Arial" font-size="16.00">id</text>
+<polygon fill="none" stroke="#b8c6d6" points="0.00,494.00 0.00,399.60 210.00,399.60 210.00,494.00 0.00,494.00" />
+</g>
+</g>
+</svg>

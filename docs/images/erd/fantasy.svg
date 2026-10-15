@@ -1,0 +1,244 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1175.06" height="735.6" viewBox="0 0 1175.06 735.6">
+<g id="graph0" class="graph" transform="translate(20 20)">
+<title>ERD</title>
+<g id="edge_3" class="edge"><title>Game → FantasyBattingGameStat.game_id</title><path d="M210.00,572.80 L226.00,572.80 L228.00,570.00 L228.00,498.00 L456.00,498.00 L456.00,402.00 L456.76,403.73 L472.76,403.73" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M214.0,576.8 L214.0,568.8" stroke="#607c99" stroke-width="1" fill="none" /><path d="M463.76,403.73333333333335 L472.76,407.73333333333335" stroke="#607c99" stroke-width="1" fill="none" /><path d="M463.76,403.73333333333335 L472.76,403.73333333333335" stroke="#607c99" stroke-width="1" fill="none" /><path d="M463.76,403.73333333333335 L472.76,399.73333333333335" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="460.76" cy="403.73333333333335" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_6" class="edge"><title>Game → FantasyPitchingGameStat.game_id</title><path d="M105.00,525.60 L105.00,509.60 L102.00,510.00 L102.00,504.00 L108.00,504.00 L109.33,501.60 L109.33,485.60" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M109.0,521.6 L101.0,521.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M109.33,494.6 L113.33,485.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M109.33,494.6 L109.33,485.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M109.33,494.6 L105.33,485.6" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="109.33" cy="497.6" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_4" class="edge"><title>Team → FantasyBattingGameStat.team_id</title><path d="M210.00,47.20 L226.00,47.20 L228.00,48.00 L228.00,186.00 L456.00,186.00 L456.00,324.00 L456.76,321.87 L472.76,321.87" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M214.0,51.2 L214.0,43.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M463.76,321.8666666666667 L472.76,325.8666666666667" stroke="#607c99" stroke-width="1" fill="none" /><path d="M463.76,321.8666666666667 L472.76,321.8666666666667" stroke="#607c99" stroke-width="1" fill="none" /><path d="M463.76,321.8666666666667 L472.76,317.8666666666667" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="460.76" cy="321.8666666666667" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_7" class="edge"><title>Team → FantasyPitchingGameStat.team_id</title><path d="M105.00,94.40 L105.00,110.40 L102.00,108.00 L102.00,222.00 L108.00,222.00 L109.33,224.00 L109.33,240.00" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M101.0,98.4 L109.0,98.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M109.33,231.0 L105.33,240.0" stroke="#607c99" stroke-width="1" fill="none" /><path d="M109.33,231.0 L109.33,240.0" stroke="#607c99" stroke-width="1" fill="none" /><path d="M109.33,231.0 L113.33,240.0" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="109.33" cy="228.0" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_1" class="edge"><title>CustomUser → GamePrediction.user_id</title><path d="M682.76,557.07 L698.76,557.07 L696.00,558.00 L930.00,558.00 L930.00,342.00 L929.64,340.00 L945.64,340.00" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M686.76,561.0666666666667 L686.76,553.0666666666667" stroke="#607c99" stroke-width="1" fill="none" /><path d="M936.64,340.0 L945.64,344.0" stroke="#607c99" stroke-width="1" fill="none" /><path d="M936.64,340.0 L945.64,340.0" stroke="#607c99" stroke-width="1" fill="none" /><path d="M936.64,340.0 L945.64,336.0" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="933.64" cy="340.0" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_11" class="edge"><title>CustomUser → FantasySelection.user_id</title><path d="M472.76,572.80 L456.76,572.80 L456.00,570.00 L444.00,570.00 L444.00,360.00 L444.76,362.80 L428.76,362.80" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M468.76,568.8 L468.76,576.8" stroke="#607c99" stroke-width="1" fill="none" /><path d="M437.76,362.8 L428.76,358.8" stroke="#607c99" stroke-width="1" fill="none" /><path d="M437.76,362.8 L428.76,362.8" stroke="#607c99" stroke-width="1" fill="none" /><path d="M437.76,362.8 L428.76,366.8" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="440.76" cy="362.8" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_15" class="edge"><title>CustomUser → FantasyUserResult.user_id</title><path d="M682.76,588.53 L698.76,588.53 L696.00,588.00 L696.00,384.00 L702.00,384.00 L704.88,386.93 L720.88,386.93" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M686.76,592.5333333333333 L686.76,584.5333333333333" stroke="#607c99" stroke-width="1" fill="none" /><path d="M711.88,386.9333333333333 L720.88,390.9333333333333" stroke="#607c99" stroke-width="1" fill="none" /><path d="M711.88,386.9333333333333 L720.88,386.9333333333333" stroke="#607c99" stroke-width="1" fill="none" /><path d="M711.88,386.9333333333333 L720.88,382.9333333333333" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="708.88" cy="386.9333333333333" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_2" class="edge"><title>Player → FantasyBattingGameStat.player_id</title><path d="M612.76,94.40 L612.76,110.40 L612.00,108.00 L576.00,108.00 L576.00,222.00 L578.82,224.00 L578.82,240.00" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M608.76,98.4 L616.76,98.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M578.8199999999999,231.0 L574.8199999999999,240.0" stroke="#607c99" stroke-width="1" fill="none" /><path d="M578.8199999999999,231.0 L578.8199999999999,240.0" stroke="#607c99" stroke-width="1" fill="none" /><path d="M578.8199999999999,231.0 L582.8199999999999,240.0" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="578.8199999999999" cy="228.0" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_5" class="edge"><title>Player → FantasyPitchingGameStat.player_id</title><path d="M472.76,47.20 L456.76,47.20 L456.00,48.00 L450.00,48.00 L450.00,-12.00 L222.00,-12.00 L222.00,228.00 L234.00,228.00 L234.00,360.00 L234.66,362.80 L218.66,362.80" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M468.76,43.2 L468.76,51.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M227.66,362.8 L218.66,358.8" stroke="#607c99" stroke-width="1" fill="none" /><path d="M227.66,362.8 L218.66,362.8" stroke="#607c99" stroke-width="1" fill="none" /><path d="M227.66,362.8 L218.66,366.8" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="230.66" cy="362.8" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_8" class="edge"><title>Player → FantasyPlayerScore.player_id</title><path d="M682.76,47.20 L698.76,47.20 L696.00,48.00 L696.00,102.00 L702.00,102.00 L704.88,100.00 L720.88,100.00" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M686.76,51.2 L686.76,43.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M711.88,100.0 L720.88,104.0" stroke="#607c99" stroke-width="1" fill="none" /><path d="M711.88,100.0 L720.88,100.0" stroke="#607c99" stroke-width="1" fill="none" /><path d="M711.88,100.0 L720.88,96.0" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="708.88" cy="100.0" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_10" class="edge"><title>Player → FantasySelection.player_id</title><path d="M542.76,94.40 L542.76,110.40 L540.00,108.00 L450.00,108.00 L450.00,222.00 L342.00,222.00 L341.71,224.00 L341.71,240.00" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M538.76,98.4 L546.76,98.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M341.71,231.0 L337.71,240.0" stroke="#607c99" stroke-width="1" fill="none" /><path d="M341.71,231.0 L341.71,240.0" stroke="#607c99" stroke-width="1" fill="none" /><path d="M341.71,231.0 L345.71,240.0" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="341.71" cy="228.0" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_0" class="edge"><title>PredictionGame → GamePrediction.game_id</title><path d="M1040.35,170.00 L1040.35,186.00 L1038.00,186.00 L1038.00,222.00 L1040.35,224.00 L1040.35,240.00" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M1036.35,174.0 L1044.35,174.0" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1040.35,231.0 L1036.35,240.0" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1040.35,231.0 L1040.35,240.0" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1040.35,231.0 L1044.35,240.0" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="1040.35" cy="228.0" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_14" class="edge"><title>FantasySettlement → FantasyUserResult.settlement_id</title><path d="M436.76,87.40 L452.76,87.40 L450.00,90.00 L450.00,102.00 L462.00,102.00 L462.00,228.00 L702.00,228.00 L702.00,312.00 L704.88,313.47 L720.88,313.47" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M440.76,91.4 L440.76,83.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M711.88,313.46666666666664 L720.88,317.46666666666664" stroke="#607c99" stroke-width="1" fill="none" /><path d="M711.88,313.46666666666664 L720.88,313.46666666666664" stroke="#607c99" stroke-width="1" fill="none" /><path d="M711.88,313.46666666666664 L720.88,309.46666666666664" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="708.88" cy="313.46666666666664" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_9" class="edge"><title>FantasyUserResult → FantasyPlayerScore.user_result_id</title><path d="M810.59,240.00 L810.59,224.00 L810.00,222.00 L810.00,216.00 L815.26,216.00 L815.26,200.00" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M814.5899999999999,236.0 L806.5899999999999,236.0" stroke="#607c99" stroke-width="1" fill="none" /><path d="M815.26,209.0 L819.26,200.0" stroke="#607c99" stroke-width="1" fill="none" /><path d="M815.26,209.0 L815.26,200.0" stroke="#607c99" stroke-width="1" fill="none" /><path d="M815.26,209.0 L811.26,200.0" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="815.26" cy="212.0" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_12" class="edge"><title>FantasyWeek → FantasySelection.week_id</title><path d="M306.25,525.60 L306.25,509.60 L306.00,510.00 L342.00,510.00 L342.00,504.00 L341.71,501.60 L341.71,485.60" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M310.24666666666667,521.6 L302.24666666666667,521.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M341.71,494.6 L345.71,485.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M341.71,494.6 L341.71,485.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M341.71,494.6 L337.71,485.6" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="341.71" cy="497.6" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_13" class="edge"><title>FantasyWeek → FantasySettlement.week_id</title><path d="M357.83,525.60 L357.83,509.60 L360.00,510.00 L360.00,504.00 L438.00,504.00 L438.00,228.00 L336.00,228.00 L336.00,192.00 L348.00,192.00 L345.71,190.80 L345.71,174.80" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M361.83333333333337,521.6 L353.83333333333337,521.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M341.71,178.8 L349.71,178.8" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="345.71" cy="186.8" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="node_Game" class="node">
+<title>Game</title>
+<polygon fill="white" stroke="none" points="0.00,620.00 0.00,525.60 210.00,525.60 210.00,620.00 0.00,620.00" />
+<polygon fill="#edf0f4" stroke="none" points="1.00,553.00 1.00,526.60 117.02,526.60 117.02,553.00 1.00,553.00" />
+<text xml:space="preserve" text-anchor="start" x="4.0" y="543.9000000000002" font-family="Arial" font-weight="bold" font-size="17.00">Game</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="568.0000000000002" font-family="Arial" font-size="12.00" fill="#64748b">public.GAME</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="588.4000000000002" font-family="Arial" font-size="12.00" fill="#52677e">참조 · 야구·하이라이트</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="612.8000000000002" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="66.45999999999998" y="612.8000000000002" font-family="Arial" font-size="16.00">id</text>
+<polygon fill="none" stroke="#b8c6d6" points="0.00,620.00 0.00,525.60 210.00,525.60 210.00,620.00 0.00,620.00" />
+</g>
+
+<g id="node_Team" class="node">
+<title>Team</title>
+<polygon fill="white" stroke="none" points="0.00,94.40 0.00,0.00 210.00,0.00 210.00,94.40 0.00,94.40" />
+<polygon fill="#edf0f4" stroke="none" points="1.00,27.40 1.00,1.00 117.02,1.00 117.02,27.40 1.00,27.40" />
+<text xml:space="preserve" text-anchor="start" x="4.0" y="18.300000000000068" font-family="Arial" font-weight="bold" font-size="17.00">Team</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="42.40000000000009" font-family="Arial" font-size="12.00" fill="#64748b">public.TEAM</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="62.80000000000007" font-family="Arial" font-size="12.00" fill="#52677e">참조 · 야구·하이라이트</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="87.20000000000005" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="66.46" y="87.20000000000005" font-family="Arial" font-size="16.00">id</text>
+<polygon fill="none" stroke="#b8c6d6" points="0.00,94.40 0.00,0.00 210.00,0.00 210.00,94.40 0.00,94.40" />
+</g>
+
+<g id="node_CustomUser" class="node">
+<title>CustomUser</title>
+<polygon fill="white" stroke="none" points="472.76,620.00 472.76,525.60 682.76,525.60 682.76,620.00 472.76,620.00" />
+<polygon fill="#edf0f4" stroke="none" points="473.76,553.00 473.76,526.60 631.17,526.60 631.17,553.00 473.76,553.00" />
+<text xml:space="preserve" text-anchor="start" x="476.7599999999999" y="543.9000000000002" font-family="Arial" font-weight="bold" font-size="17.00">CustomUser</text>
+<text xml:space="preserve" text-anchor="start" x="476.7599999999999" y="568.0000000000002" font-family="Arial" font-size="12.00" fill="#64748b">public.accounts_customuser</text>
+<text xml:space="preserve" text-anchor="start" x="476.7599999999999" y="588.4000000000002" font-family="Arial" font-size="12.00" fill="#52677e">참조 · 회원·커뮤니티·채팅</text>
+<text xml:space="preserve" text-anchor="start" x="476.7599999999999" y="612.8000000000002" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="559.91" y="612.8000000000002" font-family="Arial" font-size="16.00">id</text>
+<polygon fill="none" stroke="#b8c6d6" points="472.76,620.00 472.76,525.60 682.76,525.60 682.76,620.00 472.76,620.00" />
+</g>
+
+<g id="node_Player" class="node">
+<title>Player</title>
+<polygon fill="white" stroke="none" points="472.76,94.40 472.76,0.00 682.76,0.00 682.76,94.40 472.76,94.40" />
+<polygon fill="#edf0f4" stroke="none" points="473.76,27.40 473.76,1.00 607.62,1.00 607.62,27.40 473.76,27.40" />
+<text xml:space="preserve" text-anchor="start" x="476.7599999999999" y="18.300000000000068" font-family="Arial" font-weight="bold" font-size="17.00">Player</text>
+<text xml:space="preserve" text-anchor="start" x="476.7599999999999" y="42.40000000000009" font-family="Arial" font-size="12.00" fill="#64748b">public.baseball_player</text>
+<text xml:space="preserve" text-anchor="start" x="476.7599999999999" y="62.80000000000007" font-family="Arial" font-size="12.00" fill="#52677e">참조 · 야구·하이라이트</text>
+<text xml:space="preserve" text-anchor="start" x="476.7599999999999" y="87.20000000000005" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="504.09999999999985" y="87.20000000000005" font-family="Arial" font-size="16.00">external_code</text>
+<polygon fill="none" stroke="#b8c6d6" points="472.76,94.40 472.76,0.00 682.76,0.00 682.76,94.40 472.76,94.40" />
+</g>
+
+<g id="node_GamePrediction" class="node">
+<title>GamePrediction</title>
+<polygon fill="white" stroke="none" points="945.64,440.00 945.64,240.00 1135.06,240.00 1135.06,440.00 945.64,440.00" />
+<polygon fill="#e4effb" stroke="none" points="946.64,267.40 946.64,241.00 1134.06,241.00 1134.06,267.40 946.64,267.40" />
+<text xml:space="preserve" text-anchor="start" x="949.6399999999999" y="258.29999999999995" font-family="Arial" font-weight="bold" font-size="17.00">GamePrediction</text>
+<text xml:space="preserve" text-anchor="start" x="949.6399999999999" y="282.4" font-family="Arial" font-size="12.00" fill="#64748b">public.community_gameprediction</text>
+<text xml:space="preserve" text-anchor="start" x="949.6399999999999" y="306.79999999999995" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="1013.98" y="306.79999999999995" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="949.6399999999999" y="331.99999999999994" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="1013.98" y="331.99999999999994" font-family="Arial" font-size="16.00">game_id</text>
+<text xml:space="preserve" text-anchor="start" x="949.6399999999999" y="357.19999999999993" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="1013.98" y="357.19999999999993" font-family="Arial" font-size="16.00">user_id</text>
+<text xml:space="preserve" text-anchor="start" x="949.6399999999999" y="382.4" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1013.98" y="382.4" font-family="Arial" font-size="16.00">updated_at</text>
+<text xml:space="preserve" text-anchor="start" x="949.6399999999999" y="407.59999999999997" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1013.98" y="407.59999999999997" font-family="Arial" font-size="16.00">choice</text>
+<text xml:space="preserve" text-anchor="start" x="949.6399999999999" y="432.79999999999995" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1013.98" y="432.79999999999995" font-family="Arial" font-size="16.00">created_at</text>
+<polygon fill="none" stroke="#b8c6d6" points="945.64,440.00 945.64,240.00 1135.06,240.00 1135.06,440.00 945.64,440.00" />
+</g>
+
+<g id="node_PredictionGame" class="node">
+<title>PredictionGame</title>
+<polygon fill="white" stroke="none" points="945.64,170.00 945.64,0.00 1135.06,0.00 1135.06,170.00 945.64,170.00" />
+<polygon fill="#e4effb" stroke="none" points="946.64,27.40 946.64,1.00 1134.06,1.00 1134.06,27.40 946.64,27.40" />
+<text xml:space="preserve" text-anchor="start" x="949.6399999999999" y="18.299999999999955" font-family="Arial" font-weight="bold" font-size="17.00">PredictionGame</text>
+<text xml:space="preserve" text-anchor="start" x="949.6399999999999" y="42.39999999999998" font-family="Arial" font-size="12.00" fill="#64748b">public.community_predictiongame</text>
+<text xml:space="preserve" text-anchor="start" x="949.6399999999999" y="66.79999999999995" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="988.6499999999999" y="66.79999999999995" font-family="Arial" font-size="16.00">source_id</text>
+<text xml:space="preserve" text-anchor="start" x="949.6399999999999" y="92.0" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="988.6499999999999" y="92.0" font-family="Arial" font-size="16.00">game_date</text>
+<text xml:space="preserve" text-anchor="start" x="949.6399999999999" y="117.20000000000005" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="988.6499999999999" y="117.20000000000005" font-family="Arial" font-size="16.00">away_team_code</text>
+<text xml:space="preserve" text-anchor="start" x="949.6399999999999" y="142.39999999999998" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="988.6499999999999" y="142.39999999999998" font-family="Arial" font-size="16.00">away_team_name</text>
+<text xml:space="preserve" text-anchor="start" x="949.6399999999999" y="163.60000000000002" font-family="Arial" font-size="12.00" fill="#64748b">+ 12 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="945.64,170.00 945.64,0.00 1135.06,0.00 1135.06,170.00 945.64,170.00" />
+</g>
+
+<g id="node_FantasyBattingGameStat" class="node">
+<title>FantasyBattingGameStat</title>
+<polygon fill="white" stroke="none" points="472.76,485.60 472.76,240.00 684.88,240.00 684.88,485.60 472.76,485.60" />
+<polygon fill="#e4effb" stroke="none" points="473.76,267.40 473.76,241.00 683.88,241.00 683.88,267.40 473.76,267.40" />
+<text xml:space="preserve" text-anchor="start" x="476.7599999999999" y="258.3" font-family="Arial" font-weight="bold" font-size="17.00">FantasyBattingGameStat</text>
+<text xml:space="preserve" text-anchor="start" x="476.7599999999999" y="282.40000000000003" font-family="Arial" font-size="12.00" fill="#64748b">public.fantasy_fantasybattinggamestat</text>
+<text xml:space="preserve" text-anchor="start" x="476.7599999999999" y="306.8" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="552.4499999999998" y="306.8" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="476.7599999999999" y="332.0" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="552.4499999999998" y="332.0" font-family="Arial" font-size="16.00">game_id</text>
+<text xml:space="preserve" text-anchor="start" x="476.7599999999999" y="357.20000000000005" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="552.4499999999998" y="357.20000000000005" font-family="Arial" font-size="16.00">player_id</text>
+<text xml:space="preserve" text-anchor="start" x="476.7599999999999" y="382.40000000000003" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="552.4499999999998" y="382.40000000000003" font-family="Arial" font-size="16.00">team_id</text>
+<text xml:space="preserve" text-anchor="start" x="476.7599999999999" y="407.6" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="552.4499999999998" y="407.6" font-family="Arial" font-size="16.00">updated_at</text>
+<text xml:space="preserve" text-anchor="start" x="476.7599999999999" y="432.8" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="552.4499999999998" y="432.8" font-family="Arial" font-size="16.00">at_bats</text>
+<text xml:space="preserve" text-anchor="start" x="476.7599999999999" y="458.0" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="552.4499999999998" y="458.0" font-family="Arial" font-size="16.00">hits</text>
+<text xml:space="preserve" text-anchor="start" x="476.7599999999999" y="479.20000000000005" font-family="Arial" font-size="12.00" fill="#64748b">+ 3 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="472.76,485.60 472.76,240.00 684.88,240.00 684.88,485.60 472.76,485.60" />
+</g>
+
+<g id="node_FantasyPitchingGameStat" class="node">
+<title>FantasyPitchingGameStat</title>
+<polygon fill="white" stroke="none" points="0.00,485.60 0.00,240.00 218.66,240.00 218.66,485.60 0.00,485.60" />
+<polygon fill="#e4effb" stroke="none" points="1.00,267.40 1.00,241.00 217.66,241.00 217.66,267.40 1.00,267.40" />
+<text xml:space="preserve" text-anchor="start" x="4.0" y="258.3" font-family="Arial" font-weight="bold" font-size="17.00">FantasyPitchingGameStat</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="282.40000000000003" font-family="Arial" font-size="12.00" fill="#64748b">public.fantasy_fantasypitchinggamestat</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="306.8" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="82.95999999999998" y="306.8" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="332.0" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="82.95999999999998" y="332.0" font-family="Arial" font-size="16.00">game_id</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="357.20000000000005" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="82.95999999999998" y="357.20000000000005" font-family="Arial" font-size="16.00">player_id</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="382.40000000000003" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="82.95999999999998" y="382.40000000000003" font-family="Arial" font-size="16.00">team_id</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="407.6" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="82.95999999999998" y="407.6" font-family="Arial" font-size="16.00">updated_at</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="432.8" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="82.95999999999998" y="432.8" font-family="Arial" font-size="16.00">saves</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="458.0" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="82.95999999999998" y="458.0" font-family="Arial" font-size="16.00">strikeouts</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="479.20000000000005" font-family="Arial" font-size="12.00" fill="#64748b">+ 3 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="0.00,485.60 0.00,240.00 218.66,240.00 218.66,485.60 0.00,485.60" />
+</g>
+
+<g id="node_FantasyPlayerScore" class="node">
+<title>FantasyPlayerScore</title>
+<polygon fill="white" stroke="none" points="720.88,200.00 720.88,0.00 909.64,0.00 909.64,200.00 720.88,200.00" />
+<polygon fill="#e4effb" stroke="none" points="721.88,27.40 721.88,1.00 908.64,1.00 908.64,27.40 721.88,27.40" />
+<text xml:space="preserve" text-anchor="start" x="724.8799999999999" y="18.30000000000001" font-family="Arial" font-weight="bold" font-size="17.00">FantasyPlayerScore</text>
+<text xml:space="preserve" text-anchor="start" x="724.8799999999999" y="42.400000000000006" font-family="Arial" font-size="12.00" fill="#64748b">public.fantasy_fantasyplayerscore</text>
+<text xml:space="preserve" text-anchor="start" x="724.8799999999999" y="66.80000000000001" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="778.6799999999998" y="66.80000000000001" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="724.8799999999999" y="92.0" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="778.6799999999998" y="92.0" font-family="Arial" font-size="16.00">player_id</text>
+<text xml:space="preserve" text-anchor="start" x="724.8799999999999" y="117.2" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="778.6799999999998" y="117.2" font-family="Arial" font-size="16.00">user_result_id</text>
+<text xml:space="preserve" text-anchor="start" x="724.8799999999999" y="142.4" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="778.6799999999998" y="142.4" font-family="Arial" font-size="16.00">score</text>
+<text xml:space="preserve" text-anchor="start" x="724.8799999999999" y="167.6" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="778.6799999999998" y="167.6" font-family="Arial" font-size="16.00">updated_at</text>
+<text xml:space="preserve" text-anchor="start" x="724.8799999999999" y="192.8" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="778.6799999999998" y="192.8" font-family="Arial" font-size="16.00">created_at</text>
+<polygon fill="none" stroke="#b8c6d6" points="720.88,200.00 720.88,0.00 909.64,0.00 909.64,200.00 720.88,200.00" />
+</g>
+
+<g id="node_FantasySelection" class="node">
+<title>FantasySelection</title>
+<polygon fill="white" stroke="none" points="254.66,485.60 254.66,240.00 428.76,240.00 428.76,485.60 254.66,485.60" />
+<polygon fill="#e4effb" stroke="none" points="255.66,267.40 255.66,241.00 427.76,241.00 427.76,267.40 255.66,267.40" />
+<text xml:space="preserve" text-anchor="start" x="258.65999999999997" y="258.3" font-family="Arial" font-weight="bold" font-size="17.00">FantasySelection</text>
+<text xml:space="preserve" text-anchor="start" x="258.65999999999997" y="282.40000000000003" font-family="Arial" font-size="12.00" fill="#64748b">public.fantasy_fantasyselection</text>
+<text xml:space="preserve" text-anchor="start" x="258.65999999999997" y="306.8" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="310.03" y="306.8" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="258.65999999999997" y="332.0" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="310.03" y="332.0" font-family="Arial" font-size="16.00">player_id</text>
+<text xml:space="preserve" text-anchor="start" x="258.65999999999997" y="357.20000000000005" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="310.03" y="357.20000000000005" font-family="Arial" font-size="16.00">user_id</text>
+<text xml:space="preserve" text-anchor="start" x="258.65999999999997" y="382.40000000000003" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="310.03" y="382.40000000000003" font-family="Arial" font-size="16.00">week_id</text>
+<text xml:space="preserve" text-anchor="start" x="258.65999999999997" y="407.6" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="310.03" y="407.6" font-family="Arial" font-size="16.00">updated_at</text>
+<text xml:space="preserve" text-anchor="start" x="258.65999999999997" y="432.8" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="310.03" y="432.8" font-family="Arial" font-size="16.00">stat_weights</text>
+<text xml:space="preserve" text-anchor="start" x="258.65999999999997" y="458.0" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="310.03" y="458.0" font-family="Arial" font-size="16.00">is_confirmed</text>
+<text xml:space="preserve" text-anchor="start" x="258.65999999999997" y="479.20000000000005" font-family="Arial" font-size="12.00" fill="#64748b">+ 3 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="254.66,485.60 254.66,240.00 428.76,240.00 428.76,485.60 254.66,485.60" />
+</g>
+
+<g id="node_FantasySettlement" class="node">
+<title>FantasySettlement</title>
+<polygon fill="white" stroke="none" points="254.66,174.80 254.66,0.00 436.76,0.00 436.76,174.80 254.66,174.80" />
+<polygon fill="#e4effb" stroke="none" points="255.66,27.40 255.66,1.00 435.76,1.00 435.76,27.40 255.66,27.40" />
+<text xml:space="preserve" text-anchor="start" x="258.65999999999997" y="18.299999999999955" font-family="Arial" font-weight="bold" font-size="17.00">FantasySettlement</text>
+<text xml:space="preserve" text-anchor="start" x="258.65999999999997" y="42.39999999999998" font-family="Arial" font-size="12.00" fill="#64748b">public.fantasy_fantasysettlement</text>
+<text xml:space="preserve" text-anchor="start" x="258.65999999999997" y="66.79999999999995" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="319.3399999999999" y="66.79999999999995" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="258.65999999999997" y="92.0" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="319.3399999999999" y="92.0" font-family="Arial" font-size="16.00">week_id</text>
+<text xml:space="preserve" text-anchor="start" x="258.65999999999997" y="117.19999999999993" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="319.3399999999999" y="117.19999999999993" font-family="Arial" font-size="16.00">updated_at</text>
+<text xml:space="preserve" text-anchor="start" x="258.65999999999997" y="142.39999999999998" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="319.3399999999999" y="142.39999999999998" font-family="Arial" font-size="16.00">settled_at</text>
+<text xml:space="preserve" text-anchor="start" x="258.65999999999997" y="167.60000000000002" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="319.3399999999999" y="167.60000000000002" font-family="Arial" font-size="16.00">created_at</text>
+<polygon fill="none" stroke="#b8c6d6" points="254.66,174.80 254.66,0.00 436.76,0.00 436.76,174.80 254.66,174.80" />
+</g>
+
+<g id="node_FantasyUserResult" class="node">
+<title>FantasyUserResult</title>
+<polygon fill="white" stroke="none" points="720.88,460.40 720.88,240.00 900.30,240.00 900.30,460.40 720.88,460.40" />
+<polygon fill="#e4effb" stroke="none" points="721.88,267.40 721.88,241.00 899.30,241.00 899.30,267.40 721.88,267.40" />
+<text xml:space="preserve" text-anchor="start" x="724.8799999999999" y="258.3" font-family="Arial" font-weight="bold" font-size="17.00">FantasyUserResult</text>
+<text xml:space="preserve" text-anchor="start" x="724.8799999999999" y="282.4" font-family="Arial" font-size="12.00" fill="#64748b">public.fantasy_fantasyuserresult</text>
+<text xml:space="preserve" text-anchor="start" x="724.8799999999999" y="306.8" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="775.78" y="306.8" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="724.8799999999999" y="332.0" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="775.78" y="332.0" font-family="Arial" font-size="16.00">settlement_id</text>
+<text xml:space="preserve" text-anchor="start" x="724.8799999999999" y="357.2" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="775.78" y="357.2" font-family="Arial" font-size="16.00">user_id</text>
+<text xml:space="preserve" text-anchor="start" x="724.8799999999999" y="382.4" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="775.78" y="382.4" font-family="Arial" font-size="16.00">final_score</text>
+<text xml:space="preserve" text-anchor="start" x="724.8799999999999" y="407.6" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="775.78" y="407.6" font-family="Arial" font-size="16.00">point_amount</text>
+<text xml:space="preserve" text-anchor="start" x="724.8799999999999" y="432.8" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="775.78" y="432.8" font-family="Arial" font-size="16.00">updated_at</text>
+<text xml:space="preserve" text-anchor="start" x="724.8799999999999" y="454.0" font-family="Arial" font-size="12.00" fill="#64748b">+ 1 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="720.88,460.40 720.88,240.00 900.30,240.00 900.30,460.40 720.88,460.40" />
+</g>
+
+<g id="node_FantasyWeek" class="node">
+<title>FantasyWeek</title>
+<polygon fill="white" stroke="none" points="254.66,695.60 254.66,525.60 409.42,525.60 409.42,695.60 254.66,695.60" />
+<polygon fill="#e4effb" stroke="none" points="255.66,553.00 255.66,526.60 408.42,526.60 408.42,553.00 255.66,553.00" />
+<text xml:space="preserve" text-anchor="start" x="258.65999999999997" y="543.9" font-family="Arial" font-weight="bold" font-size="17.00">FantasyWeek</text>
+<text xml:space="preserve" text-anchor="start" x="258.65999999999997" y="568.0" font-family="Arial" font-size="12.00" fill="#64748b">public.fantasy_fantasyweek</text>
+<text xml:space="preserve" text-anchor="start" x="258.65999999999997" y="592.4" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="288.78999999999996" y="592.4" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="258.65999999999997" y="617.6" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="288.78999999999996" y="617.6" font-family="Arial" font-size="16.00">settlement_date</text>
+<text xml:space="preserve" text-anchor="start" x="258.65999999999997" y="642.8" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="288.78999999999996" y="642.8" font-family="Arial" font-size="16.00">status</text>
+<text xml:space="preserve" text-anchor="start" x="258.65999999999997" y="668.0" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="288.78999999999996" y="668.0" font-family="Arial" font-size="16.00">updated_at</text>
+<text xml:space="preserve" text-anchor="start" x="258.65999999999997" y="689.2" font-family="Arial" font-size="12.00" fill="#64748b">+ 5 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="254.66,695.60 254.66,525.60 409.42,525.60 409.42,695.60 254.66,695.60" />
+</g>
+</g>
+</svg>

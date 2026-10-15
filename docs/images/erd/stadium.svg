@@ -1,0 +1,465 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1519.4400000000003" height="945.6000000000001" viewBox="0 0 1519.4400000000003 945.6000000000001">
+<g id="graph0" class="graph" transform="translate(20 20)">
+<title>ERD</title>
+<g id="edge_2" class="edge"><title>FoodStore → FoodStoreLocation.food_store_id</title><path d="M67.48,430.40 L67.48,446.40 L66.00,444.00 L66.00,462.00 L-12.00,462.00 L-12.00,714.00 L96.00,714.00 L96.69,714.80 L96.69,730.80" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M63.480000000000004,434.4 L71.48,434.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M96.69,721.8 L92.69,730.8" stroke="#607c99" stroke-width="1" fill="none" /><path d="M96.69,721.8 L96.69,730.8" stroke="#607c99" stroke-width="1" fill="none" /><path d="M96.69,721.8 L100.69,730.8" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="96.69" cy="718.8" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_3" class="edge"><title>FoodStore → FoodStoreMenu.food_store_id</title><path d="M67.48,235.20 L67.48,219.20 L66.00,222.00 L66.00,180.00 L330.00,180.00 L330.00,138.00 L329.32,140.40 L329.32,124.40" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M71.48,231.2 L63.480000000000004,231.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M329.32,133.4 L333.32,124.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M329.32,133.4 L329.32,124.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M329.32,133.4 L325.32,124.4" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="329.32" cy="136.4" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_12" class="edge"><title>Game → TicketPolicy.game_id</title><path d="M717.66,778.00 L733.66,778.00 L732.00,780.00 L732.00,630.00 L930.00,630.00 L930.00,618.00 L931.24,617.33 L947.24,617.33" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M721.66,782.0 L721.66,774.0" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="729.66" cy="778.0" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /><path d="M938.24,617.3333333333333 L947.24,621.3333333333333" stroke="#607c99" stroke-width="1" fill="none" /><path d="M938.24,617.3333333333333 L947.24,617.3333333333333" stroke="#607c99" stroke-width="1" fill="none" /><path d="M938.24,617.3333333333333 L947.24,613.3333333333333" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="935.24" cy="617.3333333333333" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_6" class="edge"><title>HomeContext → SeatMap.home_context_id</title><path d="M1360.05,470.40 L1360.05,454.40 L1362.00,456.00 L1200.00,456.00 L1200.00,402.00 L1197.88,400.80 L1197.88,384.80" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M1364.0466666666666,466.4 L1356.0466666666666,466.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1197.88,393.8 L1201.88,384.8" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1197.88,393.8 L1197.88,384.8" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1197.88,393.8 L1193.88,384.8" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="1197.88" cy="396.8" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_8" class="edge"><title>HomeContext → SeatScope.home_context_id</title><path d="M1312.48,545.20 L1296.48,545.20 L1296.00,546.00 L1290.00,546.00 L1290.00,462.00 L936.00,462.00 L936.00,546.00 L930.00,546.00 L927.02,545.20 L911.02,545.20" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M1308.48,541.2 L1308.48,549.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M920.02,545.2 L911.02,541.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M920.02,545.2 L911.02,545.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M920.02,545.2 L911.02,549.2" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="923.02" cy="545.2" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_10" class="edge"><title>HomeContext → SeatZone.home_context_id</title><path d="M1312.48,582.60 L1296.48,582.60 L1296.00,582.00 L1296.00,570.00 L1290.00,570.00 L1292.48,568.00 L1276.48,568.00" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M1308.48,578.6 L1308.48,586.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1285.48,568.0 L1276.48,564.0" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1285.48,568.0 L1276.48,568.0" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1285.48,568.0 L1276.48,572.0" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="1288.48" cy="568.0" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_7" class="edge"><title>SeatMap → SeatMapAsset.seat_map_id</title><path d="M1197.88,235.20 L1197.88,219.20 L1200.00,222.00 L1200.00,210.00 L1194.00,210.00 L1195.64,211.20 L1195.64,195.20" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M1201.88,231.2 L1193.88,231.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1195.6399999999999,204.2 L1199.6399999999999,195.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1195.6399999999999,204.2 L1195.6399999999999,195.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1195.6399999999999,204.2 L1191.6399999999999,195.2" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="1195.6399999999999" cy="207.2" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_9" class="edge"><title>SeatScope → SeatView.seat_scope_id</title><path d="M753.82,545.20 L737.82,545.20 L738.00,546.00 L726.00,546.00 L726.00,462.00 L186.00,462.00 L186.00,558.00 L186.50,557.80 L170.50,557.80" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M749.82,541.2 L749.82,549.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M179.5,557.8 L170.5,553.8" stroke="#607c99" stroke-width="1" fill="none" /><path d="M179.5,557.8 L170.5,557.8" stroke="#607c99" stroke-width="1" fill="none" /><path d="M179.5,557.8 L170.5,561.8" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="182.5" cy="557.8" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_14" class="edge"><title>SeatZone → TicketPrice.seat_zone_id</title><path d="M1197.88,470.40 L1197.88,454.40 L1200.00,456.00 L912.00,456.00 L912.00,210.00 L822.00,210.00 L823.96,211.20 L823.96,195.20" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M1201.88,466.4 L1193.88,466.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M823.96,204.2 L827.96,195.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M823.96,204.2 L823.96,195.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M823.96,204.2 L819.96,195.2" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="823.96" cy="207.2" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_0" class="edge"><title>Stadium → Facility.stadium_id</title><path d="M1312.48,320.20 L1296.48,320.20 L1296.00,318.00 L1296.00,396.00 L1086.00,396.00 L1086.00,330.00 L1088.42,332.80 L1072.42,332.80" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M1308.48,316.2 L1308.48,324.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1081.42,332.79999999999995 L1072.42,328.79999999999995" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1081.42,332.79999999999995 L1072.42,332.79999999999995" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1081.42,332.79999999999995 L1072.42,336.79999999999995" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="1084.42" cy="332.79999999999995" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_1" class="edge"><title>Stadium → FoodStore.stadium_id</title><path d="M1312.48,362.70 L1296.48,362.70 L1296.00,360.00 L1290.00,360.00 L1290.00,216.00 L918.00,216.00 L918.00,204.00 L150.00,204.00 L150.00,330.00 L150.96,332.80 L134.96,332.80" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M1308.48,358.7 L1308.48,366.7" stroke="#607c99" stroke-width="1" fill="none" /><path d="M143.96,332.79999999999995 L134.96,328.79999999999995" stroke="#607c99" stroke-width="1" fill="none" /><path d="M143.96,332.79999999999995 L134.96,332.79999999999995" stroke="#607c99" stroke-width="1" fill="none" /><path d="M143.96,332.79999999999995 L134.96,336.79999999999995" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="146.96" cy="332.79999999999995" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_4" class="edge"><title>Stadium → HomeContext.stadium_id</title><path d="M1395.96,405.20 L1395.96,421.20 L1398.00,420.00 L1398.00,456.00 L1410.00,456.00 L1407.61,454.40 L1407.61,470.40" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M1391.96,409.2 L1399.96,409.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1407.6133333333335,461.4 L1403.6133333333335,470.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1407.6133333333335,461.4 L1407.6133333333335,470.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1407.6133333333335,461.4 L1411.6133333333335,470.4" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="1407.6133333333335" cy="458.4" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_11" class="edge"><title>Stadium → StadiumContent.stadium_id</title><path d="M1395.96,235.20 L1395.96,219.20 L1398.00,222.00 L1398.00,210.00 L1392.00,210.00 L1393.16,211.20 L1393.16,195.20" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M1399.96,231.2 L1391.96,231.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1393.1599999999999,204.2 L1397.1599999999999,195.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1393.1599999999999,204.2 L1393.1599999999999,195.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1393.1599999999999,204.2 L1389.1599999999999,195.2" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="1393.1599999999999" cy="207.2" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_15" class="edge"><title>Stadium → Transport.stadium_id</title><path d="M1312.48,277.70 L1296.48,277.70 L1296.00,276.00 L1296.00,204.00 L1092.00,204.00 L1092.00,96.00 L1091.98,97.60 L1075.98,97.60" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M1308.48,273.7 L1308.48,281.7" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1084.98,97.6 L1075.98,93.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1084.98,97.6 L1075.98,97.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1084.98,97.6 L1075.98,101.6" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="1087.98" cy="97.6" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_5" class="edge"><title>Team → HomeContext.team_id</title><path d="M717.66,501.87 L733.66,501.87 L732.00,504.00 L738.00,504.00 L738.00,450.00 L1296.00,450.00 L1296.00,510.00 L1296.48,507.80 L1312.48,507.80" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M721.66,505.8666666666666 L721.66,497.8666666666666" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1303.48,507.79999999999995 L1312.48,511.79999999999995" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1303.48,507.79999999999995 L1312.48,507.79999999999995" stroke="#607c99" stroke-width="1" fill="none" /><path d="M1303.48,507.79999999999995 L1312.48,503.79999999999995" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="1300.48" cy="507.79999999999995" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_13" class="edge"><title>Team → TicketPolicy.team_id</title><path d="M717.66,533.33 L733.66,533.33 L732.00,534.00 L744.00,534.00 L744.00,462.00 L930.00,462.00 L930.00,546.00 L931.24,543.87 L947.24,543.87" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M721.66,537.3333333333333 L721.66,529.3333333333333" stroke="#607c99" stroke-width="1" fill="none" /><path d="M938.24,543.8666666666667 L947.24,547.8666666666667" stroke="#607c99" stroke-width="1" fill="none" /><path d="M938.24,543.8666666666667 L947.24,543.8666666666667" stroke="#607c99" stroke-width="1" fill="none" /><path d="M938.24,543.8666666666667 L947.24,539.8666666666667" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="935.24" cy="543.8666666666667" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_19" class="edge"><title>Place → TourismPlace.place_id</title><path d="M703.12,320.20 L719.12,320.20 L720.00,318.00 L720.00,330.00 L738.00,330.00 L737.82,332.80 L753.82,332.80" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M707.12,324.2 L707.12,316.2" stroke="#607c99" stroke-width="1" fill="none" /><path d="M749.82,328.79999999999995 L749.82,336.79999999999995" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="741.82" cy="332.79999999999995" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_16" class="edge"><title>PlaceKnowledge → PlaceEnrichmentAttempt.place_id</title><path d="M164.76,85.00 L180.76,85.00 L180.00,84.00 L180.00,138.00 L492.00,138.00 L492.00,96.00 L491.66,97.60 L507.66,97.60" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M168.76,89.0 L168.76,81.0" stroke="#607c99" stroke-width="1" fill="none" /><path d="M498.66,97.6 L507.66,101.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M498.66,97.6 L507.66,97.6" stroke="#607c99" stroke-width="1" fill="none" /><path d="M498.66,97.6 L507.66,93.6" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="495.66" cy="97.6" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_17" class="edge"><title>PlaceKnowledge → PlaceKnowledgeObservation.place_id</title><path d="M82.38,170.00 L82.38,186.00 L84.00,186.00 L84.00,222.00 L216.00,222.00 L216.00,456.00 L348.00,456.00 L350.52,454.40 L350.52,470.40" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M78.38,174.0 L86.38,174.0" stroke="#607c99" stroke-width="1" fill="none" /><path d="M350.52,461.4 L346.52,470.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M350.52,461.4 L350.52,470.4" stroke="#607c99" stroke-width="1" fill="none" /><path d="M350.52,461.4 L354.52,470.4" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="350.52" cy="458.4" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="edge_18" class="edge"><title>PlaceKnowledgeSource → PlaceKnowledgeObservation.source_id</title><path d="M329.77,730.80 L329.77,714.80 L330.00,714.00 L348.00,714.00 L348.00,708.00 L350.52,706.80 L350.52,690.80" fill="none" stroke="#879bb1" stroke-width="1.2" /><path d="M333.77,726.8 L325.77,726.8" stroke="#607c99" stroke-width="1" fill="none" /><path d="M350.52,699.8 L354.52,690.8" stroke="#607c99" stroke-width="1" fill="none" /><path d="M350.52,699.8 L350.52,690.8" stroke="#607c99" stroke-width="1" fill="none" /><path d="M350.52,699.8 L346.52,690.8" stroke="#607c99" stroke-width="1" fill="none" /><circle cx="350.52" cy="702.8" r="2.3" stroke="#607c99" stroke-width="1" fill="#f8fafc" /></g><g id="node_Facility" class="node">
+<title>Facility</title>
+<polygon fill="white" stroke="none" points="947.24,430.40 947.24,235.20 1072.42,235.20 1072.42,430.40 947.24,430.40" />
+<polygon fill="#e4effb" stroke="none" points="948.24,262.60 948.24,236.20 1071.42,236.20 1071.42,262.60 948.24,262.60" />
+<text xml:space="preserve" text-anchor="start" x="951.2400000000001" y="253.5000000000001" font-family="Arial" font-weight="bold" font-size="17.00">Facility</text>
+<text xml:space="preserve" text-anchor="start" x="951.2400000000001" y="277.60000000000014" font-family="Arial" font-size="12.00" fill="#64748b">public.FACILITY</text>
+<text xml:space="preserve" text-anchor="start" x="951.2400000000001" y="302.0000000000001" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="979.47" y="302.0000000000001" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="951.2400000000001" y="327.20000000000005" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="979.47" y="327.20000000000005" font-family="Arial" font-size="16.00">stadium_id</text>
+<text xml:space="preserve" text-anchor="start" x="951.2400000000001" y="352.4000000000001" font-family="Arial" font-size="16.00" fill="#334155">UK</text>
+<text xml:space="preserve" text-anchor="start" x="979.47" y="352.4000000000001" font-family="Arial" font-size="16.00">record_code</text>
+<text xml:space="preserve" text-anchor="start" x="951.2400000000001" y="377.60000000000014" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="979.47" y="377.60000000000014" font-family="Arial" font-size="16.00">facility_type</text>
+<text xml:space="preserve" text-anchor="start" x="951.2400000000001" y="402.80000000000007" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="979.47" y="402.80000000000007" font-family="Arial" font-size="16.00">floor</text>
+<text xml:space="preserve" text-anchor="start" x="951.2400000000001" y="424.0000000000001" font-family="Arial" font-size="12.00" fill="#64748b">+ 7 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="947.24,430.40 947.24,235.20 1072.42,235.20 1072.42,430.40 947.24,430.40" />
+</g>
+
+<g id="node_FoodStore" class="node">
+<title>FoodStore</title>
+<polygon fill="white" stroke="none" points="0.00,430.40 0.00,235.20 134.96,235.20 134.96,430.40 0.00,430.40" />
+<polygon fill="#e4effb" stroke="none" points="1.00,262.60 1.00,236.20 133.96,236.20 133.96,262.60 1.00,262.60" />
+<text xml:space="preserve" text-anchor="start" x="4.0" y="253.5000000000001" font-family="Arial" font-weight="bold" font-size="17.00">FoodStore</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="277.60000000000014" font-family="Arial" font-size="12.00" fill="#64748b">public.FOOD_STORE</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="302.0000000000001" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="32.23000000000002" y="302.0000000000001" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="327.20000000000005" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="32.23000000000002" y="327.20000000000005" font-family="Arial" font-size="16.00">stadium_id</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="352.4000000000001" font-family="Arial" font-size="16.00" fill="#334155">UK</text>
+<text xml:space="preserve" text-anchor="start" x="32.23000000000002" y="352.4000000000001" font-family="Arial" font-size="16.00">record_code</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="377.60000000000014" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="32.23000000000002" y="377.60000000000014" font-family="Arial" font-size="16.00">store_facility</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="402.80000000000007" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="32.23000000000002" y="402.80000000000007" font-family="Arial" font-size="16.00">location_qty ?</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="424.0000000000001" font-family="Arial" font-size="12.00" fill="#64748b">+ 1 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="0.00,430.40 0.00,235.20 134.96,235.20 134.96,430.40 0.00,430.40" />
+</g>
+
+<g id="node_FoodStoreLocation" class="node">
+<title>FoodStoreLocation</title>
+<polygon fill="white" stroke="none" points="0.00,905.60 0.00,730.80 193.38,730.80 193.38,905.60 0.00,905.60" />
+<polygon fill="#e4effb" stroke="none" points="1.00,758.20 1.00,731.80 192.38,731.80 192.38,758.20 1.00,758.20" />
+<text xml:space="preserve" text-anchor="start" x="4.0" y="749.1000000000003" font-family="Arial" font-weight="bold" font-size="17.00">FoodStoreLocation</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="773.2000000000003" font-family="Arial" font-size="12.00" fill="#64748b">public.FOOD_STORE_LOCATION</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="797.6000000000003" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="60.99000000000001" y="797.6000000000003" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="822.8000000000002" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="60.99000000000001" y="822.8000000000002" font-family="Arial" font-size="16.00">food_store_id</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="848.0000000000002" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="60.99000000000001" y="848.0000000000002" font-family="Arial" font-size="16.00">location_no</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="873.2000000000003" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="60.99000000000001" y="873.2000000000003" font-family="Arial" font-size="16.00">floor</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="898.4000000000002" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="60.99000000000001" y="898.4000000000002" font-family="Arial" font-size="16.00">zone_location</text>
+<polygon fill="none" stroke="#b8c6d6" points="0.00,905.60 0.00,730.80 193.38,730.80 193.38,905.60 0.00,905.60" />
+</g>
+
+<g id="node_FoodStoreMenu" class="node">
+<title>FoodStoreMenu</title>
+<polygon fill="white" stroke="none" points="229.38,124.40 229.38,0.00 429.26,0.00 429.26,124.40 229.38,124.40" />
+<polygon fill="#e4effb" stroke="none" points="230.38,27.40 230.38,1.00 428.26,1.00 428.26,27.40 230.38,27.40" />
+<text xml:space="preserve" text-anchor="start" x="233.3800000000001" y="18.30000000000001" font-family="Arial" font-weight="bold" font-size="17.00">FoodStoreMenu</text>
+<text xml:space="preserve" text-anchor="start" x="233.3800000000001" y="42.39999999999998" font-family="Arial" font-size="12.00" fill="#64748b">public.FOOD_STORE_MENU</text>
+<text xml:space="preserve" text-anchor="start" x="233.3800000000001" y="66.80000000000001" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="260.72000000000014" y="66.80000000000001" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="233.3800000000001" y="92.0" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="260.72000000000014" y="92.0" font-family="Arial" font-size="16.00">food_store_id</text>
+<text xml:space="preserve" text-anchor="start" x="233.3800000000001" y="117.19999999999999" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="260.72000000000014" y="117.19999999999999" font-family="Arial" font-size="16.00">menu_category_official</text>
+<polygon fill="none" stroke="#b8c6d6" points="229.38,124.40 229.38,0.00 429.26,0.00 429.26,124.40 229.38,124.40" />
+</g>
+
+<g id="node_Game" class="node">
+<title>Game</title>
+<polygon fill="white" stroke="none" points="507.66,825.20 507.66,730.80 717.66,730.80 717.66,825.20 507.66,825.20" />
+<polygon fill="#edf0f4" stroke="none" points="508.66,758.20 508.66,731.80 624.68,731.80 624.68,758.20 508.66,758.20" />
+<text xml:space="preserve" text-anchor="start" x="511.6600000000003" y="749.1000000000001" font-family="Arial" font-weight="bold" font-size="17.00">Game</text>
+<text xml:space="preserve" text-anchor="start" x="511.6600000000003" y="773.2000000000002" font-family="Arial" font-size="12.00" fill="#64748b">public.GAME</text>
+<text xml:space="preserve" text-anchor="start" x="511.6600000000003" y="793.6000000000001" font-family="Arial" font-size="12.00" fill="#52677e">참조 · 야구·하이라이트</text>
+<text xml:space="preserve" text-anchor="start" x="511.6600000000003" y="818.0000000000002" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="574.1200000000003" y="818.0000000000002" font-family="Arial" font-size="16.00">id</text>
+<polygon fill="none" stroke="#b8c6d6" points="507.66,825.20 507.66,730.80 717.66,730.80 717.66,825.20 507.66,825.20" />
+</g>
+
+<g id="node_HomeContext" class="node">
+<title>HomeContext</title>
+<polygon fill="white" stroke="none" points="1312.48,620.00 1312.48,470.40 1455.18,470.40 1455.18,620.00 1312.48,620.00" />
+<polygon fill="#e4effb" stroke="none" points="1313.48,497.80 1313.48,471.40 1454.18,471.40 1454.18,497.80 1313.48,497.80" />
+<text xml:space="preserve" text-anchor="start" x="1316.4800000000005" y="488.70000000000016" font-family="Arial" font-weight="bold" font-size="17.00">HomeContext</text>
+<text xml:space="preserve" text-anchor="start" x="1316.4800000000005" y="512.8000000000002" font-family="Arial" font-size="12.00" fill="#64748b">public.HOME_CONTEXT</text>
+<text xml:space="preserve" text-anchor="start" x="1316.4800000000005" y="537.2000000000002" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="1358.8100000000004" y="537.2000000000002" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="1316.4800000000005" y="562.4000000000002" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="1358.8100000000004" y="562.4000000000002" font-family="Arial" font-size="16.00">stadium_id</text>
+<text xml:space="preserve" text-anchor="start" x="1316.4800000000005" y="587.6000000000001" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="1358.8100000000004" y="587.6000000000001" font-family="Arial" font-size="16.00">team_id</text>
+<text xml:space="preserve" text-anchor="start" x="1316.4800000000005" y="612.8000000000002" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1358.8100000000004" y="612.8000000000002" font-family="Arial" font-size="16.00">season</text>
+<polygon fill="none" stroke="#b8c6d6" points="1312.48,620.00 1312.48,470.40 1455.18,470.40 1455.18,620.00 1312.48,620.00" />
+</g>
+
+<g id="node_SeatMap" class="node">
+<title>SeatMap</title>
+<polygon fill="white" stroke="none" points="1119.28,384.80 1119.28,235.20 1276.48,235.20 1276.48,384.80 1119.28,384.80" />
+<polygon fill="#e4effb" stroke="none" points="1120.28,262.60 1120.28,236.20 1275.48,236.20 1275.48,262.60 1120.28,262.60" />
+<text xml:space="preserve" text-anchor="start" x="1123.2800000000002" y="253.50000000000006" font-family="Arial" font-weight="bold" font-size="17.00">SeatMap</text>
+<text xml:space="preserve" text-anchor="start" x="1123.2800000000002" y="277.6000000000001" font-family="Arial" font-size="12.00" fill="#64748b">public.SEAT_MAP</text>
+<text xml:space="preserve" text-anchor="start" x="1123.2800000000002" y="302.00000000000006" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="1150.6200000000001" y="302.00000000000006" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="1123.2800000000002" y="327.20000000000005" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="1150.6200000000001" y="327.20000000000005" font-family="Arial" font-size="16.00">home_context_id</text>
+<text xml:space="preserve" text-anchor="start" x="1123.2800000000002" y="352.4000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1150.6200000000001" y="352.4000000000001" font-family="Arial" font-size="16.00">map_title</text>
+<text xml:space="preserve" text-anchor="start" x="1123.2800000000002" y="377.6000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1150.6200000000001" y="377.6000000000001" font-family="Arial" font-size="16.00">page_url</text>
+<polygon fill="none" stroke="#b8c6d6" points="1119.28,384.80 1119.28,235.20 1276.48,235.20 1276.48,384.80 1119.28,384.80" />
+</g>
+
+<g id="node_SeatMapAsset" class="node">
+<title>SeatMapAsset</title>
+<polygon fill="white" stroke="none" points="1119.28,195.20 1119.28,0.00 1272.00,0.00 1272.00,195.20 1119.28,195.20" />
+<polygon fill="#e4effb" stroke="none" points="1120.28,27.40 1120.28,1.00 1271.00,1.00 1271.00,27.40 1120.28,27.40" />
+<text xml:space="preserve" text-anchor="start" x="1123.2800000000002" y="18.299999999999983" font-family="Arial" font-weight="bold" font-size="17.00">SeatMapAsset</text>
+<text xml:space="preserve" text-anchor="start" x="1123.2800000000002" y="42.39999999999998" font-family="Arial" font-size="12.00" fill="#64748b">public.SEAT_MAP_ASSET</text>
+<text xml:space="preserve" text-anchor="start" x="1123.2800000000002" y="66.79999999999998" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="1163.5" y="66.79999999999998" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="1123.2800000000002" y="91.99999999999999" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="1163.5" y="91.99999999999999" font-family="Arial" font-size="16.00">seat_map_id</text>
+<text xml:space="preserve" text-anchor="start" x="1123.2800000000002" y="117.19999999999999" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1163.5" y="117.19999999999999" font-family="Arial" font-size="16.00">asset_no</text>
+<text xml:space="preserve" text-anchor="start" x="1123.2800000000002" y="142.39999999999998" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1163.5" y="142.39999999999998" font-family="Arial" font-size="16.00">asset_url</text>
+<text xml:space="preserve" text-anchor="start" x="1123.2800000000002" y="167.6" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1163.5" y="167.6" font-family="Arial" font-size="16.00">asset_role</text>
+<text xml:space="preserve" text-anchor="start" x="1123.2800000000002" y="188.79999999999998" font-family="Arial" font-size="12.00" fill="#64748b">+ 1 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="1119.28,195.20 1119.28,0.00 1272.00,0.00 1272.00,195.20 1119.28,195.20" />
+</g>
+
+<g id="node_SeatScope" class="node">
+<title>SeatScope</title>
+<polygon fill="white" stroke="none" points="753.82,620.00 753.82,470.40 911.02,470.40 911.02,620.00 753.82,620.00" />
+<polygon fill="#e4effb" stroke="none" points="754.82,497.80 754.82,471.40 910.02,471.40 910.02,497.80 754.82,497.80" />
+<text xml:space="preserve" text-anchor="start" x="757.8200000000002" y="488.7000000000001" font-family="Arial" font-weight="bold" font-size="17.00">SeatScope</text>
+<text xml:space="preserve" text-anchor="start" x="757.8200000000002" y="512.8000000000002" font-family="Arial" font-size="12.00" fill="#64748b">public.SEAT_SCOPE</text>
+<text xml:space="preserve" text-anchor="start" x="757.8200000000002" y="537.2" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="785.1600000000002" y="537.2" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="757.8200000000002" y="562.4000000000001" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="785.1600000000002" y="562.4000000000001" font-family="Arial" font-size="16.00">home_context_id</text>
+<text xml:space="preserve" text-anchor="start" x="757.8200000000002" y="587.6000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="785.1600000000002" y="587.6000000000001" font-family="Arial" font-size="16.00">scope_code</text>
+<text xml:space="preserve" text-anchor="start" x="757.8200000000002" y="612.8000000000002" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="785.1600000000002" y="612.8000000000002" font-family="Arial" font-size="16.00">scope_name</text>
+<polygon fill="none" stroke="#b8c6d6" points="753.82,620.00 753.82,470.40 911.02,470.40 911.02,620.00 753.82,620.00" />
+</g>
+
+<g id="node_SeatView" class="node">
+<title>SeatView</title>
+<polygon fill="white" stroke="none" points="0.00,645.20 0.00,470.40 170.50,470.40 170.50,645.20 0.00,645.20" />
+<polygon fill="#e4effb" stroke="none" points="1.00,497.80 1.00,471.40 169.50,471.40 169.50,497.80 1.00,497.80" />
+<text xml:space="preserve" text-anchor="start" x="4.0" y="488.7000000000001" font-family="Arial" font-weight="bold" font-size="17.00">SeatView</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="512.8000000000001" font-family="Arial" font-size="12.00" fill="#64748b">public.SEAT_VIEW</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="537.2" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="31.340000000000003" y="537.2" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="562.4000000000001" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="31.340000000000003" y="562.4000000000001" font-family="Arial" font-size="16.00">seat_scope_id</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="587.6000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="31.340000000000003" y="587.6000000000001" font-family="Arial" font-size="16.00">view_characteristic</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="612.8000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="31.340000000000003" y="612.8000000000001" font-family="Arial" font-size="16.00">roof_coverage</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="638.0000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="31.340000000000003" y="638.0000000000001" font-family="Arial" font-size="16.00">evidence_scope</text>
+<polygon fill="none" stroke="#b8c6d6" points="0.00,645.20 0.00,470.40 170.50,470.40 170.50,645.20 0.00,645.20" />
+</g>
+
+<g id="node_SeatZone" class="node">
+<title>SeatZone</title>
+<polygon fill="white" stroke="none" points="1119.28,665.60 1119.28,470.40 1276.48,470.40 1276.48,665.60 1119.28,665.60" />
+<polygon fill="#e4effb" stroke="none" points="1120.28,497.80 1120.28,471.40 1275.48,471.40 1275.48,497.80 1120.28,497.80" />
+<text xml:space="preserve" text-anchor="start" x="1123.2800000000002" y="488.70000000000005" font-family="Arial" font-weight="bold" font-size="17.00">SeatZone</text>
+<text xml:space="preserve" text-anchor="start" x="1123.2800000000002" y="512.8000000000001" font-family="Arial" font-size="12.00" fill="#64748b">public.SEAT_ZONE</text>
+<text xml:space="preserve" text-anchor="start" x="1123.2800000000002" y="537.2" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="1150.6200000000003" y="537.2" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="1123.2800000000002" y="562.4000000000001" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="1150.6200000000003" y="562.4000000000001" font-family="Arial" font-size="16.00">home_context_id</text>
+<text xml:space="preserve" text-anchor="start" x="1123.2800000000002" y="587.6000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1150.6200000000003" y="587.6000000000001" font-family="Arial" font-size="16.00">zone_code</text>
+<text xml:space="preserve" text-anchor="start" x="1123.2800000000002" y="612.8000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1150.6200000000003" y="612.8000000000001" font-family="Arial" font-size="16.00">zone_name_ko</text>
+<text xml:space="preserve" text-anchor="start" x="1123.2800000000002" y="638.0" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1150.6200000000003" y="638.0" font-family="Arial" font-size="16.00">level</text>
+<text xml:space="preserve" text-anchor="start" x="1123.2800000000002" y="659.2" font-family="Arial" font-size="12.00" fill="#64748b">+ 4 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="1119.28,665.60 1119.28,470.40 1276.48,470.40 1276.48,665.60 1119.28,665.60" />
+</g>
+
+<g id="node_Stadium" class="node">
+<title>Stadium</title>
+<polygon fill="white" stroke="none" points="1312.48,405.20 1312.48,235.20 1479.44,235.20 1479.44,405.20 1312.48,405.20" />
+<polygon fill="#e4effb" stroke="none" points="1313.48,262.60 1313.48,236.20 1478.44,236.20 1478.44,262.60 1313.48,262.60" />
+<text xml:space="preserve" text-anchor="start" x="1316.4800000000002" y="253.5" font-family="Arial" font-weight="bold" font-size="17.00">Stadium</text>
+<text xml:space="preserve" text-anchor="start" x="1316.4800000000002" y="277.6" font-family="Arial" font-size="12.00" fill="#64748b">public.STADIUM</text>
+<text xml:space="preserve" text-anchor="start" x="1316.4800000000002" y="302.0" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="1344.7000000000003" y="302.0" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="1316.4800000000002" y="327.20000000000005" font-family="Arial" font-size="16.00" fill="#334155">UK</text>
+<text xml:space="preserve" text-anchor="start" x="1344.7000000000003" y="327.20000000000005" font-family="Arial" font-size="16.00">stadium_code</text>
+<text xml:space="preserve" text-anchor="start" x="1316.4800000000002" y="352.4" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1344.7000000000003" y="352.4" font-family="Arial" font-size="16.00">stadium_name_ko</text>
+<text xml:space="preserve" text-anchor="start" x="1316.4800000000002" y="377.6" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1344.7000000000003" y="377.6" font-family="Arial" font-size="16.00">geocode_source</text>
+<text xml:space="preserve" text-anchor="start" x="1316.4800000000002" y="398.79999999999995" font-family="Arial" font-size="12.00" fill="#64748b">+ 24 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="1312.48,405.20 1312.48,235.20 1479.44,235.20 1479.44,405.20 1312.48,405.20" />
+</g>
+
+<g id="node_StadiumContent" class="node">
+<title>StadiumContent</title>
+<polygon fill="white" stroke="none" points="1312.48,195.20 1312.48,0.00 1473.84,0.00 1473.84,195.20 1312.48,195.20" />
+<polygon fill="#e4effb" stroke="none" points="1313.48,27.40 1313.48,1.00 1472.84,1.00 1472.84,27.40 1313.48,27.40" />
+<text xml:space="preserve" text-anchor="start" x="1316.4800000000002" y="18.300000000000068" font-family="Arial" font-weight="bold" font-size="17.00">StadiumContent</text>
+<text xml:space="preserve" text-anchor="start" x="1316.4800000000002" y="42.40000000000009" font-family="Arial" font-size="12.00" fill="#64748b">public.STADIUM_CONTENT</text>
+<text xml:space="preserve" text-anchor="start" x="1316.4800000000002" y="66.80000000000007" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="1361.46" y="66.80000000000007" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="1316.4800000000002" y="92.0" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="1361.46" y="92.0" font-family="Arial" font-size="16.00">stadium_id</text>
+<text xml:space="preserve" text-anchor="start" x="1316.4800000000002" y="117.20000000000005" font-family="Arial" font-size="16.00" fill="#334155">UK</text>
+<text xml:space="preserve" text-anchor="start" x="1361.46" y="117.20000000000005" font-family="Arial" font-size="16.00">record_code</text>
+<text xml:space="preserve" text-anchor="start" x="1316.4800000000002" y="142.4000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1361.46" y="142.4000000000001" font-family="Arial" font-size="16.00">name</text>
+<text xml:space="preserve" text-anchor="start" x="1316.4800000000002" y="167.60000000000002" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="1361.46" y="167.60000000000002" font-family="Arial" font-size="16.00">content_type</text>
+<text xml:space="preserve" text-anchor="start" x="1316.4800000000002" y="188.80000000000007" font-family="Arial" font-size="12.00" fill="#64748b">+ 5 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="1312.48,195.20 1312.48,0.00 1473.84,0.00 1473.84,195.20 1312.48,195.20" />
+</g>
+
+<g id="node_Team" class="node">
+<title>Team</title>
+<polygon fill="white" stroke="none" points="507.66,564.80 507.66,470.40 717.66,470.40 717.66,564.80 507.66,564.80" />
+<polygon fill="#edf0f4" stroke="none" points="508.66,497.80 508.66,471.40 624.68,471.40 624.68,497.80 508.66,497.80" />
+<text xml:space="preserve" text-anchor="start" x="511.6600000000003" y="488.70000000000005" font-family="Arial" font-weight="bold" font-size="17.00">Team</text>
+<text xml:space="preserve" text-anchor="start" x="511.6600000000003" y="512.8000000000001" font-family="Arial" font-size="12.00" fill="#64748b">public.TEAM</text>
+<text xml:space="preserve" text-anchor="start" x="511.6600000000003" y="533.2" font-family="Arial" font-size="12.00" fill="#52677e">참조 · 야구·하이라이트</text>
+<text xml:space="preserve" text-anchor="start" x="511.6600000000003" y="557.6000000000001" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="574.1200000000003" y="557.6000000000001" font-family="Arial" font-size="16.00">id</text>
+<polygon fill="none" stroke="#b8c6d6" points="507.66,564.80 507.66,470.40 717.66,470.40 717.66,564.80 507.66,564.80" />
+</g>
+
+<g id="node_TicketPolicy" class="node">
+<title>TicketPolicy</title>
+<polygon fill="white" stroke="none" points="947.24,690.80 947.24,470.40 1083.28,470.40 1083.28,690.80 947.24,690.80" />
+<polygon fill="#e4effb" stroke="none" points="948.24,497.80 948.24,471.40 1082.28,471.40 1082.28,497.80 948.24,497.80" />
+<text xml:space="preserve" text-anchor="start" x="951.2400000000001" y="488.70000000000005" font-family="Arial" font-weight="bold" font-size="17.00">TicketPolicy</text>
+<text xml:space="preserve" text-anchor="start" x="951.2400000000001" y="512.8000000000001" font-family="Arial" font-size="12.00" fill="#64748b">public.TICKET_POLICY</text>
+<text xml:space="preserve" text-anchor="start" x="951.2400000000001" y="537.2" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="986.6800000000001" y="537.2" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="951.2400000000001" y="562.4000000000001" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="986.6800000000001" y="562.4000000000001" font-family="Arial" font-size="16.00">game_id ?</text>
+<text xml:space="preserve" text-anchor="start" x="951.2400000000001" y="587.6" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="986.6800000000001" y="587.6" font-family="Arial" font-size="16.00">team_id</text>
+<text xml:space="preserve" text-anchor="start" x="951.2400000000001" y="612.8000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="986.6800000000001" y="612.8000000000001" font-family="Arial" font-size="16.00">policy_code</text>
+<text xml:space="preserve" text-anchor="start" x="951.2400000000001" y="638.0" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="986.6800000000001" y="638.0" font-family="Arial" font-size="16.00">policy_type</text>
+<text xml:space="preserve" text-anchor="start" x="951.2400000000001" y="663.2" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="986.6800000000001" y="663.2" font-family="Arial" font-size="16.00">subtype</text>
+<text xml:space="preserve" text-anchor="start" x="951.2400000000001" y="684.4000000000001" font-family="Arial" font-size="12.00" fill="#64748b">+ 6 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="947.24,690.80 947.24,470.40 1083.28,470.40 1083.28,690.80 947.24,690.80" />
+</g>
+
+<g id="node_TicketPrice" class="node">
+<title>TicketPrice</title>
+<polygon fill="white" stroke="none" points="753.82,195.20 753.82,0.00 894.10,0.00 894.10,195.20 753.82,195.20" />
+<polygon fill="#e4effb" stroke="none" points="754.82,27.40 754.82,1.00 893.10,1.00 893.10,27.40 754.82,27.40" />
+<text xml:space="preserve" text-anchor="start" x="757.8200000000002" y="18.299999999999983" font-family="Arial" font-weight="bold" font-size="17.00">TicketPrice</text>
+<text xml:space="preserve" text-anchor="start" x="757.8200000000002" y="42.39999999999998" font-family="Arial" font-size="12.00" fill="#64748b">public.TICKET_PRICE</text>
+<text xml:space="preserve" text-anchor="start" x="757.8200000000002" y="66.79999999999998" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="785.1600000000001" y="66.79999999999998" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="757.8200000000002" y="91.99999999999999" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="785.1600000000001" y="91.99999999999999" font-family="Arial" font-size="16.00">seat_zone_id</text>
+<text xml:space="preserve" text-anchor="start" x="757.8200000000002" y="117.19999999999999" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="785.1600000000001" y="117.19999999999999" font-family="Arial" font-size="16.00">price_tier</text>
+<text xml:space="preserve" text-anchor="start" x="757.8200000000002" y="142.39999999999998" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="785.1600000000001" y="142.39999999999998" font-family="Arial" font-size="16.00">day_type</text>
+<text xml:space="preserve" text-anchor="start" x="757.8200000000002" y="167.6" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="785.1600000000001" y="167.6" font-family="Arial" font-size="16.00">customer_type</text>
+<text xml:space="preserve" text-anchor="start" x="757.8200000000002" y="188.79999999999998" font-family="Arial" font-size="12.00" fill="#64748b">+ 6 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="753.82,195.20 753.82,0.00 894.10,0.00 894.10,195.20 753.82,195.20" />
+</g>
+
+<g id="node_Transport" class="node">
+<title>Transport</title>
+<polygon fill="white" stroke="none" points="947.24,195.20 947.24,0.00 1075.98,0.00 1075.98,195.20 947.24,195.20" />
+<polygon fill="#e4effb" stroke="none" points="948.24,27.40 948.24,1.00 1074.98,1.00 1074.98,27.40 948.24,27.40" />
+<text xml:space="preserve" text-anchor="start" x="951.2400000000001" y="18.300000000000068" font-family="Arial" font-weight="bold" font-size="17.00">Transport</text>
+<text xml:space="preserve" text-anchor="start" x="951.2400000000001" y="42.40000000000009" font-family="Arial" font-size="12.00" fill="#64748b">public.TRANSPORT</text>
+<text xml:space="preserve" text-anchor="start" x="951.2400000000001" y="66.80000000000007" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="978.5900000000001" y="66.80000000000007" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="951.2400000000001" y="92.0" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="978.5900000000001" y="92.0" font-family="Arial" font-size="16.00">stadium_id</text>
+<text xml:space="preserve" text-anchor="start" x="951.2400000000001" y="117.20000000000005" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="978.5900000000001" y="117.20000000000005" font-family="Arial" font-size="16.00">access_code</text>
+<text xml:space="preserve" text-anchor="start" x="951.2400000000001" y="142.4000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="978.5900000000001" y="142.4000000000001" font-family="Arial" font-size="16.00">title</text>
+<text xml:space="preserve" text-anchor="start" x="951.2400000000001" y="167.60000000000002" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="978.5900000000001" y="167.60000000000002" font-family="Arial" font-size="16.00">mode</text>
+<text xml:space="preserve" text-anchor="start" x="951.2400000000001" y="188.80000000000007" font-family="Arial" font-size="12.00" fill="#64748b">+ 4 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="947.24,195.20 947.24,0.00 1075.98,0.00 1075.98,195.20 947.24,195.20" />
+</g>
+
+<g id="node_DirectionsRoute" class="node">
+<title>DirectionsRoute</title>
+<polygon fill="white" stroke="none" points="753.82,900.80 753.82,730.80 911.24,730.80 911.24,900.80 753.82,900.80" />
+<polygon fill="#e4effb" stroke="none" points="754.82,758.20 754.82,731.80 910.24,731.80 910.24,758.20 754.82,758.20" />
+<text xml:space="preserve" text-anchor="start" x="757.8200000000002" y="749.1000000000001" font-family="Arial" font-weight="bold" font-size="17.00">DirectionsRoute</text>
+<text xml:space="preserve" text-anchor="start" x="757.8200000000002" y="773.2000000000003" font-family="Arial" font-size="12.00" fill="#64748b">public.travel_directionsroute</text>
+<text xml:space="preserve" text-anchor="start" x="757.8200000000002" y="797.6000000000001" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="815.5200000000002" y="797.6000000000001" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="757.8200000000002" y="822.8000000000002" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="815.5200000000002" y="822.8000000000002" font-family="Arial" font-size="16.00">mode</text>
+<text xml:space="preserve" text-anchor="start" x="757.8200000000002" y="848.0000000000002" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="815.5200000000002" y="848.0000000000002" font-family="Arial" font-size="16.00">start_lat</text>
+<text xml:space="preserve" text-anchor="start" x="757.8200000000002" y="873.2000000000003" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="815.5200000000002" y="873.2000000000003" font-family="Arial" font-size="16.00">start_lng</text>
+<text xml:space="preserve" text-anchor="start" x="757.8200000000002" y="894.4000000000002" font-family="Arial" font-size="12.00" fill="#64748b">+ 8 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="753.82,900.80 753.82,730.80 911.24,730.80 911.24,900.80 753.82,900.80" />
+</g>
+
+<g id="node_ExternalProviderSnapshot" class="node">
+<title>ExternalProviderSnapshot</title>
+<polygon fill="white" stroke="none" points="229.38,405.20 229.38,235.20 450.88,235.20 450.88,405.20 229.38,405.20" />
+<polygon fill="#e4effb" stroke="none" points="230.38,262.60 230.38,236.20 449.88,236.20 449.88,262.60 230.38,262.60" />
+<text xml:space="preserve" text-anchor="start" x="233.3800000000001" y="253.5" font-family="Arial" font-weight="bold" font-size="17.00">ExternalProviderSnapshot</text>
+<text xml:space="preserve" text-anchor="start" x="233.3800000000001" y="277.60000000000014" font-family="Arial" font-size="12.00" fill="#64748b">public.travel_externalprovidersnapshot</text>
+<text xml:space="preserve" text-anchor="start" x="233.3800000000001" y="302.0" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="327.1200000000001" y="302.0" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="233.3800000000001" y="327.20000000000005" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="327.1200000000001" y="327.20000000000005" font-family="Arial" font-size="16.00">kind</text>
+<text xml:space="preserve" text-anchor="start" x="233.3800000000001" y="352.4000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="327.1200000000001" y="352.4000000000001" font-family="Arial" font-size="16.00">key</text>
+<text xml:space="preserve" text-anchor="start" x="233.3800000000001" y="377.60000000000014" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="327.1200000000001" y="377.60000000000014" font-family="Arial" font-size="16.00">request</text>
+<text xml:space="preserve" text-anchor="start" x="233.3800000000001" y="398.80000000000007" font-family="Arial" font-size="12.00" fill="#64748b">+ 3 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="229.38,405.20 229.38,235.20 450.88,235.20 450.88,405.20 229.38,405.20" />
+</g>
+
+<g id="node_Place" class="node">
+<title>Place</title>
+<polygon fill="white" stroke="none" points="507.66,405.20 507.66,235.20 703.12,235.20 703.12,405.20 507.66,405.20" />
+<polygon fill="#e4effb" stroke="none" points="508.66,262.60 508.66,236.20 702.12,236.20 702.12,262.60 508.66,262.60" />
+<text xml:space="preserve" text-anchor="start" x="511.6600000000003" y="253.5" font-family="Arial" font-weight="bold" font-size="17.00">Place</text>
+<text xml:space="preserve" text-anchor="start" x="511.6600000000003" y="277.60000000000014" font-family="Arial" font-size="12.00" fill="#64748b">public.travel_place</text>
+<text xml:space="preserve" text-anchor="start" x="511.6600000000003" y="302.0" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="539.0100000000003" y="302.0" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="511.6600000000003" y="327.20000000000005" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="539.0100000000003" y="327.20000000000005" font-family="Arial" font-size="16.00">name</text>
+<text xml:space="preserve" text-anchor="start" x="511.6600000000003" y="352.4000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="539.0100000000003" y="352.4000000000001" font-family="Arial" font-size="16.00">category_group_code</text>
+<text xml:space="preserve" text-anchor="start" x="511.6600000000003" y="377.60000000000014" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="539.0100000000003" y="377.60000000000014" font-family="Arial" font-size="16.00">category_group_name</text>
+<text xml:space="preserve" text-anchor="start" x="511.6600000000003" y="398.8000000000002" font-family="Arial" font-size="12.00" fill="#64748b">+ 11 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="507.66,405.20 507.66,235.20 703.12,235.20 703.12,405.20 507.66,405.20" />
+</g>
+
+<g id="node_PlaceEnrichmentAttempt" class="node">
+<title>PlaceEnrichmentAttempt</title>
+<polygon fill="white" stroke="none" points="507.66,195.20 507.66,0.00 717.82,0.00 717.82,195.20 507.66,195.20" />
+<polygon fill="#e4effb" stroke="none" points="508.66,27.40 508.66,1.00 716.82,1.00 716.82,27.40 508.66,27.40" />
+<text xml:space="preserve" text-anchor="start" x="511.6600000000003" y="18.299999999999955" font-family="Arial" font-weight="bold" font-size="17.00">PlaceEnrichmentAttempt</text>
+<text xml:space="preserve" text-anchor="start" x="511.6600000000003" y="42.399999999999864" font-family="Arial" font-size="12.00" fill="#64748b">public.travel_placeenrichmentattempt</text>
+<text xml:space="preserve" text-anchor="start" x="511.6600000000003" y="66.79999999999995" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="580.6000000000001" y="66.79999999999995" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="511.6600000000003" y="92.0" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="580.6000000000001" y="92.0" font-family="Arial" font-size="16.00">place_id</text>
+<text xml:space="preserve" text-anchor="start" x="511.6600000000003" y="117.20000000000005" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="580.6000000000001" y="117.20000000000005" font-family="Arial" font-size="16.00">status</text>
+<text xml:space="preserve" text-anchor="start" x="511.6600000000003" y="142.39999999999986" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="580.6000000000001" y="142.39999999999986" font-family="Arial" font-size="16.00">reason_code</text>
+<text xml:space="preserve" text-anchor="start" x="511.6600000000003" y="167.5999999999999" font-family="Arial" font-size="16.00" fill="#334155">UK</text>
+<text xml:space="preserve" text-anchor="start" x="580.6000000000001" y="167.5999999999999" font-family="Arial" font-size="16.00">attempt_key</text>
+<text xml:space="preserve" text-anchor="start" x="511.6600000000003" y="188.79999999999995" font-family="Arial" font-size="12.00" fill="#64748b">+ 10 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="507.66,195.20 507.66,0.00 717.82,0.00 717.82,195.20 507.66,195.20" />
+</g>
+
+<g id="node_PlaceKnowledge" class="node">
+<title>PlaceKnowledge</title>
+<polygon fill="white" stroke="none" points="0.00,170.00 0.00,0.00 164.76,0.00 164.76,170.00 0.00,170.00" />
+<polygon fill="#e4effb" stroke="none" points="1.00,27.40 1.00,1.00 163.76,1.00 163.76,27.40 1.00,27.40" />
+<text xml:space="preserve" text-anchor="start" x="4.0" y="18.300000000000182" font-family="Arial" font-weight="bold" font-size="17.00">PlaceKnowledge</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="42.40000000000009" font-family="Arial" font-size="12.00" fill="#64748b">public.travel_placeknowledge</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="66.80000000000018" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="46.24000000000001" y="66.80000000000018" font-family="Arial" font-size="16.00">place_id</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="92.0" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="46.24000000000001" y="92.0" font-family="Arial" font-size="16.00">name</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="117.20000000000005" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="46.24000000000001" y="117.20000000000005" font-family="Arial" font-size="16.00">branch_name</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="142.4000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="46.24000000000001" y="142.4000000000001" font-family="Arial" font-size="16.00">stadium_code</text>
+<text xml:space="preserve" text-anchor="start" x="4.0" y="163.60000000000014" font-family="Arial" font-size="12.00" fill="#64748b">+ 13 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="0.00,170.00 0.00,0.00 164.76,0.00 164.76,170.00 0.00,170.00" />
+</g>
+
+<g id="node_PlaceKnowledgeObservation" class="node">
+<title>PlaceKnowledgeObservation</title>
+<polygon fill="white" stroke="none" points="229.38,690.80 229.38,470.40 471.66,470.40 471.66,690.80 229.38,690.80" />
+<polygon fill="#e4effb" stroke="none" points="230.38,497.80 230.38,471.40 470.66,471.40 470.66,497.80 230.38,497.80" />
+<text xml:space="preserve" text-anchor="start" x="233.3800000000001" y="488.7000000000003" font-family="Arial" font-weight="bold" font-size="17.00">PlaceKnowledgeObservation</text>
+<text xml:space="preserve" text-anchor="start" x="233.3800000000001" y="512.8000000000002" font-family="Arial" font-size="12.00" fill="#64748b">public.travel_placeknowledgeobservation</text>
+<text xml:space="preserve" text-anchor="start" x="233.3800000000001" y="537.2000000000003" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="284.1300000000001" y="537.2000000000003" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="233.3800000000001" y="562.4000000000001" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="284.1300000000001" y="562.4000000000001" font-family="Arial" font-size="16.00">place_id</text>
+<text xml:space="preserve" text-anchor="start" x="233.3800000000001" y="587.6000000000001" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="284.1300000000001" y="587.6000000000001" font-family="Arial" font-size="16.00">source_id</text>
+<text xml:space="preserve" text-anchor="start" x="233.3800000000001" y="612.8000000000002" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="284.1300000000001" y="612.8000000000002" font-family="Arial" font-size="16.00">review_status</text>
+<text xml:space="preserve" text-anchor="start" x="233.3800000000001" y="638.0000000000002" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="284.1300000000001" y="638.0000000000002" font-family="Arial" font-size="16.00">observation_date_kind</text>
+<text xml:space="preserve" text-anchor="start" x="233.3800000000001" y="663.2000000000003" font-family="Arial" font-size="16.00" fill="#334155">UK</text>
+<text xml:space="preserve" text-anchor="start" x="284.1300000000001" y="663.2000000000003" font-family="Arial" font-size="16.00">ingest_key</text>
+<text xml:space="preserve" text-anchor="start" x="233.3800000000001" y="684.4000000000002" font-family="Arial" font-size="12.00" fill="#64748b">+ 19 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="229.38,690.80 229.38,470.40 471.66,470.40 471.66,690.80 229.38,690.80" />
+</g>
+
+<g id="node_PlaceKnowledgeSource" class="node">
+<title>PlaceKnowledgeSource</title>
+<polygon fill="white" stroke="none" points="229.38,900.80 229.38,730.80 430.16,730.80 430.16,900.80 229.38,900.80" />
+<polygon fill="#e4effb" stroke="none" points="230.38,758.20 230.38,731.80 429.16,731.80 429.16,758.20 230.38,758.20" />
+<text xml:space="preserve" text-anchor="start" x="233.3800000000001" y="749.1000000000004" font-family="Arial" font-weight="bold" font-size="17.00">PlaceKnowledgeSource</text>
+<text xml:space="preserve" text-anchor="start" x="233.3800000000001" y="773.2000000000003" font-family="Arial" font-size="12.00" fill="#64748b">public.travel_placeknowledgesource</text>
+<text xml:space="preserve" text-anchor="start" x="233.3800000000001" y="797.6000000000004" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="302.97000000000025" y="797.6000000000004" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="233.3800000000001" y="822.8000000000002" font-family="Arial" font-size="16.00" fill="#334155">UK</text>
+<text xml:space="preserve" text-anchor="start" x="302.97000000000025" y="822.8000000000002" font-family="Arial" font-size="16.00">source_key</text>
+<text xml:space="preserve" text-anchor="start" x="233.3800000000001" y="848.0000000000002" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="302.97000000000025" y="848.0000000000002" font-family="Arial" font-size="16.00">provider</text>
+<text xml:space="preserve" text-anchor="start" x="233.3800000000001" y="873.2000000000003" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="302.97000000000025" y="873.2000000000003" font-family="Arial" font-size="16.00">url</text>
+<text xml:space="preserve" text-anchor="start" x="233.3800000000001" y="894.4000000000003" font-family="Arial" font-size="12.00" fill="#64748b">+ 10 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="229.38,900.80 229.38,730.80 430.16,730.80 430.16,900.80 229.38,900.80" />
+</g>
+
+<g id="node_TourismPlace" class="node">
+<title>TourismPlace</title>
+<polygon fill="white" stroke="none" points="753.82,430.40 753.82,235.20 900.56,235.20 900.56,430.40 753.82,430.40" />
+<polygon fill="#e4effb" stroke="none" points="754.82,262.60 754.82,236.20 899.56,236.20 899.56,262.60 754.82,262.60" />
+<text xml:space="preserve" text-anchor="start" x="757.8200000000002" y="253.5" font-family="Arial" font-weight="bold" font-size="17.00">TourismPlace</text>
+<text xml:space="preserve" text-anchor="start" x="757.8200000000002" y="277.60000000000014" font-family="Arial" font-size="12.00" fill="#64748b">public.travel_tourismplace</text>
+<text xml:space="preserve" text-anchor="start" x="757.8200000000002" y="302.0" font-family="Arial" font-size="16.00" fill="#174b8a">PK</text>
+<text xml:space="preserve" text-anchor="start" x="795.4900000000001" y="302.0" font-family="Arial" font-size="16.00">id</text>
+<text xml:space="preserve" text-anchor="start" x="757.8200000000002" y="327.20000000000005" font-family="Arial" font-size="16.00" fill="#855319">FK</text>
+<text xml:space="preserve" text-anchor="start" x="795.4900000000001" y="327.20000000000005" font-family="Arial" font-size="16.00">place_id</text>
+<text xml:space="preserve" text-anchor="start" x="757.8200000000002" y="352.4000000000001" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="795.4900000000001" y="352.4000000000001" font-family="Arial" font-size="16.00">updated_at</text>
+<text xml:space="preserve" text-anchor="start" x="757.8200000000002" y="377.60000000000014" font-family="Arial" font-size="16.00" fill="#334155">UK</text>
+<text xml:space="preserve" text-anchor="start" x="795.4900000000001" y="377.60000000000014" font-family="Arial" font-size="16.00">content_id</text>
+<text xml:space="preserve" text-anchor="start" x="757.8200000000002" y="402.8000000000002" font-family="Arial" font-size="16.00" fill="#334155">·</text>
+<text xml:space="preserve" text-anchor="start" x="795.4900000000001" y="402.8000000000002" font-family="Arial" font-size="16.00">content_type</text>
+<text xml:space="preserve" text-anchor="start" x="757.8200000000002" y="424.0000000000001" font-family="Arial" font-size="12.00" fill="#64748b">+ 5 fields</text>
+<polygon fill="none" stroke="#b8c6d6" points="753.82,430.40 753.82,235.20 900.56,235.20 900.56,430.40 753.82,430.40" />
+</g>
+</g>
+</svg>
